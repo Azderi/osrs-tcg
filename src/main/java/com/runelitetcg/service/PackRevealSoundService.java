@@ -20,7 +20,8 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Pack reveal audio: premium-tier ambience ({@code /hum.wav}, looped while any qualifying face-down card remains),
  * matching reveal chime ({@code /reveal.wav}) on flip, per-card deal motion ({@code /card.wav}) when each card begins flying to its slot,
- * {@code /flip.wav} when a face-down card is clicked to flip, and {@code /transfer.wav} when a party card transfer completes.
+ * {@code /flip.wav} when a face-down card is clicked to flip, {@code /apex.wav} looped while hovering a sealed apex pack,
+ * and {@code /transfer.wav} when a party card transfer completes.
  * <p>
  * Short samples use a <b>new {@link Clip} per play</b> so several can overlap (flip + premium reveal, stacked deal hits, etc.).
  * The hum stays on one looped clip with a short fade-in when it starts.
