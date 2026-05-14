@@ -12,9 +12,11 @@ import net.runelite.client.chat.QueuedMessage;
  */
 public final class TcgPluginGameMessages
 {
-	/** Warm gold for the {@code OSRS TCG} label (brackets stay default game colour). */
-	/** Slightly darker than pure bright gold so it reads better on the game message background. */
-	private static final Color PLUGIN_BRAND_GOLD = new Color(0xE5, 0xB0, 0x26);
+	/**
+	 * Warm gold for the {@code OSRS TCG} label and for Godly-tier card names in game chat (slightly darker than
+	 * {@link com.runelitetcg.service.RarityMath.Tier#GODLY} frame colour so it reads better on the message background).
+	 */
+	public static final Color CHAT_EMPHASIS_GOLD = new Color(0xE5, 0xB0, 0x26);
 
 	private TcgPluginGameMessages()
 	{
@@ -25,7 +27,7 @@ public final class TcgPluginGameMessages
 		return new ChatMessageBuilder()
 			.append(ChatColorType.NORMAL)
 			.append("[")
-			.append(PLUGIN_BRAND_GOLD, "OSRS TCG")
+			.append(CHAT_EMPHASIS_GOLD, "OSRS TCG")
 			.append(ChatColorType.NORMAL)
 			.append("] ");
 	}

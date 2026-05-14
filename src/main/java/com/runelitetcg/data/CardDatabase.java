@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 import com.runelitetcg.service.RarityMath;
+import com.runelitetcg.util.TcgPluginGameMessages;
 import java.awt.Color;
 import java.io.IOException;
 import java.io.InputStream;
@@ -83,7 +84,8 @@ public class CardDatabase
 	}
 
 	/**
-	 * Display-tier colour for chat (same tier source as the collection album / pack reveal).
+	 * Display-tier colour for chat (same tier source as the collection album / pack reveal). Godly uses
+	 * {@link TcgPluginGameMessages#CHAT_EMPHASIS_GOLD} to match the {@code OSRS TCG} label.
 	 */
 	public synchronized Color chatRarityColorForCardName(String cardName)
 	{
@@ -112,7 +114,10 @@ public class CardDatabase
 				continue;
 			}
 			RarityMath.Tier t = tierByName.getOrDefault(c.getName(), RarityMath.Tier.COMMON);
-			map.put(c.getName().trim().toLowerCase(Locale.ROOT), t.getColor());
+			Color nameColor = t == RarityMath.Tier.GODLY
+				? TcgPluginGameMessages.CHAT_EMPHASIS_GOLD
+				: t.getColor();
+			map.put(c.getName().trim().toLowerCase(Locale.ROOT), nameColor);
 		}
 		chatRarityColorByLowerCaseName = Collections.unmodifiableMap(map);
 	}
