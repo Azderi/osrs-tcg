@@ -62,9 +62,10 @@ public class PackRevealService
 		private final double packFadeProgress;
 		private final String boosterPackId;
 		private final boolean showScrollWheelOverlayHint;
+		private final boolean apexPackOpen;
 
 		private RevealPaintSnapshot(Phase phase, List<RevealCard> cards, boolean[] revealedByIndex, long phaseElapsedMs,
-			double packFadeProgress, String boosterPackId, boolean showScrollWheelOverlayHint)
+			double packFadeProgress, String boosterPackId, boolean showScrollWheelOverlayHint, boolean apexPackOpen)
 		{
 			this.phase = phase;
 			this.cards = cards;
@@ -73,6 +74,7 @@ public class PackRevealService
 			this.packFadeProgress = packFadeProgress;
 			this.boosterPackId = boosterPackId == null ? "" : boosterPackId;
 			this.showScrollWheelOverlayHint = showScrollWheelOverlayHint;
+			this.apexPackOpen = apexPackOpen;
 		}
 
 		public Phase getPhase()
@@ -104,6 +106,11 @@ public class PackRevealService
 		public boolean isShowScrollWheelOverlayHint()
 		{
 			return showScrollWheelOverlayHint;
+		}
+
+		public boolean isApexPackOpen()
+		{
+			return apexPackOpen;
 		}
 
 		public boolean isCardRevealed(int index)
@@ -157,6 +164,8 @@ public class PackRevealService
 	private final Map<RarityMath.Tier, Integer> tierPopulation = new EnumMap<>(RarityMath.Tier.class);
 	private String boosterDisplayName = "";
 	private String boosterPackId = "";
+	/** When true, sealed-pack overlay uses apex hover sound and Godly-tier glow. */
+	private boolean apexPackOpen;
 	/** Wall-clock ms until which the first-pack scroll hint is shown; {@code 0} = off. */
 	private long scrollWheelHintUntilMs;
 
@@ -172,12 +181,12 @@ public class PackRevealService
 
 	public synchronized void startReveal(List<PackCardResult> pulls)
 	{
-		startReveal(pulls, Set.of(), null, null, false);
+		startReveal(pulls, Set.of(), null, null, false, false);
 	}
 
 	public synchronized void startReveal(List<PackCardResult> pulls, Set<CardCollectionKey> preOwnedCards)
 	{
-		startReveal(pulls, preOwnedCards, null, null, false);
+		startReveal(pulls, preOwnedCards, null, null, false, false);
 	}
 
 	/**
@@ -187,17 +196,23 @@ public class PackRevealService
 	 */
 	public synchronized void startReveal(List<PackCardResult> pulls, Set<CardCollectionKey> preOwnedCards, String boosterTitle)
 	{
-		startReveal(pulls, preOwnedCards, boosterTitle, null, false);
+		startReveal(pulls, preOwnedCards, boosterTitle, null, false, false);
 	}
 
 	public synchronized void startReveal(List<PackCardResult> pulls, Set<CardCollectionKey> preOwnedCards,
 		String boosterTitle, String boosterPackId)
 	{
-		startReveal(pulls, preOwnedCards, boosterTitle, boosterPackId, false);
+		startReveal(pulls, preOwnedCards, boosterTitle, boosterPackId, false, false);
 	}
 
 	public synchronized void startReveal(List<PackCardResult> pulls, Set<CardCollectionKey> preOwnedCards,
 		String boosterTitle, String boosterPackId, boolean showScrollWheelOverlayHint)
+	{
+		startReveal(pulls, preOwnedCards, boosterTitle, boosterPackId, showScrollWheelOverlayHint, false);
+	}
+
+	public synchronized void startReveal(List<PackCardResult> pulls, Set<CardCollectionKey> preOwnedCards,
+		String boosterTitle, String boosterPackId, boolean showScrollWheelOverlayHint, boolean apexPackOpen)
 	{
 		if (pulls == null || pulls.isEmpty())
 		{
@@ -213,6 +228,7 @@ public class PackRevealService
 			: 0L;
 		this.boosterDisplayName = boosterTitle == null ? "" : boosterTitle.trim();
 		this.boosterPackId = boosterPackId == null ? "" : boosterPackId.trim();
+		this.apexPackOpen = apexPackOpen;
 		rebuildRarityTierIndex();
 
 		List<RevealCard> resolved = new ArrayList<>();
@@ -442,7 +458,8 @@ public class PackRevealService
 			phaseElapsedMs,
 			packFadeProgress,
 			boosterPackId,
-			scrollHintVisible));
+			scrollHintVisible,
+			apexPackOpen));
 	}
 
 	private long computePhaseElapsedMsLocked()
@@ -542,6 +559,7 @@ public class PackRevealService
 		cardPoolSize = 0;
 		boosterDisplayName = "";
 		boosterPackId = "";
+		apexPackOpen = false;
 		scrollWheelHintUntilMs = 0L;
 	}
 

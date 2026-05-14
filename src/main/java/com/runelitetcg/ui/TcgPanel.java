@@ -1397,7 +1397,7 @@ public class TcgPanel extends PluginPanel
 				return;
 			}
 			packRevealService.startReveal(result.getPulls(), preOwned, result.getBoosterDisplayName(),
-				result.getBoosterPackId(), showScrollWheelHint);
+				result.getBoosterPackId(), showScrollWheelHint, result.isApexPack());
 			refresh();
 		});
 		return button;

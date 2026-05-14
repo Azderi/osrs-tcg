@@ -2,6 +2,7 @@ package com.runelitetcg.overlay;
 
 import com.runelitetcg.service.PackRevealSoundService;
 import com.runelitetcg.service.PackRevealService;
+import com.runelitetcg.service.RarityMath;
 import com.runelitetcg.service.TcgStateService;
 import com.runelitetcg.service.WikiImageCacheService;
 import com.runelitetcg.ui.SharedCardRenderer;
@@ -155,12 +156,21 @@ public class PackRevealOverlay extends Overlay
 		ViewportLayout layout = computeViewportLayout(canvas, cardCount);
 		PackRevealService.Phase phase = snap.getPhase();
 		updateHoverDynamics(canvas, layout, cardCount, phase, snap.getPhaseElapsedMs());
+		boolean apexSealedHoverSound = snap.isApexPackOpen() && phase == PackRevealService.Phase.PACK_READY;
+		packRevealSoundService.tickApexPackHover(apexSealedHoverSound,
+			apexSealedHoverSound && packHoverLift > 0.02d);
 		tickMythicHum(phase, snap);
 		tickDealCardMotionSounds(phase, cardCount, snap.getPhaseElapsedMs());
 		if (phase == PackRevealService.Phase.PACK_READY)
 		{
 			Rectangle packBase = layout.packRect(canvas);
-			drawPackImage(graphics, packDrawRect(packBase), 1.0f, snap.getBoosterPackId());
+			Rectangle packScaled = packDrawRect(packBase);
+			if (snap.isApexPackOpen())
+			{
+				float glowAlpha = (float) (HOVER_RARITY_GLOW_ALPHA * Math.max(0.22d, packHoverLift));
+				drawGlow(graphics, packScaled, RarityMath.Tier.GODLY.getColor(), glowAlpha);
+			}
+			drawPackImage(graphics, packScaled, 1.0f, snap.getBoosterPackId());
 			paintScrollHintOnTop(graphics, canvas, snap);
 			return null;
 		}

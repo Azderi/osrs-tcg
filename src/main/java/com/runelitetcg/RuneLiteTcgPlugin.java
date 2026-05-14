@@ -411,7 +411,7 @@ public class RuneLiteTcgPlugin extends Plugin
 				NumberFormatting.format(result.getPulls().size()));
 		client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", openedLine, null);
 		packRevealService.startReveal(result.getPulls(), preOwned, result.getBoosterDisplayName(),
-			result.getBoosterPackId(), showScrollWheelHint);
+			result.getBoosterPackId(), showScrollWheelHint, result.isApexPack());
 		tcgPanel.refresh();
 	}
 

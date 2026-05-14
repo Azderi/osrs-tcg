@@ -37,6 +37,9 @@ public class PackRevealSoundService
 	private static final String CARD_DEAL_RESOURCE = "/card.wav";
 	private static final String FLIP_RESOURCE = "/flip.wav";
 	private static final String TRANSFER_SUCCESS_RESOURCE = "/transfer.wav";
+	private static final String APEX_PACK_HOVER_RESOURCE = "/apex.wav";
+	/** Fade-in for apex pack hover loop (sealed pack, {@link com.runelitetcg.service.PackRevealService.Phase#PACK_READY}). */
+	private static final float APEX_HOVER_FADE_IN_SEC = 0.55f;
 
 	private final RuneLiteTcgConfig config;
 
@@ -51,6 +54,12 @@ public class PackRevealSoundService
 	private boolean flipOpenFailed;
 	private boolean cardDealOpenFailed;
 	private boolean transferSuccessOpenFailed;
+
+	private Clip apexHoverClip;
+	private boolean apexHoverOpenFailed;
+	private boolean apexHoverLoopActive;
+	private long lastApexHoverTickNanos = System.nanoTime();
+	private float apexHoverFade01;
 
 	private final CopyOnWriteArrayList<Clip> activeOneShotClips = new CopyOnWriteArrayList<>();
 
@@ -202,8 +211,124 @@ public class PackRevealSoundService
 	public synchronized void hardStop()
 	{
 		hardStopHum();
+		hardStopApexHover();
 		hardStopActiveOneShots();
 		dealMotionSoundUpToIndex = -1;
+	}
+
+	/**
+	 * Looped {@code apex.wav} while the sealed apex pack is hovered ({@code wantHoverSound && hoveringPack}).
+	 */
+	public synchronized void tickApexPackHover(boolean wantHoverSound, boolean hoveringPack)
+	{
+		if (!wantHoverSound || !config.enableSounds())
+		{
+			hardStopApexHover();
+			return;
+		}
+
+		if (apexHoverOpenFailed)
+		{
+			return;
+		}
+
+		if (!hoveringPack)
+		{
+			hardStopApexHover();
+			return;
+		}
+
+		try
+		{
+			ensureApexHoverClipOpen();
+		}
+		catch (IOException | UnsupportedAudioFileException | LineUnavailableException ex)
+		{
+			log.warn("Could not open apex.wav for apex pack hover", ex);
+			apexHoverOpenFailed = true;
+			hardStopApexHover();
+			return;
+		}
+
+		if (apexHoverClip == null)
+		{
+			return;
+		}
+
+		long now = System.nanoTime();
+		float dt = Math.min(0.25f, Math.max(0f, (now - lastApexHoverTickNanos) / 1.0e9f));
+		lastApexHoverTickNanos = now;
+
+		if (!apexHoverLoopActive)
+		{
+			apexHoverClip.stop();
+			apexHoverClip.flush();
+			apexHoverClip.setFramePosition(0);
+			apexHoverFade01 = 0f;
+			applyGain(apexHoverClip, 0f);
+			apexHoverClip.loop(Clip.LOOP_CONTINUOUSLY);
+			apexHoverLoopActive = true;
+		}
+		else
+		{
+			apexHoverFade01 = Math.min(1f, apexHoverFade01 + dt / APEX_HOVER_FADE_IN_SEC);
+		}
+		applyGain(apexHoverClip, apexHoverFade01 * 0.85f);
+	}
+
+	private void hardStopApexHover()
+	{
+		apexHoverLoopActive = false;
+		apexHoverFade01 = 0f;
+		lastApexHoverTickNanos = System.nanoTime();
+		if (apexHoverClip == null)
+		{
+			return;
+		}
+		try
+		{
+			if (apexHoverClip.isRunning())
+			{
+				apexHoverClip.stop();
+			}
+			apexHoverClip.flush();
+			apexHoverClip.setFramePosition(0);
+			applyGain(apexHoverClip, 0f);
+		}
+		catch (Exception ignored)
+		{
+			// best-effort
+		}
+	}
+
+	private void ensureApexHoverClipOpen() throws IOException, UnsupportedAudioFileException, LineUnavailableException
+	{
+		if (apexHoverClip != null)
+		{
+			return;
+		}
+		URL url = PackRevealSoundService.class.getResource(APEX_PACK_HOVER_RESOURCE);
+		if (url == null)
+		{
+			log.warn("Missing resource {}", APEX_PACK_HOVER_RESOURCE);
+			apexHoverOpenFailed = true;
+			return;
+		}
+		try (AudioInputStream ais = AudioSystem.getAudioInputStream(url))
+		{
+			apexHoverClip = AudioSystem.getClip();
+			apexHoverClip.open(ais);
+		}
+		if (!apexHoverClip.isControlSupported(FloatControl.Type.MASTER_GAIN))
+		{
+			log.warn("apex.wav has no MASTER_GAIN control; apex pack hover sound disabled.");
+			apexHoverOpenFailed = true;
+			if (apexHoverClip.isOpen())
+			{
+				apexHoverClip.close();
+			}
+			apexHoverClip = null;
+		}
 	}
 
 	private void hardStopHum()

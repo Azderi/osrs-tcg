@@ -176,7 +176,7 @@ public class PackOpeningService
 		long creditsAfter = stateService.getCredits();
 		String packId = booster.getId() == null ? "" : booster.getId().trim();
 		return PackOpenResult.succeeded("Pack opened.", creditsBefore, creditsAfter, packPrice, pulls,
-			booster.getName(), packId);
+			booster.getName(), packId, apexTopThreeTierOnly);
 	}
 
 	private List<PackCardResult> rollDebugSameCardPack(List<CardDefinition> pool)
