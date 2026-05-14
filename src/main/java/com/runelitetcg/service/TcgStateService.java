@@ -127,11 +127,7 @@ public class TcgStateService
 			return;
 		}
 
-		Runnable flush = rewardTuningFlushBeforeCredits;
-		if (flush != null && !isRewardTuningLocked())
-		{
-			flush.run();
-		}
+		flushRewardTuningDraftBeforeLocking();
 
 		state = state.withCredits(state.getEconomyState().getCredits() + amount);
 		save();
@@ -157,6 +153,7 @@ public class TcgStateService
 
 	public synchronized void incrementOpenedPacks()
 	{
+		flushRewardTuningDraftBeforeLocking();
 		state = state.withOpenedPacks(state.getEconomyState().getOpenedPacks() + 1L);
 		save();
 	}
@@ -192,6 +189,8 @@ public class TcgStateService
 		UnaryOperator<Map<CardCollectionKey, Integer>> mutation,
 		UnaryOperator<Map<CardCollectionKey, Long>> timestampMutation)
 	{
+		flushRewardTuningDraftBeforeLocking();
+
 		Map<CardCollectionKey, Integer> copy = new HashMap<>(state.getCollectionState().getOwnedCards());
 		Map<CardCollectionKey, Integer> result = mutation.apply(copy);
 		Map<CardCollectionKey, Integer> normalized = result == null ? copy : result;
@@ -224,6 +223,8 @@ public class TcgStateService
 		{
 			return false;
 		}
+
+		flushRewardTuningDraftBeforeLocking();
 
 		long currentCredits = state.getEconomyState().getCredits();
 		if (currentCredits < packPrice)
@@ -295,5 +296,18 @@ public class TcgStateService
 		state = state.withCollection(new CollectionState(copy, tsCopy));
 		save();
 		return true;
+	}
+
+	/**
+	 * Persists sidebar draft foil / multipliers via {@link #rewardTuningFlushBeforeCredits} before mutating state in a way
+	 * that can {@link #isRewardTuningLocked() lock} tuning without an {@link #addCredits(long)} call.
+	 */
+	private void flushRewardTuningDraftBeforeLocking()
+	{
+		Runnable flush = rewardTuningFlushBeforeCredits;
+		if (flush != null && !isRewardTuningLocked())
+		{
+			flush.run();
+		}
 	}
 }

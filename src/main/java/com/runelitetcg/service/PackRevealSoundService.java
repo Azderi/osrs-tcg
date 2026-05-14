@@ -175,7 +175,7 @@ public class PackRevealSoundService
 		{
 			return;
 		}
-		if (!playDisposableOneShot(APEX_PACK_HOVER_RESOURCE, "apex.wav", 0.85f))
+		if (!playDisposableOneShot(APEX_PACK_HOVER_RESOURCE, "apex.wav", 0.425f))
 		{
 			apexHoverOneShotOpenFailed = true;
 		}
