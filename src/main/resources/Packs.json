@@ -1,0 +1,80 @@
+[
+  {
+    "id": "standard",
+    "name": "Standard Pack",
+    "category": [],
+    "price": 2500
+  },
+  {
+    "id": "asgarnia",
+    "name": "Asgarnia Set",
+    "category": ["Asgarnia"],
+    "price": 2500
+  },
+  {
+    "id": "fremennik",
+    "name": "Fremennik Province Set",
+    "category": ["Fremennik"],
+    "price": 2500
+  },
+  {
+    "id": "kandarin",
+    "name": "Kandarin Set",
+    "category": ["Kandarin"],
+    "price": 2500
+  },
+  {
+    "id": "karamja",
+    "name": "Karamja Set",
+    "category": ["Karamja"],
+    "price": 2500
+  },
+  {
+    "id": "desert",
+    "name": "Desert Set",
+    "category": ["Desert"],
+    "price": 2500
+  },
+  {
+    "id": "morytania",
+    "name": "Morytania Set",
+    "category": ["Morytania"],
+    "price": 2500
+  },
+  {
+    "id": "barrows",
+    "name": "Barrows Set",
+    "category": ["Barrows"],
+    "price": 2500
+  },
+  {
+    "id": "clue",
+    "name": "Clue Set",
+    "category": ["Clue"],
+    "price": 2500
+  },
+  {
+    "id": "tirannwn",
+    "name": "Tirannwn Set",
+    "category": ["Tirannwn"],
+    "price": 2500
+  },
+  {
+    "id": "wilderness",
+    "name": "Wilderness Set",
+    "category": ["Wilderness"],
+    "price": 2500
+  },
+  {
+    "id": "kebos_kourend",
+    "name": "Kebos and Kourend Set",
+    "category": ["Kourend"],
+    "price": 2500
+  },
+  {
+    "id": "varlamore",
+    "name": "Varlamore Set",
+    "category": ["Varlamore"],
+    "price": 2500
+  }
+]
