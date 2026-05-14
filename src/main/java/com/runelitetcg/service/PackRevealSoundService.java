@@ -152,14 +152,14 @@ public class PackRevealSoundService
 		}
 	}
 
-	/** One-shot {@code transfer.wav} when a party card transfer completes (sender and recipient). */
+	/** One-shot {@code transfer.wav} when a party card transfer completes (sender and recipient); half default gain. */
 	public synchronized void playTransferSuccess()
 	{
 		if (!config.enableSounds() || transferSuccessOpenFailed)
 		{
 			return;
 		}
-		if (!playDisposableOneShot(TRANSFER_SUCCESS_RESOURCE, "transfer.wav"))
+		if (!playDisposableOneShot(TRANSFER_SUCCESS_RESOURCE, "transfer.wav", 0.5f))
 		{
 			transferSuccessOpenFailed = true;
 		}
@@ -263,6 +263,11 @@ public class PackRevealSoundService
 	 */
 	private boolean playDisposableOneShot(String resourcePath, String logName)
 	{
+		return playDisposableOneShot(resourcePath, logName, 1f);
+	}
+
+	private boolean playDisposableOneShot(String resourcePath, String logName, float linearGain01)
+	{
 		URL url = PackRevealSoundService.class.getResource(resourcePath);
 		if (url == null)
 		{
@@ -282,7 +287,7 @@ public class PackRevealSoundService
 		}
 		try
 		{
-			applyGain(clip, 1f);
+			applyGain(clip, linearGain01);
 			Clip c = clip;
 			c.addLineListener(new LineListener()
 			{

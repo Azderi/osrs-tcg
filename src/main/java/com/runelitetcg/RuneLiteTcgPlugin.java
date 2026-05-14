@@ -2,6 +2,7 @@ package com.runelitetcg;
 
 import com.google.inject.Provides;
 import com.runelitetcg.data.CardDatabase;
+import com.runelitetcg.data.CardDefinition;
 import com.runelitetcg.data.PackCatalog;
 import com.runelitetcg.model.CardCollectionKey;
 import com.runelitetcg.model.TcgPublicStats;
@@ -32,6 +33,10 @@ import java.awt.image.BufferedImage;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.concurrent.ScheduledExecutorService;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
@@ -71,6 +76,7 @@ import net.runelite.client.util.Text;
 public class RuneLiteTcgPlugin extends Plugin
 {
 	private static final String TCG_PUBLIC_CHAT_COMMAND = "!tcg";
+	private static final Pattern TCG_GIVE_FOIL_SUFFIX = Pattern.compile("(?i)\\s*\\(foil\\)\\s*$");
 
 	@Inject
 	private Client client;
@@ -341,6 +347,19 @@ public class RuneLiteTcgPlugin extends Plugin
 			return;
 		}
 
+		if ("tcg-give".equalsIgnoreCase(event.getCommand()))
+		{
+			if (!stateService.isDebugLogging())
+			{
+				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
+					"[OSRS TCG] ::tcg-give requires debug mode (Overview tab: enable before reward multipliers lock).",
+					null);
+				return;
+			}
+			handleGiveCardCommand(event);
+			return;
+		}
+
 		if (!"tcg-open".equalsIgnoreCase(event.getCommand()))
 		{
 			return;
@@ -371,6 +390,60 @@ public class RuneLiteTcgPlugin extends Plugin
 			null);
 		packRevealService.startReveal(result.getPulls(), preOwned, result.getBoosterDisplayName(),
 			result.getBoosterPackId(), showScrollWheelHint);
+		tcgPanel.refresh();
+	}
+
+	private void handleGiveCardCommand(CommandExecuted event)
+	{
+		String[] arguments = event.getArguments();
+		if (arguments == null || arguments.length == 0)
+		{
+			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
+				"[OSRS TCG] Usage: ::tcg-give <card name>  or  ::tcg-give <card name> (foil)", null);
+			return;
+		}
+
+		String joined = Arrays.stream(arguments)
+			.filter(Objects::nonNull)
+			.map(String::trim)
+			.filter(s -> !s.isEmpty())
+			.collect(Collectors.joining(" "));
+		if (joined.isEmpty())
+		{
+			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
+				"[OSRS TCG] Usage: ::tcg-give <card name>  or  ::tcg-give <card name> (foil)", null);
+			return;
+		}
+
+		boolean foil = TCG_GIVE_FOIL_SUFFIX.matcher(joined).find();
+		String cardQuery = TCG_GIVE_FOIL_SUFFIX.matcher(joined).replaceFirst("").trim();
+		if (cardQuery.isEmpty())
+		{
+			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
+				"[OSRS TCG] Usage: ::tcg-give <card name>  or  ::tcg-give <card name> (foil)", null);
+			return;
+		}
+
+		Optional<String> resolved = cardDatabase.getCards().stream()
+			.filter(Objects::nonNull)
+			.map(CardDefinition::getName)
+			.filter(Objects::nonNull)
+			.filter(n -> n.trim().equalsIgnoreCase(cardQuery))
+			.findFirst()
+			.map(n -> n.trim());
+
+		if (!resolved.isPresent())
+		{
+			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
+				String.format(Locale.US, "[OSRS TCG] No card named \"%s\" in Card.json.", cardQuery), null);
+			return;
+		}
+
+		String canonicalName = resolved.get();
+		stateService.addCard(canonicalName, foil, 1);
+		collectionAlbumManager.refreshIfVisible();
+		client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
+			String.format(Locale.US, "[OSRS TCG] Gave 1× %s%s.", canonicalName, foil ? " (foil)" : ""), null);
 		tcgPanel.refresh();
 	}
 
