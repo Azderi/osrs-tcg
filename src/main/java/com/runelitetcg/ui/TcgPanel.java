@@ -35,6 +35,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.inject.Singleton;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -69,6 +70,9 @@ public class TcgPanel extends PluginPanel
 {
 	private static final String REWARD_TUNING_LOCKED_TOOLTIP =
 		"Locked while you have credits, opened packs, or collection cards. Use Reset collection below to change these.";
+
+	private static final String REWARD_TUNING_NON_DEFAULT_TRADE_WARNING =
+		"Your settings do not match the defaults. You will not be able to trade with other players unless their settings match with you!";
 
 	private static final String TCG_WELCOME_HEADER = "Welcome to OSRS TCG";
 
@@ -140,6 +144,8 @@ public class TcgPanel extends PluginPanel
 	private double rewardDraftLevel = 1.0d;
 	private double rewardDraftXp = 1.0d;
 
+	private final boolean runeliteDeveloperMode;
+
 	@Inject
 	public TcgPanel(
 		TcgStateService stateService,
@@ -150,9 +156,11 @@ public class TcgPanel extends PluginPanel
 		RuneLiteTcgConfig config,
 		Client client,
 		CollectionAlbumManager collectionAlbumManager,
-		CreditAwardService creditAwardService)
+		CreditAwardService creditAwardService,
+		@Named("developerMode") boolean runeliteDeveloperMode)
 	{
 		super(false);
+		this.runeliteDeveloperMode = runeliteDeveloperMode;
 		this.stateService = stateService;
 		this.cardDatabase = cardDatabase;
 		this.packOpeningService = packOpeningService;
@@ -237,6 +245,10 @@ public class TcgPanel extends PluginPanel
 	{
 		cardDatabase.load();
 		packCatalog.load();
+		if (!runeliteDeveloperMode && stateService.isDebugLogging())
+		{
+			stateService.setDebugLogging(false);
+		}
 		rebuildRarityColorMap();
 		syncRewardDraftFromPersistent();
 		ensureRootAttached();
@@ -1020,14 +1032,37 @@ public class TcgPanel extends PluginPanel
 		styleRewardTuningSpinner(levelSpin, 5);
 		styleRewardTuningSpinner(xpSpin, 5);
 
-		foilSpin.addChangeListener(e -> rewardDraftFoil = ((Number) foilSpin.getValue()).intValue());
-		killSpin.addChangeListener(e -> rewardDraftKill = ((Number) killSpin.getValue()).doubleValue());
-		levelSpin.addChangeListener(e -> rewardDraftLevel = ((Number) levelSpin.getValue()).doubleValue());
-		xpSpin.addChangeListener(e -> rewardDraftXp = ((Number) xpSpin.getValue()).doubleValue());
+		foilSpin.addChangeListener(e ->
+		{
+			rewardDraftFoil = ((Number) foilSpin.getValue()).intValue();
+			SwingUtilities.invokeLater(this::refresh);
+		});
+		killSpin.addChangeListener(e ->
+		{
+			rewardDraftKill = ((Number) killSpin.getValue()).doubleValue();
+			SwingUtilities.invokeLater(this::refresh);
+		});
+		levelSpin.addChangeListener(e ->
+		{
+			rewardDraftLevel = ((Number) levelSpin.getValue()).doubleValue();
+			SwingUtilities.invokeLater(this::refresh);
+		});
+		xpSpin.addChangeListener(e ->
+		{
+			rewardDraftXp = ((Number) xpSpin.getValue()).doubleValue();
+			SwingUtilities.invokeLater(this::refresh);
+		});
 
 		section.add(buildMultiplierGrid(contentW, levelSpin, killSpin, xpSpin, foilSpin));
-		section.add(Box.createRigidArea(new Dimension(0, 8)));
-		section.add(buildDebugModeCheckbox());
+		if (stateService.isDebugLogging() || !rewardDraftMatchesPluginDefaults())
+		{
+			section.add(buildMultiplierTradingWarningTextArea(contentW));
+		}
+		if (runeliteDeveloperMode)
+		{
+			section.add(Box.createRigidArea(new Dimension(0, 8)));
+			section.add(buildDebugModeCheckbox());
+		}
 		finishRewardTuningSectionLayout(section);
 		target.add(section);
 	}
@@ -1043,6 +1078,43 @@ public class TcgPanel extends PluginPanel
 		cb.setToolTipText("Extra logging, credit chat lines, free debug booster, ::tcg-set, ::tcg-give, and ::tcg-apex.");
 		cb.addActionListener(e -> persistDebugLogging(cb.isSelected()));
 		return cb;
+	}
+
+	private boolean rewardDraftMatchesPluginDefaults()
+	{
+		RewardTuningState d = RewardTuningState.DEFAULTS;
+		if (rewardDraftFoil != d.getFoilChancePercent())
+		{
+			return false;
+		}
+		return multiplierCloseToDefault(rewardDraftKill, d.getKillCreditMultiplier())
+			&& multiplierCloseToDefault(rewardDraftLevel, d.getLevelUpCreditMultiplier())
+			&& multiplierCloseToDefault(rewardDraftXp, d.getXpCreditMultiplier());
+	}
+
+	private static boolean multiplierCloseToDefault(double value, double defaultValue)
+	{
+		return Double.compare(value, defaultValue) == 0 || Math.abs(value - defaultValue) < 1e-9d;
+	}
+
+	private static JTextArea buildMultiplierTradingWarningTextArea(int contentMaxW)
+	{
+		int w = Math.max(120, contentMaxW);
+		JTextArea ta = new JTextArea(REWARD_TUNING_NON_DEFAULT_TRADE_WARNING);
+		ta.setEditable(false);
+		ta.setOpaque(false);
+		ta.setFocusable(false);
+		ta.setForeground(Color.RED);
+		ta.setFont(FontManager.getRunescapeSmallFont());
+		ta.setLineWrap(true);
+		ta.setWrapStyleWord(true);
+		ta.setBorder(new EmptyBorder(6, 0, 0, 0));
+		ta.setAlignmentX(JComponent.LEFT_ALIGNMENT);
+		ta.setSize(w, Short.MAX_VALUE);
+		int bodyH = ta.getPreferredSize().height;
+		ta.setPreferredSize(new Dimension(w, bodyH));
+		ta.setMaximumSize(new Dimension(w, bodyH));
+		return ta;
 	}
 
 	private static JPanel buildTcgWelcomeBlurb(int contentMaxW)
