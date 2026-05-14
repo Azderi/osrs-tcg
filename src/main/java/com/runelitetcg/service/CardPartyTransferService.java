@@ -4,6 +4,8 @@ import com.runelitetcg.model.RewardTuningState;
 import com.runelitetcg.party.TcgCardGiftPartyMessage;
 import com.runelitetcg.party.TcgCardGiftResponsePartyMessage;
 import com.runelitetcg.ui.collectionalbum.CollectionAlbumManager;
+import com.runelitetcg.util.TcgPluginGameMessages;
+import java.util.Locale;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
@@ -143,7 +145,7 @@ public class CardPartyTransferService
 			if (p != null && now - p.createdAtMs > PENDING_TTL_MS && pendingOffers.remove(tid, p))
 			{
 				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-					"[OSRS TCG] Card send timed out (no response from recipient).", null);
+					TcgPluginGameMessages.withGoldPluginPrefix("Card send timed out (no response from recipient)."), null);
 			}
 		}
 		synchronized (processedGiftTransferIds)
@@ -192,7 +194,8 @@ public class CardPartyTransferService
 		{
 			sendResponse(msg.getTransferId(), originalSender, false);
 			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-				"[OSRS TCG] Incoming card ignored: your foil / credit multipliers do not match the sender's.", null);
+				TcgPluginGameMessages.withGoldPluginPrefix(
+					"Incoming card ignored: your foil / credit multipliers do not match the sender's."), null);
 			return;
 		}
 
@@ -209,7 +212,7 @@ public class CardPartyTransferService
 			: "Party member";
 		String quotedCards = formatReceivedGiftCardList(card, foil);
 		client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-			String.format("[OSRS TCG] %s just sent you %s !", who, quotedCards),
+			TcgPluginGameMessages.withGoldPluginPrefix(String.format(Locale.US, "%s just sent you %s !", who, quotedCards)),
 			null);
 		refreshAlbumIfOpen();
 	}
@@ -268,20 +271,23 @@ public class CardPartyTransferService
 			if (!removed)
 			{
 				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-					"[OSRS TCG] Recipient accepted the card but you no longer had that copy; check your collection.", null);
+					TcgPluginGameMessages.withGoldPluginPrefix(
+						"Recipient accepted the card but you no longer had that copy; check your collection."), null);
 			}
 			else
 			{
 				String foilTag = pending.foil ? " (foil)" : "";
 				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-					String.format("[OSRS TCG] Sent %s%s to %s.", pending.cardName, foilTag, target),
+					TcgPluginGameMessages.withGoldPluginPrefix(
+						String.format(Locale.US, "Sent %s%s to %s.", pending.cardName, foilTag, target)),
 					null);
 			}
 		}
 		else
 		{
 			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-				String.format("[OSRS TCG] %s could not accept the card (multiplier mismatch). You still have it.", target),
+				TcgPluginGameMessages.withGoldPluginPrefix(
+					String.format(Locale.US, "%s could not accept the card (multiplier mismatch). You still have it.", target)),
 				null);
 		}
 		refreshAlbumIfOpen();

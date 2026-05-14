@@ -5,9 +5,14 @@ import com.runelitetcg.model.TcgPublicStats;
 import com.runelitetcg.party.TcgChatStatsPartyMessage;
 import com.runelitetcg.party.TcgCollectionSetCompletePartyMessage;
 import com.runelitetcg.party.TcgPullPartyMessage;
+import com.runelitetcg.util.TcgPluginGameMessages;
+import java.util.Locale;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.ChatMessageType;
+import net.runelite.api.Client;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.party.PartyService;
 
 /**
@@ -19,12 +24,20 @@ public class TcgPartyAnnouncer
 {
 	private final PartyService partyService;
 	private final RuneLiteTcgConfig config;
+	private final Client client;
+	private final ClientThread clientThread;
 
 	@Inject
-	public TcgPartyAnnouncer(PartyService partyService, RuneLiteTcgConfig config)
+	public TcgPartyAnnouncer(
+		PartyService partyService,
+		RuneLiteTcgConfig config,
+		Client client,
+		ClientThread clientThread)
 	{
 		this.partyService = partyService;
 		this.config = config;
+		this.client = client;
+		this.clientThread = clientThread;
 	}
 
 	public void announceMythicPull(String cardName, boolean newForCollection)
@@ -37,6 +50,13 @@ public class TcgPartyAnnouncer
 		{
 			return;
 		}
+		String c = cardName.trim();
+		String selfBody = newForCollection
+			? String.format(Locale.US, "You just added '%s' to your collection!", c)
+			: String.format(Locale.US, "You just pulled %s!", c);
+		String selfLine = TcgPluginGameMessages.withGoldPluginPrefix(selfBody);
+		clientThread.invokeLater(() -> client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", selfLine, null));
+
 		if (!partyService.isInParty())
 		{
 			return;
@@ -44,7 +64,7 @@ public class TcgPartyAnnouncer
 		try
 		{
 			TcgPullPartyMessage message = new TcgPullPartyMessage();
-			message.setCardName(cardName.trim());
+			message.setCardName(c);
 			message.setNewForCollection(newForCollection);
 			partyService.send(message);
 		}

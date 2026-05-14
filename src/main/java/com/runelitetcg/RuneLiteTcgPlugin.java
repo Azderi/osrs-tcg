@@ -25,11 +25,13 @@ import com.runelitetcg.service.TcgStateService;
 import com.runelitetcg.ui.TcgPanel;
 import com.runelitetcg.ui.collectionalbum.CollectionAlbumManager;
 import com.runelitetcg.util.NumberFormatting;
+import com.runelitetcg.util.TcgPluginGameMessages;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.concurrent.ScheduledExecutorService;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
@@ -253,9 +255,10 @@ public class RuneLiteTcgPlugin extends Plugin
 			? author.getDisplayName().trim()
 			: "A party member";
 		String trimmedCard = cardName.trim();
-		String line = message.isNewForCollection()
-			? String.format("[OSRS TCG] %s just added '%s' to their collection!", who, trimmedCard)
-			: String.format("[OSRS TCG] %s just pulled %s!", who, trimmedCard);
+		String body = message.isNewForCollection()
+			? String.format(Locale.US, "%s just added '%s' to their collection!", who, trimmedCard)
+			: String.format(Locale.US, "%s just pulled %s!", who, trimmedCard);
+		String line = TcgPluginGameMessages.withGoldPluginPrefix(body);
 		clientThread.invokeLater(() -> client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", line, null));
 	}
 
@@ -284,7 +287,8 @@ public class RuneLiteTcgPlugin extends Plugin
 		String who = author != null && author.getDisplayName() != null && !author.getDisplayName().trim().isEmpty()
 			? author.getDisplayName().trim()
 			: "A party member";
-		String line = String.format("[OSRS TCG] %s just finished '%s'!", who, collectionName.trim());
+		String line = TcgPluginGameMessages.withGoldPluginPrefix(
+			String.format(Locale.US, "%s just finished '%s'!", who, collectionName.trim()));
 		clientThread.invokeLater(() -> client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", line, null));
 	}
 
