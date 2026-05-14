@@ -20,8 +20,8 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Pack reveal audio: premium-tier ambience ({@code /hum.wav}, looped while any qualifying face-down card remains),
  * matching reveal chime ({@code /reveal.wav}) on flip, per-card deal motion ({@code /card.wav}) when each card begins flying to its slot,
- * {@code /flip.wav} when a face-down card is clicked to flip, {@code /apex.wav} looped while hovering a sealed apex pack,
- * and {@code /transfer.wav} when a party card transfer completes.
+ * {@code /flip.wav} when a face-down card is clicked to flip, {@code /apex.wav} on sealed apex pack hover (one-shot per
+ * hover enter; multiple instances may overlap), and {@code /transfer.wav} when a party card transfer completes.
  * <p>
  * Short samples use a <b>new {@link Clip} per play</b> so several can overlap (flip + premium reveal, stacked deal hits, etc.).
  * The hum stays on one looped clip with a short fade-in when it starts.
@@ -39,8 +39,6 @@ public class PackRevealSoundService
 	private static final String FLIP_RESOURCE = "/flip.wav";
 	private static final String TRANSFER_SUCCESS_RESOURCE = "/transfer.wav";
 	private static final String APEX_PACK_HOVER_RESOURCE = "/apex.wav";
-	/** Fade-in for apex pack hover loop (sealed pack, {@link com.runelitetcg.service.PackRevealService.Phase#PACK_READY}). */
-	private static final float APEX_HOVER_FADE_IN_SEC = 0.55f;
 
 	private final RuneLiteTcgConfig config;
 
@@ -55,12 +53,7 @@ public class PackRevealSoundService
 	private boolean flipOpenFailed;
 	private boolean cardDealOpenFailed;
 	private boolean transferSuccessOpenFailed;
-
-	private Clip apexHoverClip;
-	private boolean apexHoverOpenFailed;
-	private boolean apexHoverLoopActive;
-	private long lastApexHoverTickNanos = System.nanoTime();
-	private float apexHoverFade01;
+	private boolean apexHoverOneShotOpenFailed;
 
 	private final CopyOnWriteArrayList<Clip> activeOneShotClips = new CopyOnWriteArrayList<>();
 
@@ -175,6 +168,19 @@ public class PackRevealSoundService
 		}
 	}
 
+	/** One-shot {@code apex.wav} when the pointer enters the sealed apex pack (new clip each time; overlaps allowed). */
+	public synchronized void playApexPackHoverOneShot()
+	{
+		if (!config.enableSounds() || apexHoverOneShotOpenFailed)
+		{
+			return;
+		}
+		if (!playDisposableOneShot(APEX_PACK_HOVER_RESOURCE, "apex.wav", 0.85f))
+		{
+			apexHoverOneShotOpenFailed = true;
+		}
+	}
+
 	/**
 	 * While {@code dealPhaseActive}, plays {@code /card.wav} once per card when its deal flight starts
 	 * (same timing as {@link com.runelitetcg.overlay.PackRevealOverlay}: {@code elapsed >= index * staggerMs}).
@@ -212,124 +218,8 @@ public class PackRevealSoundService
 	public synchronized void hardStop()
 	{
 		hardStopHum();
-		hardStopApexHover();
 		hardStopActiveOneShots();
 		dealMotionSoundUpToIndex = -1;
-	}
-
-	/**
-	 * Looped {@code apex.wav} while the sealed apex pack is hovered ({@code wantHoverSound && hoveringPack}).
-	 */
-	public synchronized void tickApexPackHover(boolean wantHoverSound, boolean hoveringPack)
-	{
-		if (!wantHoverSound || !config.enableSounds())
-		{
-			hardStopApexHover();
-			return;
-		}
-
-		if (apexHoverOpenFailed)
-		{
-			return;
-		}
-
-		if (!hoveringPack)
-		{
-			hardStopApexHover();
-			return;
-		}
-
-		try
-		{
-			ensureApexHoverClipOpen();
-		}
-		catch (IOException | UnsupportedAudioFileException | LineUnavailableException ex)
-		{
-			log.warn("Could not open apex.wav for apex pack hover", ex);
-			apexHoverOpenFailed = true;
-			hardStopApexHover();
-			return;
-		}
-
-		if (apexHoverClip == null)
-		{
-			return;
-		}
-
-		long now = System.nanoTime();
-		float dt = Math.min(0.25f, Math.max(0f, (now - lastApexHoverTickNanos) / 1.0e9f));
-		lastApexHoverTickNanos = now;
-
-		if (!apexHoverLoopActive)
-		{
-			apexHoverClip.stop();
-			apexHoverClip.flush();
-			apexHoverClip.setFramePosition(0);
-			apexHoverFade01 = 0f;
-			applyGain(apexHoverClip, 0f);
-			apexHoverClip.loop(Clip.LOOP_CONTINUOUSLY);
-			apexHoverLoopActive = true;
-		}
-		else
-		{
-			apexHoverFade01 = Math.min(1f, apexHoverFade01 + dt / APEX_HOVER_FADE_IN_SEC);
-		}
-		applyGain(apexHoverClip, apexHoverFade01 * 0.85f);
-	}
-
-	private void hardStopApexHover()
-	{
-		apexHoverLoopActive = false;
-		apexHoverFade01 = 0f;
-		lastApexHoverTickNanos = System.nanoTime();
-		if (apexHoverClip == null)
-		{
-			return;
-		}
-		try
-		{
-			if (apexHoverClip.isRunning())
-			{
-				apexHoverClip.stop();
-			}
-			apexHoverClip.flush();
-			apexHoverClip.setFramePosition(0);
-			applyGain(apexHoverClip, 0f);
-		}
-		catch (Exception ignored)
-		{
-			// best-effort
-		}
-	}
-
-	private void ensureApexHoverClipOpen() throws IOException, UnsupportedAudioFileException, LineUnavailableException
-	{
-		if (apexHoverClip != null)
-		{
-			return;
-		}
-		URL url = PackRevealSoundService.class.getResource(APEX_PACK_HOVER_RESOURCE);
-		if (url == null)
-		{
-			log.warn("Missing resource {}", APEX_PACK_HOVER_RESOURCE);
-			apexHoverOpenFailed = true;
-			return;
-		}
-		try (AudioInputStream ais = AudioSystem.getAudioInputStream(url))
-		{
-			apexHoverClip = AudioSystem.getClip();
-			apexHoverClip.open(ais);
-		}
-		if (!apexHoverClip.isControlSupported(FloatControl.Type.MASTER_GAIN))
-		{
-			log.warn("apex.wav has no MASTER_GAIN control; apex pack hover sound disabled.");
-			apexHoverOpenFailed = true;
-			if (apexHoverClip.isOpen())
-			{
-				apexHoverClip.close();
-			}
-			apexHoverClip = null;
-		}
 	}
 
 	private void hardStopHum()

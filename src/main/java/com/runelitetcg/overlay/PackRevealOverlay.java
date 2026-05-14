@@ -61,6 +61,8 @@ public class PackRevealOverlay extends Overlay
 	private static final int DEAL_STACK_STEP = 5;
 	/** Max rarity glow alpha when a card is fully hovered (no glow when not hovered). */
 	private static final float HOVER_RARITY_GLOW_ALPHA = 0.17f;
+	/** Tucks the apex sealed-pack glow slightly inside the letterboxed art rect (px per edge). */
+	private static final int PACK_SEALED_GLOW_INSET = 2;
 
 	/** Cached pack sleeve art by Packs.json {@code id} (empty string = standard / unknown). */
 	private static final ConcurrentHashMap<String, BufferedImage> PACK_ART_BY_ID = new ConcurrentHashMap<>();
@@ -86,6 +88,8 @@ public class PackRevealOverlay extends Overlay
 	private volatile boolean revealHoverFromListener;
 	private volatile int revealHoverCanvasX;
 	private volatile int revealHoverCanvasY;
+	/** Rising edge for {@link PackRevealSoundService#playApexPackHoverOneShot()} (sealed apex pack). */
+	private boolean apexPackPointerWasInside;
 	/** Single-threaded client thread scratch for pointer reads (avoid per-frame allocations). */
 	private final int[] pointerScratch = new int[2];
 	/** Used to call {@link PackRevealSoundService#hardStop()} only on active→inactive transition (not every frame). */
@@ -155,10 +159,11 @@ public class PackRevealOverlay extends Overlay
 		int cardCount = cards.size();
 		ViewportLayout layout = computeViewportLayout(canvas, cardCount);
 		PackRevealService.Phase phase = snap.getPhase();
+		if (phase != PackRevealService.Phase.PACK_READY)
+		{
+			apexPackPointerWasInside = false;
+		}
 		updateHoverDynamics(canvas, layout, cardCount, phase, snap.getPhaseElapsedMs());
-		boolean apexSealedHoverSound = snap.isApexPackOpen() && phase == PackRevealService.Phase.PACK_READY;
-		packRevealSoundService.tickApexPackHover(apexSealedHoverSound,
-			apexSealedHoverSound && packHoverLift > 0.02d);
 		tickMythicHum(phase, snap);
 		tickDealCardMotionSounds(phase, cardCount, snap.getPhaseElapsedMs());
 		if (phase == PackRevealService.Phase.PACK_READY)
@@ -167,8 +172,21 @@ public class PackRevealOverlay extends Overlay
 			Rectangle packScaled = packDrawRect(packBase);
 			if (snap.isApexPackOpen())
 			{
+				boolean inPack = mouseInRect(packScaled);
+				if (inPack && !apexPackPointerWasInside)
+				{
+					packRevealSoundService.playApexPackHoverOneShot();
+				}
+				apexPackPointerWasInside = inPack;
 				float glowAlpha = (float) (HOVER_RARITY_GLOW_ALPHA * Math.max(0.22d, packHoverLift));
-				drawGlow(graphics, packScaled, RarityMath.Tier.GODLY.getColor(), glowAlpha);
+				Rectangle packGlowRect = uniformInset(
+					packImageDrawRect(packScaled, snap.getBoosterPackId()),
+					PACK_SEALED_GLOW_INSET);
+				drawGlow(graphics, packGlowRect, RarityMath.Tier.GODLY.getColor(), glowAlpha);
+			}
+			else
+			{
+				apexPackPointerWasInside = false;
 			}
 			drawPackImage(graphics, packScaled, 1.0f, snap.getBoosterPackId());
 			paintScrollHintOnTop(graphics, canvas, snap);
@@ -344,6 +362,7 @@ public class PackRevealOverlay extends Overlay
 		cardHoverLift = new double[0];
 		sessionPackZoomMultiplier = Double.NaN;
 		revealHoverFromListener = false;
+		apexPackPointerWasInside = false;
 	}
 
 	private boolean revealPointer(int[] outXY)
@@ -526,7 +545,26 @@ public class PackRevealOverlay extends Overlay
 		return new Rectangle(nx, ny, nw, nh);
 	}
 
+	private static Rectangle uniformInset(Rectangle r, int inset)
+	{
+		if (inset <= 0)
+		{
+			return new Rectangle(r);
+		}
+		int nw = Math.max(1, r.width - 2 * inset);
+		int nh = Math.max(1, r.height - 2 * inset);
+		return new Rectangle(r.x + inset, r.y + inset, nw, nh);
+	}
+
 	private void drawGlow(Graphics2D g, Rectangle r, Color color, float alpha)
+	{
+		drawGlow(g, r, color, alpha, 26f, 18, 20);
+	}
+
+	/**
+	 * @param maxExpand outer halo reach in pixels (smaller = tighter around {@code r})
+	 */
+	private void drawGlow(Graphics2D g, Rectangle r, Color color, float alpha, float maxExpand, int layers, int baseArc)
 	{
 		Color glow = color == null ? Color.WHITE : color;
 		float clampedAlpha = Math.max(0f, Math.min(1f, alpha));
@@ -539,15 +577,14 @@ public class PackRevealOverlay extends Overlay
 		try
 		{
 			// Stable soft edge glow from card bounds.
-			int layers = 18;
 			for (int i = layers; i >= 1; i--)
 			{
 				float t = (float) i / (float) layers; // 1 near card, 0 far.
-				int expand = Math.max(1, Math.round((1.0f - t) * 26.0f));
+				int expand = Math.max(1, Math.round((1.0f - t) * maxExpand));
 				float falloff = t * t; // smooth quadratic falloff
 				float layerAlpha = clampedAlpha * falloff * 0.34f;
 				g2.setColor(withAlpha(glow, layerAlpha));
-				int arc = 20 + expand;
+				int arc = baseArc + expand;
 				g2.fillRoundRect(
 					r.x - expand,
 					r.y - expand,
@@ -811,6 +848,14 @@ public class PackRevealOverlay extends Overlay
 		return t * t * (3.0d - 2.0d * t);
 	}
 
+	/**
+	 * Pixel rect where pack PNG (or card-back fallback) is drawn inside {@code bounds}; matches {@link #drawImageFit}.
+	 */
+	private Rectangle packImageDrawRect(Rectangle bounds, String boosterPackId)
+	{
+		return fittedImageRect(bounds, packArtForPackId(boosterPackId));
+	}
+
 	private void drawPackImage(Graphics2D g, Rectangle bounds, float alpha, String boosterPackId)
 	{
 		BufferedImage packArt = packArtForPackId(boosterPackId);
@@ -897,21 +942,30 @@ public class PackRevealOverlay extends Overlay
 		}
 	}
 
-	private void drawImageFit(Graphics2D g, BufferedImage image, Rectangle bounds)
+	private static Rectangle fittedImageRect(Rectangle bounds, BufferedImage image)
 	{
+		if (image == null)
+		{
+			return new Rectangle(bounds);
+		}
 		int sw = image.getWidth();
 		int sh = image.getHeight();
 		if (sw <= 0 || sh <= 0)
 		{
-			return;
+			return new Rectangle(bounds);
 		}
-
 		double ratio = Math.min((double) bounds.width / (double) sw, (double) bounds.height / (double) sh);
 		int w = Math.max(1, (int) Math.round(sw * ratio));
 		int h = Math.max(1, (int) Math.round(sh * ratio));
 		int x = bounds.x + (bounds.width - w) / 2;
 		int y = bounds.y + (bounds.height - h) / 2;
-		g.drawImage(image, x, y, w, h, null);
+		return new Rectangle(x, y, w, h);
+	}
+
+	private void drawImageFit(Graphics2D g, BufferedImage image, Rectangle bounds)
+	{
+		Rectangle r = fittedImageRect(bounds, image);
+		g.drawImage(image, r.x, r.y, r.width, r.height, null);
 	}
 
 	private Color withAlpha(Color color, float alpha)
