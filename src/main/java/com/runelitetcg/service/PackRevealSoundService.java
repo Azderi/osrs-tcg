@@ -20,7 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Pack reveal audio: Godly-tier ambience ({@code /hum.wav}, looped while any face-down Godly-tier card remains),
  * Godly reveal chime ({@code /reveal.wav}), per-card deal motion ({@code /card.wav}) when each card begins flying to its slot,
- * and {@code /flip.wav} when a face-down card is clicked to flip.
+ * {@code /flip.wav} when a face-down card is clicked to flip, and {@code /transfer.wav} when a party card transfer completes.
  * <p>
  * Short samples use a <b>new {@link Clip} per play</b> so several can overlap (flip + Godly reveal, stacked deal hits, etc.).
  * The hum stays on one looped clip with a short fade-in when it starts.
@@ -36,6 +36,7 @@ public class PackRevealSoundService
 	private static final String REVEAL_RESOURCE = "/reveal.wav";
 	private static final String CARD_DEAL_RESOURCE = "/card.wav";
 	private static final String FLIP_RESOURCE = "/flip.wav";
+	private static final String TRANSFER_SUCCESS_RESOURCE = "/transfer.wav";
 
 	private final RuneLiteTcgConfig config;
 
@@ -49,6 +50,7 @@ public class PackRevealSoundService
 	private boolean revealOpenFailed;
 	private boolean flipOpenFailed;
 	private boolean cardDealOpenFailed;
+	private boolean transferSuccessOpenFailed;
 
 	private final CopyOnWriteArrayList<Clip> activeOneShotClips = new CopyOnWriteArrayList<>();
 
@@ -147,6 +149,19 @@ public class PackRevealSoundService
 		if (!playDisposableOneShot(FLIP_RESOURCE, "flip.wav"))
 		{
 			flipOpenFailed = true;
+		}
+	}
+
+	/** One-shot {@code transfer.wav} when a party card transfer completes (sender and recipient). */
+	public synchronized void playTransferSuccess()
+	{
+		if (!config.enableSounds() || transferSuccessOpenFailed)
+		{
+			return;
+		}
+		if (!playDisposableOneShot(TRANSFER_SUCCESS_RESOURCE, "transfer.wav"))
+		{
+			transferSuccessOpenFailed = true;
 		}
 	}
 

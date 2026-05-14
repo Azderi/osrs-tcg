@@ -49,6 +49,7 @@ import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
+import net.runelite.client.util.Text;
 
 public final class CollectionAlbumWindow extends JFrame
 {
@@ -671,9 +672,14 @@ public final class CollectionAlbumWindow extends JFrame
 				{
 					continue;
 				}
-				hasOther = true;
 				String dn = m.getDisplayName();
-				String label = dn == null || dn.trim().isEmpty() ? ("Member #" + m.getMemberId()) : dn.trim();
+				String trimmedDn = dn == null ? "" : Text.removeTags(dn).trim();
+				if (trimmedDn.equalsIgnoreCase("<unknown>"))
+				{
+					continue;
+				}
+				hasOther = true;
+				String label = trimmedDn.isEmpty() ? ("Member #" + m.getMemberId()) : trimmedDn;
 				partyMemberCombo.addItem(label);
 				partyMemberIds.add(m.getMemberId());
 			}
@@ -811,7 +817,7 @@ public final class CollectionAlbumWindow extends JFrame
 		}
 		else
 		{
-			sendStatusLabel.setText("Offer sent — your copy is removed when they accept.");
+			sendStatusLabel.setText("");
 			rebuildModel();
 		}
 	}

@@ -3,6 +3,8 @@ package com.runelitetcg.data;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
+import com.runelitetcg.service.RarityMath;
+import java.awt.Color;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -14,6 +16,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
@@ -29,6 +32,7 @@ public class CardDatabase
 	private final Gson gson;
 	private List<CardDefinition> cards = Collections.emptyList();
 	private boolean loaded;
+	private Map<String, Color> chatRarityColorByLowerCaseName = Map.of();
 
 	@Inject
 	public CardDatabase(Gson gson)
@@ -47,6 +51,7 @@ public class CardDatabase
 
 		cards = Collections.unmodifiableList(loadedCards);
 		loaded = true;
+		rebuildChatRarityColorIndex();
 		log.info("Loaded {} cards from Card.json", cards.size());
 	}
 
@@ -74,6 +79,42 @@ public class CardDatabase
 	{
 		cards = Collections.unmodifiableList(new ArrayList<>(testCards));
 		loaded = true;
+		rebuildChatRarityColorIndex();
+	}
+
+	/**
+	 * Display-tier colour for chat (same tier source as the collection album / pack reveal).
+	 */
+	public synchronized Color chatRarityColorForCardName(String cardName)
+	{
+		if (cardName == null || cardName.trim().isEmpty())
+		{
+			return Color.WHITE;
+		}
+		Color c = chatRarityColorByLowerCaseName.get(cardName.trim().toLowerCase(Locale.ROOT));
+		return c != null ? c : Color.WHITE;
+	}
+
+	private void rebuildChatRarityColorIndex()
+	{
+		if (cards.isEmpty())
+		{
+			chatRarityColorByLowerCaseName = Map.of();
+			return;
+		}
+		List<CardDefinition> all = new ArrayList<>(cards);
+		Map<String, RarityMath.Tier> tierByName = RarityMath.displayTierByCardName(all);
+		Map<String, Color> map = new HashMap<>();
+		for (CardDefinition c : all)
+		{
+			if (c == null || c.getName() == null || c.getName().trim().isEmpty())
+			{
+				continue;
+			}
+			RarityMath.Tier t = tierByName.getOrDefault(c.getName(), RarityMath.Tier.COMMON);
+			map.put(c.getName().trim().toLowerCase(Locale.ROOT), t.getColor());
+		}
+		chatRarityColorByLowerCaseName = Collections.unmodifiableMap(map);
 	}
 
 	private List<CardDefinition> loadFromClasspath()

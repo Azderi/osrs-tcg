@@ -61,7 +61,7 @@ public final class CollectionAlbumManager
 			CollectionAlbumWindow w = window;
 			if (w != null && w.isShowing())
 			{
-				w.refreshData();
+				w.rebuildModel();
 			}
 		});
 	}

@@ -254,11 +254,15 @@ public class RuneLiteTcgPlugin extends Plugin
 		String who = author != null && author.getDisplayName() != null && !author.getDisplayName().trim().isEmpty()
 			? author.getDisplayName().trim()
 			: "A party member";
-		String label = TcgPluginGameMessages.announcedCardLabel(cardName, message.isFoil());
-		String body = message.isNewForCollection()
-			? String.format(Locale.US, "%s just added %s to their collection!", who, label)
-			: String.format(Locale.US, "%s just pulled %s!", who, label);
-		TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager, body);
+		String trimmed = cardName.trim();
+		Color rarity = cardDatabase.chatRarityColorForCardName(trimmed);
+		String formatted = message.isNewForCollection()
+			? TcgPluginGameMessages.formatGoldPrefixedSomeoneAddedCollection(who, trimmed, message.isFoil(), rarity)
+			: TcgPluginGameMessages.formatGoldPrefixedSomeonePulled(who, trimmed, message.isFoil(), rarity);
+		String plain = message.isNewForCollection()
+			? TcgPluginGameMessages.plainGoldPrefixedSomeoneAddedCollection(who, trimmed, message.isFoil())
+			: TcgPluginGameMessages.plainGoldPrefixedSomeonePulled(who, trimmed, message.isFoil());
+		TcgPluginGameMessages.queueFormattedGameMessage(chatMessageManager, formatted, plain);
 	}
 
 	@Subscribe

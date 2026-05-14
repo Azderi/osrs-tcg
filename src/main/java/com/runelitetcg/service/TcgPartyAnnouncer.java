@@ -1,12 +1,13 @@
 package com.runelitetcg.service;
 
 import com.runelitetcg.RuneLiteTcgConfig;
+import com.runelitetcg.data.CardDatabase;
 import com.runelitetcg.model.TcgPublicStats;
 import com.runelitetcg.party.TcgChatStatsPartyMessage;
 import com.runelitetcg.party.TcgCollectionSetCompletePartyMessage;
 import com.runelitetcg.party.TcgPullPartyMessage;
 import com.runelitetcg.util.TcgPluginGameMessages;
-import java.util.Locale;
+import java.awt.Color;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
@@ -23,16 +24,19 @@ public class TcgPartyAnnouncer
 	private final PartyService partyService;
 	private final RuneLiteTcgConfig config;
 	private final ChatMessageManager chatMessageManager;
+	private final CardDatabase cardDatabase;
 
 	@Inject
 	public TcgPartyAnnouncer(
 		PartyService partyService,
 		RuneLiteTcgConfig config,
-		ChatMessageManager chatMessageManager)
+		ChatMessageManager chatMessageManager,
+		CardDatabase cardDatabase)
 	{
 		this.partyService = partyService;
 		this.config = config;
 		this.chatMessageManager = chatMessageManager;
+		this.cardDatabase = cardDatabase;
 	}
 
 	public void announceMythicPull(String cardName, boolean newForCollection, boolean foil)
@@ -45,11 +49,15 @@ public class TcgPartyAnnouncer
 		{
 			return;
 		}
-		String label = TcgPluginGameMessages.announcedCardLabel(cardName, foil);
-		String selfBody = newForCollection
-			? String.format(Locale.US, "You just added %s to your collection!", label)
-			: String.format(Locale.US, "You just pulled %s!", label);
-		TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager, selfBody);
+		String trimmed = cardName.trim();
+		Color rarity = cardDatabase.chatRarityColorForCardName(trimmed);
+		String formatted = newForCollection
+			? TcgPluginGameMessages.formatGoldPrefixedYouAddedCollection(trimmed, foil, rarity)
+			: TcgPluginGameMessages.formatGoldPrefixedYouPulled(trimmed, foil, rarity);
+		String plain = newForCollection
+			? TcgPluginGameMessages.plainGoldPrefixedYouAddedCollection(trimmed, foil)
+			: TcgPluginGameMessages.plainGoldPrefixedYouPulled(trimmed, foil);
+		TcgPluginGameMessages.queueFormattedGameMessage(chatMessageManager, formatted, plain);
 
 		if (!partyService.isInParty())
 		{

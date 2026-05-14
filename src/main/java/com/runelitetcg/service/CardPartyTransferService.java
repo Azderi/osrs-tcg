@@ -1,10 +1,12 @@
 package com.runelitetcg.service;
 
+import com.runelitetcg.data.CardDatabase;
 import com.runelitetcg.model.RewardTuningState;
 import com.runelitetcg.party.TcgCardGiftPartyMessage;
 import com.runelitetcg.party.TcgCardGiftResponsePartyMessage;
 import com.runelitetcg.ui.collectionalbum.CollectionAlbumManager;
 import com.runelitetcg.util.TcgPluginGameMessages;
+import java.awt.Color;
 import java.util.Locale;
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -31,6 +33,8 @@ public class CardPartyTransferService
 	private final TcgStateService stateService;
 	private final ClientThread clientThread;
 	private final ChatMessageManager chatMessageManager;
+	private final PackRevealSoundService packRevealSoundService;
+	private final CardDatabase cardDatabase;
 	private final Provider<CollectionAlbumManager> collectionAlbumManagerProvider;
 
 	private final java.util.Map<String, PendingOffer> pendingOffers = new java.util.concurrent.ConcurrentHashMap<>();
@@ -57,12 +61,16 @@ public class CardPartyTransferService
 		TcgStateService stateService,
 		ClientThread clientThread,
 		ChatMessageManager chatMessageManager,
+		PackRevealSoundService packRevealSoundService,
+		CardDatabase cardDatabase,
 		Provider<CollectionAlbumManager> collectionAlbumManagerProvider)
 	{
 		this.partyService = partyService;
 		this.stateService = stateService;
 		this.clientThread = clientThread;
 		this.chatMessageManager = chatMessageManager;
+		this.packRevealSoundService = packRevealSoundService;
+		this.cardDatabase = cardDatabase;
 		this.collectionAlbumManagerProvider = collectionAlbumManagerProvider;
 	}
 
@@ -204,24 +212,17 @@ public class CardPartyTransferService
 		}
 		sendResponse(msg.getTransferId(), originalSender, true);
 
+		packRevealSoundService.playTransferSuccess();
+
 		PartyMember from = partyService.getMemberById(originalSender);
 		String who = from != null && from.getDisplayName() != null && !from.getDisplayName().trim().isEmpty()
 			? from.getDisplayName().trim()
 			: "Party member";
-		String quotedCards = formatReceivedGiftCardList(card, foil);
-		TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
-			String.format(Locale.US, "%s just sent you %s !", who, quotedCards));
+		Color rarity = cardDatabase.chatRarityColorForCardName(card);
+		String formatted = TcgPluginGameMessages.formatGoldPrefixedSomeoneSentYou(who, card, foil, rarity);
+		String plain = TcgPluginGameMessages.plainGoldPrefixedSomeoneSentYou(who, card, foil);
+		TcgPluginGameMessages.queueFormattedGameMessage(chatMessageManager, formatted, plain);
 		refreshAlbumIfOpen();
-	}
-
-	private static String formatReceivedGiftCardList(String cardName, boolean foil)
-	{
-		String c = cardName == null ? "" : cardName.trim();
-		if (c.isEmpty())
-		{
-			c = "Unknown card";
-		}
-		return foil ? c + " (foil)" : c;
 	}
 
 	private void refreshAlbumIfOpen()
@@ -271,9 +272,13 @@ public class CardPartyTransferService
 			}
 			else
 			{
-				String foilTag = pending.foil ? " (foil)" : "";
-				TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
-					String.format(Locale.US, "Sent %s%s to %s.", pending.cardName, foilTag, target));
+				packRevealSoundService.playTransferSuccess();
+				Color rarity = cardDatabase.chatRarityColorForCardName(pending.cardName);
+				String formatted = TcgPluginGameMessages.formatGoldPrefixedYouSentCard(
+					pending.cardName, pending.foil, target, rarity);
+				String plain = TcgPluginGameMessages.plainGoldPrefixedYouSentCard(
+					pending.cardName, pending.foil, target);
+				TcgPluginGameMessages.queueFormattedGameMessage(chatMessageManager, formatted, plain);
 			}
 		}
 		else
