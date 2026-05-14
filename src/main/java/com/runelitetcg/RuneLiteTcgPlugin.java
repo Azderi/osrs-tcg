@@ -42,6 +42,7 @@ import net.runelite.api.events.GameTick;
 import net.runelite.api.events.StatChanged;
 import net.runelite.client.chat.ChatCommandManager;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ChatInput;
 import net.runelite.client.events.RuneScapeProfileChanged;
@@ -71,6 +72,8 @@ public class RuneLiteTcgPlugin extends Plugin
 
 	@Inject
 	private Client client;
+	@Inject
+	private ClientThread clientThread;
 	@Inject
 	private RuneLiteTcgConfig config;
 	@Inject
@@ -253,7 +256,7 @@ public class RuneLiteTcgPlugin extends Plugin
 		String line = message.isNewForCollection()
 			? String.format("[OSRS TCG] %s just added '%s' to their collection!", who, trimmedCard)
 			: String.format("[OSRS TCG] %s just pulled %s!", who, trimmedCard);
-		client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", line, null);
+		clientThread.invokeLater(() -> client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", line, null));
 	}
 
 	@Subscribe
@@ -281,9 +284,8 @@ public class RuneLiteTcgPlugin extends Plugin
 		String who = author != null && author.getDisplayName() != null && !author.getDisplayName().trim().isEmpty()
 			? author.getDisplayName().trim()
 			: "A party member";
-		client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-			String.format("[OSRS TCG] %s just finished '%s'!", who, collectionName.trim()),
-			null);
+		String line = String.format("[OSRS TCG] %s just finished '%s'!", who, collectionName.trim());
+		clientThread.invokeLater(() -> client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", line, null));
 	}
 
 	@Subscribe

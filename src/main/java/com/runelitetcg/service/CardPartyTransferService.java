@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.events.GameTick;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
@@ -28,6 +29,7 @@ public class CardPartyTransferService
 	private final PartyService partyService;
 	private final TcgStateService stateService;
 	private final Client client;
+	private final ClientThread clientThread;
 	private final Provider<CollectionAlbumManager> collectionAlbumManagerProvider;
 
 	private final java.util.Map<String, PendingOffer> pendingOffers = new java.util.concurrent.ConcurrentHashMap<>();
@@ -53,11 +55,13 @@ public class CardPartyTransferService
 		PartyService partyService,
 		TcgStateService stateService,
 		Client client,
+		ClientThread clientThread,
 		Provider<CollectionAlbumManager> collectionAlbumManagerProvider)
 	{
 		this.partyService = partyService;
 		this.stateService = stateService;
 		this.client = client;
+		this.clientThread = clientThread;
 		this.collectionAlbumManagerProvider = collectionAlbumManagerProvider;
 	}
 
@@ -164,6 +168,11 @@ public class CardPartyTransferService
 			return;
 		}
 
+		clientThread.invokeLater(() -> handleCardGiftPartyMessageOnClientThread(msg));
+	}
+
+	private void handleCardGiftPartyMessageOnClientThread(TcgCardGiftPartyMessage msg)
+	{
 		synchronized (processedGiftTransferIds)
 		{
 			if (processedGiftTransferIds.contains(msg.getTransferId()))
@@ -237,6 +246,11 @@ public class CardPartyTransferService
 		{
 			return;
 		}
+		clientThread.invokeLater(() -> handleCardGiftResponseOnClientThread(msg));
+	}
+
+	private void handleCardGiftResponseOnClientThread(TcgCardGiftResponsePartyMessage msg)
+	{
 		PendingOffer pending = pendingOffers.remove(msg.getTransferId());
 		if (pending == null)
 		{
