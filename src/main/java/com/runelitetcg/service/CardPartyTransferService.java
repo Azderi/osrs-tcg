@@ -10,10 +10,9 @@ import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.ChatMessageType;
-import net.runelite.api.Client;
 import net.runelite.api.events.GameTick;
 import net.runelite.client.callback.ClientThread;
+import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
@@ -30,8 +29,8 @@ public class CardPartyTransferService
 
 	private final PartyService partyService;
 	private final TcgStateService stateService;
-	private final Client client;
 	private final ClientThread clientThread;
+	private final ChatMessageManager chatMessageManager;
 	private final Provider<CollectionAlbumManager> collectionAlbumManagerProvider;
 
 	private final java.util.Map<String, PendingOffer> pendingOffers = new java.util.concurrent.ConcurrentHashMap<>();
@@ -56,14 +55,14 @@ public class CardPartyTransferService
 	public CardPartyTransferService(
 		PartyService partyService,
 		TcgStateService stateService,
-		Client client,
 		ClientThread clientThread,
+		ChatMessageManager chatMessageManager,
 		Provider<CollectionAlbumManager> collectionAlbumManagerProvider)
 	{
 		this.partyService = partyService;
 		this.stateService = stateService;
-		this.client = client;
 		this.clientThread = clientThread;
+		this.chatMessageManager = chatMessageManager;
 		this.collectionAlbumManagerProvider = collectionAlbumManagerProvider;
 	}
 
@@ -144,8 +143,8 @@ public class CardPartyTransferService
 			PendingOffer p = pendingOffers.get(tid);
 			if (p != null && now - p.createdAtMs > PENDING_TTL_MS && pendingOffers.remove(tid, p))
 			{
-				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-					TcgPluginGameMessages.withGoldPluginPrefix("Card send timed out (no response from recipient)."), null);
+				TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
+					"Card send timed out (no response from recipient).");
 			}
 		}
 		synchronized (processedGiftTransferIds)
@@ -193,9 +192,8 @@ public class CardPartyTransferService
 		if (!tuningOk)
 		{
 			sendResponse(msg.getTransferId(), originalSender, false);
-			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-				TcgPluginGameMessages.withGoldPluginPrefix(
-					"Incoming card ignored: your foil / credit multipliers do not match the sender's."), null);
+			TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
+				"Incoming card ignored: your foil / credit multipliers do not match the sender's.");
 			return;
 		}
 
@@ -211,9 +209,8 @@ public class CardPartyTransferService
 			? from.getDisplayName().trim()
 			: "Party member";
 		String quotedCards = formatReceivedGiftCardList(card, foil);
-		client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-			TcgPluginGameMessages.withGoldPluginPrefix(String.format(Locale.US, "%s just sent you %s !", who, quotedCards)),
-			null);
+		TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
+			String.format(Locale.US, "%s just sent you %s !", who, quotedCards));
 		refreshAlbumIfOpen();
 	}
 
@@ -224,8 +221,7 @@ public class CardPartyTransferService
 		{
 			c = "Unknown card";
 		}
-		String one = foil ? c + " (foil)" : c;
-		return "'" + one + "'";
+		return foil ? c + " (foil)" : c;
 	}
 
 	private void refreshAlbumIfOpen()
@@ -270,25 +266,20 @@ public class CardPartyTransferService
 			boolean removed = stateService.removeCardQuantity(pending.cardName, pending.foil, 1);
 			if (!removed)
 			{
-				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-					TcgPluginGameMessages.withGoldPluginPrefix(
-						"Recipient accepted the card but you no longer had that copy; check your collection."), null);
+				TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
+					"Recipient accepted the card but you no longer had that copy; check your collection.");
 			}
 			else
 			{
 				String foilTag = pending.foil ? " (foil)" : "";
-				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-					TcgPluginGameMessages.withGoldPluginPrefix(
-						String.format(Locale.US, "Sent %s%s to %s.", pending.cardName, foilTag, target)),
-					null);
+				TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
+					String.format(Locale.US, "Sent %s%s to %s.", pending.cardName, foilTag, target));
 			}
 		}
 		else
 		{
-			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-				TcgPluginGameMessages.withGoldPluginPrefix(
-					String.format(Locale.US, "%s could not accept the card (multiplier mismatch). You still have it.", target)),
-				null);
+			TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
+				String.format(Locale.US, "%s could not accept the card (multiplier mismatch). You still have it.", target));
 		}
 		refreshAlbumIfOpen();
 	}

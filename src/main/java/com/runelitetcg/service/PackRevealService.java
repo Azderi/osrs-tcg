@@ -121,7 +121,7 @@ public class PackRevealService
 					continue;
 				}
 				RevealCard card = cards.get(i);
-				if (card != null && card.getTier() == RarityMath.Tier.GODLY)
+				if (isHighlightPull(card))
 				{
 					return true;
 				}
@@ -284,14 +284,14 @@ public class PackRevealService
 			if (clickedIndex >= 0 && clickedIndex < revealedByIndex.length && !revealedByIndex[clickedIndex])
 			{
 				RevealCard clicked = cards.get(clickedIndex);
-				boolean godlyReveal = clicked != null && clicked.getTier() == RarityMath.Tier.GODLY;
+				boolean highlightPull = isHighlightPull(clicked);
 				revealedByIndex[clickedIndex] = true;
 				revealedCount++;
 				packRevealSoundService.playCardFlip();
-				if (godlyReveal)
+				if (highlightPull)
 				{
 					packRevealSoundService.playMythicReveal();
-					partyAnnouncer.announceMythicPull(cardNameForParty(clicked), clicked.isNew());
+					partyAnnouncer.announceMythicPull(cardNameForParty(clicked), clicked.isNew(), isFoilPull(clicked));
 				}
 				if (revealedCount >= cards.size())
 				{
@@ -477,7 +477,7 @@ public class PackRevealService
 		return index >= 0 && index < revealedByIndex.length && revealedByIndex[index];
 	}
 
-	/** True while any Godly-tier card in this pack is still face-down (deal, click-to-reveal, or wait-to-close). */
+	/** True while any Godly-tier or foil card in this pack is still face-down (deal, click-to-reveal, or wait-to-close). */
 	public synchronized boolean hasUnrevealedMythic()
 	{
 		for (int i = 0; i < cards.size(); i++)
@@ -488,7 +488,7 @@ public class PackRevealService
 				continue;
 			}
 			RevealCard card = cards.get(i);
-			if (card != null && card.getTier() == RarityMath.Tier.GODLY)
+			if (isHighlightPull(card))
 			{
 				return true;
 			}
@@ -639,11 +639,29 @@ public class PackRevealService
 				continue;
 			}
 			RevealCard card = cards.get(i);
-			if (card != null && card.getTier() == RarityMath.Tier.GODLY)
+			if (isHighlightPull(card))
 			{
-				partyAnnouncer.announceMythicPull(cardNameForParty(card), card.isNew());
+				partyAnnouncer.announceMythicPull(cardNameForParty(card), card.isNew(), isFoilPull(card));
 			}
 		}
+	}
+
+	private static boolean isHighlightPull(RevealCard card)
+	{
+		if (card == null)
+		{
+			return false;
+		}
+		if (card.getTier() == RarityMath.Tier.GODLY)
+		{
+			return true;
+		}
+		return card.getPull() != null && card.getPull().isFoil();
+	}
+
+	private static boolean isFoilPull(RevealCard card)
+	{
+		return card != null && card.getPull() != null && card.getPull().isFoil();
 	}
 
 	private static String cardNameForParty(RevealCard card)

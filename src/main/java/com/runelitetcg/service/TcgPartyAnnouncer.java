@@ -10,9 +10,7 @@ import java.util.Locale;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.ChatMessageType;
-import net.runelite.api.Client;
-import net.runelite.client.callback.ClientThread;
+import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.party.PartyService;
 
 /**
@@ -24,23 +22,20 @@ public class TcgPartyAnnouncer
 {
 	private final PartyService partyService;
 	private final RuneLiteTcgConfig config;
-	private final Client client;
-	private final ClientThread clientThread;
+	private final ChatMessageManager chatMessageManager;
 
 	@Inject
 	public TcgPartyAnnouncer(
 		PartyService partyService,
 		RuneLiteTcgConfig config,
-		Client client,
-		ClientThread clientThread)
+		ChatMessageManager chatMessageManager)
 	{
 		this.partyService = partyService;
 		this.config = config;
-		this.client = client;
-		this.clientThread = clientThread;
+		this.chatMessageManager = chatMessageManager;
 	}
 
-	public void announceMythicPull(String cardName, boolean newForCollection)
+	public void announceMythicPull(String cardName, boolean newForCollection, boolean foil)
 	{
 		if (!partyAnnouncementsEnabled())
 		{
@@ -50,12 +45,11 @@ public class TcgPartyAnnouncer
 		{
 			return;
 		}
-		String c = cardName.trim();
+		String label = TcgPluginGameMessages.announcedCardLabel(cardName, foil);
 		String selfBody = newForCollection
-			? String.format(Locale.US, "You just added '%s' to your collection!", c)
-			: String.format(Locale.US, "You just pulled %s!", c);
-		String selfLine = TcgPluginGameMessages.withGoldPluginPrefix(selfBody);
-		clientThread.invokeLater(() -> client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", selfLine, null));
+			? String.format(Locale.US, "You just added %s to your collection!", label)
+			: String.format(Locale.US, "You just pulled %s!", label);
+		TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager, selfBody);
 
 		if (!partyService.isInParty())
 		{
@@ -64,8 +58,9 @@ public class TcgPartyAnnouncer
 		try
 		{
 			TcgPullPartyMessage message = new TcgPullPartyMessage();
-			message.setCardName(c);
+			message.setCardName(cardName.trim());
 			message.setNewForCollection(newForCollection);
+			message.setFoil(foil);
 			partyService.send(message);
 		}
 		catch (Exception ex)

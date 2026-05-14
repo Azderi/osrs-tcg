@@ -43,8 +43,8 @@ import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.StatChanged;
 import net.runelite.client.chat.ChatCommandManager;
+import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.config.ConfigManager;
-import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ChatInput;
 import net.runelite.client.events.RuneScapeProfileChanged;
@@ -75,7 +75,7 @@ public class RuneLiteTcgPlugin extends Plugin
 	@Inject
 	private Client client;
 	@Inject
-	private ClientThread clientThread;
+	private ChatMessageManager chatMessageManager;
 	@Inject
 	private RuneLiteTcgConfig config;
 	@Inject
@@ -254,12 +254,11 @@ public class RuneLiteTcgPlugin extends Plugin
 		String who = author != null && author.getDisplayName() != null && !author.getDisplayName().trim().isEmpty()
 			? author.getDisplayName().trim()
 			: "A party member";
-		String trimmedCard = cardName.trim();
+		String label = TcgPluginGameMessages.announcedCardLabel(cardName, message.isFoil());
 		String body = message.isNewForCollection()
-			? String.format(Locale.US, "%s just added '%s' to their collection!", who, trimmedCard)
-			: String.format(Locale.US, "%s just pulled %s!", who, trimmedCard);
-		String line = TcgPluginGameMessages.withGoldPluginPrefix(body);
-		clientThread.invokeLater(() -> client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", line, null));
+			? String.format(Locale.US, "%s just added %s to their collection!", who, label)
+			: String.format(Locale.US, "%s just pulled %s!", who, label);
+		TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager, body);
 	}
 
 	@Subscribe
@@ -287,9 +286,8 @@ public class RuneLiteTcgPlugin extends Plugin
 		String who = author != null && author.getDisplayName() != null && !author.getDisplayName().trim().isEmpty()
 			? author.getDisplayName().trim()
 			: "A party member";
-		String line = TcgPluginGameMessages.withGoldPluginPrefix(
-			String.format(Locale.US, "%s just finished '%s'!", who, collectionName.trim()));
-		clientThread.invokeLater(() -> client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", line, null));
+		TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
+			String.format(Locale.US, "%s just finished %s!", who, collectionName.trim()));
 	}
 
 	@Subscribe
