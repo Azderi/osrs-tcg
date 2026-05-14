@@ -231,7 +231,31 @@ public class PackOpeningService
 			boolean foil = random.nextDouble() < foilChance;
 			pulls.add(new PackCardResult(selected.getName(), foil));
 		}
+		if (apexTopThreeTierOnly)
+		{
+			ensureAtLeastOneFoil(pulls);
+		}
 		return pulls;
+	}
+
+	/** Apex packs always contain at least one foil copy (upgrade a random slot if the roll produced none). */
+	private void ensureAtLeastOneFoil(List<PackCardResult> pulls)
+	{
+		if (pulls == null || pulls.isEmpty())
+		{
+			return;
+		}
+		for (PackCardResult p : pulls)
+		{
+			if (p != null && p.isFoil())
+			{
+				return;
+			}
+		}
+		int idx = random.nextInt(pulls.size());
+		PackCardResult old = pulls.get(idx);
+		String name = old == null ? "" : old.getCardName();
+		pulls.set(idx, new PackCardResult(name, true));
 	}
 
 	/**
