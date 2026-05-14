@@ -360,11 +360,28 @@ public class RuneLiteTcgPlugin extends Plugin
 			return;
 		}
 
-		if (!"tcg-open".equalsIgnoreCase(event.getCommand()))
+		if ("tcg-apex".equalsIgnoreCase(event.getCommand()))
 		{
+			if (!stateService.isDebugLogging())
+			{
+				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
+					"[OSRS TCG] ::tcg-apex requires debug mode (Overview tab: enable before reward multipliers lock).",
+					null);
+				return;
+			}
+			handleOpenFirstBoosterCommand(true);
 			return;
 		}
 
+		if ("tcg-open".equalsIgnoreCase(event.getCommand()))
+		{
+			handleOpenFirstBoosterCommand(false);
+			return;
+		}
+	}
+
+	private void handleOpenFirstBoosterCommand(boolean forcedApex)
+	{
 		if (packCatalog.getBoosters().isEmpty())
 		{
 			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "[OSRS TCG] No booster packs loaded.", null);
@@ -374,7 +391,9 @@ public class RuneLiteTcgPlugin extends Plugin
 		tcgPanel.beginPackRevealSidebarFreeze();
 		HashSet<CardCollectionKey> preOwned = new HashSet<>(stateService.getState().getCollectionState().getOwnedCards().keySet());
 		boolean showScrollWheelHint = stateService.getState().getEconomyState().getOpenedPacks() == 0L;
-		var result = packOpeningService.buyAndOpenPack(packCatalog.getBoosters().get(0));
+		var result = forcedApex
+			? packOpeningService.buyAndOpenApexPackForDebug(packCatalog.getBoosters().get(0))
+			: packOpeningService.buyAndOpenPack(packCatalog.getBoosters().get(0));
 		if (!result.isSuccess())
 		{
 			tcgPanel.clearPackRevealSidebarFreeze();
@@ -383,11 +402,14 @@ public class RuneLiteTcgPlugin extends Plugin
 			return;
 		}
 
-		client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-			String.format("[OSRS TCG] Opened pack for %s credits. New balance: %s. Pulled %s cards.",
+		String openedLine = forcedApex
+			? String.format(Locale.US, "[OSRS TCG] Opened apex pack for %s credits. New balance: %s. Pulled %s cards.",
 				NumberFormatting.format(result.getPackPrice()), NumberFormatting.format(result.getCreditsAfter()),
-				NumberFormatting.format(result.getPulls().size())),
-			null);
+				NumberFormatting.format(result.getPulls().size()))
+			: String.format(Locale.US, "[OSRS TCG] Opened pack for %s credits. New balance: %s. Pulled %s cards.",
+				NumberFormatting.format(result.getPackPrice()), NumberFormatting.format(result.getCreditsAfter()),
+				NumberFormatting.format(result.getPulls().size()));
+		client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", openedLine, null);
 		packRevealService.startReveal(result.getPulls(), preOwned, result.getBoosterDisplayName(),
 			result.getBoosterPackId(), showScrollWheelHint);
 		tcgPanel.refresh();

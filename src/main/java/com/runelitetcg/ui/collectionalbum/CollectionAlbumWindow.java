@@ -678,9 +678,16 @@ public final class CollectionAlbumWindow extends JFrame
 				{
 					continue;
 				}
+				if (trimmedDn.isEmpty())
+				{
+					continue;
+				}
+				if (trimmedDn.regionMatches(true, 0, "Member #", 0, "Member #".length()))
+				{
+					continue;
+				}
 				hasOther = true;
-				String label = trimmedDn.isEmpty() ? ("Member #" + m.getMemberId()) : trimmedDn;
-				partyMemberCombo.addItem(label);
+				partyMemberCombo.addItem(trimmedDn);
 				partyMemberIds.add(m.getMemberId());
 			}
 		}

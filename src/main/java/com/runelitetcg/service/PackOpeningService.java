@@ -30,6 +30,12 @@ public class PackOpeningService
 	/** Reserved pack id for the free debug booster (only usable when debug logging is enabled in saved state). */
 	public static final String DEBUG_PACK_ID = "runelitetcg_debug_pack";
 
+	/** Normal packs: chance all five pulls are restricted to top three display tiers (Legendary / Mythic / Godly). */
+	private static final int APEX_PACK_CHANCE_DENOMINATOR = 3000;
+
+	/** Foil probability multiplier while opening an apex pack (capped at 100%). */
+	private static final double APEX_PACK_FOIL_CHANCE_MULTIPLIER = 5.0d;
+
 	private final CardDatabase cardDatabase;
 	private final TcgStateService stateService;
 	private final TcgPartyAnnouncer partyAnnouncer;
@@ -58,6 +64,20 @@ public class PackOpeningService
 
 	public PackOpenResult buyAndOpenPack(BoosterPackDefinition booster)
 	{
+		return buyAndOpenPackInternal(booster, false);
+	}
+
+	/**
+	 * Opens {@code booster} using apex rules (top three display tiers only, 5× foil chance), charging the normal pack price.
+	 * Intended for debug ({@code ::tcg-apex}); fails if this booster has no Legendary/Mythic/Godly cards in its pool.
+	 */
+	public PackOpenResult buyAndOpenApexPackForDebug(BoosterPackDefinition booster)
+	{
+		return buyAndOpenPackInternal(booster, true);
+	}
+
+	private PackOpenResult buyAndOpenPackInternal(BoosterPackDefinition booster, boolean forceApexPack)
+	{
 		cardDatabase.load();
 		long creditsBefore = stateService.getCredits();
 		if (booster == null)
@@ -69,6 +89,11 @@ public class PackOpeningService
 		if (isDebugPack(booster) && !debugPack)
 		{
 			return PackOpenResult.failed("Debug pack is only available when debug logging is enabled.", creditsBefore, 0);
+		}
+
+		if (forceApexPack && debugPack)
+		{
+			return PackOpenResult.failed("Apex open is not available for the debug booster.", creditsBefore, 0);
 		}
 
 		int packPrice = booster.getPrice();
@@ -98,7 +123,33 @@ public class PackOpeningService
 			return PackOpenResult.failed("No cards in this booster pool.", creditsBefore, packPrice);
 		}
 
-		List<PackCardResult> pulls = debugPack ? rollDebugSameCardPack(pool) : rollPack(pool, rollPool, DEFAULT_PACK_SIZE);
+		// Rare apex pack (1/3000), or debug forced apex: only Legendary / Mythic / Godly display-tier cards from this pool, 5× foil odds.
+		List<CardDefinition> packRollPool = pool;
+		boolean apexTopThreeTierOnly = false;
+		double foilChanceMultiplier = 1.0d;
+		if (!debugPack)
+		{
+			boolean rollApex = forceApexPack || random.nextInt(APEX_PACK_CHANCE_DENOMINATOR) == 0;
+			if (rollApex)
+			{
+				List<CardDefinition> apexPool = topThreeDisplayTierSubset(pool, rollPool);
+				if (!apexPool.isEmpty())
+				{
+					packRollPool = apexPool;
+					apexTopThreeTierOnly = true;
+					foilChanceMultiplier = APEX_PACK_FOIL_CHANCE_MULTIPLIER;
+				}
+				else if (forceApexPack)
+				{
+					return PackOpenResult.failed(
+						"No Legendary, Mythic, or Godly cards in this booster for an apex pack.", creditsBefore, packPrice);
+				}
+			}
+		}
+
+		List<PackCardResult> pulls = debugPack
+			? rollDebugSameCardPack(pool)
+			: rollPack(packRollPool, rollPool, DEFAULT_PACK_SIZE, apexTopThreeTierOnly, foilChanceMultiplier);
 		Map<CardCollectionKey, Integer> ownedBefore;
 		synchronized (stateService)
 		{
@@ -164,21 +215,45 @@ public class PackOpeningService
 	 * Tier rolls use {@link RarityMath#displayTierByCardName(List)} on the full loaded catalog (same as the collection album);
 	 * pulls are only from {@code regionalPool}.
 	 */
-	private List<PackCardResult> rollPack(List<CardDefinition> regionalPool, List<CardDefinition> globalRollPool, int packSize)
+	private List<PackCardResult> rollPack(List<CardDefinition> regionalPool, List<CardDefinition> globalRollPool, int packSize,
+		boolean apexTopThreeTierOnly, double foilChanceMultiplier)
 	{
 		List<PackCardResult> pulls = new ArrayList<>(packSize);
 		int foilPercent = stateService.getState().getRewardTuning().getFoilChancePercent();
-		double foilChance = Math.max(0, Math.min(100, foilPercent)) / 100.0d;
+		double foilChance = Math.min(1.0d,
+			Math.max(0.0d, Math.min(100, foilPercent)) / 100.0d * Math.max(0.0d, foilChanceMultiplier));
 		Map<CardDefinition, RarityMath.Tier> globalTierByCard = buildGlobalTierByCard(globalRollPool);
 		Map<RarityMath.Tier, List<CardDefinition>> regionalByGlobalTier = partitionRegionalByGlobalTier(regionalPool, globalTierByCard);
 
 		for (int i = 0; i < packSize; i++)
 		{
-			CardDefinition selected = pickByTierChance(regionalPool, regionalByGlobalTier);
+			CardDefinition selected = pickByTierChance(regionalPool, regionalByGlobalTier, apexTopThreeTierOnly);
 			boolean foil = random.nextDouble() < foilChance;
 			pulls.add(new PackCardResult(selected.getName(), foil));
 		}
 		return pulls;
+	}
+
+	/**
+	 * Cards in {@code regionalPool} whose display tier (full catalog) is Legendary, Mythic, or Godly.
+	 */
+	private List<CardDefinition> topThreeDisplayTierSubset(List<CardDefinition> regionalPool, List<CardDefinition> globalRollPool)
+	{
+		Map<CardDefinition, RarityMath.Tier> globalTierByCard = buildGlobalTierByCard(globalRollPool);
+		List<CardDefinition> out = new ArrayList<>();
+		for (CardDefinition card : regionalPool)
+		{
+			if (card == null)
+			{
+				continue;
+			}
+			RarityMath.Tier t = globalTierByCard.getOrDefault(card, RarityMath.Tier.COMMON);
+			if (t == RarityMath.Tier.LEGENDARY || t == RarityMath.Tier.MYTHIC || t == RarityMath.Tier.GODLY)
+			{
+				out.add(card);
+			}
+		}
+		return out;
 	}
 
 	private Map<CardDefinition, RarityMath.Tier> buildGlobalTierByCard(List<CardDefinition> globalRollPool)
@@ -218,7 +293,8 @@ public class PackOpeningService
 		return out;
 	}
 
-	private CardDefinition pickByTierChance(List<CardDefinition> fallbackPool, Map<RarityMath.Tier, List<CardDefinition>> regionalByGlobalTier)
+	private CardDefinition pickByTierChance(List<CardDefinition> fallbackPool,
+		Map<RarityMath.Tier, List<CardDefinition>> regionalByGlobalTier, boolean apexTopThreeTierOnly)
 	{
 		if (fallbackPool.isEmpty())
 		{
@@ -227,7 +303,7 @@ public class PackOpeningService
 
 		for (int attempts = 0; attempts < 8; attempts++)
 		{
-			RarityMath.Tier tier = rollTier();
+			RarityMath.Tier tier = apexTopThreeTierOnly ? rollTierApexPackOnly() : rollTier();
 			List<CardDefinition> tierCards = regionalByGlobalTier.get(tier);
 			if (tierCards != null && !tierCards.isEmpty())
 			{
@@ -338,5 +414,23 @@ public class PackOpeningService
 			return RarityMath.Tier.UNCOMMON;
 		}
 		return RarityMath.Tier.COMMON;
+	}
+
+	/**
+	 * Tier roll restricted to Legendary / Mythic / Godly, preserving the same relative odds as the top segment of
+	 * {@link #rollTier()} (2% / 2% / 4% of the full bar → 25% / 25% / 50% among the three).
+	 */
+	private RarityMath.Tier rollTierApexPackOnly()
+	{
+		double roll = random.nextDouble() * 8.0d;
+		if (roll < 2.0d)
+		{
+			return RarityMath.Tier.GODLY;
+		}
+		if (roll < 4.0d)
+		{
+			return RarityMath.Tier.MYTHIC;
+		}
+		return RarityMath.Tier.LEGENDARY;
 	}
 }
