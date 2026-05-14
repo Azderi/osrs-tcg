@@ -6,8 +6,10 @@ import net.runelite.client.party.messages.PartyMemberMessage;
 
 /**
  * Sender offers one card copy to a specific party member. Recipient must match {@link #foilChancePercent} and
- * multipliers before adding the card and confirming. Provenance is carried in {@link #pulledByUsername} /
- * {@link #pulledAtEpochMs}; {@link #cardInstanceId} is the sender's row id and is removed only after accept.
+ * multipliers before adding the card and confirming. {@link #senderDebugLogging} must match the recipient's Overview
+ * debug toggle (non-null on wire; null means a legacy sender and the gift is rejected). Provenance is carried in
+ * {@link #pulledByUsername} / {@link #pulledAtEpochMs}; {@link #cardInstanceId} is the sender's row id and is removed
+ * only after accept.
  */
 @Data
 @EqualsAndHashCode(callSuper = false)
@@ -25,4 +27,6 @@ public class TcgCardGiftPartyMessage extends PartyMemberMessage
 	private double levelUpCreditMultiplier;
 	private double xpCreditMultiplier;
 	private String transferId;
+	/** Sender's Overview debug toggle; must equal recipient's or the gift is rejected ({@code null} = legacy client). */
+	private Boolean senderDebugLogging;
 }

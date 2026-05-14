@@ -40,6 +40,10 @@ public class TcgStateService
 			return;
 		}
 		state = stateStore.load();
+		if (stripDebugProvenanceRowsIfDebugDisabled())
+		{
+			save();
+		}
 	}
 
 	public synchronized void save()
@@ -68,6 +72,10 @@ public class TcgStateService
 			return;
 		}
 		state = state.withDebugLogging(enabled);
+		if (!enabled)
+		{
+			stripDebugProvenanceRowsIfDebugDisabled();
+		}
 		save();
 	}
 
@@ -207,7 +215,7 @@ public class TcgStateService
 	}
 
 	/**
-	 * @param allowZeroPrice when true, {@code packPrice == 0} is allowed (debug-only free packs).
+	 * @param allowZeroPrice when true, {@code packPrice == 0} is allowed (debug-only free packs); provenance is tagged with {@link OwnedCardInstance#DEBUG_PULL_METADATA_PREFIX}.
 	 */
 	public synchronized boolean applyPackOpenTransaction(long packPrice, List<PackCardResult> pulls, boolean allowZeroPrice,
 		String pullerDisplayName)
@@ -233,7 +241,8 @@ public class TcgStateService
 			return false;
 		}
 
-		String by = pullerDisplayName == null ? "" : pullerDisplayName.trim();
+		String rawBy = pullerDisplayName == null ? "" : pullerDisplayName.trim();
+		String by = allowZeroPrice ? OwnedCardInstance.withDebugPullMetadataPrefix(rawBy) : rawBy;
 		long now = System.currentTimeMillis();
 		List<OwnedCardInstance> pulled = new ArrayList<>();
 		for (PackCardResult pull : pulls)
@@ -347,5 +356,24 @@ public class TcgStateService
 		{
 			flush.run();
 		}
+	}
+
+	/**
+	 * @return true if the in-memory collection was mutated
+	 */
+	private boolean stripDebugProvenanceRowsIfDebugDisabled()
+	{
+		if (state.isDebugLogging())
+		{
+			return false;
+		}
+		CollectionState current = state.getCollectionState();
+		CollectionState next = current.withoutDebugProvenanceRows();
+		if (next == current)
+		{
+			return false;
+		}
+		state = state.withCollection(next);
+		return true;
 	}
 }

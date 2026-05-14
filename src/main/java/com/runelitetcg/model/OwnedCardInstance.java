@@ -8,6 +8,11 @@ import java.util.UUID;
  */
 public final class OwnedCardInstance
 {
+	/**
+	 * Prefix on {@link #pulledByUsername} for cards from debug-only paths ({@code ::tcg-give}, free debug booster pulls).
+	 */
+	public static final String DEBUG_PULL_METADATA_PREFIX = "DEBUG_";
+
 	private final String instanceId;
 	private final String cardName;
 	private final boolean foil;
@@ -29,6 +34,25 @@ public final class OwnedCardInstance
 	public static OwnedCardInstance createNew(String cardName, boolean foil, String pulledByUsername, long pulledAtEpochMs)
 	{
 		return new OwnedCardInstance(UUID.randomUUID().toString(), cardName, foil, pulledByUsername, pulledAtEpochMs);
+	}
+
+	public static boolean hasDebugPullMetadata(String pulledByUsername)
+	{
+		return pulledByUsername != null && pulledByUsername.startsWith(DEBUG_PULL_METADATA_PREFIX);
+	}
+
+	public static String withDebugPullMetadataPrefix(String playerNameOrSanitized)
+	{
+		if (playerNameOrSanitized == null)
+		{
+			return DEBUG_PULL_METADATA_PREFIX;
+		}
+		String t = playerNameOrSanitized.trim();
+		if (t.startsWith(DEBUG_PULL_METADATA_PREFIX))
+		{
+			return t;
+		}
+		return DEBUG_PULL_METADATA_PREFIX + t;
 	}
 
 	public String getInstanceId()

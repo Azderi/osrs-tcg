@@ -21,14 +21,20 @@ import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
 
 /**
- * Party card gifting: sender offers (no removal yet); recipient validates multiplier parity, adds the card, then
- * sends {@link TcgCardGiftResponsePartyMessage}; sender removes one copy only when accepted.
+ * Party card gifting: sender offers (no removal yet); recipient validates multiplier parity, matching Overview debug
+ * mode, adds the card, then sends {@link TcgCardGiftResponsePartyMessage}; sender removes one copy only when accepted.
  */
 @Slf4j
 @Singleton
 public class CardPartyTransferService
 {
 	private static final long PENDING_TTL_MS = 90_000L;
+
+	private static final int GIFT_REJECT_NONE = 0;
+	private static final int GIFT_REJECT_TUNING_MISMATCH = 1;
+	private static final int GIFT_REJECT_DEBUG_MISMATCH = 2;
+	private static final int GIFT_REJECT_SENDER_TOO_OLD = 3;
+	private static final int GIFT_REJECT_BAD_PAYLOAD = 4;
 
 	private final PartyService partyService;
 	private final TcgStateService stateService;
@@ -172,6 +178,7 @@ public class CardPartyTransferService
 		boolean foil = inst.isFoil();
 		String instanceId = inst.getInstanceId();
 		RewardTuningState tuning;
+		boolean senderDebugLogging;
 		synchronized (stateService)
 		{
 			java.util.Optional<OwnedCardInstance> cur = stateService.getState().getCollectionState()
@@ -182,6 +189,7 @@ public class CardPartyTransferService
 			}
 			inst = cur.get();
 			tuning = stateService.getState().getRewardTuning();
+			senderDebugLogging = stateService.isDebugLogging();
 		}
 
 		String transferId = java.util.UUID.randomUUID().toString();
@@ -201,6 +209,7 @@ public class CardPartyTransferService
 			m.setLevelUpCreditMultiplier(tuning.getLevelUpCreditMultiplier());
 			m.setXpCreditMultiplier(tuning.getXpCreditMultiplier());
 			m.setTransferId(transferId);
+			m.setSenderDebugLogging(senderDebugLogging);
 			partyService.send(m);
 		}
 		catch (Exception ex)
@@ -274,15 +283,31 @@ public class CardPartyTransferService
 
 		if (senderInstanceId.isEmpty())
 		{
-			sendResponse(msg.getTransferId(), originalSender, false);
+			sendResponse(msg.getTransferId(), originalSender, false, GIFT_REJECT_BAD_PAYLOAD);
 			TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
 				"Incoming card ignored: incompatible gift message (missing instance id).");
 			return;
 		}
 
+		Boolean senderDebug = msg.getSenderDebugLogging();
+		if (senderDebug == null)
+		{
+			sendResponse(msg.getTransferId(), originalSender, false, GIFT_REJECT_SENDER_TOO_OLD);
+			TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
+				"Incoming card ignored: sender's client did not report debug mode (update OSRS TCG on both sides).");
+			return;
+		}
+		if (senderDebug.booleanValue() != stateService.isDebugLogging())
+		{
+			sendResponse(msg.getTransferId(), originalSender, false, GIFT_REJECT_DEBUG_MISMATCH);
+			TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
+				"Incoming card ignored: Overview debug mode must match the sender's.");
+			return;
+		}
+
 		if (!tuningOk)
 		{
-			sendResponse(msg.getTransferId(), originalSender, false);
+			sendResponse(msg.getTransferId(), originalSender, false, GIFT_REJECT_TUNING_MISMATCH);
 			TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
 				"Incoming card ignored: your foil / credit multipliers do not match the sender's.");
 			return;
@@ -295,7 +320,7 @@ public class CardPartyTransferService
 		{
 			processedGiftTransferIds.add(msg.getTransferId());
 		}
-		sendResponse(msg.getTransferId(), originalSender, true);
+		sendResponse(msg.getTransferId(), originalSender, true, GIFT_REJECT_NONE);
 
 		packRevealSoundService.playTransferSuccess();
 
@@ -368,13 +393,38 @@ public class CardPartyTransferService
 		}
 		else
 		{
-			TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
-				String.format(Locale.US, "%s could not accept the card. You still have it.", target));
+			int code = msg.getRejectCode();
+			String detail;
+			if (code == GIFT_REJECT_TUNING_MISMATCH)
+			{
+				detail = String.format(Locale.US,
+					"%s could not accept the card: foil / credit multipliers do not match.", target);
+			}
+			else if (code == GIFT_REJECT_DEBUG_MISMATCH)
+			{
+				detail = String.format(Locale.US,
+					"%s could not accept the card: Overview debug mode must match on both clients.", target);
+			}
+			else if (code == GIFT_REJECT_SENDER_TOO_OLD)
+			{
+				detail = String.format(Locale.US,
+					"%s could not accept the card: update OSRS TCG to the same version on both clients.", target);
+			}
+			else if (code == GIFT_REJECT_BAD_PAYLOAD)
+			{
+				detail = String.format(Locale.US,
+					"%s could not accept the card (invalid transfer payload).", target);
+			}
+			else
+			{
+				detail = String.format(Locale.US, "%s could not accept the card. You still have it.", target);
+			}
+			TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager, detail);
 		}
 		refreshAlbumIfOpen();
 	}
 
-	private void sendResponse(String transferId, long originalSenderMemberId, boolean accepted)
+	private void sendResponse(String transferId, long originalSenderMemberId, boolean accepted, int rejectCode)
 	{
 		try
 		{
@@ -382,6 +432,7 @@ public class CardPartyTransferService
 			r.setTransferId(transferId);
 			r.setOriginalSenderMemberId(originalSenderMemberId);
 			r.setAccepted(accepted);
+			r.setRejectCode(accepted ? GIFT_REJECT_NONE : rejectCode);
 			partyService.send(r);
 		}
 		catch (Exception ex)

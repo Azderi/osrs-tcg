@@ -5,6 +5,7 @@ import com.runelitetcg.data.CardDatabase;
 import com.runelitetcg.data.CardDefinition;
 import com.runelitetcg.data.PackCatalog;
 import com.runelitetcg.model.CardCollectionKey;
+import com.runelitetcg.model.OwnedCardInstance;
 import com.runelitetcg.model.TcgPublicStats;
 import com.runelitetcg.overlay.PackRevealInputListener;
 import com.runelitetcg.overlay.PackRevealOverlay;
@@ -465,7 +466,8 @@ public class RuneLiteTcgPlugin extends Plugin
 		String who = client.getLocalPlayer() != null && client.getLocalPlayer().getName() != null
 			? Text.sanitize(client.getLocalPlayer().getName())
 			: "";
-		stateService.addCard(canonicalName, foil, 1, who, System.currentTimeMillis());
+		stateService.addCard(canonicalName, foil, 1, OwnedCardInstance.withDebugPullMetadataPrefix(who),
+			System.currentTimeMillis());
 		collectionAlbumManager.refreshIfVisible();
 		client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
 			String.format(Locale.US, "[OSRS TCG] Gave 1× %s%s.", canonicalName, foil ? " (foil)" : ""), null);

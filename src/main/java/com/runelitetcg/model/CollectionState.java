@@ -135,6 +135,26 @@ public final class CollectionState
 		return new CollectionState(next);
 	}
 
+	/**
+	 * Returns a collection with instances removed whose provenance is debug-marked ({@link OwnedCardInstance#hasDebugPullMetadata}).
+	 */
+	public CollectionState withoutDebugProvenanceRows()
+	{
+		List<OwnedCardInstance> next = new ArrayList<>();
+		for (OwnedCardInstance i : instances)
+		{
+			if (!OwnedCardInstance.hasDebugPullMetadata(i.getPulledByUsername()))
+			{
+				next.add(i);
+			}
+		}
+		if (next.size() == instances.size())
+		{
+			return this;
+		}
+		return new CollectionState(next);
+	}
+
 	public CollectionState withInstances(List<OwnedCardInstance> replacement)
 	{
 		return new CollectionState(replacement);
