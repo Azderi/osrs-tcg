@@ -1,6 +1,7 @@
 package com.runelitetcg.service;
 
 import com.runelitetcg.data.CardDatabase;
+import com.runelitetcg.model.OwnedCardInstance;
 import com.runelitetcg.model.RewardTuningState;
 import com.runelitetcg.party.TcgCardGiftPartyMessage;
 import com.runelitetcg.party.TcgCardGiftResponsePartyMessage;
@@ -45,12 +46,14 @@ public class CardPartyTransferService
 	{
 		private final String cardName;
 		private final boolean foil;
+		private final String cardInstanceId;
 		private final long createdAtMs;
 
-		private PendingOffer(String cardName, boolean foil, long createdAtMs)
+		private PendingOffer(String cardName, boolean foil, String cardInstanceId, long createdAtMs)
 		{
 			this.cardName = cardName;
 			this.foil = foil;
+			this.cardInstanceId = cardInstanceId;
 			this.createdAtMs = createdAtMs;
 		}
 	}
@@ -79,6 +82,61 @@ public class CardPartyTransferService
 	 */
 	public String sendGift(long recipientMemberId, String cardName, boolean foil)
 	{
+		String partyErr = validateGiftPartyRecipient(recipientMemberId);
+		if (partyErr != null)
+		{
+			return partyErr;
+		}
+		if (cardName == null || cardName.trim().isEmpty())
+		{
+			return "Select a card to send.";
+		}
+		String name = cardName.trim();
+		OwnedCardInstance inst;
+		synchronized (stateService)
+		{
+			java.util.Optional<OwnedCardInstance> pick = stateService.firstInstanceFifo(name, foil);
+			if (pick.isEmpty())
+			{
+				return "You do not own that card variant.";
+			}
+			inst = pick.get();
+		}
+		return beginGiftTransfer(recipientMemberId, inst);
+	}
+
+	/**
+	 * Sends the specific collection row (any copy the player owns).
+	 *
+	 * @return null on success, or user-facing error
+	 */
+	public String sendGift(long recipientMemberId, String cardInstanceId)
+	{
+		String partyErr = validateGiftPartyRecipient(recipientMemberId);
+		if (partyErr != null)
+		{
+			return partyErr;
+		}
+		if (cardInstanceId == null || cardInstanceId.trim().isEmpty())
+		{
+			return "Select a card copy to send.";
+		}
+		OwnedCardInstance inst;
+		synchronized (stateService)
+		{
+			inst = stateService.getState().getCollectionState()
+				.findInstanceById(cardInstanceId.trim())
+				.orElse(null);
+		}
+		if (inst == null)
+		{
+			return "You do not own that card copy.";
+		}
+		return beginGiftTransfer(recipientMemberId, inst);
+	}
+
+	private String validateGiftPartyRecipient(long recipientMemberId)
+	{
 		if (!partyService.isInParty())
 		{
 			return "Join a RuneLite party first.";
@@ -97,24 +155,37 @@ public class CardPartyTransferService
 		{
 			return "That player is not in your party.";
 		}
-		if (cardName == null || cardName.trim().isEmpty())
+		return null;
+	}
+
+	private String beginGiftTransfer(long recipientMemberId, OwnedCardInstance inst)
+	{
+		if (inst == null)
 		{
 			return "Select a card to send.";
 		}
-		String name = cardName.trim();
+		String name = inst.getCardName() == null ? "" : inst.getCardName().trim();
+		if (name.isEmpty())
+		{
+			return "Select a card to send.";
+		}
+		boolean foil = inst.isFoil();
+		String instanceId = inst.getInstanceId();
+		RewardTuningState tuning;
 		synchronized (stateService)
 		{
-			int owned = stateService.getState().getCollectionState().getOwnedCards()
-				.getOrDefault(new com.runelitetcg.model.CardCollectionKey(name, foil), 0);
-			if (owned < 1)
+			java.util.Optional<OwnedCardInstance> cur = stateService.getState().getCollectionState()
+				.findInstanceById(instanceId);
+			if (cur.isEmpty())
 			{
-				return "You do not own that card variant.";
+				return "You do not own that card copy.";
 			}
+			inst = cur.get();
+			tuning = stateService.getState().getRewardTuning();
 		}
 
-		RewardTuningState tuning = stateService.getState().getRewardTuning();
 		String transferId = java.util.UUID.randomUUID().toString();
-		pendingOffers.put(transferId, new PendingOffer(name, foil, System.currentTimeMillis()));
+		pendingOffers.put(transferId, new PendingOffer(name, foil, inst.getInstanceId(), System.currentTimeMillis()));
 
 		try
 		{
@@ -122,6 +193,9 @@ public class CardPartyTransferService
 			m.setRecipientMemberId(recipientMemberId);
 			m.setCardName(name);
 			m.setFoil(foil);
+			m.setCardInstanceId(inst.getInstanceId());
+			m.setPulledByUsername(inst.getPulledByUsername());
+			m.setPulledAtEpochMs(inst.getPulledAtEpochMs());
 			m.setFoilChancePercent(tuning.getFoilChancePercent());
 			m.setKillCreditMultiplier(tuning.getKillCreditMultiplier());
 			m.setLevelUpCreditMultiplier(tuning.getLevelUpCreditMultiplier());
@@ -196,6 +270,15 @@ public class CardPartyTransferService
 		long originalSender = msg.getMemberId();
 		String card = msg.getCardName() == null ? "" : msg.getCardName().trim();
 		boolean foil = msg.isFoil();
+		String senderInstanceId = msg.getCardInstanceId() == null ? "" : msg.getCardInstanceId().trim();
+
+		if (senderInstanceId.isEmpty())
+		{
+			sendResponse(msg.getTransferId(), originalSender, false);
+			TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
+				"Incoming card ignored: incompatible gift message (missing instance id).");
+			return;
+		}
 
 		if (!tuningOk)
 		{
@@ -205,7 +288,9 @@ public class CardPartyTransferService
 			return;
 		}
 
-		stateService.addCard(card, foil, 1);
+		String by = msg.getPulledByUsername() == null ? "" : msg.getPulledByUsername().trim();
+		long at = Math.max(0L, msg.getPulledAtEpochMs());
+		stateService.addOwnedCardInstance(OwnedCardInstance.createNew(card, foil, by, at));
 		synchronized (processedGiftTransferIds)
 		{
 			processedGiftTransferIds.add(msg.getTransferId());
@@ -264,7 +349,7 @@ public class CardPartyTransferService
 
 		if (msg.isAccepted())
 		{
-			boolean removed = stateService.removeCardQuantity(pending.cardName, pending.foil, 1);
+			boolean removed = stateService.removeCardInstance(pending.cardInstanceId);
 			if (!removed)
 			{
 				TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
@@ -284,7 +369,7 @@ public class CardPartyTransferService
 		else
 		{
 			TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
-				String.format(Locale.US, "%s could not accept the card (multiplier mismatch). You still have it.", target));
+				String.format(Locale.US, "%s could not accept the card. You still have it.", target));
 		}
 		refreshAlbumIfOpen();
 	}

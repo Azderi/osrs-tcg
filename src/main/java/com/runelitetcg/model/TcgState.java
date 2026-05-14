@@ -4,7 +4,7 @@ import com.runelitetcg.util.PackRevealZoomUtil;
 
 public final class TcgState
 {
-	public static final int CURRENT_SCHEMA_VERSION = 2;
+	public static final int CURRENT_SCHEMA_VERSION = 3;
 
 	private final int schemaVersion;
 	private final EconomyState economyState;

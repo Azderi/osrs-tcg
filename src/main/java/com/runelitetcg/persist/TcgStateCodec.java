@@ -2,14 +2,14 @@ package com.runelitetcg.persist;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
-import com.runelitetcg.model.CardCollectionKey;
 import com.runelitetcg.model.CollectionState;
 import com.runelitetcg.model.EconomyState;
+import com.runelitetcg.model.OwnedCardInstance;
 import com.runelitetcg.model.RewardTuningState;
 import com.runelitetcg.model.TcgState;
 import com.runelitetcg.util.PackRevealZoomUtil;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -38,33 +38,22 @@ public class TcgStateCodec
 				return TcgState.empty();
 			}
 
-			Map<CardCollectionKey, Integer> collection = new HashMap<>();
-			Map<CardCollectionKey, Long> lastObtained = new HashMap<>();
-			if (stored.collection != null)
+			List<OwnedCardInstance> rows = new ArrayList<>();
+			if (stored.cardInstances != null)
 			{
-				for (Map.Entry<String, Integer> entry : stored.collection.entrySet())
+				for (SerializedInstance row : stored.cardInstances)
 				{
-					CardCollectionKey key = deserializeCollectionKey(entry.getKey());
-					if (key == null)
+					if (row == null || row.cardName == null || row.cardName.trim().isEmpty())
 					{
 						continue;
 					}
-
-					Integer quantity = entry.getValue();
-					if (quantity != null && quantity > 0)
-					{
-						collection.put(key, quantity);
-						if (stored.collectionLastObtained != null)
-						{
-							Long timestamp = stored.collectionLastObtained.get(entry.getKey());
-							if (timestamp != null && timestamp > 0)
-							{
-								lastObtained.put(key, timestamp);
-							}
-						}
-					}
+					String id = row.id == null || row.id.trim().isEmpty() ? null : row.id.trim();
+					String by = row.pulledBy == null ? "" : row.pulledBy;
+					long at = row.pulledAt <= 0L ? 0L : row.pulledAt;
+					rows.add(new OwnedCardInstance(id, row.cardName.trim(), row.foil, by, at));
 				}
 			}
+			CollectionState coll = CollectionState.copyOf(rows);
 
 			RewardTuningState tuning = RewardTuningState.mergeSerialized(
 				stored.foilChancePercent,
@@ -80,7 +69,7 @@ public class TcgStateCodec
 			return new TcgState(
 				TcgState.CURRENT_SCHEMA_VERSION,
 				new EconomyState(stored.credits, stored.openedPacks),
-				new CollectionState(collection, lastObtained),
+				coll,
 				tuning,
 				debug,
 				packZoom
@@ -100,8 +89,7 @@ public class TcgStateCodec
 		serialized.schemaVersion = s.getSchemaVersion();
 		serialized.credits = s.getEconomyState().getCredits();
 		serialized.openedPacks = s.getEconomyState().getOpenedPacks();
-		serialized.collection = new HashMap<>();
-		serialized.collectionLastObtained = new HashMap<>();
+		serialized.cardInstances = new ArrayList<>();
 
 		RewardTuningState tuning = s.getRewardTuning();
 		serialized.foilChancePercent = tuning.getFoilChancePercent();
@@ -111,47 +99,18 @@ public class TcgStateCodec
 		serialized.debugLogging = s.isDebugLogging();
 		serialized.packRevealOverlayScale = s.getPackRevealOverlayScale();
 
-		for (Map.Entry<CardCollectionKey, Integer> entry : s.getCollectionState().getOwnedCards().entrySet())
+		for (OwnedCardInstance inst : s.getCollectionState().getOwnedInstances())
 		{
-			String key = serializeCollectionKey(entry.getKey());
-			serialized.collection.put(key, entry.getValue());
-			long ts = s.getCollectionState().getLastObtainedAt(entry.getKey());
-			if (ts > 0)
-			{
-				serialized.collectionLastObtained.put(key, ts);
-			}
+			SerializedInstance row = new SerializedInstance();
+			row.id = inst.getInstanceId();
+			row.cardName = inst.getCardName();
+			row.foil = inst.isFoil();
+			row.pulledBy = inst.getPulledByUsername();
+			row.pulledAt = inst.getPulledAtEpochMs();
+			serialized.cardInstances.add(row);
 		}
 
 		return gson.toJson(serialized);
-	}
-
-	private static String serializeCollectionKey(CardCollectionKey key)
-	{
-		return key.getCardName() + '|' + (char) ('0' + Boolean.compare(key.isFoil(), false));
-	}
-
-	private static CardCollectionKey deserializeCollectionKey(String rawKey)
-	{
-		if (rawKey == null || rawKey.isEmpty())
-		{
-			return null;
-		}
-
-		int separator = rawKey.lastIndexOf('|');
-		if (separator <= 0 || separator >= rawKey.length() - 1)
-		{
-			return null;
-		}
-
-		String name = rawKey.substring(0, separator);
-		String foilFlag = rawKey.substring(separator + 1);
-		if (name.isEmpty())
-		{
-			return null;
-		}
-
-		boolean foil = foilFlag.length() == 1 && foilFlag.charAt(0) == '1';
-		return new CardCollectionKey(name, foil);
 	}
 
 	private static class SerializedState
@@ -159,13 +118,21 @@ public class TcgStateCodec
 		private int schemaVersion = TcgState.CURRENT_SCHEMA_VERSION;
 		private long credits;
 		private long openedPacks;
-		private Map<String, Integer> collection;
-		private Map<String, Long> collectionLastObtained;
+		private List<SerializedInstance> cardInstances;
 		private Integer foilChancePercent;
 		private Double killCreditMultiplier;
 		private Double levelUpCreditMultiplier;
 		private Double xpCreditMultiplier;
 		private Boolean debugLogging;
 		private Double packRevealOverlayScale;
+	}
+
+	private static class SerializedInstance
+	{
+		private String id;
+		private String cardName;
+		private boolean foil;
+		private String pulledBy;
+		private long pulledAt;
 	}
 }

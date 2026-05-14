@@ -462,7 +462,10 @@ public class RuneLiteTcgPlugin extends Plugin
 		}
 
 		String canonicalName = resolved.get();
-		stateService.addCard(canonicalName, foil, 1);
+		String who = client.getLocalPlayer() != null && client.getLocalPlayer().getName() != null
+			? Text.sanitize(client.getLocalPlayer().getName())
+			: "";
+		stateService.addCard(canonicalName, foil, 1, who, System.currentTimeMillis());
 		collectionAlbumManager.refreshIfVisible();
 		client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
 			String.format(Locale.US, "[OSRS TCG] Gave 1× %s%s.", canonicalName, foil ? " (foil)" : ""), null);

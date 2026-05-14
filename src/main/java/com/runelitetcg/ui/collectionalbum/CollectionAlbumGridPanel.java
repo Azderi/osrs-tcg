@@ -18,6 +18,7 @@ import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BiConsumer;
 import javax.swing.JPanel;
 import net.runelite.client.ui.FontManager;
 
@@ -30,19 +31,24 @@ final class CollectionAlbumGridPanel extends JPanel
 	private static final int QTY_LABEL_RESERVE_PX = 18;
 
 	private final WikiImageCacheService imageCacheService;
+	private final BiConsumer<Integer, AlbumSlot> ownedMultiCopyPressed;
 	private final Runnable onSelectionChanged;
 	private List<AlbumSlot> slots = Collections.emptyList();
 	private List<Rectangle> lastCardBounds = Collections.emptyList();
 	private int selectedIndex = -1;
 
-	CollectionAlbumGridPanel(WikiImageCacheService imageCacheService, Runnable onSelectionChanged)
+	CollectionAlbumGridPanel(WikiImageCacheService imageCacheService,
+		BiConsumer<Integer, AlbumSlot> ownedMultiCopyPressed,
+		Runnable onSelectionChanged)
 	{
 		this.imageCacheService = imageCacheService;
+		this.ownedMultiCopyPressed = ownedMultiCopyPressed;
 		this.onSelectionChanged = onSelectionChanged == null ? () -> {} : onSelectionChanged;
 		setOpaque(true);
 		setBackground(new Color(0x1E1E1E));
 		setMinimumSize(new Dimension(400, 260));
 		setPreferredSize(new Dimension(720, 420));
+		setToolTipText("");
 
 		addMouseListener(new MouseAdapter()
 		{
@@ -90,8 +96,20 @@ final class CollectionAlbumGridPanel extends JPanel
 				break;
 			}
 		}
-		if (next >= 0 && next < slots.size() && !slots.get(next).ownedAny())
+		if (next < 0 || next >= slots.size() || !slots.get(next).ownedAny())
 		{
+			return;
+		}
+		AlbumSlot slot = slots.get(next);
+		if (slot.totalOwnedQty() > 1)
+		{
+			selectedIndex = -1;
+			repaint();
+			onSelectionChanged.run();
+			if (ownedMultiCopyPressed != null)
+			{
+				ownedMultiCopyPressed.accept(next, slot);
+			}
 			return;
 		}
 		if (next == selectedIndex)
@@ -112,6 +130,30 @@ final class CollectionAlbumGridPanel extends JPanel
 		selectedIndex = -1;
 		repaint();
 		onSelectionChanged.run();
+	}
+
+	@Override
+	public String getToolTipText(MouseEvent event)
+	{
+		if (event == null)
+		{
+			return null;
+		}
+		for (int i = 0; i < lastCardBounds.size() && i < slots.size(); i++)
+		{
+			Rectangle r = lastCardBounds.get(i);
+			if (r != null && r.contains(event.getPoint()))
+			{
+				AlbumSlot slot = slots.get(i);
+				if (slot == null || !slot.ownedAny())
+				{
+					return null;
+				}
+				String tip = slot.singleCopyHoverTooltip();
+				return tip == null || tip.isEmpty() ? null : tip;
+			}
+		}
+		return null;
 	}
 
 	@Override

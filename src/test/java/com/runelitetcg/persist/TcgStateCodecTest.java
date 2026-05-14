@@ -4,10 +4,11 @@ import com.google.gson.Gson;
 import com.runelitetcg.model.CardCollectionKey;
 import com.runelitetcg.model.CollectionState;
 import com.runelitetcg.model.EconomyState;
+import com.runelitetcg.model.OwnedCardInstance;
 import com.runelitetcg.model.RewardTuningState;
 import com.runelitetcg.model.TcgState;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -36,14 +37,15 @@ public class TcgStateCodecTest
 	@Test
 	public void toJsonAndFromJsonRoundTripState()
 	{
-		Map<CardCollectionKey, Integer> collection = new HashMap<>();
-		collection.put(new CardCollectionKey("Abyssal whip", false), 2);
-		collection.put(new CardCollectionKey("Abyssal whip", true), 1);
+		List<OwnedCardInstance> copies = new ArrayList<>();
+		copies.add(OwnedCardInstance.createNew("Abyssal whip", false, "PlayerOne", 1_700_000_000_000L));
+		copies.add(OwnedCardInstance.createNew("Abyssal whip", false, "PlayerOne", 1_700_000_000_001L));
+		copies.add(OwnedCardInstance.createNew("Abyssal whip", true, "PlayerOne", 1_700_000_000_002L));
 
 		TcgState source = new TcgState(
 			TcgState.CURRENT_SCHEMA_VERSION,
 			new EconomyState(1500L, 7L),
-			new CollectionState(collection),
+			CollectionState.copyOf(copies),
 			new RewardTuningState(5, 1.25d, 1.5d, 2.0d),
 			true,
 			1.15d
@@ -54,6 +56,7 @@ public class TcgStateCodecTest
 
 		Assert.assertEquals(1500L, loaded.getEconomyState().getCredits());
 		Assert.assertEquals(7L, loaded.getEconomyState().getOpenedPacks());
+		Assert.assertEquals(3, loaded.getCollectionState().getOwnedInstances().size());
 		Assert.assertEquals(Integer.valueOf(2), loaded.getCollectionState().getOwnedCards().get(new CardCollectionKey("Abyssal whip", false)));
 		Assert.assertEquals(Integer.valueOf(1), loaded.getCollectionState().getOwnedCards().get(new CardCollectionKey("Abyssal whip", true)));
 		Assert.assertEquals(5, loaded.getRewardTuning().getFoilChancePercent());

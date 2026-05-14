@@ -15,6 +15,8 @@ import java.util.Map;
 import java.util.Random;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import net.runelite.api.Client;
+import net.runelite.client.util.Text;
 
 @Singleton
 public class PackOpeningService
@@ -38,21 +40,23 @@ public class PackOpeningService
 
 	private final CardDatabase cardDatabase;
 	private final TcgStateService stateService;
+	private final Client client;
 	private final TcgPartyAnnouncer partyAnnouncer;
 	private final Random random;
 
 	@Inject
-	public PackOpeningService(CardDatabase cardDatabase, TcgStateService stateService,
+	public PackOpeningService(CardDatabase cardDatabase, TcgStateService stateService, Client client,
 		TcgPartyAnnouncer partyAnnouncer)
 	{
-		this(cardDatabase, stateService, partyAnnouncer, new Random());
+		this(cardDatabase, stateService, client, partyAnnouncer, new Random());
 	}
 
-	PackOpeningService(CardDatabase cardDatabase, TcgStateService stateService,
+	PackOpeningService(CardDatabase cardDatabase, TcgStateService stateService, Client client,
 		TcgPartyAnnouncer partyAnnouncer, Random random)
 	{
 		this.cardDatabase = cardDatabase;
 		this.stateService = stateService;
+		this.client = client;
 		this.partyAnnouncer = partyAnnouncer;
 		this.random = random;
 	}
@@ -155,7 +159,7 @@ public class PackOpeningService
 		{
 			ownedBefore = new HashMap<>(stateService.getState().getCollectionState().getOwnedCards());
 		}
-		if (!stateService.applyPackOpenTransaction(packPrice, pulls, debugPack))
+		if (!stateService.applyPackOpenTransaction(packPrice, pulls, debugPack, localPullerDisplayName()))
 		{
 			return PackOpenResult.failed("Pack transaction failed.", creditsBefore, packPrice);
 		}
@@ -456,5 +460,14 @@ public class PackOpeningService
 			return RarityMath.Tier.MYTHIC;
 		}
 		return RarityMath.Tier.LEGENDARY;
+	}
+
+	private String localPullerDisplayName()
+	{
+		if (client == null || client.getLocalPlayer() == null || client.getLocalPlayer().getName() == null)
+		{
+			return "";
+		}
+		return Text.sanitize(client.getLocalPlayer().getName());
 	}
 }

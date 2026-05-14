@@ -5,16 +5,19 @@ import com.runelitetcg.data.CardDatabase;
 import com.runelitetcg.data.CardDefinition;
 import com.runelitetcg.data.PackCatalog;
 import com.runelitetcg.model.CardCollectionKey;
+import com.runelitetcg.model.OwnedCardInstance;
 import com.runelitetcg.service.CardPartyTransferService;
 import com.runelitetcg.service.TcgStateService;
 import com.runelitetcg.service.WikiImageCacheService;
 import com.runelitetcg.ui.SharedCardRenderer;
 import com.runelitetcg.util.NumberFormatting;
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
@@ -53,6 +56,11 @@ import net.runelite.client.util.Text;
 
 public final class CollectionAlbumWindow extends JFrame
 {
+	private static final String VIEW_ALBUM_BROWSE = "browse";
+	private static final String VIEW_CARD_VARIANTS = "variants";
+	private static final String VIEW_NORTH_BROWSE = "northBrowse";
+	private static final String VIEW_NORTH_VARIANT = "northVariant";
+
 	private static final String PARTY_SEND_TOOLTIP =
 		"You and the recipient must both be in the same RuneLite party with OSRS TCG installed to send cards.";
 	private static final int PAGE_SIZE = 21;
@@ -69,8 +77,6 @@ public final class CollectionAlbumWindow extends JFrame
 
 	private final List<Long> partyMemberIds = new ArrayList<>();
 	private final JComboBox<String> partyMemberCombo = new JComboBox<>();
-	private final JLabel variantLbl = new JLabel("Variant:");
-	private final JComboBox<VariantChoice> variantCombo = new JComboBox<>();
 	private final JButton sendCardBtn = new JButton("Send");
 	private final JLabel sendStatusLabel = new JLabel(" ");
 	private final Timer partyUiTimer;
@@ -90,15 +96,32 @@ public final class CollectionAlbumWindow extends JFrame
 	private final JButton nextBtn = new JButton("Next >");
 	private final JLabel pageLabel = new JLabel(" ");
 	private final CollectionAlbumGridPanel grid;
+	private final CardLayout albumCenterLayout = new CardLayout();
+	private final JPanel albumCenterHost = new JPanel(albumCenterLayout);
+	private final CollectionAlbumVariantsPanel variantsPanel;
 	private Timer searchDebounceTimer;
 	private final Timer imagePollTimer;
+
+	private final CardLayout albumNorthLayout = new CardLayout();
+	private final JPanel albumNorthHost = new JPanel(albumNorthLayout);
+	private final JPanel variantNorthBanner = new JPanel(new BorderLayout(16, 0));
+	private final JButton variantBackToAlbumBtn = new JButton("< Back to album");
+	private final JLabel variantCardTitleLbl = new JLabel(" ", JLabel.CENTER);
+	private final JButton variantPagingPrevBtn = new JButton("< Prev");
+	private final JButton variantPagingNextBtn = new JButton("Next >");
+	private final JLabel variantPagingLabel = new JLabel(" ");
+
+	private boolean albumVariantsVisible;
+
+	/** True when {@link #sendChosenInstanceId} was chosen from the variant grid (no album cell selection). */
+	private boolean sendPickFromVariantOnly;
 
 	private int pageIndex;
 	private int filteredTotal;
 	private int pageCount;
-	/** Identity of the slot used for normal/foil send combo; when unchanged, foil preference survives party/timer refresh. */
-	private String sendVariantSlotKey;
-	private boolean sendPreferFoilVariant;
+	/** Selected collection row for party send; cleared when changing cards or after a successful send. */
+	private String sendChosenInstanceId;
+	private String sendFocusCardName;
 
 	public CollectionAlbumWindow(
 		CardDatabase cardDatabase,
@@ -115,7 +138,8 @@ public final class CollectionAlbumWindow extends JFrame
 		this.imageCacheService = imageCacheService;
 		this.partyService = partyService;
 		this.cardPartyTransferService = cardPartyTransferService;
-		this.grid = new CollectionAlbumGridPanel(imageCacheService, this::onSlotSelectionChanged);
+		this.grid = new CollectionAlbumGridPanel(imageCacheService, this::onOwnedMultiCopyAlbumPress, this::onSlotSelectionChanged);
+		this.variantsPanel = new CollectionAlbumVariantsPanel(imageCacheService, this::onVariantInstancePicked);
 
 		setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
 		setMinimumSize(new Dimension(1300, 810));
@@ -298,10 +322,63 @@ public final class CollectionAlbumWindow extends JFrame
 			c.addMouseWheelListener(pageWheel);
 		}
 		row4.addMouseWheelListener(pageWheel);
-		add(top, BorderLayout.NORTH);
+
+		JPanel browseNorthHost = new JPanel(new BorderLayout());
+		browseNorthHost.setOpaque(false);
+		browseNorthHost.add(top, BorderLayout.CENTER);
+		browseNorthHost.addMouseWheelListener(pageWheel);
+
+		variantNorthBanner.setOpaque(false);
+		variantNorthBanner.setBorder(new EmptyBorder(6, 8, 6, 8));
+		variantBackToAlbumBtn.setFocusable(false);
+		variantBackToAlbumBtn.setBackground(ColorScheme.DARKER_GRAY_COLOR.darker());
+		variantBackToAlbumBtn.setForeground(Color.WHITE);
+		variantBackToAlbumBtn.setMargin(new Insets(10, 14, 10, 14));
+		variantBackToAlbumBtn.addActionListener(e -> exitAlbumVariantView());
+		JPanel variantBackCol = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+		variantBackCol.setOpaque(false);
+		variantBackCol.add(variantBackToAlbumBtn);
+		variantNorthBanner.add(variantBackCol, BorderLayout.WEST);
+
+		variantCardTitleLbl.setForeground(Color.WHITE);
+		variantCardTitleLbl.setFont(FontManager.getRunescapeBoldFont());
+		variantNorthBanner.add(variantCardTitleLbl, BorderLayout.CENTER);
+
+		JPanel variantPagingRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+		variantPagingRow.setOpaque(false);
+		variantPagingPrevBtn.setFocusable(false);
+		variantPagingNextBtn.setFocusable(false);
+		variantPagingPrevBtn.setBackground(ColorScheme.DARKER_GRAY_COLOR.darker());
+		variantPagingNextBtn.setBackground(ColorScheme.DARKER_GRAY_COLOR.darker());
+		variantPagingPrevBtn.setForeground(Color.WHITE);
+		variantPagingNextBtn.setForeground(Color.WHITE);
+		variantPagingLabel.setForeground(Color.WHITE);
+		variantPagingRow.add(variantPagingPrevBtn);
+		variantPagingRow.add(variantPagingLabel);
+		variantPagingRow.add(variantPagingNextBtn);
+		variantNorthBanner.add(variantPagingRow, BorderLayout.EAST);
+
+		albumNorthHost.setOpaque(false);
+		albumNorthHost.add(browseNorthHost, VIEW_NORTH_BROWSE);
+		albumNorthHost.add(variantNorthBanner, VIEW_NORTH_VARIANT);
+		add(albumNorthHost, BorderLayout.NORTH);
+
+		variantsPanel.setPagingControls(variantPagingPrevBtn, variantPagingNextBtn, variantPagingLabel);
+
+		JPanel browseWrap = new JPanel(new BorderLayout());
+		browseWrap.setOpaque(false);
 		grid.setBorder(BorderFactory.createEmptyBorder(4, 6, 12, 6));
+		browseWrap.add(grid, BorderLayout.CENTER);
+		browseWrap.addMouseWheelListener(pageWheel);
 		grid.addMouseWheelListener(pageWheel);
-		add(grid, BorderLayout.CENTER);
+
+		variantsPanel.setBorder(BorderFactory.createEmptyBorder(4, 6, 12, 6));
+		variantsPanel.addMouseWheelListener(pageWheel);
+
+		albumCenterHost.setOpaque(false);
+		albumCenterHost.add(browseWrap, VIEW_ALBUM_BROWSE);
+		albumCenterHost.add(variantsPanel, VIEW_CARD_VARIANTS);
+		add(albumCenterHost, BorderLayout.CENTER);
 
 		JPanel south = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
 		south.setOpaque(false);
@@ -312,27 +389,12 @@ public final class CollectionAlbumWindow extends JFrame
 		partyMemberCombo.setForeground(Color.WHITE);
 		partyMemberCombo.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		south.add(partyMemberCombo);
-		variantLbl.setForeground(Color.WHITE);
-		variantLbl.setVisible(false);
-		variantCombo.setForeground(Color.WHITE);
-		variantCombo.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		variantCombo.setVisible(false);
-		south.add(variantLbl);
-		south.add(variantCombo);
 		sendCardBtn.setFocusable(false);
 		sendCardBtn.setBackground(ColorScheme.DARKER_GRAY_COLOR.darker());
 		sendCardBtn.setForeground(Color.WHITE);
 		south.add(sendCardBtn);
 		south.add(sendStatusLabel);
 		partyMemberCombo.addActionListener(e -> updateSendButtonState());
-		variantCombo.addActionListener(e ->
-		{
-			if (variantCombo.getItemCount() >= 2 && variantCombo.getSelectedIndex() >= 0)
-			{
-				sendPreferFoilVariant = variantCombo.getSelectedIndex() == 1;
-			}
-			updateSendButtonState();
-		});
 		sendCardBtn.addActionListener(this::onSendToPartyClicked);
 		add(south, BorderLayout.SOUTH);
 
@@ -350,6 +412,10 @@ public final class CollectionAlbumWindow extends JFrame
 			if (isShowing())
 			{
 				grid.repaint();
+				if (albumVariantsVisible)
+				{
+					variantsPanel.repaint();
+				}
 			}
 		});
 		imagePollTimer.start();
@@ -378,7 +444,11 @@ public final class CollectionAlbumWindow extends JFrame
 		radMissing.setFont(small);
 		foilOnlyCheck.setFont(small);
 		partyMemberCombo.setFont(small);
-		variantCombo.setFont(small);
+		variantBackToAlbumBtn.setFont(small);
+		variantPagingPrevBtn.setFont(small);
+		variantPagingNextBtn.setFont(small);
+		variantPagingLabel.setFont(small);
+		variantCardTitleLbl.setFont(FontManager.getRunescapeBoldFont());
 		sendCardBtn.setFont(small);
 		sendStatusLabel.setFont(small);
 	}
@@ -472,6 +542,7 @@ public final class CollectionAlbumWindow extends JFrame
 
 	public void rebuildModel()
 	{
+		exitAlbumVariantView();
 		refreshPartyMemberCombo();
 		int collectionIdx = collectionCombo.getSelectedIndex();
 		if (tabFilters.isEmpty() || collectionIdx < 0 || collectionIdx >= tabFilters.size())
@@ -560,7 +631,8 @@ public final class CollectionAlbumWindow extends JFrame
 			Integer ff = owned.get(new CardCollectionKey(name, true));
 			int nQty = nf == null ? 0 : nf;
 			int fQty = ff == null ? 0 : ff;
-			slots.add(new AlbumSlot(c, rarity, ownAny, displayFoil, nQty, fQty));
+			String singleTip = singleCopyAlbumHoverTooltip(name, nQty, fQty, ownAny);
+			slots.add(new AlbumSlot(c, rarity, ownAny, displayFoil, nQty, fQty, singleTip));
 		}
 		grid.setSlots(slots);
 
@@ -651,6 +723,85 @@ public final class CollectionAlbumWindow extends JFrame
 		return n != null && n > 0;
 	}
 
+	private String singleCopyAlbumHoverTooltip(String cardName, int nQty, int fQty, boolean ownAny)
+	{
+		if (!ownAny || cardName == null || nQty + fQty != 1)
+		{
+			return null;
+		}
+		List<OwnedCardInstance> row = stateService.getState().getCollectionState().instancesForCardName(cardName);
+		if (row.size() != 1)
+		{
+			return null;
+		}
+		return AlbumInstanceTooltip.format(row.get(0));
+	}
+
+	private void exitAlbumVariantView()
+	{
+		albumNorthLayout.show(albumNorthHost, VIEW_NORTH_BROWSE);
+		albumCenterLayout.show(albumCenterHost, VIEW_ALBUM_BROWSE);
+		albumVariantsVisible = false;
+	}
+
+	private void enterAlbumVariantView(AlbumSlot slot)
+	{
+		if (slot == null || slot.card() == null || slot.card().getName() == null)
+		{
+			return;
+		}
+		String cardName = slot.card().getName().trim();
+		if (cardName.isEmpty())
+		{
+			return;
+		}
+		List<OwnedCardInstance> copies = new ArrayList<>(
+			stateService.getState().getCollectionState().instancesForCardName(cardName));
+		if (copies.size() < 2)
+		{
+			return;
+		}
+		copies.sort(Comparator.comparing(OwnedCardInstance::isFoil).reversed()
+			.thenComparingLong(OwnedCardInstance::getPulledAtEpochMs));
+		Color rarity = slot.rarityColor();
+		String prevFocus = sendFocusCardName == null ? "" : sendFocusCardName.trim();
+		if (!cardName.equals(prevFocus))
+		{
+			sendChosenInstanceId = null;
+		}
+		sendFocusCardName = cardName;
+		sendPickFromVariantOnly = false;
+		variantCardTitleLbl.setText(cardName);
+		albumNorthLayout.show(albumNorthHost, VIEW_NORTH_VARIANT);
+		variantsPanel.setVariants(slot.card(), rarity, copies, sendChosenInstanceId);
+		if (sendChosenInstanceId != null && !sendChosenInstanceId.isEmpty())
+		{
+			sendPickFromVariantOnly = stateService.getState().getCollectionState()
+				.findInstanceById(sendChosenInstanceId)
+				.filter(o ->
+				{
+					String n = o.getCardName() == null ? "" : o.getCardName().trim();
+					return cardName.equals(n);
+				})
+				.isPresent();
+		}
+		albumCenterLayout.show(albumCenterHost, VIEW_CARD_VARIANTS);
+		albumVariantsVisible = true;
+	}
+
+	private void onVariantInstancePicked(OwnedCardInstance inst)
+	{
+		if (inst == null)
+		{
+			return;
+		}
+		sendChosenInstanceId = inst.getInstanceId();
+		String n = inst.getCardName() == null ? "" : inst.getCardName().trim();
+		sendFocusCardName = n.isEmpty() ? sendFocusCardName : n;
+		sendPickFromVariantOnly = true;
+		updateSendButtonState();
+	}
+
 	private void refreshPartyMemberCombo()
 	{
 		int prevSel = partyMemberCombo.getSelectedIndex();
@@ -713,56 +864,46 @@ public final class CollectionAlbumWindow extends JFrame
 		onSlotSelectionChanged();
 	}
 
+	private void onOwnedMultiCopyAlbumPress(int slotIndex, AlbumSlot slot)
+	{
+		enterAlbumVariantView(slot);
+	}
+
 	private void onSlotSelectionChanged()
 	{
-		variantCombo.removeAllItems();
 		if (!partyMemberCombo.isEnabled())
 		{
-			sendVariantSlotKey = null;
-			sendPreferFoilVariant = false;
-			variantLbl.setVisible(false);
-			variantCombo.setVisible(false);
-			variantCombo.setEnabled(false);
+			sendChosenInstanceId = null;
+			sendFocusCardName = null;
+			sendPickFromVariantOnly = false;
 			updateSendButtonState();
 			return;
 		}
 		AlbumSlot slot = grid.getSelectedSlot();
 		if (slot == null || !slot.ownedAny())
 		{
-			sendVariantSlotKey = null;
-			sendPreferFoilVariant = false;
-			variantLbl.setVisible(false);
-			variantCombo.setVisible(false);
-			variantCombo.setEnabled(false);
+			if (!sendPickFromVariantOnly)
+			{
+				sendChosenInstanceId = null;
+				sendFocusCardName = null;
+			}
 			updateSendButtonState();
 			return;
 		}
-		int nf = slot.nonFoilQty();
-		int ff = slot.foilQty();
-		String name = slot.card() == null ? "" : slot.card().getName();
-		String slotKey = name + '\u0001' + nf + '\u0001' + ff;
-		boolean both = nf > 0 && ff > 0;
-		if (both)
+		sendPickFromVariantOnly = false;
+		String newName = slot.card() == null ? null : slot.card().getName();
+		if (sendFocusCardName != null && newName != null && !Objects.equals(sendFocusCardName, newName))
 		{
-			if (!Objects.equals(slotKey, sendVariantSlotKey))
-			{
-				sendVariantSlotKey = slotKey;
-				sendPreferFoilVariant = false;
-			}
-			variantLbl.setVisible(true);
-			variantCombo.setVisible(true);
-			variantCombo.addItem(new VariantChoice(false, nf + "x normal"));
-			variantCombo.addItem(new VariantChoice(true, ff + "x foil"));
-			variantCombo.setEnabled(true);
-			variantCombo.setSelectedIndex(sendPreferFoilVariant ? 1 : 0);
+			sendChosenInstanceId = null;
 		}
-		else
+		sendFocusCardName = newName;
+		if (slot.totalOwnedQty() == 1 && newName != null)
 		{
-			sendVariantSlotKey = slotKey;
-			sendPreferFoilVariant = false;
-			variantLbl.setVisible(false);
-			variantCombo.setVisible(false);
-			variantCombo.setEnabled(false);
+			List<OwnedCardInstance> row = stateService.getState().getCollectionState().instancesForCardName(newName);
+			if (row.size() == 1)
+			{
+				sendChosenInstanceId = row.get(0).getInstanceId();
+			}
 		}
 		updateSendButtonState();
 	}
@@ -774,50 +915,40 @@ public final class CollectionAlbumWindow extends JFrame
 		boolean recipientOk = partyReady && pi > 0 && pi < partyMemberIds.size()
 			&& partyMemberIds.get(pi) != null && partyMemberIds.get(pi) != -1L;
 		AlbumSlot slot = grid.getSelectedSlot();
-		if (slot == null || !slot.ownedAny())
+		boolean gridSlotOk = slot != null && slot.ownedAny();
+		boolean variantSendOk = sendPickFromVariantOnly
+			&& sendChosenInstanceId != null && !sendChosenInstanceId.isEmpty()
+			&& sendFocusCardName != null && !sendFocusCardName.trim().isEmpty();
+		if (!gridSlotOk && !variantSendOk)
 		{
 			sendCardBtn.setEnabled(false);
 			return;
 		}
-		int nf = slot.nonFoilQty();
-		int ff = slot.foilQty();
-		boolean both = nf > 0 && ff > 0;
-		boolean variantOk = !both || variantCombo.getSelectedItem() != null;
-		boolean hasSendableCopy = nf > 0 || ff > 0;
-		sendCardBtn.setEnabled(recipientOk && hasSendableCopy && variantOk);
+		boolean idOk = sendChosenInstanceId != null && !sendChosenInstanceId.isEmpty();
+		sendCardBtn.setEnabled(recipientOk && idOk);
 	}
 
 	private void onSendToPartyClicked(ActionEvent e)
 	{
-		AlbumSlot slot = grid.getSelectedSlot();
 		int pi = partyMemberCombo.getSelectedIndex();
-		if (slot == null || !slot.ownedAny() || pi <= 0 || pi >= partyMemberIds.size())
+		if (pi <= 0 || pi >= partyMemberIds.size())
 		{
 			return;
 		}
-		int nf = slot.nonFoilQty();
-		int ff = slot.foilQty();
-		boolean foil;
-		if (nf > 0 && ff > 0)
+		if (!sendPickFromVariantOnly)
 		{
-			VariantChoice vc = (VariantChoice) variantCombo.getSelectedItem();
-			if (vc == null)
+			AlbumSlot slot = grid.getSelectedSlot();
+			if (slot == null || !slot.ownedAny())
 			{
 				return;
 			}
-			foil = vc.isFoil();
 		}
-		else if (ff > 0)
+		if (sendChosenInstanceId == null || sendChosenInstanceId.isEmpty())
 		{
-			foil = true;
-		}
-		else
-		{
-			foil = false;
+			return;
 		}
 		long recipientId = partyMemberIds.get(pi);
-		String name = slot.card() == null ? null : slot.card().getName();
-		String err = cardPartyTransferService.sendGift(recipientId, name, foil);
+		String err = cardPartyTransferService.sendGift(recipientId, sendChosenInstanceId);
 		if (err != null)
 		{
 			sendStatusLabel.setText(err);
@@ -825,30 +956,9 @@ public final class CollectionAlbumWindow extends JFrame
 		else
 		{
 			sendStatusLabel.setText("");
+			sendChosenInstanceId = null;
+			sendPickFromVariantOnly = false;
 			rebuildModel();
-		}
-	}
-
-	private static final class VariantChoice
-	{
-		private final boolean foil;
-		private final String label;
-
-		private VariantChoice(boolean foil, String label)
-		{
-			this.foil = foil;
-			this.label = label;
-		}
-
-		private boolean isFoil()
-		{
-			return foil;
-		}
-
-		@Override
-		public String toString()
-		{
-			return label;
 		}
 	}
 

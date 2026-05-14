@@ -6,6 +6,7 @@ import com.runelitetcg.data.CardDatabase;
 import com.runelitetcg.data.CardDefinition;
 import com.runelitetcg.data.PackCatalog;
 import com.runelitetcg.model.CardCollectionKey;
+import com.runelitetcg.model.OwnedCardInstance;
 import com.runelitetcg.model.RewardTuningState;
 import com.runelitetcg.model.TcgState;
 import com.runelitetcg.service.CreditAwardService;
@@ -25,6 +26,7 @@ import java.awt.event.ComponentEvent;
 import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -1506,80 +1508,46 @@ public class TcgPanel extends PluginPanel
 			new MatteBorder(1, 1, 1, 1, ColorScheme.LIGHT_GRAY_COLOR.darker()),
 			new EmptyBorder(6, 6, 6, 6)
 		));
-		button.addActionListener(e ->
+		button.addActionListener(ev ->
 		{
 			TcgState current = stateService.getState();
-			Map<CardCollectionKey, Integer> owned = current.getCollectionState().getOwnedCards();
-			if (owned.isEmpty())
+			List<OwnedCardInstance> all = new ArrayList<>(current.getCollectionState().getOwnedInstances());
+			if (all.isEmpty())
 			{
 				refresh();
 				return;
 			}
 
-			Map<String, Integer> foilQtyByName = new HashMap<>();
-			Map<String, Integer> normQtyByName = new HashMap<>();
-			Map<String, Long> foilTsByName = new HashMap<>();
-			Map<String, Long> normTsByName = new HashMap<>();
-
-			for (Map.Entry<CardCollectionKey, Integer> entry : owned.entrySet())
+			Map<String, List<OwnedCardInstance>> byName = new HashMap<>();
+			for (OwnedCardInstance i : all)
 			{
-				CardCollectionKey key = entry.getKey();
-				String name = key.getCardName();
-				if (name == null)
-				{
-					continue;
-				}
-				int qty = Math.max(0, entry.getValue() == null ? 0 : entry.getValue());
-				if (qty <= 0)
-				{
-					continue;
-				}
-				long ts = current.getCollectionState().getLastObtainedAt(key);
-				if (key.isFoil())
-				{
-					foilQtyByName.merge(name, qty, Integer::sum);
-					if (ts > 0L)
-					{
-						foilTsByName.merge(name, ts, Math::max);
-					}
-				}
-				else
-				{
-					normQtyByName.merge(name, qty, Integer::sum);
-					if (ts > 0L)
-					{
-						normTsByName.merge(name, ts, Math::max);
-					}
-				}
+				String n = i.getCardName();
+				byName.computeIfAbsent(n, k -> new ArrayList<>()).add(i);
 			}
 
-			Set<String> allNames = new HashSet<>();
-			allNames.addAll(foilQtyByName.keySet());
-			allNames.addAll(normQtyByName.keySet());
-
-			Map<CardCollectionKey, Integer> nextOwned = new HashMap<>();
-			Map<CardCollectionKey, Long> nextTs = new HashMap<>();
+			List<OwnedCardInstance> kept = new ArrayList<>();
 			long creditsToAdd = 0L;
 
-			for (String name : allNames)
+			for (Map.Entry<String, List<OwnedCardInstance>> entry : byName.entrySet())
 			{
-				int qF = foilQtyByName.getOrDefault(name, 0);
-				int qN = normQtyByName.getOrDefault(name, 0);
+				String name = entry.getKey();
+				List<OwnedCardInstance> lst = entry.getValue();
+				int qF = (int) lst.stream().filter(OwnedCardInstance::isFoil).count();
+				int qN = lst.size() - qF;
 				int total = qF + qN;
-				if (total <= 0)
+				if (total <= 1)
 				{
+					kept.addAll(lst);
 					continue;
 				}
 
 				long score = scoreForCard(name);
 				if (qF > 0)
 				{
-					nextOwned.put(new CardCollectionKey(name, true), 1);
-					long tsF = foilTsByName.getOrDefault(name, 0L);
-					if (tsF > 0L)
-					{
-						nextTs.put(new CardCollectionKey(name, true), tsF);
-					}
+					lst.stream()
+						.filter(OwnedCardInstance::isFoil)
+						.max(Comparator.comparingLong(OwnedCardInstance::getPulledAtEpochMs))
+						.ifPresent(kept::add);
 					int sold = (qF - 1) + qN;
 					if (sold > 0)
 					{
@@ -1588,12 +1556,10 @@ public class TcgPanel extends PluginPanel
 				}
 				else
 				{
-					nextOwned.put(new CardCollectionKey(name, false), 1);
-					long tsN = normTsByName.getOrDefault(name, 0L);
-					if (tsN > 0L)
-					{
-						nextTs.put(new CardCollectionKey(name, false), tsN);
-					}
+					lst.stream()
+						.filter(i -> !i.isFoil())
+						.max(Comparator.comparingLong(OwnedCardInstance::getPulledAtEpochMs))
+						.ifPresent(kept::add);
 					int sold = qF + (qN - 1);
 					if (sold > 0)
 					{
@@ -1602,7 +1568,7 @@ public class TcgPanel extends PluginPanel
 				}
 			}
 
-			stateService.updateCollection(c -> nextOwned, t -> nextTs);
+			stateService.setCollectionInstances(kept);
 			if (creditsToAdd > 0L)
 			{
 				stateService.addCredits(creditsToAdd);

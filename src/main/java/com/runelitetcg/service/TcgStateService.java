@@ -2,15 +2,15 @@ package com.runelitetcg.service;
 
 import com.runelitetcg.model.CardCollectionKey;
 import com.runelitetcg.model.CollectionState;
+import com.runelitetcg.model.OwnedCardInstance;
 import com.runelitetcg.model.PackCardResult;
 import com.runelitetcg.model.RewardTuningState;
 import com.runelitetcg.model.TcgState;
 import com.runelitetcg.persist.TcgStateStore;
 import com.runelitetcg.util.PackRevealZoomUtil;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.function.UnaryOperator;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -160,56 +160,57 @@ public class TcgStateService
 
 	public synchronized void addCard(String cardName, boolean foil, int quantity)
 	{
+		addCard(cardName, foil, quantity, "", System.currentTimeMillis());
+	}
+
+	public synchronized void addCard(String cardName, boolean foil, int quantity, String pulledByUsername, long pulledAtEpochMs)
+	{
 		if (cardName == null || cardName.isEmpty() || quantity <= 0)
 		{
 			return;
 		}
 
-		long now = System.currentTimeMillis();
-		updateCollection(collection ->
-		{
-			CardCollectionKey key = new CardCollectionKey(cardName, foil);
-			int existing = collection.getOrDefault(key, 0);
-			collection.put(key, existing + quantity);
-			return collection;
-		}, timestamps ->
-		{
-			CardCollectionKey key = new CardCollectionKey(cardName, foil);
-			timestamps.put(key, now);
-			return timestamps;
-		});
-	}
-
-	public synchronized void updateCollection(UnaryOperator<Map<CardCollectionKey, Integer>> mutation)
-	{
-		updateCollection(mutation, timestamps -> timestamps);
-	}
-
-	public synchronized void updateCollection(
-		UnaryOperator<Map<CardCollectionKey, Integer>> mutation,
-		UnaryOperator<Map<CardCollectionKey, Long>> timestampMutation)
-	{
 		flushRewardTuningDraftBeforeLocking();
 
-		Map<CardCollectionKey, Integer> copy = new HashMap<>(state.getCollectionState().getOwnedCards());
-		Map<CardCollectionKey, Integer> result = mutation.apply(copy);
-		Map<CardCollectionKey, Integer> normalized = result == null ? copy : result;
-		Map<CardCollectionKey, Long> tsCopy = new HashMap<>(state.getCollectionState().getLastObtainedMap());
-		Map<CardCollectionKey, Long> tsResult = timestampMutation == null ? tsCopy : timestampMutation.apply(tsCopy);
-		Map<CardCollectionKey, Long> normalizedTs = tsResult == null ? tsCopy : tsResult;
-		state = state.withCollection(new CollectionState(normalized, normalizedTs));
+		String by = pulledByUsername == null ? "" : pulledByUsername.trim();
+		long at = Math.max(0L, pulledAtEpochMs);
+		List<OwnedCardInstance> add = new ArrayList<>();
+		for (int i = 0; i < quantity; i++)
+		{
+			add.add(OwnedCardInstance.createNew(cardName, foil, by, at));
+		}
+		state = state.withCollection(state.getCollectionState().withInstancesAdded(add));
 		save();
 	}
 
-	public synchronized boolean applyPackOpenTransaction(long packPrice, List<PackCardResult> pulls)
+	public synchronized void addOwnedCardInstance(OwnedCardInstance instance)
 	{
-		return applyPackOpenTransaction(packPrice, pulls, false);
+		if (instance == null)
+		{
+			return;
+		}
+		flushRewardTuningDraftBeforeLocking();
+		state = state.withCollection(state.getCollectionState().withInstanceAdded(instance));
+		save();
+	}
+
+	public synchronized void setCollectionInstances(List<OwnedCardInstance> replacement)
+	{
+		flushRewardTuningDraftBeforeLocking();
+		state = state.withCollection(CollectionState.copyOf(replacement == null ? List.of() : replacement));
+		save();
+	}
+
+	public synchronized boolean applyPackOpenTransaction(long packPrice, List<PackCardResult> pulls, String pullerDisplayName)
+	{
+		return applyPackOpenTransaction(packPrice, pulls, false, pullerDisplayName);
 	}
 
 	/**
 	 * @param allowZeroPrice when true, {@code packPrice == 0} is allowed (debug-only free packs).
 	 */
-	public synchronized boolean applyPackOpenTransaction(long packPrice, List<PackCardResult> pulls, boolean allowZeroPrice)
+	public synchronized boolean applyPackOpenTransaction(long packPrice, List<PackCardResult> pulls, boolean allowZeroPrice,
+		String pullerDisplayName)
 	{
 		if (pulls == null || pulls.isEmpty())
 		{
@@ -232,25 +233,27 @@ public class TcgStateService
 			return false;
 		}
 
-		Map<CardCollectionKey, Integer> nextCollection = new HashMap<>(state.getCollectionState().getOwnedCards());
-		Map<CardCollectionKey, Long> nextTimestamps = new HashMap<>(state.getCollectionState().getLastObtainedMap());
+		String by = pullerDisplayName == null ? "" : pullerDisplayName.trim();
 		long now = System.currentTimeMillis();
+		List<OwnedCardInstance> pulled = new ArrayList<>();
 		for (PackCardResult pull : pulls)
 		{
 			if (pull == null || pull.getCardName() == null || pull.getCardName().isEmpty())
 			{
 				continue;
 			}
-
-			CardCollectionKey key = new CardCollectionKey(pull.getCardName(), pull.isFoil());
-			nextCollection.put(key, nextCollection.getOrDefault(key, 0) + 1);
-			nextTimestamps.put(key, now);
+			pulled.add(OwnedCardInstance.createNew(pull.getCardName().trim(), pull.isFoil(), by, now));
+		}
+		if (pulled.isEmpty())
+		{
+			return false;
 		}
 
+		CollectionState nextColl = state.getCollectionState().withInstancesAdded(pulled);
 		state = state
 			.withCredits(currentCredits - packPrice)
 			.withOpenedPacks(state.getEconomyState().getOpenedPacks() + 1L)
-			.withCollection(new CollectionState(nextCollection, nextTimestamps));
+			.withCollection(nextColl);
 		save();
 		return true;
 	}
@@ -261,47 +264,82 @@ public class TcgStateService
 		save();
 	}
 
-	/**
-	 * Removes up to {@code quantity} copies of a specific card variant. Drops timestamp entries when quantity reaches zero.
-	 *
-	 * @return true if at least one copy was removed
-	 */
-	public synchronized boolean removeCardQuantity(String cardName, boolean foil, int quantity)
+	public synchronized boolean removeCardInstance(String instanceId)
 	{
-		if (cardName == null || cardName.isEmpty() || quantity <= 0)
+		if (instanceId == null || instanceId.isEmpty())
 		{
 			return false;
 		}
-		CardCollectionKey key = new CardCollectionKey(cardName, foil);
-		Map<CardCollectionKey, Integer> copy = new HashMap<>(state.getCollectionState().getOwnedCards());
-		int cur = copy.getOrDefault(key, 0);
-		if (cur < quantity)
+		if (state.getCollectionState().findInstanceById(instanceId).isEmpty())
 		{
 			return false;
 		}
-		int next = cur - quantity;
-		if (next <= 0)
-		{
-			copy.remove(key);
-		}
-		else
-		{
-			copy.put(key, next);
-		}
-		Map<CardCollectionKey, Long> tsCopy = new HashMap<>(state.getCollectionState().getLastObtainedMap());
-		if (next <= 0)
-		{
-			tsCopy.remove(key);
-		}
-		state = state.withCollection(new CollectionState(copy, tsCopy));
+		state = state.withCollection(state.getCollectionState().withInstanceRemoved(instanceId));
 		save();
 		return true;
 	}
 
 	/**
-	 * Persists sidebar draft foil / multipliers via {@link #rewardTuningFlushBeforeCredits} before mutating state in a way
-	 * that can {@link #isRewardTuningLocked() lock} tuning without an {@link #addCredits(long)} call.
+	 * Removes {@code quantity} copies of a variant, preferring oldest pulls first (FIFO).
+	 *
+	 * @return true if at least one copy was removed
 	 */
+	/**
+	 * Oldest-pulled matching copy first (same ordering as {@link #removeCardQuantityFifo}).
+	 */
+	public synchronized java.util.Optional<OwnedCardInstance> firstInstanceFifo(String cardName, boolean foil)
+	{
+		if (cardName == null || cardName.isEmpty())
+		{
+			return java.util.Optional.empty();
+		}
+		String n = cardName.trim();
+		List<OwnedCardInstance> matches = new ArrayList<>();
+		for (OwnedCardInstance i : state.getCollectionState().getOwnedInstances())
+		{
+			if (n.equalsIgnoreCase(i.getCardName()) && foil == i.isFoil())
+			{
+				matches.add(i);
+			}
+		}
+		if (matches.isEmpty())
+		{
+			return java.util.Optional.empty();
+		}
+		matches.sort(Comparator.comparingLong(OwnedCardInstance::getPulledAtEpochMs));
+		return java.util.Optional.of(matches.get(0));
+	}
+
+	public synchronized boolean removeCardQuantityFifo(String cardName, boolean foil, int quantity)
+	{
+		if (cardName == null || cardName.isEmpty() || quantity <= 0)
+		{
+			return false;
+		}
+		String n = cardName.trim();
+		List<OwnedCardInstance> list = new ArrayList<>(state.getCollectionState().getOwnedInstances());
+		List<OwnedCardInstance> matches = new ArrayList<>();
+		for (OwnedCardInstance i : list)
+		{
+			if (n.equalsIgnoreCase(i.getCardName()) && foil == i.isFoil())
+			{
+				matches.add(i);
+			}
+		}
+		if (matches.size() < quantity)
+		{
+			return false;
+		}
+		matches.sort(Comparator.comparingLong(OwnedCardInstance::getPulledAtEpochMs));
+		for (int r = 0; r < quantity; r++)
+		{
+			list.remove(matches.get(r));
+		}
+		state = state.withCollection(CollectionState.copyOf(list));
+		save();
+		return true;
+	}
+
 	private void flushRewardTuningDraftBeforeLocking()
 	{
 		Runnable flush = rewardTuningFlushBeforeCredits;

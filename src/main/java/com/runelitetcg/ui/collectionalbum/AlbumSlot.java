@@ -11,9 +11,11 @@ public final class AlbumSlot
 	private final boolean displayFoil;
 	private final int nonFoilQty;
 	private final int foilQty;
+	/** Non-null only when exactly one copy is owned; shown as album hover text. */
+	private final String singleCopyHoverTooltip;
 
 	public AlbumSlot(CardDefinition card, Color rarityColor, boolean ownedAny, boolean displayFoil,
-		int nonFoilQty, int foilQty)
+		int nonFoilQty, int foilQty, String singleCopyHoverTooltip)
 	{
 		this.card = card;
 		this.rarityColor = rarityColor;
@@ -21,6 +23,9 @@ public final class AlbumSlot
 		this.displayFoil = displayFoil;
 		this.nonFoilQty = Math.max(0, nonFoilQty);
 		this.foilQty = Math.max(0, foilQty);
+		this.singleCopyHoverTooltip = singleCopyHoverTooltip == null || singleCopyHoverTooltip.isEmpty()
+			? null
+			: singleCopyHoverTooltip;
 	}
 
 	public CardDefinition card()
@@ -56,5 +61,10 @@ public final class AlbumSlot
 	public int totalOwnedQty()
 	{
 		return nonFoilQty + foilQty;
+	}
+
+	public String singleCopyHoverTooltip()
+	{
+		return singleCopyHoverTooltip;
 	}
 }
