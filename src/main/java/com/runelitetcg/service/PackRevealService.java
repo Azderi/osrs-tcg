@@ -111,6 +111,10 @@ public class PackRevealService
 			return index >= 0 && index < revealedByIndex.length && revealedByIndex[index];
 		}
 
+		/**
+		 * True while any face-down card still qualifies for premium reveal audio (hum / reveal chime).
+		 * @see PackRevealService#isPremiumRevealAudioPull(RevealCard)
+		 */
 		public boolean hasUnrevealedMythic()
 		{
 			for (int i = 0; i < cards.size(); i++)
@@ -121,7 +125,7 @@ public class PackRevealService
 					continue;
 				}
 				RevealCard card = cards.get(i);
-				if (isHighlightPull(card))
+				if (isPremiumRevealAudioPull(card))
 				{
 					return true;
 				}
@@ -288,9 +292,12 @@ public class PackRevealService
 				revealedByIndex[clickedIndex] = true;
 				revealedCount++;
 				packRevealSoundService.playCardFlip();
-				if (highlightPull)
+				if (isPremiumRevealAudioPull(clicked))
 				{
 					packRevealSoundService.playMythicReveal();
+				}
+				if (highlightPull)
+				{
 					partyAnnouncer.announceMythicPull(cardNameForParty(clicked), clicked.isNew(), isFoilPull(clicked));
 				}
 				if (revealedCount >= cards.size())
@@ -477,7 +484,11 @@ public class PackRevealService
 		return index >= 0 && index < revealedByIndex.length && revealedByIndex[index];
 	}
 
-	/** True while any Godly-tier or foil card in this pack is still face-down (deal, click-to-reveal, or wait-to-close). */
+	/**
+	 * True while any card that qualifies for premium reveal audio (hum / reveal chime) is still face-down
+	 * (deal, click-to-reveal, or wait-to-close).
+	 * @see #isPremiumRevealAudioPull(RevealCard)
+	 */
 	public synchronized boolean hasUnrevealedMythic()
 	{
 		for (int i = 0; i < cards.size(); i++)
@@ -488,7 +499,7 @@ public class PackRevealService
 				continue;
 			}
 			RevealCard card = cards.get(i);
-			if (isHighlightPull(card))
+			if (isPremiumRevealAudioPull(card))
 			{
 				return true;
 			}
@@ -646,6 +657,9 @@ public class PackRevealService
 		}
 	}
 
+	/**
+	 * Party / emphasis: any Godly-tier pull or any foil (matches album “special” treatment elsewhere).
+	 */
 	private static boolean isHighlightPull(RevealCard card)
 	{
 		if (card == null)
@@ -657,6 +671,27 @@ public class PackRevealService
 			return true;
 		}
 		return card.getPull() != null && card.getPull().isFoil();
+	}
+
+	/**
+	 * Hum loop + {@code reveal.wav}: any Godly-tier card, or a foil whose display tier is one of the three highest
+	 * ({@link RarityMath.Tier#LEGENDARY}, {@link RarityMath.Tier#MYTHIC}, {@link RarityMath.Tier#GODLY}).
+	 */
+	private static boolean isPremiumRevealAudioPull(RevealCard card)
+	{
+		if (card == null)
+		{
+			return false;
+		}
+		if (card.getTier() == RarityMath.Tier.GODLY)
+		{
+			return true;
+		}
+		if (!isFoilPull(card))
+		{
+			return false;
+		}
+		return card.getTier().ordinal() >= RarityMath.Tier.LEGENDARY.ordinal();
 	}
 
 	private static boolean isFoilPull(RevealCard card)

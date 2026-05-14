@@ -13,7 +13,8 @@ import net.runelite.client.chat.QueuedMessage;
 public final class TcgPluginGameMessages
 {
 	/** Warm gold for the {@code OSRS TCG} label (brackets stay default game colour). */
-	private static final Color PLUGIN_BRAND_GOLD = new Color(0xFF, 0xC4, 0x2A);
+	/** Slightly darker than pure bright gold so it reads better on the game message background. */
+	private static final Color PLUGIN_BRAND_GOLD = new Color(0xE5, 0xB0, 0x26);
 
 	private TcgPluginGameMessages()
 	{

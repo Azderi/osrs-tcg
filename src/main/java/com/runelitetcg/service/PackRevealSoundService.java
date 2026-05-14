@@ -18,11 +18,11 @@ import javax.sound.sampled.UnsupportedAudioFileException;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Pack reveal audio: Godly-tier ambience ({@code /hum.wav}, looped while any face-down Godly-tier card remains),
- * Godly reveal chime ({@code /reveal.wav}), per-card deal motion ({@code /card.wav}) when each card begins flying to its slot,
+ * Pack reveal audio: premium-tier ambience ({@code /hum.wav}, looped while any qualifying face-down card remains),
+ * matching reveal chime ({@code /reveal.wav}) on flip, per-card deal motion ({@code /card.wav}) when each card begins flying to its slot,
  * {@code /flip.wav} when a face-down card is clicked to flip, and {@code /transfer.wav} when a party card transfer completes.
  * <p>
- * Short samples use a <b>new {@link Clip} per play</b> so several can overlap (flip + Godly reveal, stacked deal hits, etc.).
+ * Short samples use a <b>new {@link Clip} per play</b> so several can overlap (flip + premium reveal, stacked deal hits, etc.).
  * The hum stays on one looped clip with a short fade-in when it starts.
  */
 @Slf4j
@@ -44,7 +44,7 @@ public class PackRevealSoundService
 	private boolean humOpenFailed;
 	private boolean humLoopActive;
 	private long lastHumTickNanos = System.nanoTime();
-	/** Fade-in envelope 0–1 while Godly hum is active ({@code 1} = full level). */
+	/** Fade-in envelope 0–1 while premium hum is active ({@code 1} = full level). */
 	private float humFade01;
 
 	private boolean revealOpenFailed;
@@ -64,10 +64,10 @@ public class PackRevealSoundService
 	}
 
 	/**
-	 * Per-frame Godly hum while pack reveal overlay is active.
+	 * Per-frame premium hum while pack reveal overlay is active.
 	 *
 	 * @param revealActive           {@link PackRevealService#isActive()}
-	 * @param unrevealedMythicActive at least one Godly-tier card is still face-down in the opening flow
+	 * @param unrevealedMythicActive at least one card that qualifies for hum/reveal is still face-down
 	 */
 	public synchronized void tickMythicHum(boolean revealActive, boolean unrevealedMythicActive)
 	{
@@ -94,7 +94,7 @@ public class PackRevealSoundService
 		}
 		catch (IOException | UnsupportedAudioFileException | LineUnavailableException ex)
 		{
-			log.warn("Could not open hum.wav for Godly pack ambience", ex);
+			log.warn("Could not open hum.wav for pack reveal ambience", ex);
 			humOpenFailed = true;
 			hardStopHum();
 			return;
@@ -126,7 +126,7 @@ public class PackRevealSoundService
 		applyGain(humClip, humFade01);
 	}
 
-	/** One-shot {@code reveal.wav} when a face-down Godly-tier card is flipped (after {@link #playCardFlip()}). */
+	/** One-shot {@code reveal.wav} when a qualifying premium card is flipped (after {@link #playCardFlip()}). */
 	public synchronized void playMythicReveal()
 	{
 		if (!config.enableSounds() || revealOpenFailed)
@@ -344,7 +344,7 @@ public class PackRevealSoundService
 		}
 		if (!humClip.isControlSupported(FloatControl.Type.MASTER_GAIN))
 		{
-			log.warn("hum.wav has no MASTER_GAIN control; Godly pack hum disabled.");
+			log.warn("hum.wav has no MASTER_GAIN control; pack reveal hum disabled.");
 			humOpenFailed = true;
 			if (humClip.isOpen())
 			{

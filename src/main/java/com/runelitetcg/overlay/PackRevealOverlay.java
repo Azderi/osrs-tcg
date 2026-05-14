@@ -354,7 +354,7 @@ public class PackRevealOverlay extends Overlay
 		return true;
 	}
 
-	/** Godly hum loops while any face-down Godly-tier card remains, after the sealed pack is opened (not on {@link PackRevealService.Phase#PACK_READY}). */
+	/** Premium hum loops while any face-down card that qualifies for hum/reveal remains, after the sealed pack is opened (not on {@link PackRevealService.Phase#PACK_READY}). */
 	private void tickMythicHum(PackRevealService.Phase phase, PackRevealService.RevealPaintSnapshot snap)
 	{
 		boolean humWanted = phase != PackRevealService.Phase.PACK_READY && snap.hasUnrevealedMythic();
