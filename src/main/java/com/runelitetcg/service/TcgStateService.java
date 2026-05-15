@@ -1,6 +1,5 @@
 package com.runelitetcg.service;
 
-import com.runelitetcg.model.CardCollectionKey;
 import com.runelitetcg.model.CollectionState;
 import com.runelitetcg.model.OwnedCardInstance;
 import com.runelitetcg.model.PackCardResult;
@@ -215,7 +214,9 @@ public class TcgStateService
 	}
 
 	/**
-	 * @param allowZeroPrice when true, {@code packPrice == 0} is allowed (debug-only free packs); provenance is tagged with {@link OwnedCardInstance#DEBUG_PULL_METADATA_PREFIX}.
+	 * @param allowZeroPrice when true, {@code packPrice == 0} is allowed (debug-only free packs). Provenance is tagged
+	 * with {@link OwnedCardInstance#DEBUG_PULL_METADATA_PREFIX} when {@code allowZeroPrice} or saved Overview debug
+	 * logging is enabled.
 	 */
 	public synchronized boolean applyPackOpenTransaction(long packPrice, List<PackCardResult> pulls, boolean allowZeroPrice,
 		String pullerDisplayName)
@@ -242,7 +243,8 @@ public class TcgStateService
 		}
 
 		String rawBy = pullerDisplayName == null ? "" : pullerDisplayName.trim();
-		String by = allowZeroPrice ? OwnedCardInstance.withDebugPullMetadataPrefix(rawBy) : rawBy;
+		boolean tagDebugProvenance = allowZeroPrice || state.isDebugLogging();
+		String by = tagDebugProvenance ? OwnedCardInstance.withDebugPullMetadataPrefix(rawBy) : rawBy;
 		long now = System.currentTimeMillis();
 		List<OwnedCardInstance> pulled = new ArrayList<>();
 		for (PackCardResult pull : pulls)

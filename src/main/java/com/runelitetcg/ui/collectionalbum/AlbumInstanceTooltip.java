@@ -18,12 +18,12 @@ public final class AlbumInstanceTooltip
 		{
 			return null;
 		}
-		String by = o.getPulledByUsername() == null ? "" : o.getPulledByUsername().trim();
+		String displayBy = OwnedCardInstance.formatPulledByForUi(o.getPulledByUsername());
 		long at = o.getPulledAtEpochMs();
 		StringBuilder sb = new StringBuilder();
-		if (!by.isEmpty())
+		if (!displayBy.isEmpty())
 		{
-			sb.append("Pulled by: ").append(by);
+			sb.append("Pulled by: ").append(displayBy);
 		}
 		if (at > 0L)
 		{

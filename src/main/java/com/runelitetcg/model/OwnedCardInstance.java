@@ -9,7 +9,9 @@ import java.util.UUID;
 public final class OwnedCardInstance
 {
 	/**
-	 * Prefix on {@link #pulledByUsername} for cards from debug-only paths ({@code ::tcg-give}, free debug booster pulls).
+	 * Prefix on {@link #pulledByUsername} for cards from {@code ::tcg-give}, free debug booster pulls, or any pack opened
+	 * while Overview debug logging is enabled. Album tooltips show this as {@code Debug_}{@code username} via
+	 * {@link #formatPulledByForUi(String)}.
 	 */
 	public static final String DEBUG_PULL_METADATA_PREFIX = "DEBUG_";
 
@@ -53,6 +55,23 @@ public final class OwnedCardInstance
 			return t;
 		}
 		return DEBUG_PULL_METADATA_PREFIX + t;
+	}
+
+	/**
+	 * Provenance line for UI: debug-tagged rows use {@code Debug_}{@code username}; storage keeps {@link #DEBUG_PULL_METADATA_PREFIX}.
+	 */
+	public static String formatPulledByForUi(String pulledByUsername)
+	{
+		if (pulledByUsername == null || pulledByUsername.trim().isEmpty())
+		{
+			return "";
+		}
+		String raw = pulledByUsername.trim();
+		if (!hasDebugPullMetadata(raw))
+		{
+			return raw;
+		}
+		return "Debug_" + raw.substring(DEBUG_PULL_METADATA_PREFIX.length());
 	}
 
 	public String getInstanceId()
