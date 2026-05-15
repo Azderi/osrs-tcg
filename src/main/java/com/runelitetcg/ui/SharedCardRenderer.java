@@ -29,8 +29,10 @@ public final class SharedCardRenderer
 	/** Light gold fill for the moving foil sheen; opacity comes from {@link AlphaComposite}. */
 	private static final Color FOIL_SHEEN_GOLD = new Color(255, 236, 190);
 	private static final Color FOIL_SPARKLE_CORE = new Color(255, 215, 105);
+	/** Peak opacity when a twinkle is at full size ({@code scaleEnv == 1}). */
+	private static final float FOIL_TWINKLE_PEAK_ALPHA = 0.75f;
 	/** Inward scoop of foil twinkle star edges; lower = sharper tips (control closer to center). */
-	private static final float FOIL_TWINKLE_CONCAVE_K = 0.15f;
+	private static final float FOIL_TWINKLE_CONCAVE_K = 0.11f;
 	/** Active sheen sweep duration (ms); half of prior 1150 ms = double sweep speed. */
 	private static final int FOIL_SHEEN_SWEEP_MS = 575;
 	/** Idle time after each sweep before the next (ms). */
@@ -166,7 +168,7 @@ public final class SharedCardRenderer
 			if (foil)
 			{
 				drawFoilSheen(g2, bounds, outerArc);
-				drawFoilSparkles(g2, bounds, outerArc, card);
+				drawFoilSparkles(g2, bounds, outerArc, ft, card);
 			}
 		}
 		finally
@@ -265,7 +267,7 @@ public final class SharedCardRenderer
 	}
 
 	/** Fewer sparkles; each twinkle grows from 0 to full size then shrinks to 0; position changes each cycle. */
-	private static void drawFoilSparkles(Graphics2D g2, Rectangle clipBounds, int clipArc, CardDefinition card)
+	private static void drawFoilSparkles(Graphics2D g2, Rectangle clipBounds, int clipArc, int frameThickness, CardDefinition card)
 	{
 		if (g2 == null || clipBounds == null || clipBounds.width < 8 || clipBounds.height < 8)
 		{
@@ -281,18 +283,29 @@ public final class SharedCardRenderer
 		java.awt.Stroke strokeBefore = g2.getStroke();
 		try
 		{
+			float scale = Math.max(0.35f, Math.min(clipBounds.width, clipBounds.height) / 260.0f);
+			float twinkleArmPx = Math.max(5f, (float) (3.55d * scale * 1.62d * 2.0d));
+
+			// Inside the frame, with extra pad so full-size star tips stay off the border.
+			int borderInset = Math.max(1, frameThickness) + 1;
+			int tipPad = Math.max(2, (int) Math.ceil(twinkleArmPx * 1.12f));
+			Rectangle sparkleArea = inset(clipBounds, borderInset);
+			int sparkleArc = Math.max(2, arc - 2);
+			Rectangle posArea = inset(sparkleArea, tipPad);
+			if (posArea.width < 6 || posArea.height < 6)
+			{
+				posArea = sparkleArea;
+			}
+
 			RoundRectangle2D clipShape = new RoundRectangle2D.Float(
-				clipBounds.x, clipBounds.y, clipBounds.width, clipBounds.height, arc, arc);
+				sparkleArea.x, sparkleArea.y, sparkleArea.width, sparkleArea.height, sparkleArc, sparkleArc);
 			g2.clip(clipShape);
 
-			float scale = Math.max(0.35f, Math.min(clipBounds.width, clipBounds.height) / 260.0f);
 			int count = 6 + (int) (sparkleU01(seed, 0, 77) * 6);
-			int margin = Math.max(2, Math.round(4 * scale));
-			int posW = Math.max(1, clipBounds.width - margin * 2);
-			int posH = Math.max(1, clipBounds.height - margin * 2);
+			int margin = Math.max(1, Math.round(2 * scale));
+			int posW = Math.max(1, posArea.width - margin * 2);
+			int posH = Math.max(1, posArea.height - margin * 2);
 			long now = System.currentTimeMillis();
-			// All twinkles share the same max size; only position and timing vary.
-			float twinkleArmPx = Math.max(2.5f, (float) (3.55d * scale * 1.62d));
 
 			for (int i = 0; i < count; i++)
 			{
@@ -302,8 +315,8 @@ public final class SharedCardRenderer
 				long cycleIndex = tWave / period;
 				long posSeed = seed ^ (cycleIndex * 0x9E3779B97L) ^ ((long) i << 21);
 
-				int px = clipBounds.x + margin + (int) (sparkleU01(posSeed, i, 1) * posW);
-				int py = clipBounds.y + margin + (int) (sparkleU01(posSeed, i, 2) * posH);
+				int px = posArea.x + margin + (int) (sparkleU01(posSeed, i, 1) * posW);
+				int py = posArea.y + margin + (int) (sparkleU01(posSeed, i, 2) * posH);
 
 				long uMod = ((tWave % period) + period) % period;
 				double u = uMod / (double) period;
@@ -323,7 +336,7 @@ public final class SharedCardRenderer
 				java.awt.Shape drawn = at.createTransformedShape(twShape);
 
 				g2.setColor(FOIL_SPARKLE_CORE);
-				g2.setComposite(AlphaComposite.SrcOver.derive((float) (0.94 * scaleEnv)));
+				g2.setComposite(AlphaComposite.SrcOver.derive(FOIL_TWINKLE_PEAK_ALPHA * (float) scaleEnv));
 				g2.fill(drawn);
 			}
 		}

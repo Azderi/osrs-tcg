@@ -224,10 +224,13 @@ public class PackRevealOverlay extends Overlay
 		{
 			PackRevealService.RevealCard card = cards.get(i);
 			Rectangle r = bounds.get(i);
-			double lift = (i >= 0 && i < cardHoverLift.length) ? cardHoverLift[i] : 0.0d;
-			double scale = 1.0d + (HOVER_CARD_SCALE - 1.0d) * lift;
-			r = scaleRectCentered(r, scale);
 			boolean faceUp = snap.isCardRevealed(i);
+			double lift = faceUp ? 0.0d : ((i >= 0 && i < cardHoverLift.length) ? cardHoverLift[i] : 0.0d);
+			if (!faceUp && lift > 0.0d)
+			{
+				double scale = 1.0d + (HOVER_CARD_SCALE - 1.0d) * lift;
+				r = scaleRectCentered(r, scale);
+			}
 			float glowAlpha = faceUp ? HOVER_RARITY_GLOW_ALPHA : (float) (HOVER_RARITY_GLOW_ALPHA * lift);
 			drawGlow(graphics, r, card.getRarityColor(), glowAlpha);
 			if (faceUp)
@@ -444,7 +447,8 @@ public class PackRevealOverlay extends Overlay
 			int hi = indexOfRectUnderMouse(withCardHoverVisualScale(bases));
 			for (int i = 0; i < cardHoverLift.length; i++)
 			{
-				double target = (i == hi) ? 1.0d : 0.0d;
+				boolean faceUp = revealService.isCardRevealed(i);
+				double target = (!faceUp && i == hi) ? 1.0d : 0.0d;
 				cardHoverLift[i] = stepToward(cardHoverLift[i], target, HOVER_LERP);
 			}
 			return;
@@ -469,6 +473,11 @@ public class PackRevealOverlay extends Overlay
 		List<Rectangle> out = new ArrayList<>(bases.size());
 		for (int i = 0; i < bases.size(); i++)
 		{
+			if (revealService.isCardRevealed(i))
+			{
+				out.add(bases.get(i));
+				continue;
+			}
 			double lift = (i < cardHoverLift.length) ? cardHoverLift[i] : 0.0d;
 			double scale = 1.0d + (HOVER_CARD_SCALE - 1.0d) * lift;
 			out.add(scaleRectCentered(bases.get(i), scale));
