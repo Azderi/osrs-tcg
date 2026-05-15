@@ -46,8 +46,10 @@ public class PackRevealOverlay extends Overlay
 	private static final double HOVER_CARD_SCALE = 1.072d;
 	/** Sealed pack grows slightly when hovered (PACK_READY). */
 	private static final double PACK_IMAGE_HOVER_MAX_SCALE = 1.085d;
-	/** Interpolation per overlay frame toward hover targets (0–1). */
+	/** Per-step lerp at {@value #HOVER_LERP_REFERENCE_HZ} Hz; converted to wall-clock in {@link #advanceHoverLerpFactor()}. */
 	private static final double HOVER_LERP = 0.22d;
+	private static final double HOVER_LERP_REFERENCE_HZ = 60.0d;
+	private static final double HOVER_LERP_MAX_DT_SEC = 0.05d;
 	private static final int BASE_CARD_GAP = 24;
 	/** Inset from canvas edges when fitting pack + card grid. */
 	private static final int VIEWPORT_MARGIN = 40;
@@ -94,6 +96,8 @@ public class PackRevealOverlay extends Overlay
 	private final int[] pointerScratch = new int[2];
 	/** Used to call {@link PackRevealSoundService#hardStop()} only on active→inactive transition (not every frame). */
 	private boolean packRevealSoundActiveLastFrame;
+	/** Wall-clock source for time-based hover lerp (stable speed when overlay FPS drops at high zoom). */
+	private long lastHoverDynamicsNanos;
 
 	@Inject
 	public PackRevealOverlay(Client client, PackRevealService revealService, WikiImageCacheService imageCacheService,
@@ -366,6 +370,7 @@ public class PackRevealOverlay extends Overlay
 		sessionPackZoomMultiplier = Double.NaN;
 		revealHoverFromListener = false;
 		apexPackPointerWasInside = false;
+		lastHoverDynamicsNanos = 0L;
 	}
 
 	private boolean revealPointer(int[] outXY)
@@ -409,39 +414,41 @@ public class PackRevealOverlay extends Overlay
 	private void updateHoverDynamics(Rectangle canvas, ViewportLayout layout, int cardCount,
 		PackRevealService.Phase phase, long phaseElapsedMs)
 	{
+		double lerp = advanceHoverLerpFactor();
+
 		if (phase == PackRevealService.Phase.PACK_READY)
 		{
 			Rectangle packBase = layout.packRect(canvas);
 			double target = mouseInRect(packDrawRect(packBase)) ? 1.0d : 0.0d;
-			packHoverLift = stepToward(packHoverLift, target, HOVER_LERP);
-			decayAllCardHovers();
+			packHoverLift = stepToward(packHoverLift, target, lerp);
+			decayAllCardHovers(lerp);
 			return;
 		}
 
 		if (phase == PackRevealService.Phase.PACK_FADING)
 		{
-			packHoverLift = stepToward(packHoverLift, 0.0d, HOVER_LERP);
-			decayAllCardHovers();
+			packHoverLift = stepToward(packHoverLift, 0.0d, lerp);
+			decayAllCardHovers(lerp);
 			return;
 		}
 
 		if (phase == PackRevealService.Phase.CARD_DEAL)
 		{
-			packHoverLift = stepToward(packHoverLift, 0.0d, HOVER_LERP);
+			packHoverLift = stepToward(packHoverLift, 0.0d, lerp);
 			ensureCardHoverLength(cardCount);
 			List<Rectangle> bases = layoutDealPhaseCardRects(canvas, layout, cardCount, phaseElapsedMs);
 			int hi = indexOfRectUnderMouse(bases);
 			for (int i = 0; i < cardHoverLift.length; i++)
 			{
 				double target = (i == hi) ? 1.0d : 0.0d;
-				cardHoverLift[i] = stepToward(cardHoverLift[i], target, HOVER_LERP);
+				cardHoverLift[i] = stepToward(cardHoverLift[i], target, lerp);
 			}
 			return;
 		}
 
 		if (phase == PackRevealService.Phase.CARD_REVEAL || phase == PackRevealService.Phase.WAIT_CLOSE)
 		{
-			packHoverLift = stepToward(packHoverLift, 0.0d, HOVER_LERP);
+			packHoverLift = stepToward(packHoverLift, 0.0d, lerp);
 			ensureCardHoverLength(cardCount);
 			List<Rectangle> bases = layoutCardSlots(canvas, cardCount, layout);
 			int hi = indexOfRectUnderMouse(withCardHoverVisualScale(bases));
@@ -449,12 +456,30 @@ public class PackRevealOverlay extends Overlay
 			{
 				boolean faceUp = revealService.isCardRevealed(i);
 				double target = (!faceUp && i == hi) ? 1.0d : 0.0d;
-				cardHoverLift[i] = stepToward(cardHoverLift[i], target, HOVER_LERP);
+				cardHoverLift[i] = stepToward(cardHoverLift[i], target, lerp);
 			}
 			return;
 		}
 
 		resetHoverAnimations();
+	}
+
+	/**
+	 * Lerp factor for elapsed wall time since the last hover update. Matches {@link #HOVER_LERP} per frame at
+	 * {@link #HOVER_LERP_REFERENCE_HZ} so feel is unchanged at 60 FPS but hover no longer slows when FPS drops.
+	 */
+	private double advanceHoverLerpFactor()
+	{
+		long now = System.nanoTime();
+		if (lastHoverDynamicsNanos == 0L)
+		{
+			lastHoverDynamicsNanos = now;
+			return HOVER_LERP;
+		}
+		double dt = (now - lastHoverDynamicsNanos) / 1_000_000_000.0;
+		lastHoverDynamicsNanos = now;
+		dt = Math.max(0.0d, Math.min(HOVER_LERP_MAX_DT_SEC, dt));
+		return 1.0d - Math.pow(1.0d - HOVER_LERP, dt * HOVER_LERP_REFERENCE_HZ);
 	}
 
 	private static double stepToward(double current, double target, double factor)
@@ -533,7 +558,7 @@ public class PackRevealOverlay extends Overlay
 		}
 	}
 
-	private void decayAllCardHovers()
+	private void decayAllCardHovers(double lerpFactor)
 	{
 		if (cardHoverLift == null || cardHoverLift.length == 0)
 		{
@@ -541,7 +566,7 @@ public class PackRevealOverlay extends Overlay
 		}
 		for (int i = 0; i < cardHoverLift.length; i++)
 		{
-			cardHoverLift[i] = stepToward(cardHoverLift[i], 0.0d, HOVER_LERP);
+			cardHoverLift[i] = stepToward(cardHoverLift[i], 0.0d, lerpFactor);
 		}
 	}
 
