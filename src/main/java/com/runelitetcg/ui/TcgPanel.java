@@ -86,9 +86,7 @@ public class TcgPanel extends PluginPanel
 			+ "If you want to change these settings later on, you must reset your collection and start from nothing.";
 
 	private static final String TCG_WELCOME_TCG_COMMAND_BODY =
-		"Type !tcg in chat to share your collection stats (score, completion, unique cards, opened packs, and total cards). "
-			+ "Party members with OSRS TCG installed receive your stats automatically. "
-			+ "To view someone else's recent stats, type !tcg on their chat line.";
+		"Type !tcg in chat to share your collection stats";
 
 	private enum Tab
 	{
