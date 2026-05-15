@@ -132,6 +132,19 @@ final class CollectionAlbumGridPanel extends JPanel
 		onSelectionChanged.run();
 	}
 
+	/** True when any visible slot uses foil visuals (moving sheen); used to drive a fast repaint timer. */
+	boolean needsFoilAnimationRepaint()
+	{
+		for (AlbumSlot s : slots)
+		{
+			if (s != null && s.displayFoil())
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	@Override
 	public String getToolTipText(MouseEvent event)
 	{

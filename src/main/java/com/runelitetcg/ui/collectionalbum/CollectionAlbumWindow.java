@@ -101,6 +101,8 @@ public final class CollectionAlbumWindow extends JFrame
 	private final CollectionAlbumVariantsPanel variantsPanel;
 	private Timer searchDebounceTimer;
 	private final Timer imagePollTimer;
+	/** ~30 FPS repaints while foil sheen is visible (album grid is otherwise polled at {@link #imagePollTimer}). */
+	private final Timer foilAnimTimer;
 
 	private final CardLayout albumNorthLayout = new CardLayout();
 	private final JPanel albumNorthHost = new JPanel(albumNorthLayout);
@@ -420,6 +422,23 @@ public final class CollectionAlbumWindow extends JFrame
 		});
 		imagePollTimer.start();
 
+		foilAnimTimer = new Timer(33, e ->
+		{
+			if (!isShowing())
+			{
+				return;
+			}
+			if (grid.needsFoilAnimationRepaint())
+			{
+				grid.repaint();
+			}
+			if (albumVariantsVisible && variantsPanel.needsFoilAnimationRepaint())
+			{
+				variantsPanel.repaint();
+			}
+		});
+		foilAnimTimer.start();
+
 		styleFrameFonts();
 	}
 
@@ -457,6 +476,7 @@ public final class CollectionAlbumWindow extends JFrame
 	{
 		partyUiTimer.stop();
 		imagePollTimer.stop();
+		foilAnimTimer.stop();
 		if (searchDebounceTimer != null)
 		{
 			searchDebounceTimer.stop();

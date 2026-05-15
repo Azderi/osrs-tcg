@@ -72,7 +72,7 @@ import net.runelite.client.util.Text;
 @Slf4j
 @PluginDescriptor(
 	name = "OSRS TCG",
-	description = "TCG-style collection plugin powered by Card.json"
+	description = "TCG-style card collecting plugin for Old School RuneScape"
 )
 public class RuneLiteTcgPlugin extends Plugin
 {
@@ -318,23 +318,27 @@ public class RuneLiteTcgPlugin extends Plugin
 		creditAwardService.resetExperienceCreditBaseline();
 		tcgPanel.syncRewardDraftFromPersistent();
 		tcgPanel.refresh();
-		if (stateService.isDebugLogging())
-		{
-			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-				String.format("[OSRS TCG] Profile state loaded. Credits: %s", NumberFormatting.format(stateService.getCredits())),
-				null);
-		}
 	}
 
 	@Subscribe
 	public void onCommandExecuted(CommandExecuted event)
 	{
-		if ("tcg-set".equalsIgnoreCase(event.getCommand()))
+		if (event == null)
+		{
+			return;
+		}
+		String cmd = event.getCommand();
+		if (cmd == null || cmd.length() < 4 || !cmd.regionMatches(true, 0, "tcg", 0, 3))
+		{
+			return;
+		}
+
+		if ("tcg-set".equalsIgnoreCase(cmd))
 		{
 			if (!stateService.isDebugLogging())
 			{
 				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-					"[OSRS TCG] ::tcg-set requires debug mode (Overview tab: enable before reward multipliers lock).",
+					"[OSRS TCG] ::tcg-set requires debug mode",
 					null);
 				return;
 			}
@@ -342,18 +346,18 @@ public class RuneLiteTcgPlugin extends Plugin
 			return;
 		}
 
-		if ("tcg-reset".equalsIgnoreCase(event.getCommand()))
+		if ("tcg-reset".equalsIgnoreCase(cmd))
 		{
 			handleResetCommand();
 			return;
 		}
 
-		if ("tcg-give".equalsIgnoreCase(event.getCommand()))
+		if ("tcg-give".equalsIgnoreCase(cmd))
 		{
 			if (!stateService.isDebugLogging())
 			{
 				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-					"[OSRS TCG] ::tcg-give requires debug mode (Overview tab: enable before reward multipliers lock).",
+					"[OSRS TCG] ::tcg-give requires debug mode",
 					null);
 				return;
 			}
@@ -361,12 +365,12 @@ public class RuneLiteTcgPlugin extends Plugin
 			return;
 		}
 
-		if ("tcg-apex".equalsIgnoreCase(event.getCommand()))
+		if ("tcg-apex".equalsIgnoreCase(cmd))
 		{
 			if (!stateService.isDebugLogging())
 			{
 				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
-					"[OSRS TCG] ::tcg-apex requires debug mode (Overview tab: enable before reward multipliers lock).",
+					"[OSRS TCG] ::tcg-apex requires debug mode",
 					null);
 				return;
 			}
@@ -374,7 +378,7 @@ public class RuneLiteTcgPlugin extends Plugin
 			return;
 		}
 
-		if ("tcg-open".equalsIgnoreCase(event.getCommand()))
+		if ("tcg-open".equalsIgnoreCase(cmd))
 		{
 			handleOpenFirstBoosterCommand(false);
 			return;
