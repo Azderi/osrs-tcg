@@ -13,10 +13,10 @@ import net.runelite.client.chat.QueuedMessage;
 public final class TcgPluginGameMessages
 {
 	/**
-	 * Warm gold for the {@code OSRS TCG} label and for Godly-tier card names in game chat (slightly darker than
-	 * {@link com.runelitetcg.service.RarityMath.Tier#GODLY} frame colour so it reads better on the message background).
+	 * Warm gold for the {@code OSRS TCG} label and for Godly-tier card names in game chat (darker than
+	 * {@link com.runelitetcg.service.RarityMath.Tier#GODLY} frame colour so it reads on the message background).
 	 */
-	public static final Color CHAT_EMPHASIS_GOLD = new Color(0xE5, 0xB0, 0x26);
+	public static final Color CHAT_EMPHASIS_GOLD = new Color(0xC4, 0x94, 0x1A);
 
 	private TcgPluginGameMessages()
 	{
