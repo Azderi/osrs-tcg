@@ -5,6 +5,11 @@ import com.runelitetcg.data.CardDatabase;
 import com.runelitetcg.data.CardDefinition;
 import com.runelitetcg.data.PackCatalog;
 import com.runelitetcg.model.CardCollectionKey;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import com.runelitetcg.model.OwnedCardInstance;
 import com.runelitetcg.model.TcgPublicStats;
 import com.runelitetcg.overlay.PackRevealInputListener;
@@ -12,9 +17,11 @@ import com.runelitetcg.overlay.PackRevealOverlay;
 import com.runelitetcg.service.CardPartyTransferService;
 import com.runelitetcg.service.CreditAwardService;
 import com.runelitetcg.service.NpcKillCreditTracker;
+import com.runelitetcg.service.CollectionSetCompletionUtil;
 import com.runelitetcg.service.PackOpeningService;
 import com.runelitetcg.service.PackSafeModeService;
 import com.runelitetcg.service.PlayerCombatMonitor;
+import com.runelitetcg.service.RollPoolFilter;
 import com.runelitetcg.party.TcgCardGiftPartyMessage;
 import com.runelitetcg.party.TcgCardGiftResponsePartyMessage;
 import com.runelitetcg.party.TcgChatStatsPartyMessage;
@@ -389,6 +396,19 @@ public class RuneLiteTcgPlugin extends Plugin
 			return;
 		}
 
+		if ("tcg-complete".equalsIgnoreCase(cmd))
+		{
+			if (!stateService.isDebugLogging())
+			{
+				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
+					"[OSRS TCG] ::tcg-complete requires debug mode",
+					null);
+				return;
+			}
+			handleCompleteAlbumCommand();
+			return;
+		}
+
 		if ("tcg-open".equalsIgnoreCase(cmd))
 		{
 			handleOpenFirstBoosterCommand(false);
@@ -428,6 +448,57 @@ public class RuneLiteTcgPlugin extends Plugin
 		client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", openedLine, null);
 		packRevealService.startReveal(result.getPulls(), preOwned, result.getBoosterDisplayName(),
 			result.getBoosterPackId(), showScrollWheelHint, result.isApexPack());
+		tcgPanel.refresh();
+	}
+
+	private void handleCompleteAlbumCommand()
+	{
+		cardDatabase.load();
+		Set<String> catalogNames = new LinkedHashSet<>();
+		for (CardDefinition card : cardDatabase.getCards())
+		{
+			if (card == null || card.getName() == null)
+			{
+				continue;
+			}
+			String name = card.getName().trim();
+			if (!name.isEmpty())
+			{
+				catalogNames.add(name);
+			}
+		}
+
+		if (catalogNames.isEmpty())
+		{
+			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
+				"[OSRS TCG] No cards loaded from Card.json.", null);
+			return;
+		}
+
+		String who = client.getLocalPlayer() != null && client.getLocalPlayer().getName() != null
+			? Text.sanitize(client.getLocalPlayer().getName())
+			: "";
+		String provenance = OwnedCardInstance.withDebugPullMetadataPrefix(who);
+		long now = System.currentTimeMillis();
+
+		Map<CardCollectionKey, Integer> ownedBefore = stateService.copyOwnedCardsSnapshot();
+		int added = stateService.addOneOfEachCatalogCard(new ArrayList<>(catalogNames), provenance, now);
+
+		if (tcgPartyAnnouncer != null && added > 0)
+		{
+			Map<CardCollectionKey, Integer> ownedAfter = stateService.getState().getCollectionState().getOwnedCards();
+			List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(cardDatabase.getCards());
+			for (String category : CollectionSetCompletionUtil.newlyCompletedPrimaryCategories(ownedBefore, ownedAfter, rollPool))
+			{
+				tcgPartyAnnouncer.announceCollectionSetComplete(category);
+			}
+		}
+
+		collectionAlbumManager.refreshIfVisible();
+		client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
+			String.format(Locale.US, "[OSRS TCG] Added 1× each catalog card (%s cards).",
+				NumberFormatting.format(added)),
+			null);
 		tcgPanel.refresh();
 	}
 

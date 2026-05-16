@@ -1,5 +1,6 @@
 package com.runelitetcg.service;
 
+import com.runelitetcg.model.CardCollectionKey;
 import com.runelitetcg.model.CollectionState;
 import com.runelitetcg.model.OwnedCardInstance;
 import com.runelitetcg.model.PackCardResult;
@@ -11,7 +12,10 @@ import com.runelitetcg.util.PackRevealZoomUtil;
 import java.awt.Dimension;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -212,6 +216,56 @@ public class TcgStateService
 		flushRewardTuningDraftBeforeLocking();
 		state = state.withCollection(state.getCollectionState().withInstanceAdded(instance));
 		save();
+	}
+
+	/**
+	 * Adds one non-foil copy of each distinct catalog card name (including duplicates already owned).
+	 *
+	 * @return number of instances added
+	 */
+	public synchronized int addOneOfEachCatalogCard(List<String> catalogCardNames, String pulledByUsername,
+		long pulledAtEpochMs)
+	{
+		if (catalogCardNames == null || catalogCardNames.isEmpty())
+		{
+			return 0;
+		}
+
+		flushRewardTuningDraftBeforeLocking();
+
+		String by = pulledByUsername == null ? "" : pulledByUsername.trim();
+		long at = Math.max(0L, pulledAtEpochMs);
+		List<OwnedCardInstance> toAdd = new ArrayList<>();
+		Set<String> scheduled = new HashSet<>();
+
+		for (String raw : catalogCardNames)
+		{
+			if (raw == null)
+			{
+				continue;
+			}
+			String name = raw.trim();
+			if (name.isEmpty() || !scheduled.add(name))
+			{
+				continue;
+			}
+			toAdd.add(OwnedCardInstance.createNew(name, false, by, at));
+		}
+
+		if (toAdd.isEmpty())
+		{
+			return 0;
+		}
+
+		state = state.withCollection(state.getCollectionState().withInstancesAdded(toAdd));
+		save();
+		return toAdd.size();
+	}
+
+	/** Snapshot of owned quantities before a bulk collection change (e.g. debug complete). */
+	public synchronized Map<CardCollectionKey, Integer> copyOwnedCardsSnapshot()
+	{
+		return new java.util.HashMap<>(state.getCollectionState().getOwnedCards());
 	}
 
 	public synchronized void setCollectionInstances(List<OwnedCardInstance> replacement)

@@ -90,6 +90,10 @@ public class TcgPanel extends PluginPanel
 	private static final String TCG_WELCOME_TCG_COMMAND_BODY =
 		"Type !tcg in chat to share your collection stats";
 
+	private static final String TCG_WELCOME_CARD_VALUES_BODY =
+		"Card values are based on each item's in-game value data. They do not reflect the real value of items relative to one another accurately; "
+			+ "matching true market prices would require a lot of manual work.";
+
 	private enum Tab
 	{
 		WELCOME("Welcome"),
@@ -124,7 +128,6 @@ public class TcgPanel extends PluginPanel
 	private final JPanel overviewContent = new JPanel();
 	private final JPanel packsContent = new JPanel();
 	private final JScrollPane shopScrollPane = new JScrollPane(packsContent);
-	private final JPanel loggedOutContent = new JPanel();
 	private final JPanel footerPanel = new JPanel();
 	private final JPanel titlePanel;
 	private final JButton welcomeTabButton = new JButton(Tab.WELCOME.getLabel());
@@ -193,12 +196,9 @@ public class TcgPanel extends PluginPanel
 		initializeTabContentPanel(welcomeContent);
 		initializeTabContentPanel(overviewContent);
 		initializeTabContentPanel(packsContent);
-		initializeTabContentPanel(loggedOutContent);
-		loggedOutContent.add(infoPanel("Please log in."));
 		content.add(welcomeContent, Tab.WELCOME.name());
 		content.add(overviewContent, Tab.OVERVIEW.name());
 		content.add(shopScrollPane, Tab.SHOP.name());
-		content.add(loggedOutContent, "LOGGED_OUT");
 
 		shopScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 		shopScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER);
@@ -417,8 +417,7 @@ public class TcgPanel extends PluginPanel
 		ensureRootAttached();
 		if (shouldShowLoggedOutPrompt())
 		{
-			footerPanel.setVisible(false);
-			contentLayout.show(content, "LOGGED_OUT");
+			showLoggedOutWelcome();
 			mainPanel.revalidate();
 			mainPanel.repaint();
 			return;
@@ -477,8 +476,7 @@ public class TcgPanel extends PluginPanel
 		ensureRootAttached();
 		if (shouldShowLoggedOutPrompt())
 		{
-			footerPanel.setVisible(false);
-			contentLayout.show(content, "LOGGED_OUT");
+			showLoggedOutWelcome();
 			mainPanel.revalidate();
 			mainPanel.repaint();
 			return;
@@ -571,6 +569,16 @@ public class TcgPanel extends PluginPanel
 			return false;
 		}
 		return !isClientInGameWorld();
+	}
+
+	private void showLoggedOutWelcome()
+	{
+		footerPanel.setVisible(false);
+		selectedTab = Tab.WELCOME;
+		updateTabStyles();
+		welcomeContent.removeAll();
+		renderWelcomeTab(welcomeContent);
+		contentLayout.show(content, Tab.WELCOME.name());
 	}
 
 	/**
@@ -772,6 +780,7 @@ public class TcgPanel extends PluginPanel
 		target.add(statPanel("Current credits", format(snap.credits)));
 		target.add(Box.createRigidArea(new Dimension(0, 8)));
 		target.add(sellDuplicatesPanel());
+		updateSellDuplicatesButtonState(snap.owned);
 		target.add(Box.createRigidArea(new Dimension(0, 8)));
 		target.add(boosterShopPanelFromPrecalc(snap.credits, shopRows));
 	}
@@ -1085,7 +1094,7 @@ public class TcgPanel extends PluginPanel
 		cb.setFont(FontManager.getRunescapeSmallFont());
 		cb.setAlignmentX(LEFT_ALIGNMENT);
 		cb.setSelected(stateService.isDebugLogging());
-		cb.setToolTipText("Extra logging, credit chat lines, free debug booster, ::tcg-set, ::tcg-give, and ::tcg-apex.");
+		cb.setToolTipText("Extra logging, credit chat lines, free debug booster, ::tcg-set, ::tcg-give, ::tcg-apex, and ::tcg-complete.");
 		cb.addActionListener(e -> persistDebugLogging(cb.isSelected()));
 		return cb;
 	}
@@ -1174,6 +1183,22 @@ public class TcgPanel extends PluginPanel
 		tcgCmd.setPreferredSize(new Dimension(w, tcgCmdH));
 		tcgCmd.setMaximumSize(new Dimension(w, tcgCmdH));
 		wrap.add(tcgCmd);
+
+		JTextArea cardValues = new JTextArea(TCG_WELCOME_CARD_VALUES_BODY);
+		cardValues.setEditable(false);
+		cardValues.setOpaque(false);
+		cardValues.setFocusable(false);
+		cardValues.setForeground(new Color(0xBBBBBB));
+		cardValues.setFont(FontManager.getRunescapeSmallFont());
+		cardValues.setLineWrap(true);
+		cardValues.setWrapStyleWord(true);
+		cardValues.setBorder(new EmptyBorder(10, 0, 0, 0));
+		cardValues.setAlignmentX(LEFT_ALIGNMENT);
+		cardValues.setSize(w, Short.MAX_VALUE);
+		int cardValuesH = cardValues.getPreferredSize().height;
+		cardValues.setPreferredSize(new Dimension(w, cardValuesH));
+		cardValues.setMaximumSize(new Dimension(w, cardValuesH));
+		wrap.add(cardValues);
 
 		int totalH = wrap.getPreferredSize().height;
 		wrap.setPreferredSize(new Dimension(w, totalH));
@@ -1345,6 +1370,7 @@ public class TcgPanel extends PluginPanel
 		target.add(statPanel("Current credits", format(displaySnap.credits)));
 		target.add(Box.createRigidArea(new Dimension(0, 8)));
 		target.add(sellDuplicatesPanel());
+		updateSellDuplicatesButtonState(displaySnap.owned);
 		target.add(Box.createRigidArea(new Dimension(0, 8)));
 		target.add(boosterShopPanel(displaySnap));
 	}
@@ -1538,6 +1564,45 @@ public class TcgPanel extends PluginPanel
 		panel.add(sellDuplicatesButton, BorderLayout.CENTER);
 		clampPanelWidth(panel);
 		return panel;
+	}
+
+	private void updateSellDuplicatesButtonState(Map<CardCollectionKey, Integer> owned)
+	{
+		boolean hasDuplicates = hasSellableDuplicates(owned);
+		sellDuplicatesButton.setEnabled(hasDuplicates);
+		sellDuplicatesButton.setToolTipText(hasDuplicates ? null : "No duplicate cards to sell.");
+	}
+
+	/** True when any card name has more than one owned copy (foil + normal combined), matching {@link #promptAndSellDuplicates}. */
+	private static boolean hasSellableDuplicates(Map<CardCollectionKey, Integer> owned)
+	{
+		if (owned == null || owned.isEmpty())
+		{
+			return false;
+		}
+		Map<String, Integer> qtyByName = new HashMap<>();
+		for (Map.Entry<CardCollectionKey, Integer> entry : owned.entrySet())
+		{
+			CardCollectionKey key = entry.getKey();
+			if (key == null || key.getCardName() == null)
+			{
+				continue;
+			}
+			int qty = entry.getValue() == null ? 0 : entry.getValue();
+			if (qty <= 0)
+			{
+				continue;
+			}
+			qtyByName.merge(key.getCardName(), qty, Integer::sum);
+		}
+		for (int total : qtyByName.values())
+		{
+			if (total > 1)
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private void promptAndSellDuplicates()
