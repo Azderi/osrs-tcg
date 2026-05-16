@@ -1,6 +1,6 @@
-package com.runelitetcg.ui.collectionalbum;
+package com.osrstcg.ui.collectionalbum;
 
-import com.runelitetcg.data.CardDefinition;
+import com.osrstcg.data.CardDefinition;
 import java.awt.Color;
 
 public final class AlbumSlot

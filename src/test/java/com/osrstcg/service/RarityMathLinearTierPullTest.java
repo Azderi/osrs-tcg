@@ -1,4 +1,4 @@
-package com.runelitetcg.service;
+package com.osrstcg.service;
 
 import org.junit.Assert;
 import org.junit.Test;

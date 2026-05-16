@@ -1,11 +1,11 @@
-package com.runelitetcg.data;
+package com.osrstcg.data;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
-import com.runelitetcg.util.HtmlEntities;
-import com.runelitetcg.service.RarityMath;
-import com.runelitetcg.util.TcgPluginGameMessages;
+import com.osrstcg.util.HtmlEntities;
+import com.osrstcg.service.RarityMath;
+import com.osrstcg.util.TcgPluginGameMessages;
 import java.awt.Color;
 import java.io.IOException;
 import java.io.InputStream;

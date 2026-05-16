@@ -1,10 +1,10 @@
-package com.runelitetcg.service;
+package com.osrstcg.service;
 
-import com.runelitetcg.data.CardDatabase;
-import com.runelitetcg.data.CardDefinition;
-import com.runelitetcg.model.CardCollectionKey;
-import com.runelitetcg.model.TcgPublicStats;
-import com.runelitetcg.model.TcgState;
+import com.osrstcg.data.CardDatabase;
+import com.osrstcg.data.CardDefinition;
+import com.osrstcg.model.CardCollectionKey;
+import com.osrstcg.model.TcgPublicStats;
+import com.osrstcg.model.TcgState;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;

@@ -1,6 +1,6 @@
-package com.runelitetcg.service;
+package com.osrstcg.service;
 
-import com.runelitetcg.data.CardDefinition;
+import com.osrstcg.data.CardDefinition;
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.HashMap;

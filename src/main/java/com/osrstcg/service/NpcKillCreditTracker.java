@@ -1,4 +1,4 @@
-package com.runelitetcg.service;
+package com.osrstcg.service;
 
 import java.util.Map;
 import java.util.Optional;
@@ -6,7 +6,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import com.runelitetcg.ui.TcgPanel;
+import com.osrstcg.ui.TcgPanel;
 import net.runelite.api.Actor;
 import net.runelite.api.Client;
 import net.runelite.api.Hitsplat;

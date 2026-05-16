@@ -1,4 +1,4 @@
-package com.runelitetcg.model;
+package com.osrstcg.model;
 
 /**
  * Foil rate and credit multipliers stored per profile. Editable from the sidebar only while the collection is empty.

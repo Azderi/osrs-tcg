@@ -1,4 +1,4 @@
-package com.runelitetcg.util;
+package com.osrstcg.util;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;

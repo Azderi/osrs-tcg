@@ -1,8 +1,8 @@
-package com.runelitetcg.ui.collectionalbum;
+package com.osrstcg.ui.collectionalbum;
 
-import com.runelitetcg.data.CardDefinition;
-import com.runelitetcg.service.RarityMath;
-import com.runelitetcg.ui.SharedCardRenderer;
+import com.osrstcg.data.CardDefinition;
+import com.osrstcg.service.RarityMath;
+import com.osrstcg.ui.SharedCardRenderer;
 import java.awt.Color;
 import java.util.HashMap;
 import java.util.List;

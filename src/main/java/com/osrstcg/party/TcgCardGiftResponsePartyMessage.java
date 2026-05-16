@@ -1,4 +1,4 @@
-package com.runelitetcg.party;
+package com.osrstcg.party;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;

@@ -1,4 +1,4 @@
-package com.runelitetcg.util;
+package com.osrstcg.util;
 
 import java.awt.Color;
 import net.runelite.api.ChatMessageType;
@@ -14,7 +14,7 @@ public final class TcgPluginGameMessages
 {
 	/**
 	 * Warm gold for the {@code OSRS TCG} label and for Godly-tier card names in game chat (darker than
-	 * {@link com.runelitetcg.service.RarityMath.Tier#GODLY} frame colour so it reads on the message background).
+	 * {@link com.osrstcg.service.RarityMath.Tier#GODLY} frame colour so it reads on the message background).
 	 */
 	public static final Color CHAT_EMPHASIS_GOLD = new Color(0xC4, 0x94, 0x1A);
 

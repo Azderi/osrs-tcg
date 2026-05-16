@@ -1,8 +1,8 @@
-package com.runelitetcg.ui;
+package com.osrstcg.ui;
 
-import com.runelitetcg.data.CardDefinition;
-import com.runelitetcg.service.RarityMath;
-import com.runelitetcg.util.NumberFormatting;
+import com.osrstcg.data.CardDefinition;
+import com.osrstcg.service.RarityMath;
+import com.osrstcg.util.NumberFormatting;
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Font;

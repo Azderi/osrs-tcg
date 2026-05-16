@@ -1,12 +1,12 @@
-package com.runelitetcg.persist;
+package com.osrstcg.persist;
 
 import com.google.gson.Gson;
-import com.runelitetcg.model.CardCollectionKey;
-import com.runelitetcg.model.CollectionState;
-import com.runelitetcg.model.EconomyState;
-import com.runelitetcg.model.OwnedCardInstance;
-import com.runelitetcg.model.RewardTuningState;
-import com.runelitetcg.model.TcgState;
+import com.osrstcg.model.CardCollectionKey;
+import com.osrstcg.model.CollectionState;
+import com.osrstcg.model.EconomyState;
+import com.osrstcg.model.OwnedCardInstance;
+import com.osrstcg.model.RewardTuningState;
+import com.osrstcg.model.TcgState;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.Assert;

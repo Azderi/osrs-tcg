@@ -1,12 +1,12 @@
-package com.runelitetcg.service;
+package com.osrstcg.service;
 
-import com.runelitetcg.RuneLiteTcgConfig;
-import com.runelitetcg.data.CardDatabase;
-import com.runelitetcg.model.TcgPublicStats;
-import com.runelitetcg.party.TcgChatStatsPartyMessage;
-import com.runelitetcg.party.TcgCollectionSetCompletePartyMessage;
-import com.runelitetcg.party.TcgPullPartyMessage;
-import com.runelitetcg.util.TcgPluginGameMessages;
+import com.osrstcg.OsrsTcgConfig;
+import com.osrstcg.data.CardDatabase;
+import com.osrstcg.model.TcgPublicStats;
+import com.osrstcg.party.TcgChatStatsPartyMessage;
+import com.osrstcg.party.TcgCollectionSetCompletePartyMessage;
+import com.osrstcg.party.TcgPullPartyMessage;
+import com.osrstcg.util.TcgPluginGameMessages;
 import java.awt.Color;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -22,14 +22,14 @@ import net.runelite.client.party.PartyService;
 public class TcgPartyAnnouncer
 {
 	private final PartyService partyService;
-	private final RuneLiteTcgConfig config;
+	private final OsrsTcgConfig config;
 	private final ChatMessageManager chatMessageManager;
 	private final CardDatabase cardDatabase;
 
 	@Inject
 	public TcgPartyAnnouncer(
 		PartyService partyService,
-		RuneLiteTcgConfig config,
+		OsrsTcgConfig config,
 		ChatMessageManager chatMessageManager,
 		CardDatabase cardDatabase)
 	{

@@ -1,6 +1,6 @@
-package com.runelitetcg.service;
+package com.osrstcg.service;
 
-import com.runelitetcg.util.NumberFormatting;
+import com.osrstcg.util.NumberFormatting;
 import java.util.EnumMap;
 import java.util.Map;
 import javax.inject.Inject;

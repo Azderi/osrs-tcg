@@ -1,24 +1,24 @@
-package com.runelitetcg.ui;
+package com.osrstcg.ui;
 
-import com.runelitetcg.RuneLiteTcgConfig;
-import com.runelitetcg.data.BoosterPackDefinition;
-import com.runelitetcg.data.CardDatabase;
-import com.runelitetcg.data.CardDefinition;
-import com.runelitetcg.data.PackCatalog;
-import com.runelitetcg.model.CardCollectionKey;
-import com.runelitetcg.model.OwnedCardInstance;
-import com.runelitetcg.model.RewardTuningState;
-import com.runelitetcg.model.TcgState;
-import com.runelitetcg.service.CreditAwardService;
-import com.runelitetcg.service.DuplicateSellCredits;
-import com.runelitetcg.service.PackOpeningService;
-import com.runelitetcg.service.PackRevealService;
-import com.runelitetcg.service.PackSafeModeService;
-import com.runelitetcg.service.RarityMath;
-import com.runelitetcg.service.RollPoolFilter;
-import com.runelitetcg.service.TcgStateService;
-import com.runelitetcg.ui.collectionalbum.CollectionAlbumManager;
-import com.runelitetcg.util.NumberFormatting;
+import com.osrstcg.OsrsTcgConfig;
+import com.osrstcg.data.BoosterPackDefinition;
+import com.osrstcg.data.CardDatabase;
+import com.osrstcg.data.CardDefinition;
+import com.osrstcg.data.PackCatalog;
+import com.osrstcg.model.CardCollectionKey;
+import com.osrstcg.model.OwnedCardInstance;
+import com.osrstcg.model.RewardTuningState;
+import com.osrstcg.model.TcgState;
+import com.osrstcg.service.CreditAwardService;
+import com.osrstcg.service.DuplicateSellCredits;
+import com.osrstcg.service.PackOpeningService;
+import com.osrstcg.service.PackRevealService;
+import com.osrstcg.service.PackSafeModeService;
+import com.osrstcg.service.RarityMath;
+import com.osrstcg.service.RollPoolFilter;
+import com.osrstcg.service.TcgStateService;
+import com.osrstcg.ui.collectionalbum.CollectionAlbumManager;
+import com.osrstcg.util.NumberFormatting;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
@@ -115,7 +115,7 @@ public class TcgPanel extends PluginPanel
 	private final PackRevealService packRevealService;
 	private final PackSafeModeService packSafeModeService;
 	private final PackCatalog packCatalog;
-	private final RuneLiteTcgConfig config;
+	private final OsrsTcgConfig config;
 	private final Client client;
 	private final CollectionAlbumManager collectionAlbumManager;
 	private final CreditAwardService creditAwardService;
@@ -165,7 +165,7 @@ public class TcgPanel extends PluginPanel
 		PackRevealService packRevealService,
 		PackSafeModeService packSafeModeService,
 		PackCatalog packCatalog,
-		RuneLiteTcgConfig config,
+		OsrsTcgConfig config,
 		Client client,
 		CollectionAlbumManager collectionAlbumManager,
 		CreditAwardService creditAwardService,

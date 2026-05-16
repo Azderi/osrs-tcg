@@ -1,6 +1,6 @@
-package com.runelitetcg.persist;
+package com.osrstcg.persist;
 
-import com.runelitetcg.model.TcgState;
+import com.osrstcg.model.TcgState;
 import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -11,7 +11,7 @@ import net.runelite.client.config.ConfigManager;
 @Slf4j
 public class TcgStateStore
 {
-	private static final String GROUP = "runelitetcg";
+	private static final String GROUP = "osrstcg";
 	private static final String STATE_KEY = "state";
 	private static final String STATE_HASH_KEY = "hash";
 	private final ConfigManager configManager;

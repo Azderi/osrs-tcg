@@ -1,4 +1,4 @@
-package com.runelitetcg.util;
+package com.osrstcg.util;
 
 public final class PackRevealZoomUtil
 {

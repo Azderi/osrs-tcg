@@ -1,12 +1,12 @@
-package com.runelitetcg.service;
+package com.osrstcg.service;
 
-import com.runelitetcg.data.CardDatabase;
-import com.runelitetcg.model.OwnedCardInstance;
-import com.runelitetcg.model.RewardTuningState;
-import com.runelitetcg.party.TcgCardGiftPartyMessage;
-import com.runelitetcg.party.TcgCardGiftResponsePartyMessage;
-import com.runelitetcg.ui.collectionalbum.CollectionAlbumManager;
-import com.runelitetcg.util.TcgPluginGameMessages;
+import com.osrstcg.data.CardDatabase;
+import com.osrstcg.model.OwnedCardInstance;
+import com.osrstcg.model.RewardTuningState;
+import com.osrstcg.party.TcgCardGiftPartyMessage;
+import com.osrstcg.party.TcgCardGiftResponsePartyMessage;
+import com.osrstcg.ui.collectionalbum.CollectionAlbumManager;
+import com.osrstcg.util.TcgPluginGameMessages;
 import java.awt.Color;
 import java.util.Locale;
 import javax.inject.Inject;

@@ -1,4 +1,4 @@
-package com.runelitetcg.data;
+package com.osrstcg.data;
 
 import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;

@@ -1,14 +1,14 @@
-package com.runelitetcg.service;
+package com.osrstcg.service;
 
 import com.google.gson.Gson;
-import com.runelitetcg.data.BoosterPackDefinition;
-import com.runelitetcg.data.CardDatabase;
-import com.runelitetcg.data.CardDefinition;
-import com.runelitetcg.model.CollectionState;
-import com.runelitetcg.model.EconomyState;
-import com.runelitetcg.model.PackOpenResult;
-import com.runelitetcg.model.RewardTuningState;
-import com.runelitetcg.model.TcgState;
+import com.osrstcg.data.BoosterPackDefinition;
+import com.osrstcg.data.CardDatabase;
+import com.osrstcg.data.CardDefinition;
+import com.osrstcg.model.CollectionState;
+import com.osrstcg.model.EconomyState;
+import com.osrstcg.model.PackOpenResult;
+import com.osrstcg.model.RewardTuningState;
+import com.osrstcg.model.TcgState;
 import java.util.Arrays;
 import java.util.Random;
 import org.junit.Assert;

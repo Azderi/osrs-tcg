@@ -1,4 +1,4 @@
-package com.runelitetcg.model;
+package com.osrstcg.model;
 
 public final class EconomyState
 {

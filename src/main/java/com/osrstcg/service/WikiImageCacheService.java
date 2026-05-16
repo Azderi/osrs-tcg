@@ -1,4 +1,4 @@
-package com.runelitetcg.service;
+package com.osrstcg.service;
 
 import java.awt.image.BufferedImage;
 import java.io.InputStream;
@@ -115,7 +115,7 @@ public class WikiImageCacheService
 				URLConnection connection = new URL(candidate).openConnection();
 				connection.setConnectTimeout(3000);
 				connection.setReadTimeout(4000);
-				connection.setRequestProperty("User-Agent", "Mozilla/5.0 (RuneLiteTCG)");
+				connection.setRequestProperty("User-Agent", "Mozilla/5.0 (osrstcg)");
 				try (InputStream inputStream = connection.getInputStream())
 				{
 					BufferedImage image = ImageIO.read(inputStream);

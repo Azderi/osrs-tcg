@@ -1,6 +1,6 @@
-package com.runelitetcg.service;
+package com.osrstcg.service;
 
-import com.runelitetcg.model.TcgState;
+import com.osrstcg.model.TcgState;
 import java.lang.reflect.Method;
 import org.junit.Assert;
 import org.junit.Test;

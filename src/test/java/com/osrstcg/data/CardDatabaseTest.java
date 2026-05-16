@@ -1,4 +1,4 @@
-package com.runelitetcg.data;
+package com.osrstcg.data;
 
 import com.google.gson.Gson;
 import java.util.Map;

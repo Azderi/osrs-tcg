@@ -1,7 +1,7 @@
-package com.runelitetcg.overlay;
+package com.osrstcg.overlay;
 
-import com.runelitetcg.service.PackRevealService;
-import com.runelitetcg.ui.TcgPanel;
+import com.osrstcg.service.PackRevealService;
+import com.osrstcg.ui.TcgPanel;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
@@ -187,9 +187,9 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 		{
 			return;
 		}
-		if (e.getKeyCode() == KeyEvent.VK_ESCAPE)
+		if (e.getKeyCode() == KeyEvent.VK_ESCAPE || e.getKeyCode() == KeyEvent.VK_SPACE)
 		{
-			revealService.skip();
+			revealService.advanceFromKeyboard();
 			tcgPanel.refreshAfterPackRevealClose();
 		}
 		e.consume();

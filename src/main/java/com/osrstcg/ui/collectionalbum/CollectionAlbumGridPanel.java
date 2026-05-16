@@ -1,8 +1,8 @@
-package com.runelitetcg.ui.collectionalbum;
+package com.osrstcg.ui.collectionalbum;
 
-import com.runelitetcg.data.CardDefinition;
-import com.runelitetcg.service.WikiImageCacheService;
-import com.runelitetcg.ui.SharedCardRenderer;
+import com.osrstcg.data.CardDefinition;
+import com.osrstcg.service.WikiImageCacheService;
+import com.osrstcg.ui.SharedCardRenderer;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;

@@ -1,4 +1,4 @@
-package com.runelitetcg.model;
+package com.osrstcg.model;
 
 import java.util.ArrayList;
 import java.util.Collections;

@@ -1,4 +1,4 @@
-package com.runelitetcg.ui.collectionalbum;
+package com.osrstcg.ui.collectionalbum;
 
 public enum AlbumSortMode
 {

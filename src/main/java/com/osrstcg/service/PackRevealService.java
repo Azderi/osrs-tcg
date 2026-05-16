@@ -1,9 +1,9 @@
-package com.runelitetcg.service;
+package com.osrstcg.service;
 
-import com.runelitetcg.data.CardDatabase;
-import com.runelitetcg.data.CardDefinition;
-import com.runelitetcg.model.CardCollectionKey;
-import com.runelitetcg.model.PackCardResult;
+import com.osrstcg.data.CardDatabase;
+import com.osrstcg.data.CardDefinition;
+import com.osrstcg.model.CardCollectionKey;
+import com.osrstcg.model.PackCardResult;
 import java.awt.Color;
 import java.awt.Point;
 import java.awt.Rectangle;
@@ -343,6 +343,47 @@ public class PackRevealService
 		{
 			return false;
 		}
+		forceRevealAllAndWaitClose();
+		return true;
+	}
+
+	/**
+	 * Escape / Space progression: open sealed pack, reveal all cards, then close.
+	 *
+	 * @return {@code true} if the reveal session ended ({@link #reset()})
+	 */
+	public synchronized boolean advanceFromKeyboard()
+	{
+		if (phase == Phase.IDLE || cards.isEmpty())
+		{
+			return false;
+		}
+
+		if (phase == Phase.PACK_READY)
+		{
+			phase = Phase.PACK_FADING;
+			phaseStartedAt = System.currentTimeMillis();
+			return false;
+		}
+
+		if (phase == Phase.PACK_FADING || phase == Phase.CARD_DEAL
+			|| (phase == Phase.CARD_REVEAL && revealedCount < cards.size()))
+		{
+			forceRevealAllAndWaitClose();
+			return false;
+		}
+
+		reset();
+		return true;
+	}
+
+	public synchronized void skip()
+	{
+		advanceFromKeyboard();
+	}
+
+	private void forceRevealAllAndWaitClose()
+	{
 		if (phase == Phase.CARD_REVEAL && revealedCount < cards.size())
 		{
 			packRevealSoundService.playCardFlip();
@@ -356,50 +397,6 @@ public class PackRevealService
 		}
 		phase = Phase.WAIT_CLOSE;
 		phaseStartedAt = System.currentTimeMillis();
-		return true;
-	}
-
-	public synchronized void skip()
-	{
-		if (phase == Phase.IDLE)
-		{
-			return;
-		}
-		if (phase == Phase.PACK_READY)
-		{
-			return;
-		}
-
-		if (phase == Phase.CARD_REVEAL)
-		{
-			if (revealedCount < cards.size())
-			{
-				packRevealSoundService.playCardFlip();
-			}
-			announcePartyMythicPullsForPreviouslyUnrevealedSlots();
-			playMythicRevealIfAnyUnrevealedMythic();
-			revealedCount = cards.size();
-			for (int i = 0; i < revealedByIndex.length; i++)
-			{
-				revealedByIndex[i] = true;
-			}
-			phase = Phase.WAIT_CLOSE;
-			phaseStartedAt = System.currentTimeMillis();
-			return;
-		}
-
-		if (phase == Phase.PACK_FADING)
-		{
-			phase = Phase.CARD_REVEAL;
-			phaseStartedAt = System.currentTimeMillis();
-			return;
-		}
-
-		if (phase == Phase.CARD_DEAL)
-		{
-			phase = Phase.CARD_REVEAL;
-			phaseStartedAt = System.currentTimeMillis();
-		}
 	}
 
 	public synchronized void tick()

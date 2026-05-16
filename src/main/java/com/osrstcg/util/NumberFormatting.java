@@ -1,4 +1,4 @@
-package com.runelitetcg.util;
+package com.osrstcg.util;
 
 /**
  * Consistent display: group thousands with a space (e.g. {@code 1 234 567}).

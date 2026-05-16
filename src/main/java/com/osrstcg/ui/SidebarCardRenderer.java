@@ -1,6 +1,6 @@
-package com.runelitetcg.ui;
+package com.osrstcg.ui;
 
-import com.runelitetcg.util.NumberFormatting;
+import com.osrstcg.util.NumberFormatting;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import javax.swing.Box;

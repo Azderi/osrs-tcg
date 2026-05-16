@@ -1,4 +1,4 @@
-package com.runelitetcg.persist;
+package com.osrstcg.persist;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

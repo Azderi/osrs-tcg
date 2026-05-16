@@ -1,10 +1,10 @@
-package com.runelitetcg.ui.collectionalbum;
+package com.osrstcg.ui.collectionalbum;
 
-import com.runelitetcg.data.CardDatabase;
-import com.runelitetcg.data.PackCatalog;
-import com.runelitetcg.service.CardPartyTransferService;
-import com.runelitetcg.service.TcgStateService;
-import com.runelitetcg.service.WikiImageCacheService;
+import com.osrstcg.data.CardDatabase;
+import com.osrstcg.data.PackCatalog;
+import com.osrstcg.service.CardPartyTransferService;
+import com.osrstcg.service.TcgStateService;
+import com.osrstcg.service.WikiImageCacheService;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import javax.swing.SwingUtilities;

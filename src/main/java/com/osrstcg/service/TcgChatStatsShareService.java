@@ -1,8 +1,8 @@
-package com.runelitetcg.service;
+package com.osrstcg.service;
 
-import com.runelitetcg.model.TcgPublicStats;
-import com.runelitetcg.party.TcgChatStatsPartyMessage;
-import com.runelitetcg.util.NumberFormatting;
+import com.osrstcg.model.TcgPublicStats;
+import com.osrstcg.party.TcgChatStatsPartyMessage;
+import com.osrstcg.util.NumberFormatting;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Inject;

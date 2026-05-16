@@ -1,6 +1,6 @@
-package com.runelitetcg.service;
+package com.osrstcg.service;
 
-import com.runelitetcg.RuneLiteTcgConfig;
+import com.osrstcg.OsrsTcgConfig;
 import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
@@ -40,7 +40,7 @@ public class PackRevealSoundService
 	private static final String TRANSFER_SUCCESS_RESOURCE = "/transfer.wav";
 	private static final String APEX_PACK_HOVER_RESOURCE = "/apex.wav";
 
-	private final RuneLiteTcgConfig config;
+	private final OsrsTcgConfig config;
 
 	private Clip humClip;
 	private boolean humOpenFailed;
@@ -61,7 +61,7 @@ public class PackRevealSoundService
 	private int dealMotionSoundUpToIndex = -1;
 
 	@Inject
-	public PackRevealSoundService(RuneLiteTcgConfig config)
+	public PackRevealSoundService(OsrsTcgConfig config)
 	{
 		this.config = config;
 	}
@@ -183,7 +183,7 @@ public class PackRevealSoundService
 
 	/**
 	 * While {@code dealPhaseActive}, plays {@code /card.wav} once per card when its deal flight starts
-	 * (same timing as {@link com.runelitetcg.overlay.PackRevealOverlay}: {@code elapsed >= index * staggerMs}).
+	 * (same timing as {@link com.osrstcg.overlay.PackRevealOverlay}: {@code elapsed >= index * staggerMs}).
 	 */
 	public synchronized void tickDealMotionSounds(boolean dealPhaseActive, long elapsedMs, int cardCount, long staggerMs)
 	{

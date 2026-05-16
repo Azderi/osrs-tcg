@@ -1,6 +1,6 @@
-package com.runelitetcg.model;
+package com.osrstcg.model;
 
-import com.runelitetcg.util.PackRevealZoomUtil;
+import com.osrstcg.util.PackRevealZoomUtil;
 
 public final class TcgState
 {

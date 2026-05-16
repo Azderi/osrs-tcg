@@ -1,11 +1,11 @@
-package com.runelitetcg.service;
+package com.osrstcg.service;
 
-import com.runelitetcg.RuneLiteTcgConfig;
-import com.runelitetcg.data.CardDatabase;
-import com.runelitetcg.model.PackCardResult;
-import com.runelitetcg.service.PackRevealService.RevealCard;
-import com.runelitetcg.ui.TcgPanel;
-import com.runelitetcg.util.TcgPluginGameMessages;
+import com.osrstcg.OsrsTcgConfig;
+import com.osrstcg.data.CardDatabase;
+import com.osrstcg.model.PackCardResult;
+import com.osrstcg.service.PackRevealService.RevealCard;
+import com.osrstcg.ui.TcgPanel;
+import com.osrstcg.util.TcgPluginGameMessages;
 import java.awt.Color;
 import java.util.List;
 import javax.inject.Inject;
@@ -23,7 +23,7 @@ import net.runelite.client.eventbus.Subscribe;
 @Singleton
 public final class PackSafeModeService
 {
-	private final RuneLiteTcgConfig config;
+	private final OsrsTcgConfig config;
 	private final PlayerCombatMonitor combatMonitor;
 	private final PackRevealService packRevealService;
 	private final CardDatabase cardDatabase;
@@ -34,7 +34,7 @@ public final class PackSafeModeService
 
 	@Inject
 	public PackSafeModeService(
-		RuneLiteTcgConfig config,
+		OsrsTcgConfig config,
 		PlayerCombatMonitor combatMonitor,
 		PackRevealService packRevealService,
 		CardDatabase cardDatabase,

@@ -1,6 +1,6 @@
-package com.runelitetcg.service;
+package com.osrstcg.service;
 
-import com.runelitetcg.data.CardDefinition;
+import com.osrstcg.data.CardDefinition;
 
 /** Credits awarded when selling duplicate or individually selected collection copies. */
 public final class DuplicateSellCredits

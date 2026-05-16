@@ -1,6 +1,6 @@
-package com.runelitetcg.service;
+package com.osrstcg.service;
 
-import com.runelitetcg.util.PlayerCombatUtil;
+import com.osrstcg.util.PlayerCombatUtil;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.Actor;

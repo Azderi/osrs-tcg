@@ -1,11 +1,11 @@
-package com.runelitetcg;
+package com.osrstcg;
 
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 
-@ConfigGroup("runelitetcg")
-public interface RuneLiteTcgConfig extends Config
+@ConfigGroup("osrstcg")
+public interface OsrsTcgConfig extends Config
 {
 	@ConfigItem(
 		keyName = "enableSounds",

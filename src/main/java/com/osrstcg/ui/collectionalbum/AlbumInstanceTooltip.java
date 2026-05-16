@@ -1,6 +1,6 @@
-package com.runelitetcg.ui.collectionalbum;
+package com.osrstcg.ui.collectionalbum;
 
-import com.runelitetcg.model.OwnedCardInstance;
+import com.osrstcg.model.OwnedCardInstance;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;

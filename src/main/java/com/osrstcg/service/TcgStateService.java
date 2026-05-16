@@ -1,14 +1,14 @@
-package com.runelitetcg.service;
+package com.osrstcg.service;
 
-import com.runelitetcg.model.CardCollectionKey;
-import com.runelitetcg.model.CollectionState;
-import com.runelitetcg.model.OwnedCardInstance;
-import com.runelitetcg.model.PackCardResult;
-import com.runelitetcg.model.RewardTuningState;
-import com.runelitetcg.model.TcgState;
-import com.runelitetcg.persist.TcgStateStore;
-import com.runelitetcg.util.CollectionAlbumWindowSizeUtil;
-import com.runelitetcg.util.PackRevealZoomUtil;
+import com.osrstcg.model.CardCollectionKey;
+import com.osrstcg.model.CollectionState;
+import com.osrstcg.model.OwnedCardInstance;
+import com.osrstcg.model.PackCardResult;
+import com.osrstcg.model.RewardTuningState;
+import com.osrstcg.model.TcgState;
+import com.osrstcg.persist.TcgStateStore;
+import com.osrstcg.util.CollectionAlbumWindowSizeUtil;
+import com.osrstcg.util.PackRevealZoomUtil;
 import java.awt.Dimension;
 import java.util.ArrayList;
 import java.util.Comparator;

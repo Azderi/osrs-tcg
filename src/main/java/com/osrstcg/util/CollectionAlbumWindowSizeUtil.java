@@ -1,4 +1,4 @@
-package com.runelitetcg.util;
+package com.osrstcg.util;
 
 import java.awt.Dimension;
 import java.awt.GraphicsEnvironment;

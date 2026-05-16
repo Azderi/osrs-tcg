@@ -1,12 +1,12 @@
-package com.runelitetcg.overlay;
+package com.osrstcg.overlay;
 
-import com.runelitetcg.service.PackRevealSoundService;
-import com.runelitetcg.service.PackRevealService;
-import com.runelitetcg.service.RarityMath;
-import com.runelitetcg.service.TcgStateService;
-import com.runelitetcg.service.WikiImageCacheService;
-import com.runelitetcg.ui.SharedCardRenderer;
-import com.runelitetcg.util.PackRevealZoomUtil;
+import com.osrstcg.service.PackRevealSoundService;
+import com.osrstcg.service.PackRevealService;
+import com.osrstcg.service.RarityMath;
+import com.osrstcg.service.TcgStateService;
+import com.osrstcg.service.WikiImageCacheService;
+import com.osrstcg.ui.SharedCardRenderer;
+import com.osrstcg.util.PackRevealZoomUtil;
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -530,7 +530,7 @@ public class PackRevealOverlay extends Overlay
 	}
 
 	/**
-	 * Wheel-driven zoom for the current reveal session; persisted in {@link com.runelitetcg.model.TcgState}.
+	 * Wheel-driven zoom for the current reveal session; persisted in {@link com.osrstcg.model.TcgState}.
 	 */
 	public void nudgeSessionPackZoom(int wheelRotation)
 	{

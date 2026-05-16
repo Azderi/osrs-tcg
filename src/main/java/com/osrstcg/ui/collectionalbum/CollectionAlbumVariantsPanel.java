@@ -1,9 +1,9 @@
-package com.runelitetcg.ui.collectionalbum;
+package com.osrstcg.ui.collectionalbum;
 
-import com.runelitetcg.data.CardDefinition;
-import com.runelitetcg.model.OwnedCardInstance;
-import com.runelitetcg.service.WikiImageCacheService;
-import com.runelitetcg.ui.SharedCardRenderer;
+import com.osrstcg.data.CardDefinition;
+import com.osrstcg.model.OwnedCardInstance;
+import com.osrstcg.service.WikiImageCacheService;
+import com.osrstcg.ui.SharedCardRenderer;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;

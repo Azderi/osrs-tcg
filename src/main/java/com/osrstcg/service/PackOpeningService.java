@@ -1,12 +1,12 @@
-package com.runelitetcg.service;
+package com.osrstcg.service;
 
-import com.runelitetcg.data.BoosterPackDefinition;
-import com.runelitetcg.data.CardDatabase;
-import com.runelitetcg.data.CardDefinition;
-import com.runelitetcg.RuneLiteTcgConfig;
-import com.runelitetcg.model.CardCollectionKey;
-import com.runelitetcg.model.PackCardResult;
-import com.runelitetcg.model.PackOpenResult;
+import com.osrstcg.data.BoosterPackDefinition;
+import com.osrstcg.data.CardDatabase;
+import com.osrstcg.data.CardDefinition;
+import com.osrstcg.OsrsTcgConfig;
+import com.osrstcg.model.CardCollectionKey;
+import com.osrstcg.model.PackCardResult;
+import com.osrstcg.model.PackOpenResult;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -31,7 +31,7 @@ public class PackOpeningService
 	private static final double TOP_TIER_SCORE_PULL_RARITY_RATIO = 3.0d;
 
 	/** Reserved pack id for the free debug booster (only usable when debug logging is enabled in saved state). */
-	public static final String DEBUG_PACK_ID = "runelitetcg_debug_pack";
+	public static final String DEBUG_PACK_ID = "osrstcg_debug_pack";
 
 	/** Normal packs: chance all five pulls are restricted to top three display tiers (Legendary / Mythic / Godly). */
 	private static final int APEX_PACK_CHANCE_DENOMINATOR = 3000;

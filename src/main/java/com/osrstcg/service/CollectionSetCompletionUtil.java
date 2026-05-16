@@ -1,7 +1,7 @@
-package com.runelitetcg.service;
+package com.osrstcg.service;
 
-import com.runelitetcg.data.CardDefinition;
-import com.runelitetcg.model.CardCollectionKey;
+import com.osrstcg.data.CardDefinition;
+import com.osrstcg.model.CardCollectionKey;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;

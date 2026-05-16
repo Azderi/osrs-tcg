@@ -1,42 +1,42 @@
-package com.runelitetcg;
+package com.osrstcg;
 
 import com.google.inject.Provides;
-import com.runelitetcg.data.CardDatabase;
-import com.runelitetcg.data.CardDefinition;
-import com.runelitetcg.data.PackCatalog;
-import com.runelitetcg.model.CardCollectionKey;
+import com.osrstcg.data.CardDatabase;
+import com.osrstcg.data.CardDefinition;
+import com.osrstcg.data.PackCatalog;
+import com.osrstcg.model.CardCollectionKey;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import com.runelitetcg.model.OwnedCardInstance;
-import com.runelitetcg.model.TcgPublicStats;
-import com.runelitetcg.overlay.PackRevealInputListener;
-import com.runelitetcg.overlay.PackRevealOverlay;
-import com.runelitetcg.service.CardPartyTransferService;
-import com.runelitetcg.service.CreditAwardService;
-import com.runelitetcg.service.NpcKillCreditTracker;
-import com.runelitetcg.service.CollectionSetCompletionUtil;
-import com.runelitetcg.service.PackOpeningService;
-import com.runelitetcg.service.PackSafeModeService;
-import com.runelitetcg.service.PlayerCombatMonitor;
-import com.runelitetcg.service.RollPoolFilter;
-import com.runelitetcg.party.TcgCardGiftPartyMessage;
-import com.runelitetcg.party.TcgCardGiftResponsePartyMessage;
-import com.runelitetcg.party.TcgChatStatsPartyMessage;
-import com.runelitetcg.party.TcgCollectionSetCompletePartyMessage;
-import com.runelitetcg.party.TcgPullPartyMessage;
-import com.runelitetcg.service.PackRevealSoundService;
-import com.runelitetcg.service.PackRevealService;
-import com.runelitetcg.service.TcgChatStatsShareService;
-import com.runelitetcg.service.TcgPartyAnnouncer;
-import com.runelitetcg.service.TcgPublicStatsCalculator;
-import com.runelitetcg.service.TcgStateService;
-import com.runelitetcg.ui.TcgPanel;
-import com.runelitetcg.ui.collectionalbum.CollectionAlbumManager;
-import com.runelitetcg.util.NumberFormatting;
-import com.runelitetcg.util.TcgPluginGameMessages;
+import com.osrstcg.model.OwnedCardInstance;
+import com.osrstcg.model.TcgPublicStats;
+import com.osrstcg.overlay.PackRevealInputListener;
+import com.osrstcg.overlay.PackRevealOverlay;
+import com.osrstcg.service.CardPartyTransferService;
+import com.osrstcg.service.CreditAwardService;
+import com.osrstcg.service.NpcKillCreditTracker;
+import com.osrstcg.service.CollectionSetCompletionUtil;
+import com.osrstcg.service.PackOpeningService;
+import com.osrstcg.service.PackSafeModeService;
+import com.osrstcg.service.PlayerCombatMonitor;
+import com.osrstcg.service.RollPoolFilter;
+import com.osrstcg.party.TcgCardGiftPartyMessage;
+import com.osrstcg.party.TcgCardGiftResponsePartyMessage;
+import com.osrstcg.party.TcgChatStatsPartyMessage;
+import com.osrstcg.party.TcgCollectionSetCompletePartyMessage;
+import com.osrstcg.party.TcgPullPartyMessage;
+import com.osrstcg.service.PackRevealSoundService;
+import com.osrstcg.service.PackRevealService;
+import com.osrstcg.service.TcgChatStatsShareService;
+import com.osrstcg.service.TcgPartyAnnouncer;
+import com.osrstcg.service.TcgPublicStatsCalculator;
+import com.osrstcg.service.TcgStateService;
+import com.osrstcg.ui.TcgPanel;
+import com.osrstcg.ui.collectionalbum.CollectionAlbumManager;
+import com.osrstcg.util.NumberFormatting;
+import com.osrstcg.util.TcgPluginGameMessages;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
@@ -83,7 +83,7 @@ import net.runelite.client.util.Text;
 	name = "OSRS TCG",
 	description = "TCG-style card collecting plugin for Old School RuneScape"
 )
-public class RuneLiteTcgPlugin extends Plugin
+public class OsrsTcgPlugin extends Plugin
 {
 	private static final String TCG_PUBLIC_CHAT_COMMAND = "!tcg";
 	private static final Pattern TCG_GIVE_FOIL_SUFFIX = Pattern.compile("(?i)\\s*\\(foil\\)\\s*$");
@@ -93,7 +93,7 @@ public class RuneLiteTcgPlugin extends Plugin
 	@Inject
 	private ChatMessageManager chatMessageManager;
 	@Inject
-	private RuneLiteTcgConfig config;
+	private OsrsTcgConfig config;
 	@Inject
 	private TcgStateService stateService;
 	@Inject
@@ -694,8 +694,8 @@ public class RuneLiteTcgPlugin extends Plugin
 	}
 
 	@Provides
-	RuneLiteTcgConfig provideConfig(ConfigManager configManager)
+	OsrsTcgConfig provideConfig(ConfigManager configManager)
 	{
-		return configManager.getConfig(RuneLiteTcgConfig.class);
+		return configManager.getConfig(OsrsTcgConfig.class);
 	}
 }

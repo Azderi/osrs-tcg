@@ -1,4 +1,4 @@
-package com.runelitetcg.util;
+package com.osrstcg.util;
 
 import org.junit.Assert;
 import org.junit.Test;
