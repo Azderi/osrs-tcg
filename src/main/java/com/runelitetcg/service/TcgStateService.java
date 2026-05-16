@@ -6,7 +6,9 @@ import com.runelitetcg.model.PackCardResult;
 import com.runelitetcg.model.RewardTuningState;
 import com.runelitetcg.model.TcgState;
 import com.runelitetcg.persist.TcgStateStore;
+import com.runelitetcg.util.CollectionAlbumWindowSizeUtil;
 import com.runelitetcg.util.PackRevealZoomUtil;
+import java.awt.Dimension;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -86,6 +88,17 @@ public class TcgStateService
 			return;
 		}
 		state = state.withPackRevealOverlayScale(clamped);
+		save();
+	}
+
+	public synchronized void setAlbumWindowSize(int width, int height)
+	{
+		Dimension clamped = CollectionAlbumWindowSizeUtil.clamp(width, height);
+		if (state.getAlbumWindowWidth() == clamped.width && state.getAlbumWindowHeight() == clamped.height)
+		{
+			return;
+		}
+		state = state.withAlbumWindowSize(clamped.width, clamped.height);
 		save();
 	}
 

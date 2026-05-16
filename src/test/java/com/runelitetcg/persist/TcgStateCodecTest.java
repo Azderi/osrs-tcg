@@ -48,7 +48,9 @@ public class TcgStateCodecTest
 			CollectionState.copyOf(copies),
 			new RewardTuningState(5, 1.25d, 1.5d, 2.0d),
 			true,
-			1.15d
+			1.15d,
+			1440,
+			900
 		);
 
 		String json = codec.toJson(source);
@@ -65,5 +67,7 @@ public class TcgStateCodecTest
 		Assert.assertEquals(2.0d, loaded.getRewardTuning().getXpCreditMultiplier(), 0.0001d);
 		Assert.assertTrue(loaded.isDebugLogging());
 		Assert.assertEquals(1.15d, loaded.getPackRevealOverlayScale(), 0.0001d);
+		Assert.assertEquals(1440, loaded.getAlbumWindowWidth());
+		Assert.assertEquals(900, loaded.getAlbumWindowHeight());
 	}
 }

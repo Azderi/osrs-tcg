@@ -65,6 +65,8 @@ public class TcgStateCodec
 			double packZoom = stored.packRevealOverlayScale == null
 				? 1.0d
 				: PackRevealZoomUtil.clamp(stored.packRevealOverlayScale);
+			int albumW = stored.albumWindowWidth == null ? 0 : stored.albumWindowWidth;
+			int albumH = stored.albumWindowHeight == null ? 0 : stored.albumWindowHeight;
 
 			return new TcgState(
 				TcgState.CURRENT_SCHEMA_VERSION,
@@ -72,7 +74,9 @@ public class TcgStateCodec
 				coll,
 				tuning,
 				debug,
-				packZoom
+				packZoom,
+				albumW,
+				albumH
 			);
 		}
 		catch (JsonSyntaxException ex)
@@ -98,6 +102,8 @@ public class TcgStateCodec
 		serialized.xpCreditMultiplier = tuning.getXpCreditMultiplier();
 		serialized.debugLogging = s.isDebugLogging();
 		serialized.packRevealOverlayScale = s.getPackRevealOverlayScale();
+		serialized.albumWindowWidth = s.getAlbumWindowWidth();
+		serialized.albumWindowHeight = s.getAlbumWindowHeight();
 
 		for (OwnedCardInstance inst : s.getCollectionState().getOwnedInstances())
 		{
@@ -125,6 +131,8 @@ public class TcgStateCodec
 		private Double xpCreditMultiplier;
 		private Boolean debugLogging;
 		private Double packRevealOverlayScale;
+		private Integer albumWindowWidth;
+		private Integer albumWindowHeight;
 	}
 
 	private static class SerializedInstance

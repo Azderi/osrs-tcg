@@ -11,7 +11,9 @@ import com.runelitetcg.service.DuplicateSellCredits;
 import com.runelitetcg.service.TcgStateService;
 import com.runelitetcg.service.WikiImageCacheService;
 import com.runelitetcg.ui.SharedCardRenderer;
+import com.runelitetcg.util.CollectionAlbumWindowSizeUtil;
 import com.runelitetcg.util.NumberFormatting;
+import com.runelitetcg.util.TcgPluginGameMessages;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
@@ -22,6 +24,8 @@ import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -156,7 +160,18 @@ public final class CollectionAlbumWindow extends JFrame
 		this.variantsPanel = new CollectionAlbumVariantsPanel(imageCacheService, this::onVariantInstancePicked);
 
 		setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
-		setMinimumSize(new Dimension(1300, 810));
+		setMinimumSize(new Dimension(
+			CollectionAlbumWindowSizeUtil.MIN_WIDTH,
+			CollectionAlbumWindowSizeUtil.MIN_HEIGHT));
+		applySavedWindowSize();
+		addWindowListener(new WindowAdapter()
+		{
+			@Override
+			public void windowClosing(WindowEvent e)
+			{
+				persistWindowSize();
+			}
+		});
 		setLayout(new BorderLayout(8, 8));
 		getContentPane().setBackground(ColorScheme.DARK_GRAY_COLOR);
 
@@ -513,8 +528,26 @@ public final class CollectionAlbumWindow extends JFrame
 
 	void disposeInternal()
 	{
+		persistWindowSize();
 		stopTimers();
 		dispose();
+	}
+
+	private void applySavedWindowSize()
+	{
+		var s = stateService.getState();
+		Dimension size = CollectionAlbumWindowSizeUtil.resolve(s.getAlbumWindowWidth(), s.getAlbumWindowHeight());
+		setSize(size);
+	}
+
+	private void persistWindowSize()
+	{
+		Dimension size = getSize();
+		if (size.width <= 0 || size.height <= 0)
+		{
+			return;
+		}
+		stateService.setAlbumWindowSize(size.width, size.height);
 	}
 
 	public void refreshData()
@@ -1086,9 +1119,7 @@ public final class CollectionAlbumWindow extends JFrame
 	private String displayNameForInstance(String instanceId)
 	{
 		return stateService.getState().getCollectionState().findInstanceById(instanceId)
-			.map(OwnedCardInstance::getCardName)
-			.map(n -> n == null ? "" : n.trim())
-			.filter(n -> !n.isEmpty())
+			.map(inst -> TcgPluginGameMessages.announcedCardLabel(inst.getCardName(), inst.isFoil()))
 			.orElse(sendFocusCardName == null ? "card" : sendFocusCardName.trim());
 	}
 
