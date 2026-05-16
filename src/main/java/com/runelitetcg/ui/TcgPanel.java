@@ -76,6 +76,9 @@ public class TcgPanel extends PluginPanel
 	private static final String REWARD_TUNING_NON_DEFAULT_TRADE_WARNING =
 		"Your settings do not match the defaults. You will not be able to trade with other players unless their settings match with you!";
 
+	private static final long DUPLICATE_SELL_SCORE_DIVISOR = 100L;
+	private static final long DUPLICATE_SELL_MIN_CREDITS = 10L;
+
 	private static final String TCG_WELCOME_HEADER = "Welcome to OSRS TCG";
 
 	private static final String TCG_WELCOME_BODY =
@@ -1551,7 +1554,7 @@ public class TcgPanel extends PluginPanel
 					int sold = (qF - 1) + qN;
 					if (sold > 0)
 					{
-						creditsToAdd += (score / 1000L) * sold;
+						creditsToAdd += duplicateSellCreditsPerCopy(score) * sold;
 					}
 				}
 				else
@@ -1563,7 +1566,7 @@ public class TcgPanel extends PluginPanel
 					int sold = qF + (qN - 1);
 					if (sold > 0)
 					{
-						creditsToAdd += (score / 1000L) * sold;
+						creditsToAdd += duplicateSellCreditsPerCopy(score) * sold;
 					}
 				}
 			}
@@ -1615,6 +1618,11 @@ public class TcgPanel extends PluginPanel
 			return 0L;
 		}
 		return scoreByCardName.getOrDefault(cardName.toLowerCase(), 0L);
+	}
+
+	private static long duplicateSellCreditsPerCopy(long score)
+	{
+		return Math.max(DUPLICATE_SELL_MIN_CREDITS, score / DUPLICATE_SELL_SCORE_DIVISOR);
 	}
 
 	private static boolean hasFoilOwned(Map<CardCollectionKey, Integer> owned, String cardName)
