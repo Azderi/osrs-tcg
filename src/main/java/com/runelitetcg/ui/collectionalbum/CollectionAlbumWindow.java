@@ -7,6 +7,7 @@ import com.runelitetcg.data.PackCatalog;
 import com.runelitetcg.model.CardCollectionKey;
 import com.runelitetcg.model.OwnedCardInstance;
 import com.runelitetcg.service.CardPartyTransferService;
+import com.runelitetcg.service.DuplicateSellCredits;
 import com.runelitetcg.service.TcgStateService;
 import com.runelitetcg.service.WikiImageCacheService;
 import com.runelitetcg.ui.SharedCardRenderer;
@@ -42,6 +43,7 @@ import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JTextField;
@@ -83,6 +85,7 @@ public final class CollectionAlbumWindow extends JFrame
 	private final List<Long> partyMemberIds = new ArrayList<>();
 	private final JComboBox<String> partyMemberCombo = new JComboBox<>();
 	private final JButton sendCardBtn = new JButton("Send");
+	private final JButton sellCardBtn = new JButton("Sell");
 	private final JLabel sendStatusLabel = new JLabel(" ");
 	private final Timer partyUiTimer;
 
@@ -391,22 +394,37 @@ public final class CollectionAlbumWindow extends JFrame
 		albumCenterHost.add(variantsPanel, VIEW_CARD_VARIANTS);
 		add(albumCenterHost, BorderLayout.CENTER);
 
-		JPanel south = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
+		JPanel south = new JPanel(new BorderLayout(8, 6));
 		south.setOpaque(false);
 		south.setBorder(new EmptyBorder(0, 8, 6, 8));
+
+		JPanel partyRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+		partyRow.setOpaque(false);
 		JLabel partyLbl = new JLabel("Party:");
 		partyLbl.setForeground(Color.WHITE);
-		south.add(partyLbl);
+		partyRow.add(partyLbl);
 		partyMemberCombo.setForeground(Color.WHITE);
 		partyMemberCombo.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		south.add(partyMemberCombo);
+		partyRow.add(partyMemberCombo);
 		sendCardBtn.setFocusable(false);
 		sendCardBtn.setBackground(ColorScheme.DARKER_GRAY_COLOR.darker());
 		sendCardBtn.setForeground(Color.WHITE);
-		south.add(sendCardBtn);
-		south.add(sendStatusLabel);
-		partyMemberCombo.addActionListener(e -> updateSendButtonState());
+		partyRow.add(sendCardBtn);
+		partyRow.add(sendStatusLabel);
+
+		JPanel sellRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+		sellRow.setOpaque(false);
+		sellCardBtn.setFocusable(false);
+		sellCardBtn.setBackground(ColorScheme.DARKER_GRAY_COLOR.darker());
+		sellCardBtn.setForeground(Color.WHITE);
+		sellCardBtn.setEnabled(false);
+		sellRow.add(sellCardBtn);
+
+		south.add(partyRow, BorderLayout.WEST);
+		south.add(sellRow, BorderLayout.EAST);
+		partyMemberCombo.addActionListener(e -> updateSouthBarButtons());
 		sendCardBtn.addActionListener(this::onSendToPartyClicked);
+		sellCardBtn.addActionListener(this::onSellSelectedCardClicked);
 		add(south, BorderLayout.SOUTH);
 
 		partyUiTimer = new Timer(2000, e ->
@@ -478,6 +496,7 @@ public final class CollectionAlbumWindow extends JFrame
 		variantPagingLabel.setFont(small);
 		variantCardTitleLbl.setFont(FontManager.getRunescapeBoldFont());
 		sendCardBtn.setFont(small);
+		sellCardBtn.setFont(small);
 		sendStatusLabel.setFont(small);
 	}
 
@@ -771,6 +790,11 @@ public final class CollectionAlbumWindow extends JFrame
 		albumNorthLayout.show(albumNorthHost, VIEW_NORTH_BROWSE);
 		albumCenterLayout.show(albumCenterHost, VIEW_ALBUM_BROWSE);
 		albumVariantsVisible = false;
+		grid.clearSelection();
+		sendChosenInstanceId = null;
+		sendFocusCardName = null;
+		sendPickFromVariantOnly = false;
+		updateSouthBarButtons();
 	}
 
 	private void enterAlbumVariantView(AlbumSlot slot)
@@ -828,7 +852,7 @@ public final class CollectionAlbumWindow extends JFrame
 		String n = inst.getCardName() == null ? "" : inst.getCardName().trim();
 		sendFocusCardName = n.isEmpty() ? sendFocusCardName : n;
 		sendPickFromVariantOnly = true;
-		updateSendButtonState();
+		updateSouthBarButtons();
 	}
 
 	private void refreshPartyMemberCombo()
@@ -884,13 +908,13 @@ public final class CollectionAlbumWindow extends JFrame
 				if (prevId.equals(partyMemberIds.get(i)))
 				{
 					partyMemberCombo.setSelectedIndex(i);
-					onSlotSelectionChanged();
+					updateSouthBarButtons();
 					return;
 				}
 			}
 		}
 		partyMemberCombo.setSelectedIndex(0);
-		onSlotSelectionChanged();
+		updateSouthBarButtons();
 	}
 
 	private void onOwnedMultiCopyAlbumPress(int slotIndex, AlbumSlot slot)
@@ -900,14 +924,6 @@ public final class CollectionAlbumWindow extends JFrame
 
 	private void onSlotSelectionChanged()
 	{
-		if (!partyMemberCombo.isEnabled())
-		{
-			sendChosenInstanceId = null;
-			sendFocusCardName = null;
-			sendPickFromVariantOnly = false;
-			updateSendButtonState();
-			return;
-		}
 		AlbumSlot slot = grid.getSelectedSlot();
 		if (slot == null || !slot.ownedAny())
 		{
@@ -916,7 +932,7 @@ public final class CollectionAlbumWindow extends JFrame
 				sendChosenInstanceId = null;
 				sendFocusCardName = null;
 			}
-			updateSendButtonState();
+			updateSouthBarButtons();
 			return;
 		}
 		sendPickFromVariantOnly = false;
@@ -926,18 +942,29 @@ public final class CollectionAlbumWindow extends JFrame
 			sendChosenInstanceId = null;
 		}
 		sendFocusCardName = newName;
-		if (slot.totalOwnedQty() == 1 && newName != null)
+		if (newName != null)
 		{
 			List<OwnedCardInstance> row = stateService.getState().getCollectionState().instancesForCardName(newName);
 			if (row.size() == 1)
 			{
 				sendChosenInstanceId = row.get(0).getInstanceId();
 			}
+			else if (row.size() > 1)
+			{
+				boolean idMatchesCard = sendChosenInstanceId != null
+					&& stateService.getState().getCollectionState().findInstanceById(sendChosenInstanceId)
+						.filter(i -> newName.equals(i.getCardName()))
+						.isPresent();
+				if (!idMatchesCard)
+				{
+					sendChosenInstanceId = null;
+				}
+			}
 		}
-		updateSendButtonState();
+		updateSouthBarButtons();
 	}
 
-	private void updateSendButtonState()
+	private void updateSouthBarButtons()
 	{
 		boolean partyReady = partyMemberCombo.isEnabled();
 		int pi = partyMemberCombo.getSelectedIndex();
@@ -948,13 +975,121 @@ public final class CollectionAlbumWindow extends JFrame
 		boolean variantSendOk = sendPickFromVariantOnly
 			&& sendChosenInstanceId != null && !sendChosenInstanceId.isEmpty()
 			&& sendFocusCardName != null && !sendFocusCardName.trim().isEmpty();
-		if (!gridSlotOk && !variantSendOk)
+		boolean selectionOk = gridSlotOk || variantSendOk;
+		boolean idOk = sendChosenInstanceId != null && !sendChosenInstanceId.isEmpty()
+			&& stateService.getState().getCollectionState().findInstanceById(sendChosenInstanceId).isPresent();
+
+		if (!selectionOk || !idOk)
 		{
 			sendCardBtn.setEnabled(false);
+			sellCardBtn.setEnabled(false);
+			sellCardBtn.setText("Sell");
 			return;
 		}
-		boolean idOk = sendChosenInstanceId != null && !sendChosenInstanceId.isEmpty();
+
 		sendCardBtn.setEnabled(recipientOk && idOk);
+
+		long sellValue = sellCreditsForChosenInstance();
+		sellCardBtn.setText("Sell for " + NumberFormatting.format(sellValue));
+		sellCardBtn.setEnabled(true);
+	}
+
+	private long sellCreditsForChosenInstance()
+	{
+		if (sendChosenInstanceId == null || sendChosenInstanceId.isEmpty())
+		{
+			return 0L;
+		}
+		return stateService.getState().getCollectionState().findInstanceById(sendChosenInstanceId)
+			.map(inst -> DuplicateSellCredits.creditsForCard(
+				cardDefinitionForName(inst.getCardName()), inst.isFoil()))
+			.orElse(0L);
+	}
+
+	private CardDefinition cardDefinitionForName(String cardName)
+	{
+		if (cardName == null)
+		{
+			return null;
+		}
+		String n = cardName.trim();
+		if (n.isEmpty())
+		{
+			return null;
+		}
+		for (CardDefinition c : cardDatabase.getCards())
+		{
+			if (c.getName() != null && c.getName().equals(n))
+			{
+				return c;
+			}
+		}
+		return null;
+	}
+
+	private void onSellSelectedCardClicked(ActionEvent e)
+	{
+		if (sendChosenInstanceId == null || sendChosenInstanceId.isEmpty())
+		{
+			return;
+		}
+		long credits = sellCreditsForChosenInstance();
+		if (credits <= 0L)
+		{
+			return;
+		}
+		if (isOnlyOwnedCopy(sendChosenInstanceId))
+		{
+			String cardName = displayNameForInstance(sendChosenInstanceId);
+			int choice = JOptionPane.showConfirmDialog(
+				this,
+				"Are you sure you want to sell your only " + cardName + " for "
+					+ NumberFormatting.format(credits) + " credits?",
+				"Sell card",
+				JOptionPane.YES_NO_OPTION,
+				JOptionPane.WARNING_MESSAGE);
+			if (choice != JOptionPane.YES_OPTION)
+			{
+				return;
+			}
+		}
+		String instanceId = sendChosenInstanceId;
+		if (!stateService.removeCardInstance(instanceId))
+		{
+			return;
+		}
+		stateService.addCredits(credits);
+		sendChosenInstanceId = null;
+		sendPickFromVariantOnly = false;
+		sendFocusCardName = null;
+		sendStatusLabel.setText("");
+		rebuildModel();
+	}
+
+	private boolean isOnlyOwnedCopy(String instanceId)
+	{
+		return stateService.getState().getCollectionState().findInstanceById(instanceId)
+			.map(inst ->
+			{
+				String name = inst.getCardName();
+				if (name == null)
+				{
+					return false;
+				}
+				String n = name.trim();
+				return !n.isEmpty()
+					&& stateService.getState().getCollectionState().instancesForCardName(n).size() == 1;
+			})
+			.orElse(false);
+	}
+
+	private String displayNameForInstance(String instanceId)
+	{
+		return stateService.getState().getCollectionState().findInstanceById(instanceId)
+			.map(OwnedCardInstance::getCardName)
+			.map(n -> n == null ? "" : n.trim())
+			.filter(n -> !n.isEmpty())
+			.orElse(sendFocusCardName == null ? "card" : sendFocusCardName.trim());
 	}
 
 	private void onSendToPartyClicked(ActionEvent e)

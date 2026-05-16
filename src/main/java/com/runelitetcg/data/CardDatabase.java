@@ -3,6 +3,7 @@ package com.runelitetcg.data;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
+import com.runelitetcg.util.HtmlEntities;
 import com.runelitetcg.service.RarityMath;
 import com.runelitetcg.util.TcgPluginGameMessages;
 import java.awt.Color;
@@ -168,8 +169,12 @@ public class CardDatabase
 				continue;
 			}
 
-			card.setName(card.getName().trim());
+			card.setName(HtmlEntities.decode(card.getName().trim()));
 			normalizeCategoryTags(card);
+			if (card.getExamine() != null)
+			{
+				card.setExamine(HtmlEntities.decode(card.getExamine().trim()));
+			}
 			if (card.getImageUrl() != null)
 			{
 				card.setImageUrl(card.getImageUrl().trim());

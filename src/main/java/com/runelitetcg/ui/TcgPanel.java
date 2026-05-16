@@ -10,6 +10,7 @@ import com.runelitetcg.model.OwnedCardInstance;
 import com.runelitetcg.model.RewardTuningState;
 import com.runelitetcg.model.TcgState;
 import com.runelitetcg.service.CreditAwardService;
+import com.runelitetcg.service.DuplicateSellCredits;
 import com.runelitetcg.service.PackOpeningService;
 import com.runelitetcg.service.PackRevealService;
 import com.runelitetcg.service.RarityMath;
@@ -1516,6 +1517,98 @@ public class TcgPanel extends PluginPanel
 		return panel;
 	}
 
+	private void promptAndSellDuplicates()
+	{
+		TcgState current = stateService.getState();
+		List<OwnedCardInstance> all = new ArrayList<>(current.getCollectionState().getOwnedInstances());
+		if (all.isEmpty())
+		{
+			refresh();
+			return;
+		}
+
+		Map<String, List<OwnedCardInstance>> byName = new HashMap<>();
+		for (OwnedCardInstance i : all)
+		{
+			String n = i.getCardName();
+			byName.computeIfAbsent(n, k -> new ArrayList<>()).add(i);
+		}
+
+		List<OwnedCardInstance> kept = new ArrayList<>();
+		long creditsToAdd = 0L;
+		int cardsSold = 0;
+
+		for (Map.Entry<String, List<OwnedCardInstance>> entry : byName.entrySet())
+		{
+			String name = entry.getKey();
+			List<OwnedCardInstance> lst = entry.getValue();
+			int qF = (int) lst.stream().filter(OwnedCardInstance::isFoil).count();
+			int qN = lst.size() - qF;
+			int total = qF + qN;
+			if (total <= 1)
+			{
+				kept.addAll(lst);
+				continue;
+			}
+
+			CardDefinition def = cardDefinitionForName(name);
+			long normalCredits = DuplicateSellCredits.creditsForCard(def, false);
+			long foilCredits = DuplicateSellCredits.creditsForCard(def, true);
+			if (qF > 0)
+			{
+				lst.stream()
+					.filter(OwnedCardInstance::isFoil)
+					.max(Comparator.comparingLong(OwnedCardInstance::getPulledAtEpochMs))
+					.ifPresent(kept::add);
+				int foilSold = qF - 1;
+				int normalSold = qN;
+				int sold = foilSold + normalSold;
+				if (sold > 0)
+				{
+					cardsSold += sold;
+					creditsToAdd += foilCredits * foilSold + normalCredits * normalSold;
+				}
+			}
+			else
+			{
+				lst.stream()
+					.filter(i -> !i.isFoil())
+					.max(Comparator.comparingLong(OwnedCardInstance::getPulledAtEpochMs))
+					.ifPresent(kept::add);
+				int sold = qN - 1;
+				if (sold > 0)
+				{
+					cardsSold += sold;
+					creditsToAdd += normalCredits * sold;
+				}
+			}
+		}
+
+		if (cardsSold <= 0)
+		{
+			refresh();
+			return;
+		}
+
+		int choice = JOptionPane.showConfirmDialog(
+			this,
+			"Are you sure you want to sell " + cardsSold + " cards for " + format(creditsToAdd) + " credits?",
+			"Sell duplicates",
+			JOptionPane.YES_NO_OPTION,
+			JOptionPane.WARNING_MESSAGE);
+		if (choice != JOptionPane.YES_OPTION)
+		{
+			return;
+		}
+
+		stateService.setCollectionInstances(kept);
+		if (creditsToAdd > 0L)
+		{
+			stateService.addCredits(creditsToAdd);
+		}
+		refresh();
+	}
+
 	private JButton createSellDuplicatesButton()
 	{
 		JButton button = new JButton("Sell duplicates");
@@ -1527,73 +1620,7 @@ public class TcgPanel extends PluginPanel
 			new MatteBorder(1, 1, 1, 1, ColorScheme.LIGHT_GRAY_COLOR.darker()),
 			new EmptyBorder(6, 6, 6, 6)
 		));
-		button.addActionListener(ev ->
-		{
-			TcgState current = stateService.getState();
-			List<OwnedCardInstance> all = new ArrayList<>(current.getCollectionState().getOwnedInstances());
-			if (all.isEmpty())
-			{
-				refresh();
-				return;
-			}
-
-			Map<String, List<OwnedCardInstance>> byName = new HashMap<>();
-			for (OwnedCardInstance i : all)
-			{
-				String n = i.getCardName();
-				byName.computeIfAbsent(n, k -> new ArrayList<>()).add(i);
-			}
-
-			List<OwnedCardInstance> kept = new ArrayList<>();
-			long creditsToAdd = 0L;
-
-			for (Map.Entry<String, List<OwnedCardInstance>> entry : byName.entrySet())
-			{
-				String name = entry.getKey();
-				List<OwnedCardInstance> lst = entry.getValue();
-				int qF = (int) lst.stream().filter(OwnedCardInstance::isFoil).count();
-				int qN = lst.size() - qF;
-				int total = qF + qN;
-				if (total <= 1)
-				{
-					kept.addAll(lst);
-					continue;
-				}
-
-				long score = scoreForCard(name);
-				if (qF > 0)
-				{
-					lst.stream()
-						.filter(OwnedCardInstance::isFoil)
-						.max(Comparator.comparingLong(OwnedCardInstance::getPulledAtEpochMs))
-						.ifPresent(kept::add);
-					int sold = (qF - 1) + qN;
-					if (sold > 0)
-					{
-						creditsToAdd += (score / 1000L) * sold;
-					}
-				}
-				else
-				{
-					lst.stream()
-						.filter(i -> !i.isFoil())
-						.max(Comparator.comparingLong(OwnedCardInstance::getPulledAtEpochMs))
-						.ifPresent(kept::add);
-					int sold = qF + (qN - 1);
-					if (sold > 0)
-					{
-						creditsToAdd += (score / 1000L) * sold;
-					}
-				}
-			}
-
-			stateService.setCollectionInstances(kept);
-			if (creditsToAdd > 0L)
-			{
-				stateService.addCredits(creditsToAdd);
-			}
-			refresh();
-		});
+		button.addActionListener(ev -> promptAndSellDuplicates());
 		return button;
 	}
 
@@ -1634,6 +1661,27 @@ public class TcgPanel extends PluginPanel
 			return 0L;
 		}
 		return scoreByCardName.getOrDefault(cardName.toLowerCase(), 0L);
+	}
+
+	private CardDefinition cardDefinitionForName(String cardName)
+	{
+		if (cardName == null)
+		{
+			return null;
+		}
+		String n = cardName.trim();
+		if (n.isEmpty())
+		{
+			return null;
+		}
+		for (CardDefinition c : cardDatabase.getCards())
+		{
+			if (c.getName() != null && c.getName().equals(n))
+			{
+				return c;
+			}
+		}
+		return null;
 	}
 
 	private static boolean hasFoilOwned(Map<CardCollectionKey, Integer> owned, String cardName)
