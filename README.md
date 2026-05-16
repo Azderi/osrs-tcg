@@ -4,4 +4,6 @@ A **RuneLite** plugin that adds a light collectible card experience. Credits are
 
 ![Pack opening reveal](https://i.imgur.com/ok8mxK9.png)
 
+![Collection album](https://i.imgur.com/H28xZfZ.png)
+
 The plugin features party plugin integration that allows you to trade cards with other players.
