@@ -88,6 +88,9 @@ public class TcgPanel extends PluginPanel
 			+ "so it is adviced to keep everything as default and debug mode off. "
 			+ "If you want to change these settings later on, you must reset your collection and start from nothing.";
 
+	private static final String TCG_WELCOME_TCG_COMMAND_BODY =
+		"Type !tcg in chat to share your collection stats";
+
 	private enum Tab
 	{
 		WELCOME("Welcome"),
@@ -1153,6 +1156,22 @@ public class TcgPanel extends PluginPanel
 		ta.setPreferredSize(new Dimension(w, bodyH));
 		ta.setMaximumSize(new Dimension(w, bodyH));
 		wrap.add(ta);
+
+		JTextArea tcgCmd = new JTextArea(TCG_WELCOME_TCG_COMMAND_BODY);
+		tcgCmd.setEditable(false);
+		tcgCmd.setOpaque(false);
+		tcgCmd.setFocusable(false);
+		tcgCmd.setForeground(new Color(0xBBBBBB));
+		tcgCmd.setFont(FontManager.getRunescapeSmallFont());
+		tcgCmd.setLineWrap(true);
+		tcgCmd.setWrapStyleWord(true);
+		tcgCmd.setBorder(new EmptyBorder(10, 0, 0, 0));
+		tcgCmd.setAlignmentX(LEFT_ALIGNMENT);
+		tcgCmd.setSize(w, Short.MAX_VALUE);
+		int tcgCmdH = tcgCmd.getPreferredSize().height;
+		tcgCmd.setPreferredSize(new Dimension(w, tcgCmdH));
+		tcgCmd.setMaximumSize(new Dimension(w, tcgCmdH));
+		wrap.add(tcgCmd);
 
 		int totalH = wrap.getPreferredSize().height;
 		wrap.setPreferredSize(new Dimension(w, totalH));

@@ -21,6 +21,7 @@ import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -52,10 +53,14 @@ import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
+import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.Text;
 
 public final class CollectionAlbumWindow extends JFrame
 {
+	private static final BufferedImage WINDOW_ICON =
+		ImageUtil.loadImageResource(CollectionAlbumWindow.class, "/icon.png");
+
 	private static final String VIEW_ALBUM_BROWSE = "browse";
 	private static final String VIEW_CARD_VARIANTS = "variants";
 	private static final String VIEW_NORTH_BROWSE = "northBrowse";
@@ -101,6 +106,8 @@ public final class CollectionAlbumWindow extends JFrame
 	private final CollectionAlbumVariantsPanel variantsPanel;
 	private Timer searchDebounceTimer;
 	private final Timer imagePollTimer;
+	/** ~30 FPS repaints while foil sheen is visible (album grid is otherwise polled at {@link #imagePollTimer}). */
+	private final Timer foilAnimTimer;
 
 	private final CardLayout albumNorthLayout = new CardLayout();
 	private final JPanel albumNorthHost = new JPanel(albumNorthLayout);
@@ -132,6 +139,10 @@ public final class CollectionAlbumWindow extends JFrame
 		CardPartyTransferService cardPartyTransferService)
 	{
 		super("OSRS TCG — Collection album");
+		if (WINDOW_ICON != null)
+		{
+			setIconImage(WINDOW_ICON);
+		}
 		this.cardDatabase = cardDatabase;
 		this.stateService = stateService;
 		this.packCatalog = packCatalog;
@@ -420,6 +431,23 @@ public final class CollectionAlbumWindow extends JFrame
 		});
 		imagePollTimer.start();
 
+		foilAnimTimer = new Timer(33, e ->
+		{
+			if (!isShowing())
+			{
+				return;
+			}
+			if (grid.needsFoilAnimationRepaint())
+			{
+				grid.repaint();
+			}
+			if (albumVariantsVisible && variantsPanel.needsFoilAnimationRepaint())
+			{
+				variantsPanel.repaint();
+			}
+		});
+		foilAnimTimer.start();
+
 		styleFrameFonts();
 	}
 
@@ -457,6 +485,7 @@ public final class CollectionAlbumWindow extends JFrame
 	{
 		partyUiTimer.stop();
 		imagePollTimer.stop();
+		foilAnimTimer.stop();
 		if (searchDebounceTimer != null)
 		{
 			searchDebounceTimer.stop();

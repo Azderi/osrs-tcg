@@ -113,6 +113,26 @@ public final class CollectionAlbumVariantsPanel extends JPanel
 		revalidate();
 	}
 
+	/** True when the current variants page shows at least one foil copy (moving sheen). */
+	public boolean needsFoilAnimationRepaint()
+	{
+		int from = variantPageIndex * PAGE_SIZE;
+		for (int i = 0; i < PAGE_SIZE; i++)
+		{
+			int gi = from + i;
+			if (gi >= allCopies.size())
+			{
+				break;
+			}
+			OwnedCardInstance inst = allCopies.get(gi);
+			if (inst != null && inst.isFoil())
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	public void shiftVariantPage(int delta)
 	{
 		int nPages = Math.max(1, (allCopies.size() + PAGE_SIZE - 1) / PAGE_SIZE);

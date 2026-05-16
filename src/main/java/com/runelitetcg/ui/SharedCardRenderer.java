@@ -3,6 +3,7 @@ package com.runelitetcg.ui;
 import com.runelitetcg.data.CardDefinition;
 import com.runelitetcg.service.RarityMath;
 import com.runelitetcg.util.NumberFormatting;
+import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -10,6 +11,9 @@ import java.awt.GradientPaint;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Path2D;
+import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
@@ -22,6 +26,18 @@ public final class SharedCardRenderer
 	/** Border thickness at {@link #DEFAULT_CARD_WIDTH}×{@link #DEFAULT_CARD_HEIGHT}; scaled per draw via {@link #frameThicknessFor}. */
 	private static final int FRAME_THICKNESS = 6;
 	private static final Color FOIL_FRAME_GOLD = new Color(0xD4AF37);
+	/** Light gold fill for the moving foil sheen; opacity comes from {@link AlphaComposite}. */
+	private static final Color FOIL_SHEEN_GOLD = new Color(255, 236, 190);
+	private static final Color FOIL_SPARKLE_CORE = new Color(255, 215, 105);
+	/** Peak opacity when a twinkle is at full size ({@code scaleEnv == 1}). */
+	private static final float FOIL_TWINKLE_PEAK_ALPHA = 0.75f;
+	/** Inward scoop of foil twinkle star edges; lower = sharper tips (control closer to center). */
+	private static final float FOIL_TWINKLE_CONCAVE_K = 0.11f;
+	/** Active sheen sweep duration (ms); half of prior 1150 ms = double sweep speed. */
+	private static final int FOIL_SHEEN_SWEEP_MS = 575;
+	/** Idle time after each sweep before the next (ms). */
+	private static final int FOIL_SHEEN_COOLDOWN_MS = 5000;
+	private static final int FOIL_SHEEN_CYCLE_MS = FOIL_SHEEN_SWEEP_MS + FOIL_SHEEN_COOLDOWN_MS;
 	private static final Color CARD_BG = new Color(0x2A2A2A);
 	private static final Color PANEL_DARK = new Color(0x222222);
 	private static final Color PANEL_MID = new Color(0x2F2F2F);
@@ -148,10 +164,187 @@ public final class SharedCardRenderer
 
 			String stats = "Score: " + formatScore(card, useFoilAdjustedScoreForLabel);
 			drawCenteredText(g2, statsR, stats, FontManager.getRunescapeSmallFont(), Color.WHITE);
+
+			if (foil)
+			{
+				drawFoilSheen(g2, bounds, outerArc);
+				drawFoilSparkles(g2, bounds, outerArc, ft, card);
+			}
 		}
 		finally
 		{
 			g2.dispose();
+		}
+	}
+
+	/** Deterministic fraction in {@code [0, 1)} for foil sparkle layout (per star index + salt). */
+	private static double sparkleU01(long seed, int i, int salt)
+	{
+		long z = seed + (long) i * 0x9E3779B97L + (long) salt * 0xC2B2AE3D27A4EB4FL;
+		z ^= z >>> 33;
+		z *= 0xff51afd7ed558ccdL;
+		z ^= z >>> 33;
+		z *= 0xc4ceb9fe1a85ec53L;
+		z ^= z >>> 33;
+		long m = (z >>> 12) & ((1L << 52) - 1);
+		return m * 0x1.0p-52;
+	}
+
+	/**
+	 * Four-point star with concave edges between points (taller than wide), centered at the origin.
+	 * @param halfW east–west extent from center to tip
+	 * @param halfH north–south extent from center to tip (typically &gt; halfW)
+	 */
+	private static Path2D.Float foilTwinklePath(float halfW, float halfH)
+	{
+		float k = FOIL_TWINKLE_CONCAVE_K;
+		Path2D.Float p = new Path2D.Float();
+		p.moveTo(0f, -halfH);
+		p.quadTo(k * halfW, -k * halfH, halfW, 0f);
+		p.quadTo(k * halfW, k * halfH, 0f, halfH);
+		p.quadTo(-k * halfW, k * halfH, -halfW, 0f);
+		p.quadTo(-k * halfW, -k * halfH, 0f, -halfH);
+		p.closePath();
+		return p;
+	}
+
+	/**
+	 * Diagonal semi-transparent gold band (45°) over the full card (including frame). One fast sweep every
+	 * {@link #FOIL_SHEEN_SWEEP_MS}, then {@link #FOIL_SHEEN_COOLDOWN_MS} idle.
+	 */
+	private static void drawFoilSheen(Graphics2D g2, Rectangle clipBounds, int clipArc)
+	{
+		if (g2 == null || clipBounds == null || clipBounds.width < 6 || clipBounds.height < 6)
+		{
+			return;
+		}
+
+		long t = System.currentTimeMillis();
+		long cyclePos = t % FOIL_SHEEN_CYCLE_MS;
+		if (cyclePos >= FOIL_SHEEN_SWEEP_MS)
+		{
+			return;
+		}
+		double u = cyclePos / (double) FOIL_SHEEN_SWEEP_MS;
+
+		int arc = Math.max(2, clipArc);
+		java.awt.Shape clipBefore = g2.getClip();
+		java.awt.Composite compositeBefore = g2.getComposite();
+		java.awt.geom.AffineTransform transformBefore = g2.getTransform();
+		try
+		{
+			RoundRectangle2D clipShape = new RoundRectangle2D.Float(
+				clipBounds.x, clipBounds.y, clipBounds.width, clipBounds.height, arc, arc);
+			g2.clip(clipShape);
+
+			double cx = clipBounds.getCenterX();
+			double cy = clipBounds.getCenterY();
+			double diag = Math.hypot(clipBounds.width, clipBounds.height);
+			int sheenW = Math.max(10, (int) Math.round(Math.min(clipBounds.width, clipBounds.height) * 0.15d));
+			int span = (int) Math.ceil(diag) + sheenW + 8;
+			double th = Math.PI / 4.0d;
+			// Screen-space half-height of the rotated band (axis-aligned bounds).
+			double halfBandH = 0.5d * (Math.abs(sheenW * Math.sin(th)) + Math.abs(span * Math.cos(th)));
+			double extra = Math.max(4.0d, sheenW);
+			// u=0: band fully above the card; u=1: fully below — then loop.
+			double travelStart = -clipBounds.height / 2.0d - halfBandH - extra;
+			double travelEnd = clipBounds.height / 2.0d + halfBandH + extra;
+			double travel = travelStart + u * (travelEnd - travelStart);
+
+			g2.translate(cx, cy + travel);
+			g2.rotate(th);
+
+			g2.setComposite(AlphaComposite.SrcOver.derive(0.40f));
+			g2.setColor(FOIL_SHEEN_GOLD);
+			g2.fillRect(-sheenW / 2, -span / 2, sheenW, span);
+		}
+		finally
+		{
+			g2.setTransform(transformBefore);
+			g2.setComposite(compositeBefore);
+			g2.setClip(clipBefore);
+		}
+	}
+
+	/** Fewer sparkles; each twinkle grows from 0 to full size then shrinks to 0; position changes each cycle. */
+	private static void drawFoilSparkles(Graphics2D g2, Rectangle clipBounds, int clipArc, int frameThickness, CardDefinition card)
+	{
+		if (g2 == null || clipBounds == null || clipBounds.width < 8 || clipBounds.height < 8)
+		{
+			return;
+		}
+
+		int arc = Math.max(2, clipArc);
+		String key = valueOrFallback(card == null ? null : card.getName(), "Unknown");
+		long seed = (long) key.hashCode() ^ ((long) key.length() << 32) ^ 0xC0FFEE8BADF00DL;
+
+		java.awt.Shape clipBefore = g2.getClip();
+		java.awt.Composite compositeBefore = g2.getComposite();
+		java.awt.Stroke strokeBefore = g2.getStroke();
+		try
+		{
+			float scale = Math.max(0.35f, Math.min(clipBounds.width, clipBounds.height) / 260.0f);
+			float twinkleArmPx = Math.max(5f, (float) (3.55d * scale * 1.62d * 2.0d));
+
+			// Inside the frame, with extra pad so full-size star tips stay off the border.
+			int borderInset = Math.max(1, frameThickness) + 1;
+			int tipPad = Math.max(2, (int) Math.ceil(twinkleArmPx * 1.12f));
+			Rectangle sparkleArea = inset(clipBounds, borderInset);
+			int sparkleArc = Math.max(2, arc - 2);
+			Rectangle posArea = inset(sparkleArea, tipPad);
+			if (posArea.width < 6 || posArea.height < 6)
+			{
+				posArea = sparkleArea;
+			}
+
+			RoundRectangle2D clipShape = new RoundRectangle2D.Float(
+				sparkleArea.x, sparkleArea.y, sparkleArea.width, sparkleArea.height, sparkleArc, sparkleArc);
+			g2.clip(clipShape);
+
+			int count = 6 + (int) (sparkleU01(seed, 0, 77) * 6);
+			int margin = Math.max(1, Math.round(2 * scale));
+			int posW = Math.max(1, posArea.width - margin * 2);
+			int posH = Math.max(1, posArea.height - margin * 2);
+			long now = System.currentTimeMillis();
+
+			for (int i = 0; i < count; i++)
+			{
+				int period = 1100 + (int) (sparkleU01(seed, i, 6) * 2400);
+				int phase = (int) (sparkleU01(seed, i, 7) * period);
+				long tWave = now + phase;
+				long cycleIndex = tWave / period;
+				long posSeed = seed ^ (cycleIndex * 0x9E3779B97L) ^ ((long) i << 21);
+
+				int px = posArea.x + margin + (int) (sparkleU01(posSeed, i, 1) * posW);
+				int py = posArea.y + margin + (int) (sparkleU01(posSeed, i, 2) * posH);
+
+				long uMod = ((tWave % period) + period) % period;
+				double u = uMod / (double) period;
+				// One smooth pulse per period: 0 → 1 → 0 (size and fade).
+				double scaleEnv = Math.sin(Math.PI * u);
+				if (scaleEnv < 0.012d)
+				{
+					continue;
+				}
+
+				float halfW = twinkleArmPx * 0.86f;
+				float halfH = twinkleArmPx * 1.12f;
+				Path2D.Float twShape = foilTwinklePath(halfW, halfH);
+				AffineTransform at = new AffineTransform();
+				at.translate(px, py);
+				at.scale(scaleEnv, scaleEnv);
+				java.awt.Shape drawn = at.createTransformedShape(twShape);
+
+				g2.setColor(FOIL_SPARKLE_CORE);
+				g2.setComposite(AlphaComposite.SrcOver.derive(FOIL_TWINKLE_PEAK_ALPHA * (float) scaleEnv));
+				g2.fill(drawn);
+			}
+		}
+		finally
+		{
+			g2.setStroke(strokeBefore);
+			g2.setComposite(compositeBefore);
+			g2.setClip(clipBefore);
 		}
 	}
 
@@ -180,6 +373,7 @@ public final class SharedCardRenderer
 		return Math.max(3, Math.min(a, cap));
 	}
 
+	@SuppressWarnings("unused")
 	private static void drawFrame(Graphics2D g2, Rectangle bounds, boolean foil, Color accent, int frameThickness, int outerArc)
 	{
 		g2.setColor(foil ? FOIL_FRAME_GOLD : Color.BLACK);
@@ -193,7 +387,6 @@ public final class SharedCardRenderer
 
 		if (foil)
 		{
-			// Foil keeps a subtle neutral sheen, not rarity color.
 			int innerArc = Math.max(2, outerArc - 2);
 			g2.setColor(new Color(255, 255, 255, 28));
 			g2.drawRoundRect(bounds.x + frameThickness, bounds.y + frameThickness,
