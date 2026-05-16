@@ -563,6 +563,23 @@ public class PackRevealService
 		scrollWheelHintUntilMs = 0L;
 	}
 
+	/**
+	 * Stops an active reveal (e.g. Safe-mode combat interrupt). Announces party highlights for unrevealed slots,
+	 * then returns the pulled cards for chat. Cards are already in the collection from pack open.
+	 */
+	public synchronized List<RevealCard> abortActiveReveal()
+	{
+		if (!isActive())
+		{
+			return List.of();
+		}
+		announcePartyMythicPullsForPreviouslyUnrevealedSlots();
+		List<RevealCard> snapshot = List.copyOf(cards);
+		packRevealSoundService.hardStop();
+		reset();
+		return snapshot;
+	}
+
 	private double clamp01(double value)
 	{
 		if (value < 0.0d)

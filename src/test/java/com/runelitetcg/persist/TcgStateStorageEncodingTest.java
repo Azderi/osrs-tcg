@@ -22,7 +22,7 @@ public class TcgStateStorageEncodingTest
 		sb.append("}}");
 		String plain = sb.toString();
 		String stored = TcgStateStorageEncoding.encode(plain);
-		assertTrue(stored.startsWith(TcgStateStorageEncoding.GZIP_V1_PREFIX));
+		assertTrue(stored.startsWith(TcgStateStorageEncoding.STORAGE_PREFIX));
 		assertTrue(stored.length() < plain.length());
 		assertEquals(plain, TcgStateStorageEncoding.decode(stored));
 	}
@@ -32,7 +32,7 @@ public class TcgStateStorageEncodingTest
 	{
 		String plain = "{}";
 		String stored = TcgStateStorageEncoding.encode(plain);
-		assertTrue(stored.startsWith(TcgStateStorageEncoding.GZIP_V1_PREFIX));
+		assertTrue(stored.startsWith(TcgStateStorageEncoding.STORAGE_PREFIX));
 		assertEquals(plain, TcgStateStorageEncoding.decode(stored));
 	}
 
@@ -40,5 +40,11 @@ public class TcgStateStorageEncodingTest
 	public void decodeNonPrefixedReturnsEmpty()
 	{
 		assertEquals("", TcgStateStorageEncoding.decode("{\"credits\":1}"));
+	}
+
+	@Test
+	public void decodeLegacyV1PrefixReturnsEmpty()
+	{
+		assertEquals("", TcgStateStorageEncoding.decode("RLTCG_v1:H4sIAAAAAAAA/wMA"));
 	}
 }

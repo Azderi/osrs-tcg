@@ -49,6 +49,7 @@ public final class CollectionAlbumManager
 					cardDatabase, stateService, packCatalog, imageCacheService, partyService, cardPartyTransferService);
 			}
 			window.refreshData();
+			window.prepareToShow();
 			window.setVisible(true);
 			window.toFront();
 		});

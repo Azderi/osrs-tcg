@@ -6,6 +6,7 @@ import com.runelitetcg.data.CardDefinition;
 import com.runelitetcg.data.PackCatalog;
 import com.runelitetcg.model.CardCollectionKey;
 import com.runelitetcg.model.OwnedCardInstance;
+import com.runelitetcg.model.TcgState;
 import com.runelitetcg.service.CardPartyTransferService;
 import com.runelitetcg.service.DuplicateSellCredits;
 import com.runelitetcg.service.TcgStateService;
@@ -22,10 +23,13 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Insets;
 import java.awt.event.ActionEvent;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import javax.swing.SwingUtilities;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -136,6 +140,8 @@ public final class CollectionAlbumWindow extends JFrame
 	/** Selected collection row for party send; cleared when changing cards or after a successful send. */
 	private String sendChosenInstanceId;
 	private String sendFocusCardName;
+	/** Last size from user resize; used when persisting on hide (getSize() can be wrong while closing). */
+	private Dimension trackedWindowSize;
 
 	public CollectionAlbumWindow(
 		CardDatabase cardDatabase,
@@ -163,15 +169,6 @@ public final class CollectionAlbumWindow extends JFrame
 		setMinimumSize(new Dimension(
 			CollectionAlbumWindowSizeUtil.MIN_WIDTH,
 			CollectionAlbumWindowSizeUtil.MIN_HEIGHT));
-		applySavedWindowSize();
-		addWindowListener(new WindowAdapter()
-		{
-			@Override
-			public void windowClosing(WindowEvent e)
-			{
-				persistWindowSize();
-			}
-		});
 		setLayout(new BorderLayout(8, 8));
 		getContentPane().setBackground(ColorScheme.DARK_GRAY_COLOR);
 
@@ -482,6 +479,54 @@ public final class CollectionAlbumWindow extends JFrame
 		foilAnimTimer.start();
 
 		styleFrameFonts();
+
+		addComponentListener(new ComponentAdapter()
+		{
+			@Override
+			public void componentResized(ComponentEvent e)
+			{
+				Dimension size = getSize();
+				if (size.width > 0 && size.height > 0)
+				{
+					trackedWindowSize = size;
+				}
+			}
+		});
+		addWindowListener(new WindowAdapter()
+		{
+			@Override
+			public void windowClosing(WindowEvent e)
+			{
+				persistWindowSize();
+			}
+
+			@Override
+			public void windowOpened(WindowEvent e)
+			{
+				scheduleApplySavedWindowSize();
+			}
+		});
+		applySavedWindowSize();
+	}
+
+	/** Re-applies persisted size before showing (layout during first build can reset early setSize). */
+	void prepareToShow()
+	{
+		applySavedWindowSize();
+	}
+
+	@Override
+	public void setVisible(boolean visible)
+	{
+		if (!visible && isShowing())
+		{
+			persistWindowSize();
+		}
+		super.setVisible(visible);
+		if (visible)
+		{
+			scheduleApplySavedWindowSize();
+		}
 	}
 
 	private void styleRadio(JRadioButton r)
@@ -533,20 +578,31 @@ public final class CollectionAlbumWindow extends JFrame
 		dispose();
 	}
 
+	private void scheduleApplySavedWindowSize()
+	{
+		SwingUtilities.invokeLater(this::applySavedWindowSize);
+	}
+
 	private void applySavedWindowSize()
 	{
-		var s = stateService.getState();
+		TcgState s = stateService.getState();
 		Dimension size = CollectionAlbumWindowSizeUtil.resolve(s.getAlbumWindowWidth(), s.getAlbumWindowHeight());
 		setSize(size);
+		trackedWindowSize = size;
 	}
 
 	private void persistWindowSize()
 	{
-		Dimension size = getSize();
+		Dimension size = trackedWindowSize;
+		if (size == null || size.width <= 0 || size.height <= 0)
+		{
+			size = getSize();
+		}
 		if (size.width <= 0 || size.height <= 0)
 		{
 			return;
 		}
+		trackedWindowSize = size;
 		stateService.setAlbumWindowSize(size.width, size.height);
 	}
 

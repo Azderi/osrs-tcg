@@ -13,6 +13,8 @@ import com.runelitetcg.service.CardPartyTransferService;
 import com.runelitetcg.service.CreditAwardService;
 import com.runelitetcg.service.NpcKillCreditTracker;
 import com.runelitetcg.service.PackOpeningService;
+import com.runelitetcg.service.PackSafeModeService;
+import com.runelitetcg.service.PlayerCombatMonitor;
 import com.runelitetcg.party.TcgCardGiftPartyMessage;
 import com.runelitetcg.party.TcgCardGiftResponsePartyMessage;
 import com.runelitetcg.party.TcgChatStatsPartyMessage;
@@ -135,6 +137,10 @@ public class RuneLiteTcgPlugin extends Plugin
 	private TcgChatStatsShareService tcgChatStatsShareService;
 	@Inject
 	private TcgPartyAnnouncer tcgPartyAnnouncer;
+	@Inject
+	private PlayerCombatMonitor playerCombatMonitor;
+	@Inject
+	private PackSafeModeService packSafeModeService;
 
 	private NavigationButton navigationButton;
 
@@ -166,6 +172,8 @@ public class RuneLiteTcgPlugin extends Plugin
 		keyManager.registerKeyListener(packRevealInputListener);
 		eventBus.register(npcKillCreditTracker);
 		eventBus.register(cardPartyTransferService);
+		eventBus.register(playerCombatMonitor);
+		eventBus.register(packSafeModeService);
 		wsClient.registerMessage(TcgPullPartyMessage.class);
 		wsClient.registerMessage(TcgCollectionSetCompletePartyMessage.class);
 		wsClient.registerMessage(TcgCardGiftPartyMessage.class);
@@ -188,6 +196,9 @@ public class RuneLiteTcgPlugin extends Plugin
 		}
 		eventBus.unregister(npcKillCreditTracker);
 		eventBus.unregister(cardPartyTransferService);
+		eventBus.unregister(playerCombatMonitor);
+		eventBus.unregister(packSafeModeService);
+		playerCombatMonitor.reset();
 		wsClient.unregisterMessage(TcgPullPartyMessage.class);
 		wsClient.unregisterMessage(TcgCollectionSetCompletePartyMessage.class);
 		wsClient.unregisterMessage(TcgCardGiftPartyMessage.class);

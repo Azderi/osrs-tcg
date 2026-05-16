@@ -10,20 +10,30 @@ public interface RuneLiteTcgConfig extends Config
 	@ConfigItem(
 		keyName = "enableSounds",
 		name = "Enable sounds",
-		description = "Play pack reveal sounds (Godly hum while a face-down Godly-tier card remains, deal motion, card flip, Godly reveal chime) when supported."
+		description = "Play custom plugin sounds for interfaces."
 	)
 	default boolean enableSounds()
 	{
-		return false;
+		return true;
 	}
 
 	@ConfigItem(
 		keyName = "partyAnnounceMythicPulls",
 		name = "Party collection announcements",
-		description = "When in a RuneLite party, send and show chat for Godly-tier pack pulls (new vs duplicate wording) and when someone completes a primary-category set (roll pool). Requires Party plugin / party session."
+		description = "When in a RuneLite party, show chat announcements for rare pulls and collection status."
 	)
 	default boolean partyAnnounceMythicPulls()
 	{
 		return true;
+	}
+
+	@ConfigItem(
+		keyName = "safeMode",
+		name = "Safe-mode",
+		description = "Block opening booster packs while in combat. If a pack reveal is open when combat starts, close it immediately and list pulled cards in chat (cards remain in your collection)."
+	)
+	default boolean safeMode()
+	{
+		return false;
 	}
 }

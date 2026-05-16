@@ -11,12 +11,18 @@ import java.util.zip.GZIPOutputStream;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Gzip-compresses JSON and Base64-encodes it with an {@code RLTCG_v1:} prefix for config storage.
+ * Gzip-compresses JSON, XOR-obfuscates with a plugin salt, and Base64-encodes with an {@code RLTCG_v2:} prefix.
  */
 @Slf4j
 public final class TcgStateStorageEncoding
 {
-	static final String GZIP_V1_PREFIX = "RLTCG_v1:";
+	static final String STORAGE_PREFIX = "RLTCG_v2:";
+
+	private static final byte[] XOR_SALT = {
+		(byte) 0x52, (byte) 0x4c, (byte) 0x54, (byte) 0x43, (byte) 0x47,
+		(byte) 0x7c, (byte) 0x6f, (byte) 0x73, (byte) 0x72, (byte) 0x73,
+		(byte) 0x2d, (byte) 0x74, (byte) 0x63, (byte) 0x67, (byte) 0x21,
+	};
 
 	private TcgStateStorageEncoding()
 	{
@@ -28,7 +34,8 @@ public final class TcgStateStorageEncoding
 		{
 			byte[] utf8 = Objects.requireNonNullElse(plainJson, "").getBytes(StandardCharsets.UTF_8);
 			byte[] compressed = gzipCompress(utf8);
-			return GZIP_V1_PREFIX + Base64.getEncoder().encodeToString(compressed);
+			xorWithSalt(compressed);
+			return STORAGE_PREFIX + Base64.getEncoder().encodeToString(compressed);
 		}
 		catch (IOException ex)
 		{
@@ -46,11 +53,12 @@ public final class TcgStateStorageEncoding
 		}
 		try
 		{
-			if (s.length() <= GZIP_V1_PREFIX.length() || !s.startsWith(GZIP_V1_PREFIX))
+			if (s.length() <= STORAGE_PREFIX.length() || !s.startsWith(STORAGE_PREFIX))
 			{
-				throw new IllegalArgumentException("expected RLTCG_v1 blob");
+				throw new IllegalArgumentException("expected RLTCG_v2 blob");
 			}
-			byte[] compressed = Base64.getDecoder().decode(s.substring(GZIP_V1_PREFIX.length()));
+			byte[] compressed = Base64.getDecoder().decode(s.substring(STORAGE_PREFIX.length()));
+			xorWithSalt(compressed);
 			return gzipDecompress(compressed);
 		}
 		catch (IllegalArgumentException | IOException ex)
@@ -75,6 +83,14 @@ public final class TcgStateStorageEncoding
 		try (GZIPInputStream gzis = new GZIPInputStream(new ByteArrayInputStream(compressed)))
 		{
 			return new String(gzis.readAllBytes(), StandardCharsets.UTF_8);
+		}
+	}
+
+	private static void xorWithSalt(byte[] data)
+	{
+		for (int i = 0; i < data.length; i++)
+		{
+			data[i] ^= XOR_SALT[i % XOR_SALT.length];
 		}
 	}
 }

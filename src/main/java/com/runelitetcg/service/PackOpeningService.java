@@ -3,6 +3,7 @@ package com.runelitetcg.service;
 import com.runelitetcg.data.BoosterPackDefinition;
 import com.runelitetcg.data.CardDatabase;
 import com.runelitetcg.data.CardDefinition;
+import com.runelitetcg.RuneLiteTcgConfig;
 import com.runelitetcg.model.CardCollectionKey;
 import com.runelitetcg.model.PackCardResult;
 import com.runelitetcg.model.PackOpenResult;
@@ -42,22 +43,24 @@ public class PackOpeningService
 	private final TcgStateService stateService;
 	private final Client client;
 	private final TcgPartyAnnouncer partyAnnouncer;
+	private final PackSafeModeService packSafeModeService;
 	private final Random random;
 
 	@Inject
 	public PackOpeningService(CardDatabase cardDatabase, TcgStateService stateService, Client client,
-		TcgPartyAnnouncer partyAnnouncer)
+		TcgPartyAnnouncer partyAnnouncer, PackSafeModeService packSafeModeService)
 	{
-		this(cardDatabase, stateService, client, partyAnnouncer, new Random());
+		this(cardDatabase, stateService, client, partyAnnouncer, packSafeModeService, new Random());
 	}
 
 	PackOpeningService(CardDatabase cardDatabase, TcgStateService stateService, Client client,
-		TcgPartyAnnouncer partyAnnouncer, Random random)
+		TcgPartyAnnouncer partyAnnouncer, PackSafeModeService packSafeModeService, Random random)
 	{
 		this.cardDatabase = cardDatabase;
 		this.stateService = stateService;
 		this.client = client;
 		this.partyAnnouncer = partyAnnouncer;
+		this.packSafeModeService = packSafeModeService;
 		this.random = random;
 	}
 
@@ -87,6 +90,11 @@ public class PackOpeningService
 		if (booster == null)
 		{
 			return PackOpenResult.failed("No booster pack selected.", creditsBefore, 0);
+		}
+
+		if (packSafeModeService != null && packSafeModeService.isPackOpeningBlocked())
+		{
+			return PackOpenResult.failed("Cannot open packs while in combat (Safe-mode).", creditsBefore, booster.getPrice());
 		}
 
 		boolean debugPack = isDebugPack(booster) && stateService.isDebugLogging();

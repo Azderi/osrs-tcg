@@ -21,7 +21,7 @@ public class PackOpeningServiceTest
 	{
 		CardDatabase cardDatabase = testCardDatabase();
 		TcgStateService stateService = new TcgStateService(new TcgState(2, new EconomyState(1000, 0), CollectionState.empty(), RewardTuningState.DEFAULTS, false, 1.0d, 0, 0));
-		PackOpeningService service = new PackOpeningService(cardDatabase, stateService, null, null, new Random(42));
+		PackOpeningService service = new PackOpeningService(cardDatabase, stateService, null, null, null, new Random(42));
 		BoosterPackDefinition booster = testBooster();
 
 		PackOpenResult result = service.buyAndOpenPack(booster);
@@ -34,7 +34,7 @@ public class PackOpeningServiceTest
 	{
 		CardDatabase cardDatabase = testCardDatabase();
 		TcgStateService stateService = new TcgStateService(new TcgState(2, new EconomyState(5000, 0), CollectionState.empty(), RewardTuningState.DEFAULTS, false, 1.0d, 0, 0));
-		PackOpeningService service = new PackOpeningService(cardDatabase, stateService, null, null, new Random(42));
+		PackOpeningService service = new PackOpeningService(cardDatabase, stateService, null, null, null, new Random(42));
 		BoosterPackDefinition booster = testBooster();
 
 		PackOpenResult result = service.buyAndOpenPack(booster);

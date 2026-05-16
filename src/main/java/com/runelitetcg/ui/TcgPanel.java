@@ -13,6 +13,7 @@ import com.runelitetcg.service.CreditAwardService;
 import com.runelitetcg.service.DuplicateSellCredits;
 import com.runelitetcg.service.PackOpeningService;
 import com.runelitetcg.service.PackRevealService;
+import com.runelitetcg.service.PackSafeModeService;
 import com.runelitetcg.service.RarityMath;
 import com.runelitetcg.service.RollPoolFilter;
 import com.runelitetcg.service.TcgStateService;
@@ -108,6 +109,7 @@ public class TcgPanel extends PluginPanel
 	private final CardDatabase cardDatabase;
 	private final PackOpeningService packOpeningService;
 	private final PackRevealService packRevealService;
+	private final PackSafeModeService packSafeModeService;
 	private final PackCatalog packCatalog;
 	private final RuneLiteTcgConfig config;
 	private final Client client;
@@ -158,6 +160,7 @@ public class TcgPanel extends PluginPanel
 		CardDatabase cardDatabase,
 		PackOpeningService packOpeningService,
 		PackRevealService packRevealService,
+		PackSafeModeService packSafeModeService,
 		PackCatalog packCatalog,
 		RuneLiteTcgConfig config,
 		Client client,
@@ -171,6 +174,7 @@ public class TcgPanel extends PluginPanel
 		this.cardDatabase = cardDatabase;
 		this.packOpeningService = packOpeningService;
 		this.packRevealService = packRevealService;
+		this.packSafeModeService = packSafeModeService;
 		this.packCatalog = packCatalog;
 		this.config = config;
 		this.client = client;
@@ -1431,12 +1435,21 @@ public class TcgPanel extends PluginPanel
 		grid.setAlignmentX(LEFT_ALIGNMENT);
 
 		boolean revealBusy = packRevealService.isActive();
+		boolean combatBlocked = packSafeModeService.isPackOpeningBlocked();
 		long credits = displaySnap.credits;
 		for (BoosterPackDefinition booster : boosters)
 		{
 			JButton buy = createBoosterBuyButton(booster, allCards, rollPool, collectedNames);
 			int price = booster.getPrice();
-			buy.setEnabled(!revealBusy && credits >= price);
+			buy.setEnabled(!revealBusy && !combatBlocked && credits >= price);
+			if (combatBlocked)
+			{
+				buy.setToolTipText("Safe-mode: cannot open packs while in combat.");
+			}
+			else
+			{
+				buy.setToolTipText(null);
+			}
 			grid.add(buy);
 		}
 
@@ -1477,6 +1490,16 @@ public class TcgPanel extends PluginPanel
 		{
 			if (packRevealService.isActive())
 			{
+				refresh();
+				return;
+			}
+			if (packSafeModeService.isPackOpeningBlocked())
+			{
+				if (client != null)
+				{
+					client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
+						"[OSRS TCG] Cannot open packs while in combat (Safe-mode).", null);
+				}
 				refresh();
 				return;
 			}
