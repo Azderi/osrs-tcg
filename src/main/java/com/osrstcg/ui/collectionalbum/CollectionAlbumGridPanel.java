@@ -1,6 +1,7 @@
 package com.osrstcg.ui.collectionalbum;
 
 import com.osrstcg.data.CardDefinition;
+import com.osrstcg.debug.catalogedit.DebugCardCatalogEditFacade;
 import com.osrstcg.service.WikiImageCacheService;
 import com.osrstcg.ui.SharedCardRenderer;
 import java.awt.AlphaComposite;
@@ -31,6 +32,7 @@ final class CollectionAlbumGridPanel extends JPanel
 	private static final int QTY_LABEL_RESERVE_PX = 18;
 
 	private final WikiImageCacheService imageCacheService;
+	private final DebugCardCatalogEditFacade debugCardCatalogEditFacade;
 	private final BiConsumer<Integer, AlbumSlot> ownedMultiCopyPressed;
 	private final Runnable onSelectionChanged;
 	private List<AlbumSlot> slots = Collections.emptyList();
@@ -38,10 +40,12 @@ final class CollectionAlbumGridPanel extends JPanel
 	private int selectedIndex = -1;
 
 	CollectionAlbumGridPanel(WikiImageCacheService imageCacheService,
+		DebugCardCatalogEditFacade debugCardCatalogEditFacade,
 		BiConsumer<Integer, AlbumSlot> ownedMultiCopyPressed,
 		Runnable onSelectionChanged)
 	{
 		this.imageCacheService = imageCacheService;
+		this.debugCardCatalogEditFacade = debugCardCatalogEditFacade;
 		this.ownedMultiCopyPressed = ownedMultiCopyPressed;
 		this.onSelectionChanged = onSelectionChanged == null ? () -> {} : onSelectionChanged;
 		setOpaque(true);
@@ -55,7 +59,17 @@ final class CollectionAlbumGridPanel extends JPanel
 			@Override
 			public void mousePressed(MouseEvent e)
 			{
+				if (tryDebugContextMenu(e))
+				{
+					return;
+				}
 				handlePress(e);
+			}
+
+			@Override
+			public void mouseReleased(MouseEvent e)
+			{
+				tryDebugContextMenu(e);
 			}
 		});
 	}
@@ -78,6 +92,35 @@ final class CollectionAlbumGridPanel extends JPanel
 			return null;
 		}
 		return slots.get(selectedIndex);
+	}
+
+	// DEBUG_CARD_EDIT: right-click catalog editor (remove with debug.catalogedit package).
+	private boolean tryDebugContextMenu(MouseEvent e)
+	{
+		if (e == null || !e.isPopupTrigger() || debugCardCatalogEditFacade == null)
+		{
+			return false;
+		}
+		int idx = hitTestSlotIndex(e);
+		if (idx < 0 || idx >= slots.size())
+		{
+			return false;
+		}
+		AlbumSlot slot = slots.get(idx);
+		return debugCardCatalogEditFacade.tryShowAlbumCardContextMenu(e, this, slot);
+	}
+
+	private int hitTestSlotIndex(MouseEvent e)
+	{
+		for (int i = 0; i < lastCardBounds.size(); i++)
+		{
+			Rectangle r = lastCardBounds.get(i);
+			if (r != null && r.contains(e.getPoint()))
+			{
+				return i;
+			}
+		}
+		return -1;
 	}
 
 	private void handlePress(MouseEvent e)
@@ -126,8 +169,20 @@ final class CollectionAlbumGridPanel extends JPanel
 
 	void setSlots(List<AlbumSlot> next)
 	{
+		setSlots(next, -1);
+	}
+
+	void setSlots(List<AlbumSlot> next, int preserveSelectedIndex)
+	{
 		this.slots = next == null ? Collections.emptyList() : new ArrayList<>(next);
-		selectedIndex = -1;
+		if (preserveSelectedIndex >= 0 && preserveSelectedIndex < slots.size())
+		{
+			selectedIndex = preserveSelectedIndex;
+		}
+		else
+		{
+			selectedIndex = -1;
+		}
 		repaint();
 		onSelectionChanged.run();
 	}

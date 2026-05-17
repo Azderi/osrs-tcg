@@ -13,6 +13,8 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -55,6 +57,36 @@ public class CardDatabase
 		loaded = true;
 		rebuildChatRarityColorIndex();
 		log.info("Loaded {} cards from Card.json", cards.size());
+	}
+
+	/**
+	 * DEBUG_CARD_EDIT: Forces a full catalog reload. When {@code workspaceCardJson} exists on disk, reads that file;
+	 * otherwise falls back to the bundled classpath resource. Remove with the debug card editor package.
+	 */
+	public synchronized void forceReloadForDebug(Path workspaceCardJson)
+	{
+		loaded = false;
+		List<CardDefinition> loadedCards;
+		if (workspaceCardJson != null && Files.isRegularFile(workspaceCardJson))
+		{
+			try (Reader reader = Files.newBufferedReader(workspaceCardJson, StandardCharsets.UTF_8))
+			{
+				loadedCards = normalize(parse(reader));
+				log.info("DEBUG_CARD_EDIT: Loaded {} cards from {}", loadedCards.size(), workspaceCardJson);
+			}
+			catch (IOException | JsonSyntaxException ex)
+			{
+				log.warn("DEBUG_CARD_EDIT: Failed reading workspace Card.json, using classpath", ex);
+				loadedCards = loadFromClasspath();
+			}
+		}
+		else
+		{
+			loadedCards = loadFromClasspath();
+		}
+		cards = Collections.unmodifiableList(loadedCards);
+		loaded = true;
+		rebuildChatRarityColorIndex();
 	}
 
 	public synchronized List<CardDefinition> getCards()

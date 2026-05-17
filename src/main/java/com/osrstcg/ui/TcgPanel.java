@@ -3,6 +3,7 @@ package com.osrstcg.ui;
 import com.osrstcg.OsrsTcgConfig;
 import com.osrstcg.data.BoosterPackDefinition;
 import com.osrstcg.data.CardDatabase;
+import com.osrstcg.debug.catalogedit.DebugCatalogRefreshBroadcaster;
 import com.osrstcg.data.CardDefinition;
 import com.osrstcg.data.PackCatalog;
 import com.osrstcg.model.CardCollectionKey;
@@ -169,6 +170,7 @@ public class TcgPanel extends PluginPanel
 		Client client,
 		CollectionAlbumManager collectionAlbumManager,
 		CreditAwardService creditAwardService,
+		DebugCatalogRefreshBroadcaster debugCatalogRefreshBroadcaster,
 		@Named("developerMode") boolean runeliteDeveloperMode)
 	{
 		super(false);
@@ -184,6 +186,8 @@ public class TcgPanel extends PluginPanel
 		this.collectionAlbumManager = collectionAlbumManager;
 		this.creditAwardService = creditAwardService;
 		this.sellDuplicatesButton = createSellDuplicatesButton();
+		// DEBUG_CARD_EDIT: register without pulling TcgPanel into DebugCatalogReloader (avoids Guice cycle).
+		debugCatalogRefreshBroadcaster.register(this::refreshAfterCatalogReload);
 
 		setLayout(new BorderLayout());
 
@@ -249,6 +253,16 @@ public class TcgPanel extends PluginPanel
 		});
 
 		panelVisible = isShowing();
+	}
+
+	/** DEBUG_CARD_EDIT: refresh sidebar rarity index after catalog reload. */
+	public void refreshAfterCatalogReload()
+	{
+		rebuildRarityColorMap();
+		if (panelVisible)
+		{
+			refresh();
+		}
 	}
 
 	public void start()
@@ -487,7 +501,6 @@ public class TcgPanel extends PluginPanel
 		renderSelectedTab();
 		mainPanel.revalidate();
 		mainPanel.repaint();
-		SwingUtilities.invokeLater(collectionAlbumManager::refreshIfVisible);
 	}
 
 	private void initializeTabContentPanel(JPanel panel)
