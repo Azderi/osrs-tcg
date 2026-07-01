@@ -59,8 +59,8 @@ public class TcgPublicStatsCalculator
 			}
 		}
 
-		int uniqueOwned = (int) owned.keySet().stream()
-			.filter(k -> k.getCardName() != null && rollPoolNames.contains(k.getCardName()))
+		int uniqueOwned = (int) collectedNamesFromOwned(owned).stream()
+			.filter(rollPoolNames::contains)
 			.count();
 		int totalCardsOwned = owned.entrySet().stream()
 			.filter(e -> e.getKey().getCardName() != null && rollPoolNames.contains(e.getKey().getCardName()))

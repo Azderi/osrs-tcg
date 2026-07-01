@@ -956,8 +956,8 @@ public class TcgPanel extends PluginPanel
 			}
 
 			Map<CardCollectionKey, Integer> owned = snap.owned;
-			int uniqueOwned = (int) owned.keySet().stream()
-				.filter(k -> k.getCardName() != null && rollPoolNames.contains(k.getCardName()))
+			int uniqueOwned = (int) collectedNamesFromOwned(owned).stream()
+				.filter(rollPoolNames::contains)
 				.count();
 			int totalCardsOwned = owned.entrySet().stream()
 				.filter(e -> e.getKey().getCardName() != null && rollPoolNames.contains(e.getKey().getCardName()))
