@@ -11,6 +11,7 @@ import com.osrstcg.persist.TcgStateLoadSource;
 import com.osrstcg.persist.TcgStateStore;
 import com.osrstcg.util.CollectionAlbumWindowSizeUtil;
 import com.osrstcg.util.PackRevealZoomUtil;
+import com.google.inject.name.Named;
 import java.awt.Dimension;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -28,18 +29,21 @@ import lombok.extern.slf4j.Slf4j;
 public class TcgStateService
 {
 	private final TcgStateStore stateStore;
+	private final boolean runeliteDeveloperMode;
 	private volatile TcgState state = TcgState.empty();
 	private Runnable rewardTuningFlushBeforeCredits;
 
 	@Inject
-	public TcgStateService(TcgStateStore stateStore)
+	public TcgStateService(TcgStateStore stateStore, @Named("developerMode") boolean runeliteDeveloperMode)
 	{
 		this.stateStore = stateStore;
+		this.runeliteDeveloperMode = runeliteDeveloperMode;
 	}
 
 	TcgStateService(TcgState initialState)
 	{
 		this.stateStore = null;
+		this.runeliteDeveloperMode = false;
 		this.state = initialState == null ? TcgState.empty() : initialState;
 	}
 
@@ -55,7 +59,7 @@ public class TcgStateService
 
 		TcgStateLoadResult result = stateStore.load();
 		state = result.getState();
-		if (state.isDebugLogging())
+		if (shouldResetDebugTaintedSave())
 		{
 			log.info("OSRS TCG: loaded profile had debug mode enabled; resetting collection and economy.");
 			resetAll();
@@ -66,6 +70,11 @@ public class TcgStateService
 				result.isConfigBackupLoadFailed(),
 				result.isFileBackupLoadFailed(),
 				true);
+		}
+
+		if (state.isDebugLogging() && runeliteDeveloperMode)
+		{
+			log.info("OSRS TCG: loaded profile had debug mode enabled; keeping collection (developer mode active).");
 		}
 
 		if (stripDebugProvenanceRowsIfDebugDisabled())
@@ -95,11 +104,16 @@ public class TcgStateService
 		}
 
 		state = restored.get();
-		if (state.isDebugLogging())
+		if (shouldResetDebugTaintedSave())
 		{
 			log.info("OSRS TCG: file backup had debug mode enabled; resetting collection and economy.");
 			resetAll();
 			return true;
+		}
+
+		if (state.isDebugLogging() && runeliteDeveloperMode)
+		{
+			log.info("OSRS TCG: file backup had debug mode enabled; keeping collection (developer mode active).");
 		}
 
 		if (stripDebugProvenanceRowsIfDebugDisabled())
@@ -503,6 +517,11 @@ public class TcgStateService
 		{
 			flush.run();
 		}
+	}
+
+	private boolean shouldResetDebugTaintedSave()
+	{
+		return state.isDebugLogging() && !runeliteDeveloperMode;
 	}
 
 	/**
