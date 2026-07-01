@@ -6,6 +6,8 @@ import com.osrstcg.model.OwnedCardInstance;
 import com.osrstcg.model.PackCardResult;
 import com.osrstcg.model.RewardTuningState;
 import com.osrstcg.model.TcgState;
+import com.osrstcg.persist.TcgStateLoadResult;
+import com.osrstcg.persist.TcgStateLoadSource;
 import com.osrstcg.persist.TcgStateStore;
 import com.osrstcg.util.CollectionAlbumWindowSizeUtil;
 import com.osrstcg.util.PackRevealZoomUtil;
@@ -15,6 +17,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -42,27 +45,88 @@ public class TcgStateService
 
 	/**
 	 * Loads persisted state for the current RS profile.
-	 *
-	 * @return {@code true} if the saved profile had debug mode enabled and was fully reset (empty collection/economy)
 	 */
-	public synchronized boolean load()
+	public synchronized TcgStateLoadResult load()
+	{
+		if (stateStore == null)
+		{
+			return new TcgStateLoadResult(state, TcgStateLoadSource.PRIMARY, false, false, false);
+		}
+
+		TcgStateLoadResult result = stateStore.load();
+		state = result.getState();
+		if (state.isDebugLogging())
+		{
+			log.info("OSRS TCG: loaded profile had debug mode enabled; resetting collection and economy.");
+			resetAll();
+			return new TcgStateLoadResult(
+				state,
+				result.getSource(),
+				result.isPrimaryLoadFailed(),
+				result.isConfigBackupLoadFailed(),
+				result.isFileBackupLoadFailed(),
+				true);
+		}
+
+		if (stripDebugProvenanceRowsIfDebugDisabled())
+		{
+			save();
+		}
+
+		return result;
+	}
+
+	/**
+	 * Restores the most recent valid on-disk backup into memory and writes it to profile configuration.
+	 *
+	 * @return true if a backup was loaded
+	 */
+	public synchronized boolean restoreFromMostRecentFileBackup()
 	{
 		if (stateStore == null)
 		{
 			return false;
 		}
-		state = stateStore.load();
+
+		Optional<TcgState> restored = stateStore.loadMostRecentFileBackup();
+		if (restored.isEmpty())
+		{
+			return false;
+		}
+
+		state = restored.get();
 		if (state.isDebugLogging())
 		{
-			log.info("OSRS TCG: loaded profile had debug mode enabled; resetting collection and economy.");
+			log.info("OSRS TCG: file backup had debug mode enabled; resetting collection and economy.");
 			resetAll();
 			return true;
 		}
+
 		if (stripDebugProvenanceRowsIfDebugDisabled())
 		{
 			save();
+			return true;
 		}
-		return false;
+
+		save();
+		return true;
+	}
+
+	/**
+	 * Persists the current in-memory state to profile configuration and a validated on-disk backup file.
+	 *
+	 * @return true if the file backup was written
+	 */
+	public synchronized boolean saveToFileBackup()
+	{
+		flushRewardTuningDraftBeforeLocking();
+		if (stateStore == null)
+		{
+			return false;
+		}
+
+		save();
+		return stateStore.saveToFileBackup(state);
 	}
 
 	public synchronized void save()

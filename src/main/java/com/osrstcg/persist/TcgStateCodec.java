@@ -11,6 +11,7 @@ import com.osrstcg.util.PackRevealZoomUtil;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
@@ -27,63 +28,78 @@ public class TcgStateCodec
 		this.gson = gson;
 	}
 
-	public TcgState fromJson(String rawState)
+	public Optional<TcgState> tryFromJson(String rawState)
 	{
 		try
 		{
 			String json = Objects.requireNonNullElse(rawState, "");
+			if (json.isEmpty())
+			{
+				return Optional.empty();
+			}
+
 			SerializedState stored = gson.fromJson(json, SerializedState.class);
 			if (stored == null)
 			{
-				return TcgState.empty();
+				return Optional.empty();
 			}
 
-			List<OwnedCardInstance> rows = new ArrayList<>();
-			if (stored.cardInstances != null)
-			{
-				for (SerializedInstance row : stored.cardInstances)
-				{
-					if (row == null || row.cardName == null || row.cardName.trim().isEmpty())
-					{
-						continue;
-					}
-					String id = row.id == null || row.id.trim().isEmpty() ? null : row.id.trim();
-					String by = row.pulledBy == null ? "" : row.pulledBy;
-					long at = row.pulledAt <= 0L ? 0L : row.pulledAt;
-					rows.add(new OwnedCardInstance(id, row.cardName.trim(), row.foil, by, at));
-				}
-			}
-			CollectionState coll = CollectionState.copyOf(rows);
-
-			RewardTuningState tuning = RewardTuningState.mergeSerialized(
-				stored.foilChancePercent,
-				stored.killCreditMultiplier,
-				stored.levelUpCreditMultiplier,
-				stored.xpCreditMultiplier);
-
-			boolean debug = Boolean.TRUE.equals(stored.debugLogging);
-			double packZoom = stored.packRevealOverlayScale == null
-				? 1.0d
-				: PackRevealZoomUtil.clamp(stored.packRevealOverlayScale);
-			int albumW = stored.albumWindowWidth == null ? 0 : stored.albumWindowWidth;
-			int albumH = stored.albumWindowHeight == null ? 0 : stored.albumWindowHeight;
-
-			return new TcgState(
-				TcgState.CURRENT_SCHEMA_VERSION,
-				new EconomyState(stored.credits, stored.openedPacks),
-				coll,
-				tuning,
-				debug,
-				packZoom,
-				albumW,
-				albumH
-			);
+			return Optional.of(parseSerializedState(stored));
 		}
 		catch (JsonSyntaxException ex)
 		{
-			log.warn("Failed to deserialize OSRS TCG state, falling back to defaults", ex);
-			return TcgState.empty();
+			log.warn("Failed to deserialize OSRS TCG state", ex);
+			return Optional.empty();
 		}
+	}
+
+	public TcgState fromJson(String rawState)
+	{
+		return tryFromJson(rawState).orElseGet(TcgState::empty);
+	}
+
+	private TcgState parseSerializedState(SerializedState stored)
+	{
+		List<OwnedCardInstance> rows = new ArrayList<>();
+		if (stored.cardInstances != null)
+		{
+			for (SerializedInstance row : stored.cardInstances)
+			{
+				if (row == null || row.cardName == null || row.cardName.trim().isEmpty())
+				{
+					continue;
+				}
+				String id = row.id == null || row.id.trim().isEmpty() ? null : row.id.trim();
+				String by = row.pulledBy == null ? "" : row.pulledBy;
+				long at = row.pulledAt <= 0L ? 0L : row.pulledAt;
+				rows.add(new OwnedCardInstance(id, row.cardName.trim(), row.foil, by, at));
+			}
+		}
+		CollectionState coll = CollectionState.copyOf(rows);
+
+		RewardTuningState tuning = RewardTuningState.mergeSerialized(
+			stored.foilChancePercent,
+			stored.killCreditMultiplier,
+			stored.levelUpCreditMultiplier,
+			stored.xpCreditMultiplier);
+
+		boolean debug = Boolean.TRUE.equals(stored.debugLogging);
+		double packZoom = stored.packRevealOverlayScale == null
+			? 1.0d
+			: PackRevealZoomUtil.clamp(stored.packRevealOverlayScale);
+		int albumW = stored.albumWindowWidth == null ? 0 : stored.albumWindowWidth;
+		int albumH = stored.albumWindowHeight == null ? 0 : stored.albumWindowHeight;
+
+		return new TcgState(
+			TcgState.CURRENT_SCHEMA_VERSION,
+			new EconomyState(stored.credits, stored.openedPacks),
+			coll,
+			tuning,
+			debug,
+			packZoom,
+			albumW,
+			albumH
+		);
 	}
 
 	public String toJson(TcgState state)

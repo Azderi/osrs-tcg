@@ -2,6 +2,7 @@ package com.osrstcg.persist;
 
 import com.osrstcg.model.TcgState;
 import java.util.Objects;
+import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
@@ -19,15 +20,25 @@ public class TcgStateStore
 
 	private final ConfigManager configManager;
 	private final TcgStateCodec stateCodec;
+	private final TcgStateFileBackupStore fileBackupStore;
 
 	@Inject
-	public TcgStateStore(ConfigManager configManager, TcgStateCodec stateCodec)
+	public TcgStateStore(
+		ConfigManager configManager,
+		TcgStateCodec stateCodec,
+		TcgStateFileBackupStore fileBackupStore)
 	{
 		this.configManager = configManager;
 		this.stateCodec = stateCodec;
+		this.fileBackupStore = fileBackupStore;
 	}
 
-	public TcgState load()
+	TcgStateStore(ConfigManager configManager, TcgStateCodec stateCodec)
+	{
+		this(configManager, stateCodec, null);
+	}
+
+	public TcgStateLoadResult load()
 	{
 		moveOldState();
 
@@ -38,22 +49,96 @@ public class TcgStateStore
 			{
 				log.info("OSRS TCG state has no integrity hash yet; it will be written on next save.");
 			}
-			return primary.state;
+			return new TcgStateLoadResult(primary.state, TcgStateLoadSource.PRIMARY, false, false, false);
 		}
 
-		if (primary.outcome != LoadOutcome.MISSING)
+		boolean primaryFailed = primary.outcome != LoadOutcome.MISSING;
+		if (primaryFailed)
 		{
-			log.warn("OSRS TCG primary state could not be loaded ({}); trying backup.", primary.outcome);
+			log.warn("OSRS TCG primary state could not be loaded ({}); trying configuration backup.",
+				primary.outcome);
 		}
 
-		LoadAttempt backup = tryLoad(STATE_BACKUP_KEY, STATE_BACKUP_HASH_KEY);
-		if (backup.outcome == LoadOutcome.SUCCESS)
+		LoadAttempt configBackup = tryLoad(STATE_BACKUP_KEY, STATE_BACKUP_HASH_KEY);
+		if (configBackup.outcome == LoadOutcome.SUCCESS)
 		{
-			log.warn("OSRS TCG restored state from backup after primary load failed.");
-			return backup.state;
+			log.warn("OSRS TCG restored state from configuration backup after primary load failed.");
+			return new TcgStateLoadResult(
+				configBackup.state,
+				TcgStateLoadSource.CONFIG_BACKUP,
+				true,
+				false,
+				false);
 		}
 
-		return TcgState.empty();
+		boolean configBackupFailed = primaryFailed && configBackup.outcome != LoadOutcome.MISSING;
+		if (configBackupFailed)
+		{
+			log.warn("OSRS TCG configuration backup could not be loaded ({}); trying file backup.",
+				configBackup.outcome);
+		}
+		else if (primaryFailed)
+		{
+			log.warn("OSRS TCG configuration backup is missing; trying file backup.");
+		}
+
+		Optional<TcgState> fileBackup = loadMostRecentFileBackup();
+		if (fileBackup.isPresent())
+		{
+			log.warn("OSRS TCG restored state from file backup after configuration backups failed.");
+			return new TcgStateLoadResult(
+				fileBackup.get(),
+				TcgStateLoadSource.FILE_BACKUP,
+				true,
+				configBackupFailed || primaryFailed,
+				false);
+		}
+
+		if (primaryFailed)
+		{
+			log.error(
+				"OSRS TCG could not restore state from configuration or file backups (config backup: {}).",
+				configBackup.outcome);
+		}
+
+		return new TcgStateLoadResult(
+			TcgState.empty(),
+			TcgStateLoadSource.EMPTY,
+			primaryFailed,
+			configBackupFailed,
+			primaryFailed);
+	}
+
+	public Optional<TcgState> loadMostRecentFileBackup()
+	{
+		if (fileBackupStore == null)
+		{
+			return Optional.empty();
+		}
+		return fileBackupStore.loadMostRecentValid();
+	}
+
+	/**
+	 * Writes the encoded state to the on-disk backup store without updating profile configuration.
+	 *
+	 * @return true if a validated file backup was written
+	 */
+	public boolean saveToFileBackup(TcgState state)
+	{
+		if (state == null || fileBackupStore == null)
+		{
+			return false;
+		}
+
+		String json = stateCodec.toJson(state);
+		String stored = TcgStateStorageEncoding.encode(json);
+		if (stored.isEmpty())
+		{
+			log.error("OSRS TCG file backup aborted: encoding produced an empty payload.");
+			return false;
+		}
+
+		return fileBackupStore.writeBackupIfEnabled(stored);
 	}
 
 	public void save(TcgState state)
@@ -146,7 +231,13 @@ public class TcgStateStore
 			return LoadAttempt.decodeFailed();
 		}
 
-		return LoadAttempt.success(stateCodec.fromJson(json), missingHash);
+		Optional<TcgState> parsed = stateCodec.tryFromJson(json);
+		if (parsed.isEmpty())
+		{
+			return LoadAttempt.decodeFailed();
+		}
+
+		return LoadAttempt.success(parsed.get(), missingHash);
 	}
 
 	void writeProfileScoped(String key, String value)

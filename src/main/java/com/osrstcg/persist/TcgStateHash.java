@@ -4,13 +4,13 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-final class TcgStateHash
+public final class TcgStateHash
 {
 	private TcgStateHash()
 	{
 	}
 
-	static String hexOfUtf8(String s)
+	public static String hexOfUtf8(String s)
 	{
 		String input = s == null ? "" : s;
 		try
