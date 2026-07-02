@@ -52,11 +52,11 @@ public class TcgPartyAnnouncer
 		String trimmed = cardName.trim();
 		Color rarity = cardDatabase.chatRarityColorForCardName(trimmed);
 		String formatted = newForCollection
-			? TcgPluginGameMessages.formatGoldPrefixedYouAddedCollection(trimmed, foil, rarity)
-			: TcgPluginGameMessages.formatGoldPrefixedYouPulled(trimmed, foil, rarity);
+			? TcgPluginGameMessages.formatPrefixedYouAddedCollection(trimmed, foil, rarity)
+			: TcgPluginGameMessages.formatPrefixedYouPulled(trimmed, foil, rarity);
 		String plain = newForCollection
-			? TcgPluginGameMessages.plainGoldPrefixedYouAddedCollection(trimmed, foil)
-			: TcgPluginGameMessages.plainGoldPrefixedYouPulled(trimmed, foil);
+			? TcgPluginGameMessages.plainPrefixedYouAddedCollection(trimmed, foil)
+			: TcgPluginGameMessages.plainPrefixedYouPulled(trimmed, foil);
 		TcgPluginGameMessages.queueFormattedGameMessage(chatMessageManager, formatted, plain);
 
 		if (!partyService.isInParty())

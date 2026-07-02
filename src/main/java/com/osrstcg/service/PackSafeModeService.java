@@ -119,7 +119,7 @@ public final class PackSafeModeService
 			return;
 		}
 
-		TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
+		TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
 			"Combat interrupted pack reveal — your cards are in your collection.");
 
 		for (RevealCard card : cards)
@@ -135,8 +135,8 @@ public final class PackSafeModeService
 				continue;
 			}
 			Color rarity = cardDatabase.chatRarityColorForCardName(name);
-			String formatted = TcgPluginGameMessages.formatGoldPrefixedYouPulled(name, pull.isFoil(), rarity);
-			String plain = TcgPluginGameMessages.plainGoldPrefixedYouPulled(name, pull.isFoil());
+			String formatted = TcgPluginGameMessages.formatPrefixedYouPulled(name, pull.isFoil(), rarity);
+			String plain = TcgPluginGameMessages.plainPrefixedYouPulled(name, pull.isFoil());
 			TcgPluginGameMessages.queueFormattedGameMessage(chatMessageManager, formatted, plain);
 		}
 

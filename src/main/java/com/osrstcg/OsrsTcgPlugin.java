@@ -201,6 +201,7 @@ public class OsrsTcgPlugin extends Plugin
 		stateService.setRewardTuningFlushBeforeCredits(tcgPanel::flushRewardTuningDraftToState);
 		tcgPanel.refresh();
 		stateService.saveToFileBackup();
+		TcgPluginGameMessages.setPrefixColor(config.chatPrefixColor());
 	}
 
 	@Override
@@ -296,11 +297,11 @@ public class OsrsTcgPlugin extends Plugin
 		String trimmed = cardName.trim();
 		Color rarity = cardDatabase.chatRarityColorForCardName(trimmed);
 		String formatted = message.isNewForCollection()
-			? TcgPluginGameMessages.formatGoldPrefixedSomeoneAddedCollection(who, trimmed, message.isFoil(), rarity)
-			: TcgPluginGameMessages.formatGoldPrefixedSomeonePulled(who, trimmed, message.isFoil(), rarity);
+			? TcgPluginGameMessages.formatPrefixedSomeoneAddedCollection(who, trimmed, message.isFoil(), rarity)
+			: TcgPluginGameMessages.formatPrefixedSomeonePulled(who, trimmed, message.isFoil(), rarity);
 		String plain = message.isNewForCollection()
-			? TcgPluginGameMessages.plainGoldPrefixedSomeoneAddedCollection(who, trimmed, message.isFoil())
-			: TcgPluginGameMessages.plainGoldPrefixedSomeonePulled(who, trimmed, message.isFoil());
+			? TcgPluginGameMessages.plainPrefixedSomeoneAddedCollection(who, trimmed, message.isFoil())
+			: TcgPluginGameMessages.plainPrefixedSomeonePulled(who, trimmed, message.isFoil());
 		TcgPluginGameMessages.queueFormattedGameMessage(chatMessageManager, formatted, plain);
 	}
 
@@ -329,7 +330,7 @@ public class OsrsTcgPlugin extends Plugin
 		String who = author != null && author.getDisplayName() != null && !author.getDisplayName().trim().isEmpty()
 			? author.getDisplayName().trim()
 			: "A party member";
-		TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
+		TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
 			String.format(Locale.US, "%s just finished %s!", who, collectionName.trim()));
 	}
 

@@ -242,7 +242,7 @@ public class CardPartyTransferService
 			if (p != null && now - p.createdAtMs > PENDING_TTL_MS && pendingOffers.remove(tid, p))
 			{
 				pendingInstanceIds.remove(p.cardInstanceId);
-				TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
+				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
 					"Card send timed out (no response from recipient).");
 			}
 		}
@@ -292,7 +292,7 @@ public class CardPartyTransferService
 		if (senderInstanceId.isEmpty())
 		{
 			sendResponse(msg.getTransferId(), originalSender, false, GIFT_REJECT_BAD_PAYLOAD);
-			TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
 				"Incoming card ignored: incompatible gift message (missing instance id).");
 			return;
 		}
@@ -301,14 +301,14 @@ public class CardPartyTransferService
 		if (senderDebug == null)
 		{
 			sendResponse(msg.getTransferId(), originalSender, false, GIFT_REJECT_SENDER_TOO_OLD);
-			TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
 				"Incoming card ignored: sender's client did not report debug mode (update OSRS TCG on both sides).");
 			return;
 		}
 		if (senderDebug.booleanValue() != stateService.isDebugLogging())
 		{
 			sendResponse(msg.getTransferId(), originalSender, false, GIFT_REJECT_DEBUG_MISMATCH);
-			TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
 				"Incoming card ignored: Overview debug mode must match the sender's.");
 			return;
 		}
@@ -316,7 +316,7 @@ public class CardPartyTransferService
 		if (!tuningOk)
 		{
 			sendResponse(msg.getTransferId(), originalSender, false, GIFT_REJECT_TUNING_MISMATCH);
-			TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
 				"Incoming card ignored: your foil / credit multipliers do not match the sender's.");
 			return;
 		}
@@ -337,8 +337,8 @@ public class CardPartyTransferService
 			? from.getDisplayName().trim()
 			: "Party member";
 		Color rarity = cardDatabase.chatRarityColorForCardName(card);
-		String formatted = TcgPluginGameMessages.formatGoldPrefixedSomeoneSentYou(who, card, foil, rarity);
-		String plain = TcgPluginGameMessages.plainGoldPrefixedSomeoneSentYou(who, card, foil);
+		String formatted = TcgPluginGameMessages.formatPrefixedSomeoneSentYou(who, card, foil, rarity);
+		String plain = TcgPluginGameMessages.plainPrefixedSomeoneSentYou(who, card, foil);
 		TcgPluginGameMessages.queueFormattedGameMessage(chatMessageManager, formatted, plain);
 		refreshAlbumIfOpen();
 	}
@@ -386,16 +386,16 @@ public class CardPartyTransferService
 			boolean removed = stateService.removeCardInstance(pending.cardInstanceId);
 			if (!removed)
 			{
-				TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager,
+				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
 					"Recipient accepted the card but you no longer had that copy; check your collection.");
 			}
 			else
 			{
 				packRevealSoundService.playTransferSuccess();
 				Color rarity = cardDatabase.chatRarityColorForCardName(pending.cardName);
-				String formatted = TcgPluginGameMessages.formatGoldPrefixedYouSentCard(
+				String formatted = TcgPluginGameMessages.formatPrefixedYouSentCard(
 					pending.cardName, pending.foil, target, rarity);
-				String plain = TcgPluginGameMessages.plainGoldPrefixedYouSentCard(
+				String plain = TcgPluginGameMessages.plainPrefixedYouSentCard(
 					pending.cardName, pending.foil, target);
 				TcgPluginGameMessages.queueFormattedGameMessage(chatMessageManager, formatted, plain);
 			}
@@ -428,7 +428,7 @@ public class CardPartyTransferService
 			{
 				detail = String.format(Locale.US, "%s could not accept the card. You still have it.", target);
 			}
-			TcgPluginGameMessages.queueGoldPluginGameMessage(chatMessageManager, detail);
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, detail);
 		}
 		refreshAlbumIfOpen();
 	}

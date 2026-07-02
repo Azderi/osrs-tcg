@@ -1,5 +1,6 @@
 package com.osrstcg;
 
+import java.awt.Color;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
@@ -47,5 +48,16 @@ public interface OsrsTcgConfig extends Config
 	default boolean safeMode()
 	{
 		return false;
+	}
+
+	@ConfigItem(
+		keyName = "chatPrefixColor",
+		name = "Chat prefix colour",
+		description = "Choose the colour used for the [OSRS TCG] chat prefix. "
+			+ "Written on plugin load/unload"
+	)
+	default Color chatPrefixColor()
+	{
+		return new Color(0xC4, 0x94, 0x1A);
 	}
 }
