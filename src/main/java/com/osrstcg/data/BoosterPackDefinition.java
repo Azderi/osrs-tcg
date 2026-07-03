@@ -16,6 +16,7 @@ public class BoosterPackDefinition
 	@JsonAdapter(CategoryListTypeAdapter.class)
 	private List<String> category;
 	private int price;
+	private String thumbnail;
 
 	public List<String> getCategoryFilters()
 	{

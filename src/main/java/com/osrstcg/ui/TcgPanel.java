@@ -26,6 +26,7 @@ import java.awt.Color;
 import java.awt.Insets;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+import java.net.URL;
 import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.util.ArrayList;
@@ -45,6 +46,7 @@ import javax.inject.Singleton;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComponent;
@@ -124,6 +126,7 @@ public class TcgPanel extends PluginPanel
 		{
 			this.label = label;
 		}
+
 	}
 
 	private final TcgStateService stateService;
@@ -794,7 +797,7 @@ public class TcgPanel extends PluginPanel
 
 	private void renderPacksTabFromPackClose(JPanel target, PackCloseSnapshot snap, List<BoosterShopRow> shopRows)
 	{
-		target.add(statPanel("Current credits", format(snap.credits)));
+		target.add(imageStatPanel("Current credits", format(snap.credits),"/credits.png"));
 		target.add(Box.createRigidArea(new Dimension(0, 8)));
 		target.add(sellDuplicatesPanel());
 		updateSellDuplicatesButtonState(snap.owned);
@@ -1402,7 +1405,7 @@ public class TcgPanel extends PluginPanel
 	private void renderPacksTab(JPanel target)
 	{
 		PackCloseSnapshot displaySnap = capturePackCloseSnapshotForDisplay();
-		target.add(statPanel("Current credits", format(displaySnap.credits)));
+		target.add(imageStatPanel("Current credits", format(displaySnap.credits),"/credits.png"));
 		target.add(Box.createRigidArea(new Dimension(0, 8)));
 		target.add(sellDuplicatesPanel());
 		updateSellDuplicatesButtonState(displaySnap.owned);
@@ -1429,6 +1432,38 @@ public class TcgPanel extends PluginPanel
 		value.setHorizontalAlignment(SwingConstants.RIGHT);
 
 		panel.add(label, BorderLayout.CENTER);
+		panel.add(value, BorderLayout.EAST);
+		clampPanelWidth(panel);
+		return panel;
+	}
+
+	private JPanel imageStatPanel(String labelText, String valueText, String imagePath)
+	{
+		JPanel panel = new JPanel(new BorderLayout(8, 0));
+		panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		panel.setBorder(new EmptyBorder(4, 6, 4, 6));
+
+		JPanel left = new JPanel(new BorderLayout(6, 0));
+		left.setOpaque(false);
+
+		URL imgUrl = TcgPanel.class.getResource(imagePath);
+		if (imgUrl != null)
+		{
+			ImageIcon icon = new ImageIcon(imgUrl);
+			JLabel iconLabel = new JLabel(icon);
+			iconLabel.setHorizontalAlignment(SwingConstants.LEFT);
+			left.add(iconLabel, BorderLayout.WEST);
+		}
+
+		JLabel label = textPanel(shorten(labelText, 24));
+		label.setToolTipText(labelText);
+		label.setHorizontalAlignment(SwingConstants.LEFT);
+		left.add(label, BorderLayout.CENTER);
+
+		JLabel value = textPanel(valueText);
+		value.setHorizontalAlignment(SwingConstants.RIGHT);
+
+		panel.add(left, BorderLayout.CENTER);
 		panel.add(value, BorderLayout.EAST);
 		clampPanelWidth(panel);
 		return panel;
@@ -1529,10 +1564,24 @@ public class TcgPanel extends PluginPanel
 	{
 		int price = booster.getPrice();
 		String title = booster.getName() == null ? "Booster" : booster.getName();
-		String progressLine = format(progressOwn) + " / " + format(progressTotal);
+		double progressPct = progressTotal <= 0 ? 0.0 : (100.0 * progressOwn) / progressTotal;
+		String progressText = "<div style='margin-top: 1px;'>"+ format(progressOwn) + " / " + format(progressTotal) + " (" + String.format("%.0f", progressPct) + "%)</div>";
+		String progressBar = String.format(
+			"<div style='display:block; width:100%%; height:6px; font-size:1px; line-height:1px; background:#2e2e2e; border:1px solid #555; border-radius:6px; overflow:hidden; padding:0;'>"
+			+ "<div style='display:block; width:%s%%; height:6px; background:#4caf50; margin:0; padding:0;'></div></div>",
+			String.format("%.0f", Math.min(100.0, Math.max(0.0, progressPct))));
+		URL packIconUrl = TcgPanel.class.getResource("/" + booster.getThumbnail());
+		String imgTag = "";
+		if (packIconUrl != null)
+		{
+			imgTag = "<br/><div style='margin-bottom: 5px;'><img src='" + packIconUrl.toString() + "'/></div>";
+		}
+
 		JButton button = new JButton("<html><div style='text-align:center'>" + htmlEscape(title)
 			+ "<br/>" + format(price) + " credits"
-			+ "<br/><br/>" + progressLine + "</div></html>");
+			+ imgTag
+			+ progressBar 
+			+ progressText + "</div></html>");
 		button.setIcon(null);
 		button.setHorizontalTextPosition(SwingConstants.CENTER);
 		button.setVerticalTextPosition(SwingConstants.CENTER);
@@ -1545,7 +1594,7 @@ public class TcgPanel extends PluginPanel
 		button.setFocusPainted(false);
 		button.setFont(FontManager.getRunescapeSmallFont());
 		button.setFocusable(false);
-		button.setPreferredSize(new Dimension(shopBoosterButtonWidth(), 88));
+		button.setPreferredSize(new Dimension(shopBoosterButtonWidth(), 100));
 
 		button.addActionListener(e ->
 		{

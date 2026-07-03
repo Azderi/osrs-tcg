@@ -3,6 +3,7 @@
     "id": "standard",
     "name": "Standard Pack",
     "category": [],
-    "price": 2500
+    "price": 2500,
+    "thumbnail": "Pack_Standard_thumbnail.png"
   }
 ]
