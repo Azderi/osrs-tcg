@@ -797,7 +797,7 @@ public class TcgPanel extends PluginPanel
 
 	private void renderPacksTabFromPackClose(JPanel target, PackCloseSnapshot snap, List<BoosterShopRow> shopRows)
 	{
-		target.add(imageStatPanel("Current credits", format(snap.credits),"/credits.png"));
+		target.add(imageStatPanel("Credits", format(snap.credits),"/credits.png"));
 		target.add(Box.createRigidArea(new Dimension(0, 8)));
 		target.add(sellDuplicatesPanel());
 		updateSellDuplicatesButtonState(snap.owned);
@@ -881,7 +881,7 @@ public class TcgPanel extends PluginPanel
 
 	private void renderOverviewTabFromMetrics(JPanel target, PackCloseSnapshot snap, OverviewMetrics m, TcgState state)
 	{
-		target.add(statPanel("Credits", format(snap.credits)));
+		target.add(imageStatPanel("Credits", format(snap.credits), "/credits.png"));
 		target.add(Box.createRigidArea(new Dimension(0, 6)));
 		target.add(statPanel("Opened packs", format(snap.openedPacks)));
 		target.add(Box.createRigidArea(new Dimension(0, 6)));
@@ -1405,7 +1405,7 @@ public class TcgPanel extends PluginPanel
 	private void renderPacksTab(JPanel target)
 	{
 		PackCloseSnapshot displaySnap = capturePackCloseSnapshotForDisplay();
-		target.add(imageStatPanel("Current credits", format(displaySnap.credits),"/credits.png"));
+		target.add(imageStatPanel("Credits", format(displaySnap.credits),"/credits.png"));
 		target.add(Box.createRigidArea(new Dimension(0, 8)));
 		target.add(sellDuplicatesPanel());
 		updateSellDuplicatesButtonState(displaySnap.owned);
