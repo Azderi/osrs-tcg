@@ -1572,11 +1572,14 @@ public class TcgPanel extends PluginPanel
 		int price = booster.getPrice();
 		String title = booster.getName() == null ? "Booster" : booster.getName();
 		double progressPct = progressTotal <= 0 ? 0.0 : (100.0 * progressOwn) / progressTotal;
-		String progressText = "<div style='margin-top: 1px;'>"+ format(progressOwn) + " / " + format(progressTotal) + " (" + String.format("%.0f", progressPct) + "%)</div>";
+		String progressText = "<div style='margin-top: 1px;'>"+ format(progressOwn) + " / " + format(progressTotal) + "</div>";
+		String progressPercent = "<div style='margin-top: 1px;'>(" + String.format("%.0f", progressPct) + "%)</div>";
+		int progressBarWidthPx = 75;
+		int progressFillWidthPx = (int) Math.round(progressBarWidthPx * Math.min(100.0, Math.max(0.0, progressPct)) / 100.0);
 		String progressBar = String.format(
-			"<div style='display:block; width:100%%; height:6px; font-size:1px; line-height:1px; background:#2e2e2e; border:1px solid #555; border-radius:6px; overflow:hidden; padding:0;'>"
-			+ "<div style='display:block; width:%s%%; height:6px; background:#4caf50; margin:0; padding:0;'></div></div>",
-			String.format("%.0f", Math.min(100.0, Math.max(0.0, progressPct))));
+			"<div style='display:block; width:%dpx; height:6px; font-size:1px; line-height:1px; background:#2e2e2e; border:1px solid #555; border-radius:6px; overflow:hidden; padding:0;'>"
+			+ "<div style='display:block; width:%dpx; height:6px; background:#4caf50; margin:0; padding:0;'></div></div>",
+			progressBarWidthPx, progressFillWidthPx);
 		URL packIconUrl = TcgPanel.class.getResource("/" + booster.getThumbnail());
 		String imgTag = "";
 		if (packIconUrl != null)
@@ -1584,11 +1587,13 @@ public class TcgPanel extends PluginPanel
 			imgTag = "<br/><div style='margin-bottom: 5px;'><img src='" + packIconUrl.toString() + "'/></div>";
 		}
 
-		JButton button = new JButton("<html><div style='text-align:center'>" + htmlEscape(title)
+		JButton button = new JButton("<html><div style='text-align:center;'>" + htmlEscape(title)
 			+ "<br/>" + format(price) + " credits"
 			+ imgTag
 			+ progressBar 
-			+ progressText + "</div></html>");
+			+ progressText 
+			+ progressPercent
+			+ "</div></html>");
 		button.setIcon(null);
 		button.setHorizontalTextPosition(SwingConstants.CENTER);
 		button.setVerticalTextPosition(SwingConstants.CENTER);
@@ -1601,7 +1606,7 @@ public class TcgPanel extends PluginPanel
 		button.setFocusPainted(false);
 		button.setFont(FontManager.getRunescapeSmallFont());
 		button.setFocusable(false);
-		button.setPreferredSize(new Dimension(shopBoosterButtonWidth(), 100));
+		button.setPreferredSize(new Dimension(shopBoosterButtonWidth(), 110));
 
 		button.addActionListener(e ->
 		{
