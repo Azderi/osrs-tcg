@@ -120,7 +120,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "packRarityHighlight",
 		name = "Rarity Highlight",
-		description = "Show the rarity of the card when hovering over it during pack openings.",
+		description = "Peek at the rarity of the card when hovering over an unflipped card during pack openings.",
 		position = 11
 	)
 	default boolean packRarityHighlight()
