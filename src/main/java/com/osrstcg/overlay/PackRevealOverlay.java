@@ -1,5 +1,6 @@
 package com.osrstcg.overlay;
 
+import com.osrstcg.OsrsTcgConfig;
 import com.osrstcg.service.PackRevealSoundService;
 import com.osrstcg.service.PackRevealService;
 import com.osrstcg.service.RarityMath;
@@ -74,6 +75,7 @@ public class PackRevealOverlay extends Overlay
 	private final WikiImageCacheService imageCacheService;
 	private final PackRevealSoundService packRevealSoundService;
 	private final TcgStateService tcgStateService;
+	private final OsrsTcgConfig config;
 
 	/** {@link Double#NaN} until the wheel adjusts zoom this session; then a clamped multiplier on top of the fitted layout. */
 	private volatile double sessionPackZoomMultiplier = Double.NaN;
@@ -101,13 +103,14 @@ public class PackRevealOverlay extends Overlay
 
 	@Inject
 	public PackRevealOverlay(Client client, PackRevealService revealService, WikiImageCacheService imageCacheService,
-		PackRevealSoundService packRevealSoundService, TcgStateService tcgStateService)
+		PackRevealSoundService packRevealSoundService, TcgStateService tcgStateService, OsrsTcgConfig config)
 	{
 		this.client = client;
 		this.revealService = revealService;
 		this.imageCacheService = imageCacheService;
 		this.packRevealSoundService = packRevealSoundService;
 		this.tcgStateService = tcgStateService;
+		this.config = config;
 		setPosition(OverlayPosition.DYNAMIC);
 		setLayer(OverlayLayer.ABOVE_WIDGETS);
 		setPriority(Overlay.PRIORITY_HIGH);
@@ -182,11 +185,14 @@ public class PackRevealOverlay extends Overlay
 					packRevealSoundService.playApexPackHoverOneShot();
 				}
 				apexPackPointerWasInside = inPack;
-				float glowAlpha = (float) (HOVER_RARITY_GLOW_ALPHA * Math.max(0.22d, packHoverLift));
-				Rectangle packGlowRect = uniformInset(
-					packImageDrawRect(packScaled, snap.getBoosterPackId()),
-					PACK_SEALED_GLOW_INSET);
-				drawGlow(graphics, packGlowRect, RarityMath.Tier.GODLY.getColor(), glowAlpha);
+				if (config.packRarityHighlight())
+				{
+					float glowAlpha = (float) (HOVER_RARITY_GLOW_ALPHA * Math.max(0.22d, packHoverLift));
+					Rectangle packGlowRect = uniformInset(
+						packImageDrawRect(packScaled, snap.getBoosterPackId()),
+						PACK_SEALED_GLOW_INSET);
+					drawGlow(graphics, packGlowRect, RarityMath.Tier.GODLY.getColor(), glowAlpha);
+				}
 			}
 			else
 			{
@@ -235,8 +241,13 @@ public class PackRevealOverlay extends Overlay
 				double scale = 1.0d + (HOVER_CARD_SCALE - 1.0d) * lift;
 				r = scaleRectCentered(r, scale);
 			}
+			
 			float glowAlpha = faceUp ? HOVER_RARITY_GLOW_ALPHA : (float) (HOVER_RARITY_GLOW_ALPHA * lift);
-			drawGlow(graphics, r, card.getRarityColor(), glowAlpha);
+
+			if(config.packRarityHighlight() || (faceUp && !config.packRarityHighlight()))
+			{
+				drawGlow(graphics, r, card.getRarityColor(), glowAlpha);
+			}
 			if (faceUp)
 			{
 				BufferedImage linked = imageCacheService.getCached(card.getDefinition() == null ? null : card.getDefinition().getImageUrl());

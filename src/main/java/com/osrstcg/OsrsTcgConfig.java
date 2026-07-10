@@ -116,6 +116,17 @@ public interface OsrsTcgConfig extends Config
 	{
 		return true;
 	}
+	
+	@ConfigItem(
+		keyName = "packRarityHighlight",
+		name = "Rarity Highlight",
+		description = "Peek at the rarity of the card when hovering over an unflipped card during pack openings.",
+		position = 11
+	)
+	default boolean packRarityHighlight()
+	{
+		return true;
+	}
 
 	@ConfigItem(
 		keyName = "enableFileBackups",
