@@ -158,6 +158,7 @@ public class OsrsTcgPlugin extends Plugin
 	private PackSafeModeService packSafeModeService;
 
 	private NavigationButton navigationButton;
+	private boolean fileBackupLoadUsedThisSession;
 
 	@Override
 	protected void startUp()
@@ -260,6 +261,7 @@ public class OsrsTcgPlugin extends Plugin
 		GameState gs = event.getGameState();
 		if (gs == GameState.LOGIN_SCREEN)
 		{
+			fileBackupLoadUsedThisSession = false;
 			stateService.saveToFileBackup();
 		}
 		else if (gs == GameState.HOPPING)
@@ -545,8 +547,16 @@ public class OsrsTcgPlugin extends Plugin
 			return;
 		}
 
+		if (fileBackupLoadUsedThisSession)
+		{
+			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
+				"[OSRS TCG] ::tcg-load can only be used once per login session.", null);
+			return;
+		}
+
 		if (stateService.restoreFromMostRecentFileBackup())
 		{
+			fileBackupLoadUsedThisSession = true;
 			creditAwardService.resetExperienceCreditBaseline();
 			packRevealService.reset();
 			tcgPanel.clearPackRevealSidebarFreeze();
