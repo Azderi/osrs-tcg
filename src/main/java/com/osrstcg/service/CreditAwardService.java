@@ -414,7 +414,7 @@ public class CreditAwardService
 
 	private void debugAward(String message)
 	{
-		if (!stateService.isDebugLogging())
+		if (!stateService.isDebugChatEnabled())
 		{
 			return;
 		}

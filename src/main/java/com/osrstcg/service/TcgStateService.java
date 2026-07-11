@@ -162,6 +162,12 @@ public class TcgStateService
 		return state.isDebugLogging();
 	}
 
+	/** Debug chat/log output: plugin debug mode, or RuneLite {@code --developer-mode}. */
+	public boolean isDebugChatEnabled()
+	{
+		return state.isDebugLogging() || runeliteDeveloperMode;
+	}
+
 	public synchronized void setDebugLogging(boolean enabled)
 	{
 		if (state.isDebugLogging() == enabled)
