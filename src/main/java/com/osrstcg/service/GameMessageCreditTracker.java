@@ -17,6 +17,10 @@ import net.runelite.client.util.Text;
 @Singleton
 public final class GameMessageCreditTracker
 {
+	private static final long CHAMBERS_OF_XERIC_CHALLENGE_MODE_COMPLETION_CREDITS = 18_500L;
+	private static final String CHAMBERS_OF_XERIC_CHALLENGE_MODE_COMPLETION_PREFIX =
+		"Your completed Chambers of Xeric Challenge Mode count is:";
+
 	private static final long CHAMBERS_OF_XERIC_COMPLETION_CREDITS = 12_500L;
 	private static final String CHAMBERS_OF_XERIC_COMPLETION_PREFIX = "Your completed Chambers of Xeric count is:";
 
@@ -43,6 +47,10 @@ public final class GameMessageCreditTracker
 	private static List<CreditRule> buildCreditRules()
 	{
 		List<CreditRule> rules = new ArrayList<>();
+		rules.add(CreditRule.prefix(
+			CHAMBERS_OF_XERIC_CHALLENGE_MODE_COMPLETION_PREFIX,
+			CHAMBERS_OF_XERIC_CHALLENGE_MODE_COMPLETION_CREDITS,
+			"Chambers of Xeric Challenge Mode completion"));
 		rules.add(CreditRule.prefix(
 			CHAMBERS_OF_XERIC_COMPLETION_PREFIX,
 			CHAMBERS_OF_XERIC_COMPLETION_CREDITS,
