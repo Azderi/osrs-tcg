@@ -22,14 +22,18 @@ import com.osrstcg.util.NumberFormatting;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GridLayout;
+import java.awt.Image;
 import java.awt.Insets;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.net.URL;
-import java.awt.Dimension;
-import java.awt.GridLayout;
-import java.awt.Image;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -774,12 +778,7 @@ public class TcgPanel extends PluginPanel
 	private List<BoosterShopRow> computeBoosterShopRows(PackCloseSnapshot snap, List<CardDefinition> allCards,
 		List<CardDefinition> rollPool)
 	{
-		Set<String> collectedNames = collectedNamesFromOwned(snap.owned);
-		List<BoosterPackDefinition> boosters = new ArrayList<>(packCatalog.getBoosters());
-		if (stateService.isDebugLogging() && boosters.stream().noneMatch(PackOpeningService::isDebugPack))
-		{
-			boosters.add(createDebugBoosterPackDefinition());
-		}
+		List<BoosterPackDefinition> boosters = shopVisibleBoosters();
 		List<BoosterShopRow> out = new ArrayList<>(boosters.size());
 		for (BoosterPackDefinition booster : boosters)
 		{
@@ -787,8 +786,8 @@ public class TcgPanel extends PluginPanel
 			{
 				continue;
 			}
-			int[] p = shopProgressOwnedTotal(booster, allCards, rollPool, collectedNames);
-			out.add(new BoosterShopRow(booster, p[0], p[1]));
+			int[] p = shopProgressOwnedTotal(booster, allCards, rollPool, snap.owned);
+			out.add(new BoosterShopRow(booster, p[0], p[1], p[2]));
 		}
 		return out;
 	}
@@ -826,7 +825,7 @@ public class TcgPanel extends PluginPanel
 			{
 				continue;
 			}
-			JButton buy = createBoosterBuyButton(row.booster, row.progressOwn, row.progressTotal);
+			JButton buy = createBoosterBuyButton(row.booster, row.progressOwn, row.progressFoilOwn, row.progressTotal);
 			int price = row.booster.getPrice();
 			buy.setEnabled(credits >= price);
 			grid.add(buy);
@@ -904,12 +903,14 @@ public class TcgPanel extends PluginPanel
 	{
 		private final BoosterPackDefinition booster;
 		private final int progressOwn;
+		private final int progressFoilOwn;
 		private final int progressTotal;
 
-		private BoosterShopRow(BoosterPackDefinition booster, int progressOwn, int progressTotal)
+		private BoosterShopRow(BoosterPackDefinition booster, int progressOwn, int progressFoilOwn, int progressTotal)
 		{
 			this.booster = booster;
 			this.progressOwn = progressOwn;
+			this.progressFoilOwn = progressFoilOwn;
 			this.progressTotal = progressTotal;
 		}
 	}
@@ -1373,16 +1374,40 @@ public class TcgPanel extends PluginPanel
 		return collectedNames;
 	}
 
+	/** Distinct card names with at least one foil copy owned. */
+	private static Set<String> foilCollectedNamesFromOwned(Map<CardCollectionKey, Integer> owned)
+	{
+		Set<String> foilNames = new HashSet<>();
+		for (Map.Entry<CardCollectionKey, Integer> entry : owned.entrySet())
+		{
+			CardCollectionKey key = entry.getKey();
+			if (key == null || !key.isFoil())
+			{
+				continue;
+			}
+			String cardName = key.getCardName();
+			Integer qty = entry.getValue();
+			if (cardName != null && qty != null && qty > 0)
+			{
+				foilNames.add(cardName);
+			}
+		}
+		return foilNames;
+	}
+
 	/**
 	 * Shop progress: Standard (empty category) = distinct names in the roll pool; regional = distinct names in the full
 	 * catalog that match {@link BoosterPackDefinition#cardMatchesRegion} (same OR / AND rules as pack filters).
+	 * Returns {@code [standardOwned, foilOwned, total]}.
 	 */
 	private static int[] shopProgressOwnedTotal(
 		BoosterPackDefinition booster,
 		List<CardDefinition> allCards,
 		List<CardDefinition> rollPool,
-		Set<String> collectedNames)
+		Map<CardCollectionKey, Integer> owned)
 	{
+		Set<String> collectedNames = collectedNamesFromOwned(owned);
+		Set<String> foilCollectedNames = foilCollectedNamesFromOwned(owned);
 		List<String> filters = booster.getCategoryFilters();
 		Set<String> eligible = new HashSet<>();
 		if (filters.isEmpty())
@@ -1412,7 +1437,8 @@ public class TcgPanel extends PluginPanel
 		}
 		int total = eligible.size();
 		int own = (int) eligible.stream().filter(collectedNames::contains).count();
-		return new int[] { own, total };
+		int foilOwn = (int) eligible.stream().filter(foilCollectedNames::contains).count();
+		return new int[] { own, foilOwn, total };
 	}
 
 	private void renderPacksTab(JPanel target)
@@ -1505,14 +1531,15 @@ public class TcgPanel extends PluginPanel
 
 	private static final int SHOP_BOOSTER_GRID_GAP = 6;
 
-	private static BoosterPackDefinition createDebugBoosterPackDefinition()
+	private List<BoosterPackDefinition> shopVisibleBoosters()
 	{
-		BoosterPackDefinition b = new BoosterPackDefinition();
-		b.setId(PackOpeningService.DEBUG_PACK_ID);
-		b.setName("Debug pack (5× same)");
-		b.setPrice(0);
-		b.setCategory(null);
-		return b;
+		List<BoosterPackDefinition> boosters = new ArrayList<>(
+			packCatalog.getVisibleBoosters(stateService.isDebugLogging()));
+		boosters.sort(Comparator
+			.comparingInt((BoosterPackDefinition b) -> b == null ? Integer.MAX_VALUE : b.getPrice())
+			.thenComparing(b -> b == null || b.getName() == null ? "" : b.getName(),
+				String.CASE_INSENSITIVE_ORDER));
+		return boosters;
 	}
 
 	private JPanel boosterShopPanel(PackCloseSnapshot displaySnap)
@@ -1521,12 +1548,7 @@ public class TcgPanel extends PluginPanel
 		outer.setLayout(new BoxLayout(outer, BoxLayout.Y_AXIS));
 		outer.setOpaque(false);
 
-		List<BoosterPackDefinition> boosters = new ArrayList<>(packCatalog.getBoosters());
-		if (stateService.isDebugLogging()
-			&& boosters.stream().noneMatch(b -> PackOpeningService.isDebugPack(b)))
-		{
-			boosters.add(createDebugBoosterPackDefinition());
-		}
+		List<BoosterPackDefinition> boosters = shopVisibleBoosters();
 		if (boosters.isEmpty())
 		{
 			outer.add(infoPanel("No booster packs configured. Add Packs.json to plugin resources."));
@@ -1535,7 +1557,6 @@ public class TcgPanel extends PluginPanel
 		}
 
 		Map<CardCollectionKey, Integer> owned = displaySnap.owned;
-		Set<String> collectedNames = collectedNamesFromOwned(owned);
 		List<CardDefinition> allCards = cardDatabase.getCards();
 		List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(allCards);
 
@@ -1548,7 +1569,7 @@ public class TcgPanel extends PluginPanel
 		long credits = displaySnap.credits;
 		for (BoosterPackDefinition booster : boosters)
 		{
-			JButton buy = createBoosterBuyButton(booster, allCards, rollPool, collectedNames);
+			JButton buy = createBoosterBuyButton(booster, allCards, rollPool, owned);
 			int price = booster.getPrice();
 			buy.setEnabled(!revealBusy && !combatBlocked && credits >= price);
 			if (combatBlocked)
@@ -1573,33 +1594,54 @@ public class TcgPanel extends PluginPanel
 		return Math.max(96, (inner - SHOP_BOOSTER_GRID_GAP) / 2);
 	}
 
-	private JButton createBoosterBuyButton(BoosterPackDefinition booster, int progressOwn, int progressTotal)
+	private static final int SHOP_PROGRESS_BAR_WIDTH_PX = 75;
+	private static final int SHOP_PROGRESS_BAR_HEIGHT_PX = 6;
+	private static final String SHOP_DEFAULT_PACK_THUMBNAIL = "Pack_Standard_thumbnail.png";
+
+	private static URL shopPackIconUrl(BoosterPackDefinition booster)
+	{
+		String thumbnail = booster == null ? null : booster.getThumbnail();
+		if (thumbnail != null && !thumbnail.trim().isEmpty())
+		{
+			URL url = TcgPanel.class.getResource("/" + thumbnail.trim());
+			if (url != null)
+			{
+				return url;
+			}
+		}
+		return TcgPanel.class.getResource("/" + SHOP_DEFAULT_PACK_THUMBNAIL);
+	}
+
+	private JButton createBoosterBuyButton(BoosterPackDefinition booster, int progressOwn, int progressFoilOwn, int progressTotal)
 	{
 		int price = booster.getPrice();
 		String title = booster.getName() == null ? "Booster" : booster.getName();
 		double progressPct = progressTotal <= 0 ? 0.0 : (100.0 * progressOwn) / progressTotal;
-		String progressText = "<div style='margin-top: 1px;'>"+ format(progressOwn) + " / " + format(progressTotal) + "</div>";
-		String progressPercent = "<div style='margin-top: 1px;'>(" + String.format("%.0f", progressPct) + "%)</div>";
-		int progressBarWidthPx = 75;
-		int progressFillWidthPx = (int) Math.round(progressBarWidthPx * Math.min(100.0, Math.max(0.0, progressPct)) / 100.0);
-		String progressBar = String.format(
-			"<div style='display:block; width:%dpx; height:6px; font-size:1px; line-height:1px; background:#2e2e2e; border:1px solid #555; border-radius:6px; overflow:hidden; padding:0;'>"
-			+ "<div style='display:block; width:%dpx; height:6px; background:#4caf50; margin:0; padding:0;'></div></div>",
-			progressBarWidthPx, progressFillWidthPx);
-		URL packIconUrl = TcgPanel.class.getResource("/" + booster.getThumbnail());
-		String imgTag = "";
+
+		JPanel content = new JPanel();
+		content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+		content.setOpaque(false);
+
+		JLabel titleLabel = shopBoosterTextLabel(htmlEscape(title));
+		content.add(titleLabel);
+		content.add(shopBoosterTextLabel(format(price) + " credits"));
+
+		URL packIconUrl = shopPackIconUrl(booster);
 		if (packIconUrl != null)
 		{
-			imgTag = "<br/><div style='margin-bottom: 5px;'><img src='" + packIconUrl.toString() + "'/></div>";
+			JLabel iconLabel = new JLabel(new ImageIcon(packIconUrl));
+			iconLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+			iconLabel.setBorder(new EmptyBorder(0, 0, 5, 0));
+			content.add(iconLabel);
 		}
 
-		JButton button = new JButton("<html><div style='text-align:center;'>" + htmlEscape(title)
-			+ "<br/>" + format(price) + " credits"
-			+ imgTag
-			+ progressBar 
-			+ progressText 
-			+ progressPercent
-			+ "</div></html>");
+		content.add(new ShopPackProgressBar(SHOP_PROGRESS_BAR_WIDTH_PX, progressOwn, progressFoilOwn, progressTotal));
+		content.add(shopBoosterTextLabel(format(progressOwn) + " / " + format(progressTotal)));
+		content.add(shopBoosterTextLabel("(" + String.format("%.0f", progressPct) + "%)"));
+
+		JButton button = new JButton();
+		button.setLayout(new BorderLayout());
+		button.add(content, BorderLayout.CENTER);
 		button.setIcon(null);
 		button.setHorizontalTextPosition(SwingConstants.CENTER);
 		button.setVerticalTextPosition(SwingConstants.CENTER);
@@ -1607,12 +1649,12 @@ public class TcgPanel extends PluginPanel
 		button.setForeground(Color.WHITE);
 		button.setBorder(new CompoundBorder(
 			new MatteBorder(1, 1, 1, 1, ColorScheme.LIGHT_GRAY_COLOR.darker()),
-			new EmptyBorder(6, 6, 6, 6)
+			new EmptyBorder(6, 6, 8, 6)
 		));
 		button.setFocusPainted(false);
 		button.setFont(FontManager.getRunescapeSmallFont());
 		button.setFocusable(false);
-		button.setPreferredSize(new Dimension(shopBoosterButtonWidth(), 110));
+		button.setPreferredSize(new Dimension(shopBoosterButtonWidth(), 120));
 
 		button.addActionListener(e ->
 		{
@@ -1648,14 +1690,83 @@ public class TcgPanel extends PluginPanel
 		return button;
 	}
 
+	private static JLabel shopBoosterTextLabel(String text)
+	{
+		JLabel label = new JLabel(text, SwingConstants.CENTER);
+		label.setAlignmentX(Component.CENTER_ALIGNMENT);
+		label.setForeground(Color.WHITE);
+		label.setFont(FontManager.getRunescapeSmallFont());
+		return label;
+	}
+
+	private static final class ShopPackProgressBar extends JPanel
+	{
+		private static final Color TRACK = new Color(0x2e2e2e);
+		private static final Color TRACK_BORDER = new Color(0x555555);
+		private static final Color STANDARD_FILL = new Color(0x4caf50);
+		private static final Color FOIL_FILL = new Color(0xF2C94C);
+
+		private final int barWidthPx;
+		private final int standardFillPx;
+		private final int foilFillPx;
+
+		private ShopPackProgressBar(int barWidthPx, int standardOwn, int foilOwn, int total)
+		{
+			this.barWidthPx = barWidthPx;
+			double standardPct = total <= 0 ? 0.0 : (100.0 * standardOwn) / total;
+			double foilPct = total <= 0 ? 0.0 : (100.0 * foilOwn) / total;
+			this.standardFillPx = (int) Math.round(barWidthPx * Math.min(100.0, Math.max(0.0, standardPct)) / 100.0);
+			this.foilFillPx = (int) Math.round(barWidthPx * Math.min(100.0, Math.max(0.0, foilPct)) / 100.0);
+			int outerW = barWidthPx + 2;
+			int outerH = SHOP_PROGRESS_BAR_HEIGHT_PX + 2;
+			Dimension size = new Dimension(outerW, outerH);
+			setOpaque(false);
+			setPreferredSize(size);
+			setMinimumSize(size);
+			setMaximumSize(size);
+			setAlignmentX(Component.CENTER_ALIGNMENT);
+		}
+
+		@Override
+		protected void paintComponent(Graphics g)
+		{
+			super.paintComponent(g);
+			Graphics2D g2 = (Graphics2D) g.create();
+			try
+			{
+				int x = 1;
+				int y = 1;
+				int h = SHOP_PROGRESS_BAR_HEIGHT_PX;
+				g2.setColor(TRACK_BORDER);
+				g2.fillRect(0, 0, barWidthPx + 2, h + 2);
+				g2.setColor(TRACK);
+				g2.fillRect(x, y, barWidthPx, h);
+				if (standardFillPx > 0)
+				{
+					g2.setColor(STANDARD_FILL);
+					g2.fillRect(x, y, standardFillPx, h);
+				}
+				if (foilFillPx > 0)
+				{
+					g2.setColor(FOIL_FILL);
+					g2.fillRect(x, y, foilFillPx, h);
+				}
+			}
+			finally
+			{
+				g2.dispose();
+			}
+		}
+	}
+
 	private JButton createBoosterBuyButton(
 		BoosterPackDefinition booster,
 		List<CardDefinition> allCards,
 		List<CardDefinition> rollPool,
-		Set<String> collectedNames)
+		Map<CardCollectionKey, Integer> owned)
 	{
-		int[] progress = shopProgressOwnedTotal(booster, allCards, rollPool, collectedNames);
-		return createBoosterBuyButton(booster, progress[0], progress[1]);
+		int[] progress = shopProgressOwnedTotal(booster, allCards, rollPool, owned);
+		return createBoosterBuyButton(booster, progress[0], progress[1], progress[2]);
 	}
 
 	private JPanel sellDuplicatesPanel()
