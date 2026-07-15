@@ -1,5 +1,6 @@
 package com.osrstcg.ui.collectionalbum;
 
+import com.osrstcg.OsrsTcgConfig;
 import com.osrstcg.data.CardDatabase;
 import com.osrstcg.data.PackCatalog;
 import com.osrstcg.service.CardPartyTransferService;
@@ -19,6 +20,7 @@ public final class CollectionAlbumManager
 	private final WikiImageCacheService imageCacheService;
 	private final PartyService partyService;
 	private final CardPartyTransferService cardPartyTransferService;
+	private final OsrsTcgConfig config;
 
 	private volatile CollectionAlbumWindow window;
 
@@ -29,7 +31,8 @@ public final class CollectionAlbumManager
 		PackCatalog packCatalog,
 		WikiImageCacheService imageCacheService,
 		PartyService partyService,
-		CardPartyTransferService cardPartyTransferService)
+		CardPartyTransferService cardPartyTransferService,
+		OsrsTcgConfig config)
 	{
 		this.cardDatabase = cardDatabase;
 		this.stateService = stateService;
@@ -37,6 +40,7 @@ public final class CollectionAlbumManager
 		this.imageCacheService = imageCacheService;
 		this.partyService = partyService;
 		this.cardPartyTransferService = cardPartyTransferService;
+		this.config = config;
 	}
 
 	public void showOrBringToFront()
@@ -47,7 +51,7 @@ public final class CollectionAlbumManager
 			{
 				window = new CollectionAlbumWindow(
 					cardDatabase, stateService, packCatalog, imageCacheService, partyService,
-					cardPartyTransferService);
+					cardPartyTransferService, () -> config.enable3dCards());
 			}
 			window.refreshData();
 			window.prepareToShow();

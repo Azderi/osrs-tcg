@@ -139,7 +139,7 @@ public final class CardEffectRenderer
 			drawWarpedImage(g2, decorated, p);
 			if (opts.glare)
 			{
-				drawGlare(g2, p, nx, ny, visualStrength);
+				drawGlare(g2, p, nx, ny, strength);
 			}
 		}
 		finally

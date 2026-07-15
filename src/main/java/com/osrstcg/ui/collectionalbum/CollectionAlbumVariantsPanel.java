@@ -3,6 +3,7 @@ package com.osrstcg.ui.collectionalbum;
 import com.osrstcg.data.CardDefinition;
 import com.osrstcg.model.OwnedCardInstance;
 import com.osrstcg.service.WikiImageCacheService;
+import com.osrstcg.ui.CardEffectRenderer;
 import com.osrstcg.ui.SharedCardRenderer;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
@@ -11,6 +12,7 @@ import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Insets;
+import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
@@ -21,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -41,6 +44,7 @@ public final class CollectionAlbumVariantsPanel extends JPanel
 	private final WikiImageCacheService imageCacheService;
 	private final Consumer<OwnedCardInstance> onPick;
 	private final Consumer<OwnedCardInstance> onLockToggle;
+	private final Supplier<Boolean> cardEffectsEnabled;
 	private final VariantGrid variantGrid;
 
 	private JButton pagingPrevBtn;
@@ -55,12 +59,13 @@ public final class CollectionAlbumVariantsPanel extends JPanel
 	private String selectedInstanceId;
 
 	public CollectionAlbumVariantsPanel(WikiImageCacheService imageCacheService, Consumer<OwnedCardInstance> onPick,
-		Consumer<OwnedCardInstance> onLockToggle)
+		Consumer<OwnedCardInstance> onLockToggle, Supplier<Boolean> cardEffectsEnabled)
 	{
 		super(new BorderLayout());
 		this.imageCacheService = imageCacheService;
 		this.onPick = onPick;
 		this.onLockToggle = onLockToggle;
+		this.cardEffectsEnabled = cardEffectsEnabled == null ? () -> true : cardEffectsEnabled;
 		this.variantGrid = new VariantGrid();
 		setOpaque(true);
 		setBackground(new Color(0x1E1E1E));
@@ -196,6 +201,7 @@ public final class CollectionAlbumVariantsPanel extends JPanel
 	private final class VariantGrid extends JPanel
 	{
 		private List<Rectangle> lastCardBounds = Collections.emptyList();
+		private Point mousePoint;
 
 		VariantGrid()
 		{
@@ -207,8 +213,16 @@ public final class CollectionAlbumVariantsPanel extends JPanel
 			addMouseListener(new MouseAdapter()
 			{
 				@Override
+				public void mouseExited(MouseEvent e)
+				{
+					mousePoint = null;
+					repaint();
+				}
+
+				@Override
 				public void mousePressed(MouseEvent e)
 				{
+					mousePoint = e.getPoint();
 					if (tryLockToggle(e))
 					{
 						return;
@@ -219,7 +233,24 @@ public final class CollectionAlbumVariantsPanel extends JPanel
 				@Override
 				public void mouseReleased(MouseEvent e)
 				{
+					mousePoint = e.getPoint();
 					tryLockToggle(e);
+				}
+			});
+			addMouseMotionListener(new MouseAdapter()
+			{
+				@Override
+				public void mouseMoved(MouseEvent e)
+				{
+					mousePoint = e.getPoint();
+					repaint();
+				}
+
+				@Override
+				public void mouseDragged(MouseEvent e)
+				{
+					mousePoint = e.getPoint();
+					repaint();
 				}
 			});
 		}
@@ -359,7 +390,17 @@ public final class CollectionAlbumVariantsPanel extends JPanel
 					OwnedCardInstance inst = allCopies.get(gi);
 					BufferedImage art = imageCacheService.getCached(card == null ? null : card.getImageUrl());
 					boolean foil = inst.isFoil();
-					SharedCardRenderer.drawCardFace(g2, bounds, card, foil, rarityColor, art, 0L, foil);
+					if (cardEffectsEnabled.get())
+					{
+						Point pointer = mousePoint == null ? new Point((int) bounds.getCenterX(), (int) bounds.getCenterY()) : mousePoint;
+						double strength = bounds.contains(pointer) ? 1.0d : 0.0d;
+						CardEffectRenderer.drawCardFace(g2, bounds, card, foil, rarityColor, art, 0L, foil,
+							pointer.x, pointer.y, strength, foil);
+					}
+					else
+					{
+						SharedCardRenderer.drawCardFace(g2, bounds, card, foil, rarityColor, art, 0L, foil);
+					}
 					if (inst.isLocked())
 					{
 						SharedCardRenderer.drawLockBadge(g2, bounds);
