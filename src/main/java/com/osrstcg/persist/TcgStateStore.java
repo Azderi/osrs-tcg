@@ -40,7 +40,10 @@ public class TcgStateStore
 
 	public TcgStateLoadResult load()
 	{
-		moveOldState();
+		if (hasProfileScope())
+		{
+			moveOldState();
+		}
 
 		LoadAttempt primary = tryLoad(STATE_KEY, STATE_HASH_KEY);
 		if (primary.outcome == LoadOutcome.SUCCESS)
@@ -147,6 +150,10 @@ public class TcgStateStore
 		{
 			return;
 		}
+		if (!hasProfileScope())
+		{
+			return;
+		}
 
 		String json = stateCodec.toJson(state);
 		String stored = TcgStateStorageEncoding.encode(json);
@@ -242,16 +249,38 @@ public class TcgStateStore
 
 	void writeProfileScoped(String key, String value)
 	{
+		if (!hasProfileScope())
+		{
+			return;
+		}
 		configManager.setRSProfileConfiguration(GROUP, key, value);
 	}
 
 	String getProfileScoped(String key)
 	{
+		if (!hasProfileScope())
+		{
+			return null;
+		}
 		return configManager.getRSProfileConfiguration(GROUP, key);
+	}
+
+	private boolean hasProfileScope()
+	{
+		if (configManager == null)
+		{
+			return false;
+		}
+		String profileKey = configManager.getRSProfileKey();
+		return profileKey != null && !profileKey.isEmpty();
 	}
 
 	void moveOldState()
 	{
+		if (!hasProfileScope())
+		{
+			return;
+		}
 		String currentState = configManager.getRSProfileConfiguration(GROUP, STATE_KEY);
 		if (currentState != null)
 		{

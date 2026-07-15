@@ -9,6 +9,7 @@ import com.osrstcg.model.CardCollectionKey;
 import com.osrstcg.model.OwnedCardInstance;
 import com.osrstcg.model.RewardTuningState;
 import com.osrstcg.model.TcgState;
+import com.osrstcg.overlay.PackRevealOverlay;
 import com.osrstcg.service.CreditAwardService;
 import com.osrstcg.service.DuplicateSellPlanner;
 import com.osrstcg.service.PackOpeningService;
@@ -29,8 +30,13 @@ import java.awt.Graphics2D;
 import java.awt.GridLayout;
 import java.awt.Image;
 import java.awt.Insets;
+import java.awt.Point;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -53,6 +59,7 @@ import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComponent;
+import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -140,6 +147,7 @@ public class TcgPanel extends PluginPanel
 	private final CardDatabase cardDatabase;
 	private final PackOpeningService packOpeningService;
 	private final PackRevealService packRevealService;
+	private final PackRevealOverlay packRevealOverlay;
 	private final PackSafeModeService packSafeModeService;
 	private final PackCatalog packCatalog;
 	private final OsrsTcgConfig config;
@@ -176,6 +184,8 @@ public class TcgPanel extends PluginPanel
 	private boolean welcomeBuiltForActiveReveal;
 	private boolean overviewBuiltForActiveReveal;
 	private boolean shopBuiltForActiveReveal;
+	private JFrame developerRevealFrame;
+	private DeveloperRevealPanel developerRevealPanel;
 
 	private int rewardDraftFoil = 1;
 	private double rewardDraftKill = 1.0d;
@@ -190,6 +200,7 @@ public class TcgPanel extends PluginPanel
 		CardDatabase cardDatabase,
 		PackOpeningService packOpeningService,
 		PackRevealService packRevealService,
+		PackRevealOverlay packRevealOverlay,
 		PackSafeModeService packSafeModeService,
 		PackCatalog packCatalog,
 		OsrsTcgConfig config,
@@ -204,6 +215,7 @@ public class TcgPanel extends PluginPanel
 		this.cardDatabase = cardDatabase;
 		this.packOpeningService = packOpeningService;
 		this.packRevealService = packRevealService;
+		this.packRevealOverlay = packRevealOverlay;
 		this.packSafeModeService = packSafeModeService;
 		this.packCatalog = packCatalog;
 		this.config = config;
@@ -310,6 +322,7 @@ public class TcgPanel extends PluginPanel
 
 	public void stop()
 	{
+		closeDeveloperRevealPreview();
 		welcomeContent.removeAll();
 		overviewContent.removeAll();
 		packsContent.removeAll();
@@ -435,7 +448,14 @@ public class TcgPanel extends PluginPanel
 		ensureRootAttached();
 		if (shouldShowLoggedOutPrompt())
 		{
-			showLoggedOutWelcome();
+			if (runeliteDeveloperMode)
+			{
+				showLoggedOutDeveloperHarness();
+			}
+			else
+			{
+				showLoggedOutWelcome();
+			}
 			mainPanel.revalidate();
 			mainPanel.repaint();
 			return;
@@ -494,7 +514,14 @@ public class TcgPanel extends PluginPanel
 		ensureRootAttached();
 		if (shouldShowLoggedOutPrompt())
 		{
-			showLoggedOutWelcome();
+			if (runeliteDeveloperMode)
+			{
+				showLoggedOutDeveloperHarness();
+			}
+			else
+			{
+				showLoggedOutWelcome();
+			}
 			mainPanel.revalidate();
 			mainPanel.repaint();
 			return;
@@ -596,6 +623,287 @@ public class TcgPanel extends PluginPanel
 		welcomeContent.removeAll();
 		renderWelcomeTab(welcomeContent);
 		contentLayout.show(content, Tab.WELCOME.name());
+	}
+
+	private void showLoggedOutDeveloperHarness()
+	{
+		footerPanel.setVisible(true);
+		selectedTab = Tab.WELCOME;
+		updateTabStyles();
+		welcomeContent.removeAll();
+		renderWelcomeTab(welcomeContent);
+		welcomeContent.add(Box.createRigidArea(new Dimension(0, 10)));
+		welcomeContent.add(buildLoggedOutDeveloperPanel());
+		contentLayout.show(content, Tab.WELCOME.name());
+	}
+
+	private JPanel buildLoggedOutDeveloperPanel()
+	{
+		JPanel panel = new JPanel();
+		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+		panel.setOpaque(false);
+		panel.setAlignmentX(LEFT_ALIGNMENT);
+		panel.add(infoPanel("Developer mode: test OSRS TCG without logging in."));
+		panel.add(Box.createRigidArea(new Dimension(0, 6)));
+		panel.add(infoPanel(developerRevealStatusText()));
+		panel.add(Box.createRigidArea(new Dimension(0, 6)));
+
+		JCheckBox debugMode = buildDebugModeCheckbox();
+		panel.add(debugMode);
+		panel.add(Box.createRigidArea(new Dimension(0, 6)));
+
+		JButton creditsBtn = buildDeveloperButton("Grant 100,000 credits");
+		creditsBtn.addActionListener(e ->
+		{
+			stateService.setDebugLogging(true);
+			stateService.addCredits(100_000L);
+			refresh();
+		});
+		panel.add(creditsBtn);
+		panel.add(Box.createRigidArea(new Dimension(0, 6)));
+
+		JButton openPackBtn = buildDeveloperButton("Open test pack");
+		openPackBtn.addActionListener(e -> openDeveloperTestPack(false));
+		panel.add(openPackBtn);
+		panel.add(Box.createRigidArea(new Dimension(0, 6)));
+
+		JButton openApexBtn = buildDeveloperButton("Open apex test pack");
+		openApexBtn.addActionListener(e -> openDeveloperTestPack(true));
+		panel.add(openApexBtn);
+		clampPanelWidth(panel);
+		return panel;
+	}
+
+	private String developerRevealStatusText()
+	{
+		if (!packRevealService.isActive())
+		{
+			return "Reveal status: inactive";
+		}
+		return "Reveal status: " + packRevealService.getPhase()
+			+ " (" + packRevealService.getCards().size() + " cards)";
+	}
+
+	private JButton buildDeveloperButton(String text)
+	{
+		JButton button = new JButton(text);
+		button.setFont(FontManager.getRunescapeSmallFont());
+		button.setFocusable(false);
+		button.setAlignmentX(LEFT_ALIGNMENT);
+		button.setBackground(ColorScheme.DARKER_GRAY_COLOR.darker());
+		button.setForeground(Color.WHITE);
+		button.setBorder(new CompoundBorder(
+			new MatteBorder(1, 1, 1, 1, ColorScheme.LIGHT_GRAY_COLOR.darker()),
+			new EmptyBorder(7, 10, 7, 10)
+		));
+		button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
+		return button;
+	}
+
+	private void openDeveloperTestPack(boolean apex)
+	{
+		if (packRevealService.isActive())
+		{
+			packRevealService.reset();
+			clearPackRevealSidebarFreeze();
+		}
+		stateService.setDebugLogging(true);
+		List<BoosterPackDefinition> boosters = shopVisibleBoosters();
+		if (boosters.isEmpty())
+		{
+			if (client != null)
+			{
+				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
+					"[OSRS TCG] No booster packs loaded.", null);
+			}
+			refresh();
+			return;
+		}
+
+		BoosterPackDefinition booster = boosters.get(0);
+		long price = Math.max(0L, booster.getPrice());
+		long credits = stateService.getCredits();
+		if (credits < price)
+		{
+			stateService.addCredits(price - credits);
+		}
+
+		beginPackRevealSidebarFreeze();
+		var preOwned = new java.util.HashSet<>(stateService.getState().getCollectionState().getOwnedCards().keySet());
+		boolean showScrollWheelHint = stateService.getState().getEconomyState().getOpenedPacks() == 0L;
+		var result = apex
+			? packOpeningService.buyAndOpenApexPackForDebug(booster)
+			: packOpeningService.buyAndOpenPack(booster);
+		if (!result.isSuccess() || result.getPulls() == null)
+		{
+			log.info("OSRS TCG developer test pack failed: booster={}, apex={}, message={}",
+				booster.getName(), apex, result.getMessage());
+			clearPackRevealSidebarFreeze();
+			if (client != null)
+			{
+				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
+					"[OSRS TCG] Test pack failed: " + result.getMessage(), null);
+			}
+			refresh();
+			return;
+		}
+
+		packRevealService.startReveal(result.getPulls(), preOwned, result.getBoosterDisplayName(),
+			result.getBoosterPackId(), showScrollWheelHint, result.isApexPack());
+		log.info("OSRS TCG developer test pack opened: booster={}, apex={}, pulls={}, revealActive={}, phase={}",
+			result.getBoosterDisplayName(), result.isApexPack(), result.getPulls().size(),
+			packRevealService.isActive(), packRevealService.getPhase());
+		showDeveloperRevealPreview();
+		refresh();
+	}
+
+	private void showDeveloperRevealPreview()
+	{
+		if (!runeliteDeveloperMode)
+		{
+			return;
+		}
+		if (developerRevealFrame == null)
+		{
+			developerRevealPanel = new DeveloperRevealPanel();
+			developerRevealFrame = new JFrame("OSRS TCG Pack Reveal Preview");
+			developerRevealFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+			developerRevealFrame.setContentPane(developerRevealPanel);
+			developerRevealFrame.setSize(980, 720);
+			developerRevealFrame.setLocationRelativeTo(SwingUtilities.getWindowAncestor(this));
+			developerRevealFrame.addWindowListener(new WindowAdapter()
+			{
+				@Override
+				public void windowClosed(WindowEvent e)
+				{
+					if (developerRevealPanel != null)
+					{
+						developerRevealPanel.stop();
+					}
+					developerRevealPanel = null;
+					developerRevealFrame = null;
+				}
+			});
+		}
+		developerRevealFrame.setVisible(true);
+		developerRevealFrame.toFront();
+		if (developerRevealPanel != null)
+		{
+			developerRevealPanel.start();
+		}
+	}
+
+	private void closeDeveloperRevealPreview()
+	{
+		if (developerRevealPanel != null)
+		{
+			developerRevealPanel.stop();
+		}
+		if (developerRevealFrame != null)
+		{
+			developerRevealFrame.dispose();
+		}
+		developerRevealPanel = null;
+		developerRevealFrame = null;
+	}
+
+	private final class DeveloperRevealPanel extends JPanel
+	{
+		private final javax.swing.Timer repaintTimer = new javax.swing.Timer(16, e -> repaint());
+		private Point mousePoint;
+
+		private DeveloperRevealPanel()
+		{
+			setBackground(Color.BLACK);
+			setFocusable(true);
+			MouseAdapter mouse = new MouseAdapter()
+			{
+				@Override
+				public void mouseMoved(MouseEvent e)
+				{
+					mousePoint = e.getPoint();
+					packRevealOverlay.setRevealHoverCanvasPoint(mousePoint);
+					repaint();
+				}
+
+				@Override
+				public void mouseDragged(MouseEvent e)
+				{
+					mouseMoved(e);
+				}
+
+				@Override
+				public void mouseExited(MouseEvent e)
+				{
+					mousePoint = null;
+					packRevealOverlay.setRevealHoverCanvasPoint(null);
+					repaint();
+				}
+
+				@Override
+				public void mousePressed(MouseEvent e)
+				{
+					requestFocusInWindow();
+					mousePoint = e.getPoint();
+					packRevealOverlay.setRevealHoverCanvasPoint(mousePoint);
+					if (SwingUtilities.isRightMouseButton(e))
+					{
+						if (packRevealService.revealAllCards())
+						{
+							refreshAfterPackRevealClose();
+						}
+					}
+					else if (SwingUtilities.isLeftMouseButton(e))
+					{
+						packRevealService.handleClick(
+							e.getPoint(),
+							packRevealOverlay.currentPackBounds(getWidth(), getHeight()),
+							packRevealOverlay.currentCardBounds(getWidth(), getHeight()));
+						refreshAfterPackRevealClose();
+					}
+					repaint();
+				}
+			};
+			addMouseListener(mouse);
+			addMouseMotionListener(mouse);
+		}
+
+		private void start()
+		{
+			if (!repaintTimer.isRunning())
+			{
+				repaintTimer.start();
+			}
+			repaint();
+		}
+
+		private void stop()
+		{
+			repaintTimer.stop();
+			packRevealOverlay.setRevealHoverCanvasPoint(null);
+		}
+
+		@Override
+		protected void paintComponent(Graphics g)
+		{
+			super.paintComponent(g);
+			Graphics2D g2 = (Graphics2D) g.create();
+			try
+			{
+				if (packRevealService.isActive())
+				{
+					packRevealOverlay.renderPreview(g2, getWidth(), getHeight(), mousePoint);
+					return;
+				}
+				g2.setColor(Color.WHITE);
+				g2.setFont(FontManager.getRunescapeBoldFont());
+				g2.drawString("No active pack reveal.", 24, 34);
+			}
+			finally
+			{
+				g2.dispose();
+			}
+		}
 	}
 
 	/**

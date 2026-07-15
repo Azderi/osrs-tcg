@@ -109,6 +109,19 @@ public final class SharedCardRenderer
 	public static void drawCardFace(Graphics2D g, Rectangle bounds, CardDefinition card, boolean foil, Color rarityColor, BufferedImage linkedImage, long basePullDenominator,
 		boolean useFoilAdjustedScoreForLabel)
 	{
+		drawCardFace(g, bounds, card, foil, rarityColor, linkedImage, basePullDenominator, useFoilAdjustedScoreForLabel, true);
+	}
+
+	public static void drawCardFace(Graphics2D g, Rectangle bounds, CardDefinition card, boolean foil, Color rarityColor, BufferedImage linkedImage, long basePullDenominator,
+		boolean useFoilAdjustedScoreForLabel, boolean renderFoilAnimation)
+	{
+		drawCardFace(g, bounds, card, foil, rarityColor, linkedImage, basePullDenominator,
+			useFoilAdjustedScoreForLabel, renderFoilAnimation, true);
+	}
+
+	public static void drawCardFace(Graphics2D g, Rectangle bounds, CardDefinition card, boolean foil, Color rarityColor, BufferedImage linkedImage, long basePullDenominator,
+		boolean useFoilAdjustedScoreForLabel, boolean renderFoilAnimation, boolean renderLinkedArtwork)
+	{
 		if (g == null || bounds == null)
 		{
 			return;
@@ -155,7 +168,10 @@ public final class SharedCardRenderer
 			drawCenteredText(g2, titleR, valueOrFallback(card == null ? null : card.getName(), "Unknown Card"),
 				FontManager.getRunescapeSmallFont(), safeColor(rarityColor).brighter(), 2);
 
-			drawImageSection(g2, imageR, card, linkedImage);
+			if (renderLinkedArtwork)
+			{
+				drawImageSection(g2, imageR, card, linkedImage);
+			}
 
 			String rarity = tierLabelForRarityColor(safeColor(rarityColor));
 			drawCenteredText(g2, tierR, rarity, FontManager.getRunescapeSmallFont(), safeColor(rarityColor).brighter());
@@ -173,7 +189,7 @@ public final class SharedCardRenderer
 			String stats = "Score: " + formatScore(card, useFoilAdjustedScoreForLabel);
 			drawCenteredText(g2, statsR, stats, FontManager.getRunescapeSmallFont(), Color.WHITE);
 
-			if (foil)
+			if (foil && renderFoilAnimation)
 			{
 				drawFoilSheen(g2, bounds, outerArc);
 				drawFoilSparkles(g2, bounds, outerArc, ft, card);

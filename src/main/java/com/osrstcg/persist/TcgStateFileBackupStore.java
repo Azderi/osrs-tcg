@@ -50,6 +50,10 @@ public class TcgStateFileBackupStore
 		{
 			return false;
 		}
+		if (!hasProfileScope())
+		{
+			return false;
+		}
 
 		String hashHex = TcgStateHash.hexOfUtf8(encodedBlob);
 		if (!writeValidatedBackup(encodedBlob, hashHex))
@@ -64,6 +68,10 @@ public class TcgStateFileBackupStore
 	public Optional<TcgState> loadMostRecentValid()
 	{
 		if (!isFileBackupsEnabled())
+		{
+			return Optional.empty();
+		}
+		if (!hasProfileScope())
 		{
 			return Optional.empty();
 		}
@@ -212,6 +220,16 @@ public class TcgStateFileBackupStore
 			? "default"
 			: TcgStateHash.hexOfUtf8(profileKey);
 		return Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG", "backups", dirName);
+	}
+
+	private boolean hasProfileScope()
+	{
+		if (configManager == null)
+		{
+			return false;
+		}
+		String profileKey = configManager.getRSProfileKey();
+		return profileKey != null && !profileKey.isEmpty();
 	}
 
 	private boolean isFileBackupsEnabled()
