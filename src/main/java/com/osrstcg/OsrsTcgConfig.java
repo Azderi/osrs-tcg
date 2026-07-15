@@ -151,56 +151,12 @@ public interface OsrsTcgConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "enableCardShaders",
-		name = "Card shaders",
-		description = "Apply animated shader-style card effects, including holographic foil overlays.",
-		position = 14
-	)
-	default boolean enableCardShaders()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "enableCardEffectShadow",
-		name = "Card effect shadow",
-		description = "Draw the shadow layer for 3D card effects.",
-		position = 15
-	)
-	default boolean enableCardEffectShadow()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "enableCardEffectDepth",
-		name = "Card effect depth",
-		description = "Draw side depth layers for 3D card effects.",
-		position = 16
-	)
-	default boolean enableCardEffectDepth()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "enableCardEffectGlare",
-		name = "Card effect glare",
-		description = "Draw the glare layer for 3D card effects.",
-		position = 17
-	)
-	default boolean enableCardEffectGlare()
-	{
-		return true;
-	}
-
-	@ConfigItem(
 		keyName = "enableFileBackups",
 		name = "Backups",
 		description = "Keep up to 50 file backups under .runelite/OSRS-TCG/backups. "
 			+ "Written on logout, plugin load/unload, and ::tcg-save. "
 			+ "Used automatically when profile configuration saves fail to load.",
-		position = 18
+		position = 14
 	)
 	default boolean enableFileBackups()
 	{

@@ -237,12 +237,7 @@ public class PackRevealOverlay extends Overlay
 
 		List<Rectangle> bounds = layoutCardSlots(canvas, cardCount, layout);
 		boolean effectsEnabled = config.enable3dCards();
-		boolean shadersEnabled = config.enableCardShaders();
-		CardEffectRenderer.Options effectOptions = new CardEffectRenderer.Options(
-			config.enableCardEffectShadow(),
-			config.enableCardEffectDepth(),
-			config.enableCardEffectGlare(),
-			shadersEnabled);
+		CardEffectRenderer.Options effectOptions = CardEffectRenderer.Options.allEnabled();
 		double pointerX = canvas.getCenterX();
 		double pointerY = canvas.getCenterY();
 		boolean hasPointer = revealPointer(pointerScratch);
@@ -293,7 +288,7 @@ public class PackRevealOverlay extends Overlay
 						pointerX,
 						pointerY,
 						hoverLift,
-						shadersEnabled && card.getPull().isFoil(),
+						card.getPull().isFoil(),
 						effectOptions);
 				}
 				else
@@ -325,7 +320,7 @@ public class PackRevealOverlay extends Overlay
 						pointerX,
 						pointerY,
 						hoverLift,
-						shadersEnabled && card.getPull().isFoil(),
+						false,
 						effectOptions);
 				}
 				else
@@ -1098,9 +1093,21 @@ public class PackRevealOverlay extends Overlay
 		{
 			g2.setFont(FontManager.getRunescapeBoldFont());
 			String text = "NEW!";
-			int textX = cardBounds.x + (cardBounds.width / 2) - (g2.getFontMetrics().stringWidth(text) / 2);
-			int textY = Math.max(14, cardBounds.y - 8);
+			FontMetrics metrics = g2.getFontMetrics();
+			int textW = metrics.stringWidth(text);
+			int textX = cardBounds.x + (cardBounds.width / 2) - (textW / 2);
+			int baseY = Math.max(14, cardBounds.y - 8);
+			double t = (System.currentTimeMillis() % 760L) / 760.0d;
+			double wave = Math.sin(t * Math.PI * 2.0d);
+			double bounce = Math.max(0.0d, wave) * 5.0d;
+			double scale = 1.0d + Math.max(0.0d, wave) * 0.12d;
+			int textY = (int) Math.round(baseY - bounce);
+			double pivotX = textX + textW / 2.0d;
+			double pivotY = textY - metrics.getAscent() / 2.0d;
 
+			g2.translate(pivotX, pivotY);
+			g2.scale(scale, scale);
+			g2.translate(-pivotX, -pivotY);
 			g2.setColor(new Color(0, 0, 0, 180));
 			g2.drawString(text, textX + 1, textY + 1);
 			g2.setColor(new Color(0xF2C94C));
