@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.Value;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
@@ -42,15 +43,21 @@ public class TcgTradeListShareService
 		this.stateService = stateService;
 	}
 
-	public String shareDuplicateList()
+	@Value
+	public static class TradeMatch
 	{
-		if (!partyService.isInParty())
+		String cardName;
+		boolean foil;
+		int available;
+		boolean transferCompatible;
+	}
+
+	public String shareDuplicateList(long recipientMemberId)
+	{
+		String partyError = validateRecipient(recipientMemberId);
+		if (partyError != null)
 		{
-			return "Join a RuneLite party first.";
-		}
-		if (partyService.getLocalMember() == null)
-		{
-			return "Party session not ready.";
+			return partyError;
 		}
 
 		List<TcgTradeListPartyMessage.Entry> duplicates = buildDuplicateEntries();
@@ -59,6 +66,7 @@ public class TcgTradeListShareService
 
 		TcgTradeListPartyMessage message = new TcgTradeListPartyMessage();
 		message.setSchemaVersion(SCHEMA_VERSION);
+		message.setRecipientMemberId(recipientMemberId);
 		message.setSentAtEpochMs(System.currentTimeMillis());
 		message.setSenderDebugLogging(state.isDebugLogging());
 		message.setFoilChancePercent(tuning.getFoilChancePercent());
@@ -125,6 +133,44 @@ public class TcgTradeListShareService
 		return out.toString().trim();
 	}
 
+	public List<TradeMatch> matchesForMember(long memberId)
+	{
+		pruneExpired();
+		CacheEntry entry = cacheByMemberId.get(memberId);
+		if (entry == null)
+		{
+			return List.of();
+		}
+		Map<CardCollectionKey, Integer> mine = stateService.getState().getCollectionState().getOwnedCards();
+		List<TradeMatch> matches = new ArrayList<>();
+		for (TcgTradeListPartyMessage.Entry duplicate : entry.duplicates)
+		{
+			String name = duplicate.getCardName();
+			if (duplicate.getNormalAvailable() > 0 && !ownsVariant(mine, name, false))
+			{
+				matches.add(new TradeMatch(name, false, duplicate.getNormalAvailable(), entry.transferCompatible));
+			}
+			if (duplicate.getFoilAvailable() > 0 && !ownsVariant(mine, name, true))
+			{
+				matches.add(new TradeMatch(name, true, duplicate.getFoilAvailable(), entry.transferCompatible));
+			}
+		}
+		matches.sort(Comparator.comparing(TradeMatch::getCardName, String.CASE_INSENSITIVE_ORDER)
+			.thenComparing(TradeMatch::isFoil));
+		return matches;
+	}
+
+	public String displayNameForMember(long memberId)
+	{
+		PartyMember member = partyService.getMemberById(memberId);
+		if (member != null)
+		{
+			return cleanDisplayName(member.getDisplayName());
+		}
+		CacheEntry entry = cacheByMemberId.get(memberId);
+		return entry == null ? "Party member" : entry.displayName;
+	}
+
 	@Subscribe
 	public void onTcgTradeListPartyMessage(TcgTradeListPartyMessage message)
 	{
@@ -133,7 +179,7 @@ public class TcgTradeListShareService
 			return;
 		}
 		PartyMember local = partyService.getLocalMember();
-		if (local != null && message.getMemberId() == local.getMemberId())
+		if (local == null || message.getRecipientMemberId() != local.getMemberId())
 		{
 			return;
 		}
@@ -158,6 +204,28 @@ public class TcgTradeListShareService
 
 		cacheByMemberId.put(message.getMemberId(), new CacheEntry(
 			displayName, duplicates, System.currentTimeMillis(), compatible));
+	}
+
+	private String validateRecipient(long recipientMemberId)
+	{
+		if (!partyService.isInParty())
+		{
+			return "Join a RuneLite party first.";
+		}
+		PartyMember local = partyService.getLocalMember();
+		if (local == null)
+		{
+			return "Party session not ready.";
+		}
+		if (recipientMemberId == local.getMemberId())
+		{
+			return "Choose a different party member.";
+		}
+		if (partyService.getMemberById(recipientMemberId) == null)
+		{
+			return "That player is not in your party.";
+		}
+		return null;
 	}
 
 	private List<TcgTradeListPartyMessage.Entry> buildDuplicateEntries()

@@ -56,8 +56,6 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
@@ -1368,13 +1366,31 @@ public final class CollectionAlbumWindow extends JFrame
 
 	private void updatePartyDiscoveryButtons()
 	{
-		boolean inParty = partyService.isInParty() && partyService.getLocalMember() != null;
-		shareDuplicatesBtn.setEnabled(inParty);
-		shareDuplicatesBtn.setToolTipText(inParty
-			? "Share your unlocked duplicate card variants with party members."
-			: "Join a RuneLite party first.");
-		viewPartyMatchesBtn.setEnabled(inParty || tradeListShareService.hasRecentPartyLists());
-		viewPartyMatchesBtn.setToolTipText("Show party duplicates that are missing from your collection.");
+		Long selectedMemberId = selectedPartyMemberId();
+		boolean hasSelectedMember = selectedMemberId != null;
+		shareDuplicatesBtn.setEnabled(hasSelectedMember);
+		shareDuplicatesBtn.setToolTipText(hasSelectedMember
+			? "Share your unlocked duplicate card variants with the selected party member."
+			: "Choose a party member first.");
+		viewPartyMatchesBtn.setEnabled(hasSelectedMember);
+		viewPartyMatchesBtn.setToolTipText(hasSelectedMember
+			? "Show selected player's shared duplicates that are missing from your collection."
+			: "Choose a party member first.");
+	}
+
+	private Long selectedPartyMemberId()
+	{
+		int idx = partyMemberCombo.getSelectedIndex();
+		if (idx <= 0 || idx >= partyMemberIds.size())
+		{
+			return null;
+		}
+		Long id = partyMemberIds.get(idx);
+		if (id == null || id == -1L)
+		{
+			return null;
+		}
+		return id;
 	}
 
 	private boolean isChosenInstanceLocked()
@@ -1428,24 +1444,38 @@ public final class CollectionAlbumWindow extends JFrame
 
 	private void onShareDuplicatesClicked(ActionEvent e)
 	{
-		String status = tradeListShareService.shareDuplicateList();
+		Long selectedMemberId = selectedPartyMemberId();
+		if (selectedMemberId == null)
+		{
+			sendStatusLabel.setText("Choose a party member first.");
+			return;
+		}
+		String status = tradeListShareService.shareDuplicateList(selectedMemberId);
 		sendStatusLabel.setText(status);
 		updatePartyDiscoveryButtons();
 	}
 
 	private void onViewPartyMatchesClicked(ActionEvent e)
 	{
-		JTextArea text = new JTextArea(tradeListShareService.buildPartyTradeMatchSummary(), 22, 72);
-		text.setEditable(false);
-		text.setLineWrap(false);
-		text.setFont(FontManager.getRunescapeSmallFont());
-		text.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		text.setForeground(Color.WHITE);
-		text.setCaretPosition(0);
-
-		JScrollPane scroll = new JScrollPane(text);
-		scroll.setPreferredSize(new Dimension(680, 420));
-		JOptionPane.showMessageDialog(this, scroll, "Party trade matches", JOptionPane.INFORMATION_MESSAGE);
+		Long selectedMemberId = selectedPartyMemberId();
+		if (selectedMemberId == null)
+		{
+			sendStatusLabel.setText("Choose a party member first.");
+			return;
+		}
+		PartyTradeMatchesPanel panel = new PartyTradeMatchesPanel(
+			cardDatabase,
+			imageCacheService,
+			tradeListShareService.matchesForMember(selectedMemberId),
+			tradeListShareService.displayNameForMember(selectedMemberId));
+		try
+		{
+			JOptionPane.showMessageDialog(this, panel, "Party trade matches", JOptionPane.PLAIN_MESSAGE);
+		}
+		finally
+		{
+			panel.stopTimers();
+		}
 		updatePartyDiscoveryButtons();
 	}
 

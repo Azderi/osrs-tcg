@@ -14,6 +14,7 @@ import net.runelite.client.party.messages.PartyMemberMessage;
 public class TcgTradeListPartyMessage extends PartyMemberMessage
 {
 	private int schemaVersion;
+	private long recipientMemberId;
 	private long sentAtEpochMs;
 	private boolean senderDebugLogging;
 	private int foilChancePercent;
