@@ -17,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
@@ -34,6 +35,12 @@ import okhttp3.Response;
 public class WikiImageCacheService
 {
 	private static final String WIKI_BASE_URL = "https://oldschool.runescape.wiki";
+	/**
+	 * Identify the plugin clearly. Fake browser UAs like {@code Mozilla/5.0 (osrstcg)} are
+	 * challenged by Cloudflare; a descriptive client string is allowed on /images/.
+	 */
+	private static final String USER_AGENT =
+		"osrs-tcg (https://github.com/Azderi/osrs-tcg)";
 	/** Max decoded images kept in heap; evicted entries remain on disk. */
 	private static final int MEMORY_CACHE_MAX_ENTRIES = 128;
 	/** Cap concurrent disk/network decodes so fast album paging cannot flood the common pool. */
@@ -51,6 +58,8 @@ public class WikiImageCacheService
 			}
 		});
 	private final Map<String, CompletableFuture<BufferedImage>> loadingFutures = new ConcurrentHashMap<>();
+	/** URLs that failed to load; skip re-fetching on the overlay/album paint path. */
+	private final Set<String> failedUrls = ConcurrentHashMap.newKeySet();
 
 	@Inject
 	public WikiImageCacheService(OkHttpClient okHttpClient)
@@ -81,7 +90,7 @@ public class WikiImageCacheService
 		}
 
 		String normalized = normalizeUrl(url);
-		if (normalized.isEmpty() || memoryCache.containsKey(normalized))
+		if (normalized.isEmpty() || memoryCache.containsKey(normalized) || failedUrls.contains(normalized))
 		{
 			return false;
 		}
@@ -101,11 +110,21 @@ public class WikiImageCacheService
 		String fromThumb = extractFilenameFromThumbPath(rawUrl);
 		if (!fromThumb.isEmpty())
 		{
-			return specialFilePathUrl(fromThumb);
+			return directImageUrl(fromThumb);
+		}
+		String fromPath = extractFilenameFromPath(normalized);
+		if (!fromPath.isEmpty() && !looksLikeThumbSizeSegment(fromPath))
+		{
+			return directImageUrl(fromPath);
 		}
 		return normalized;
 	}
 
+	/**
+	 * Returns a cached image if present. Safe to call from overlay/UI paint paths:
+	 * only reads the memory cache and may kick off a background load — never blocks
+	 * on network/disk and never writes the cache on this thread.
+	 */
 	public BufferedImage getCached(String url)
 	{
 		if (url == null)
@@ -125,32 +144,20 @@ public class WikiImageCacheService
 			return cached;
 		}
 
-		CompletableFuture<BufferedImage> future = loadingFutures.get(normalized);
-		if (future == null || !future.isDone())
+		if (!failedUrls.contains(normalized))
 		{
 			ensureLoad(normalized);
-			return null;
 		}
-
-		try
-		{
-			BufferedImage image = future.getNow(null);
-			if (image != null)
-			{
-				memoryCache.put(normalized, image);
-			}
-			return image;
-		}
-		catch (RuntimeException ex)
-		{
-			return null;
-		}
+		return null;
 	}
 
 	private void ensureLoad(String rawUrl)
 	{
 		String url = normalizeUrl(rawUrl);
-		if (url.isEmpty() || memoryCache.containsKey(url) || loadingFutures.containsKey(url))
+		if (url.isEmpty()
+			|| memoryCache.containsKey(url)
+			|| failedUrls.contains(url)
+			|| loadingFutures.containsKey(url))
 		{
 			return;
 		}
@@ -170,11 +177,18 @@ public class WikiImageCacheService
 			})
 			.whenComplete((image, ex) ->
 			{
-				loadingFutures.remove(key);
+				// Populate cache before removing the in-flight future so paint reads never
+				// observe "not loading" and "not cached" at the same time.
 				if (image != null)
 				{
+					failedUrls.remove(key);
 					memoryCache.put(key, image);
 				}
+				else
+				{
+					failedUrls.add(key);
+				}
+				loadingFutures.remove(key);
 			}));
 	}
 
@@ -198,12 +212,13 @@ public class WikiImageCacheService
 			{
 				Request request = new Request.Builder()
 					.url(candidate)
-					.header("User-Agent", "Mozilla/5.0 (osrstcg)")
+					.header("User-Agent", USER_AGENT)
 					.build();
 				try (Response response = okHttpClient.newCall(request).execute())
 				{
 					if (!response.isSuccessful() || response.body() == null)
 					{
+						log.debug("Wiki image HTTP {} for {}", response.code(), candidate);
 						continue;
 					}
 					try (InputStream inputStream = response.body().byteStream())
@@ -331,25 +346,23 @@ public class WikiImageCacheService
 		}
 
 		List<String> candidates = new ArrayList<>();
-		candidates.add(normalized);
 
-		// OSRS Wiki thumb URLs can 404; fallback to canonical file resolver.
+		// Prefer direct /images/[name].png (GCS). Avoid Special:FilePath ÔÇö that hits MediaWiki/Cloudflare.
 		String fromThumb = extractFilenameFromThumbPath(rawUrl);
 		if (!fromThumb.isEmpty())
 		{
-			candidates.add(specialFilePathUrl(fromThumb));
+			addUnique(candidates, directImageUrl(fromThumb));
 			addPotionDoseFallbacks(candidates, fromThumb);
 		}
 
-		// Generic fallback: use final path segment.
+		// Original card URL (often a thumb); also served from GCS.
+		addUnique(candidates, normalized);
+
+		// Generic fallback from final path segment (skip MediaWiki thumb size names).
 		String fromPath = extractFilenameFromPath(normalized);
-		if (!fromPath.isEmpty())
+		if (!fromPath.isEmpty() && !looksLikeThumbSizeSegment(fromPath))
 		{
-			String specialPath = specialFilePathUrl(fromPath);
-			if (!candidates.contains(specialPath))
-			{
-				candidates.add(specialPath);
-			}
+			addUnique(candidates, directImageUrl(fromPath));
 			addPotionDoseFallbacks(candidates, fromPath);
 		}
 		return candidates;
@@ -366,25 +379,29 @@ public class WikiImageCacheService
 		if (filename.endsWith("_potion_detail.png") && !filename.contains("(4)"))
 		{
 			String fourDose = filename.replace("_potion_detail.png", "_potion(4)_detail.png");
-			String specialPath = specialFilePathUrl(fourDose);
-			if (!candidates.contains(specialPath))
-			{
-				candidates.add(specialPath);
-			}
+			addUnique(candidates, directImageUrl(fourDose));
 		}
 
 		if (filename.endsWith("_mix_detail.png") && !filename.contains("(2)"))
 		{
 			String twoDose = filename.replace("_mix_detail.png", "_mix(2)_detail.png");
-			String specialPath = specialFilePathUrl(twoDose);
-			if (!candidates.contains(specialPath))
-			{
-				candidates.add(specialPath);
-			}
+			addUnique(candidates, directImageUrl(twoDose));
 		}
 	}
 
-	private String specialFilePathUrl(String filename)
+	private static void addUnique(List<String> candidates, String url)
+	{
+		if (url != null && !url.isEmpty() && !candidates.contains(url))
+		{
+			candidates.add(url);
+		}
+	}
+
+	/**
+	 * Direct wiki image URL served from Google Cloud Storage (not MediaWiki).
+	 * e.g. https://oldschool.runescape.wiki/images/Abyssal_whip_detail.png
+	 */
+	private String directImageUrl(String filename)
 	{
 		String safe = filename == null ? "" : filename.trim();
 		if (safe.isEmpty())
@@ -393,7 +410,13 @@ public class WikiImageCacheService
 		}
 		// Keep wiki-safe URL encoding for parenthesized dose variants.
 		safe = safe.replace("(", "%28").replace(")", "%29");
-		return WIKI_BASE_URL + "/w/Special:FilePath/" + safe;
+		return WIKI_BASE_URL + "/images/" + safe;
+	}
+
+	/** True for MediaWiki thumb basename segments like {@code 130px-Foo_detail.png}. */
+	private static boolean looksLikeThumbSizeSegment(String segment)
+	{
+		return segment != null && segment.matches("\\d+px-.+");
 	}
 
 	private String extractFilenameFromThumbPath(String rawUrl)
