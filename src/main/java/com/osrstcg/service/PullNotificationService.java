@@ -9,6 +9,7 @@ import java.awt.Color;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.Client;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.party.PartyService;
 
@@ -20,6 +21,7 @@ import net.runelite.client.party.PartyService;
 public class PullNotificationService
 {
 	private final OsrsTcgConfig config;
+	private final Client client;
 	private final ChatMessageManager chatMessageManager;
 	private final CardDatabase cardDatabase;
 	private final PartyService partyService;
@@ -29,6 +31,7 @@ public class PullNotificationService
 	@Inject
 	PullNotificationService(
 		OsrsTcgConfig config,
+		Client client,
 		ChatMessageManager chatMessageManager,
 		CardDatabase cardDatabase,
 		PartyService partyService,
@@ -36,6 +39,7 @@ public class PullNotificationService
 		PullWebhookNotificationService pullWebhookNotificationService)
 	{
 		this.config = config;
+		this.client = client;
 		this.chatMessageManager = chatMessageManager;
 		this.cardDatabase = cardDatabase;
 		this.partyService = partyService;
@@ -71,6 +75,10 @@ public class PullNotificationService
 
 	public void notifyPull(String cardName, boolean newForCollection, boolean foil, RarityMath.Tier tier)
 	{
+		if (client == null || client.getLocalPlayer() == null)
+		{
+			return;
+		}
 		if (cardName == null || cardName.trim().isEmpty() || !shouldNotify(tier, foil, newForCollection))
 		{
 			return;

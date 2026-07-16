@@ -140,12 +140,23 @@ public interface OsrsTcgConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "enable3dCards",
+		name = "3D cards",
+		description = "Tilt cards toward the mouse during pack openings.",
+		position = 13
+	)
+	default boolean enable3dCards()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "enableFileBackups",
 		name = "Backups",
 		description = "Keep up to 50 file backups under .runelite/OSRS-TCG/backups. "
 			+ "Written on logout, plugin load/unload, and ::tcg-save. "
 			+ "Used automatically when profile configuration saves fail to load.",
-		position = 13
+		position = 14
 	)
 	default boolean enableFileBackups()
 	{
@@ -156,7 +167,7 @@ public interface OsrsTcgConfig extends Config
 		keyName = "safeMode",
 		name = "Safe-mode",
 		description = "Block opening booster packs while in combat. If a pack reveal is open when combat starts, close it immediately and list pulled cards in chat (cards remain in your collection).",
-		position = 14
+		position = 19
 	)
 	default boolean safeMode()
 	{
@@ -168,7 +179,7 @@ public interface OsrsTcgConfig extends Config
 		name = "Chat prefix colour",
 		description = "Choose the colour used for the [OSRS TCG] chat prefix. "
 			+ "Written on plugin load/unload",
-		position = 15
+		position = 20
 	)
 	default Color chatPrefixColor()
 	{
@@ -179,7 +190,7 @@ public interface OsrsTcgConfig extends Config
 		keyName = "debugMessages",
 		name = "Debug messages",
 		description = "Show detailed credit-award lines in game chat.",
-		position = 16
+		position = 21
 	)
 	default boolean debugMessages()
 	{

@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -155,7 +156,8 @@ public final class CollectionAlbumWindow extends JFrame
 		PackCatalog packCatalog,
 		WikiImageCacheService imageCacheService,
 		PartyService partyService,
-		CardPartyTransferService cardPartyTransferService)
+		CardPartyTransferService cardPartyTransferService,
+		Supplier<Boolean> cardEffectsEnabled)
 	{
 		super("OSRS TCG — Collection album");
 		if (WINDOW_ICON != null)
@@ -169,9 +171,10 @@ public final class CollectionAlbumWindow extends JFrame
 		this.partyService = partyService;
 		this.cardPartyTransferService = cardPartyTransferService;
 		this.grid = new CollectionAlbumGridPanel(imageCacheService,
-			this::onOwnedMultiCopyAlbumPress, this::onAlbumCardLockToggle, this::onSlotSelectionChanged);
+			this::onOwnedMultiCopyAlbumPress, this::onAlbumCardLockToggle, this::onSlotSelectionChanged,
+			cardEffectsEnabled);
 		this.variantsPanel = new CollectionAlbumVariantsPanel(imageCacheService, this::onVariantInstancePicked,
-			this::onVariantCardLockToggle);
+			this::onVariantCardLockToggle, cardEffectsEnabled);
 
 		setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
 		setMinimumSize(new Dimension(

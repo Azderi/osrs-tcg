@@ -6,6 +6,7 @@ import com.osrstcg.service.PackRevealService;
 import com.osrstcg.service.RarityMath;
 import com.osrstcg.service.TcgStateService;
 import com.osrstcg.service.WikiImageCacheService;
+import com.osrstcg.ui.CardEffectRenderer;
 import com.osrstcg.ui.SharedCardRenderer;
 import com.osrstcg.util.PackRevealZoomUtil;
 import java.awt.AlphaComposite;
@@ -112,7 +113,7 @@ public class PackRevealOverlay extends Overlay
 		this.tcgStateService = tcgStateService;
 		this.config = config;
 		setPosition(OverlayPosition.DYNAMIC);
-		setLayer(OverlayLayer.ABOVE_WIDGETS);
+		setLayer(OverlayLayer.ALWAYS_ON_TOP);
 		setPriority(Overlay.PRIORITY_HIGH);
 	}
 
@@ -133,6 +134,17 @@ public class PackRevealOverlay extends Overlay
 
 	@Override
 	public Dimension render(Graphics2D graphics)
+	{
+		return renderOnCanvas(graphics, client.getCanvasWidth(), client.getCanvasHeight());
+	}
+
+	public Dimension renderPreview(Graphics2D graphics, int width, int height, Point mousePoint)
+	{
+		setRevealHoverCanvasPoint(mousePoint);
+		return renderOnCanvas(graphics, width, height);
+	}
+
+	private Dimension renderOnCanvas(Graphics2D graphics, int canvasWidth, int canvasHeight)
 	{
 		Optional<PackRevealService.RevealPaintSnapshot> snapOpt = revealService.capturePaintFrame();
 		if (snapOpt.isEmpty())
@@ -159,7 +171,7 @@ public class PackRevealOverlay extends Overlay
 		PackRevealService.RevealPaintSnapshot snap = snapOpt.get();
 		packRevealSoundActiveLastFrame = true;
 
-		Rectangle canvas = new Rectangle(0, 0, client.getCanvasWidth(), client.getCanvasHeight());
+		Rectangle canvas = new Rectangle(0, 0, Math.max(1, canvasWidth), Math.max(1, canvasHeight));
 		drawDim(graphics, canvas);
 
 		List<PackRevealService.RevealCard> cards = snap.getCards();
@@ -224,6 +236,16 @@ public class PackRevealOverlay extends Overlay
 		}
 
 		List<Rectangle> bounds = layoutCardSlots(canvas, cardCount, layout);
+		boolean effectsEnabled = config.enable3dCards();
+		CardEffectRenderer.Options effectOptions = CardEffectRenderer.Options.allEnabled();
+		double pointerX = canvas.getCenterX();
+		double pointerY = canvas.getCenterY();
+		boolean hasPointer = revealPointer(pointerScratch);
+		if (hasPointer)
+		{
+			pointerX = pointerScratch[0];
+			pointerY = pointerScratch[1];
+		}
 		List<Integer> drawOrder = new ArrayList<>(cards.size());
 		for (int i = 0; i < cards.size(); i++)
 		{
@@ -235,7 +257,8 @@ public class PackRevealOverlay extends Overlay
 			PackRevealService.RevealCard card = cards.get(i);
 			Rectangle r = bounds.get(i);
 			boolean faceUp = snap.isCardRevealed(i);
-			double lift = faceUp ? 0.0d : ((i >= 0 && i < cardHoverLift.length) ? cardHoverLift[i] : 0.0d);
+			double hoverLift = (i >= 0 && i < cardHoverLift.length) ? cardHoverLift[i] : 0.0d;
+			double lift = faceUp ? 0.0d : hoverLift;
 			if (!faceUp && lift > 0.0d)
 			{
 				double scale = 1.0d + (HOVER_CARD_SCALE - 1.0d) * lift;
@@ -251,15 +274,35 @@ public class PackRevealOverlay extends Overlay
 			if (faceUp)
 			{
 				BufferedImage linked = imageCacheService.getCached(card.getDefinition() == null ? null : card.getDefinition().getImageUrl());
-				SharedCardRenderer.drawCardFace(
-					graphics,
-					r,
-					card.getDefinition(),
-					card.getPull().isFoil(),
-					card.getRarityColor(),
-					linked,
-					card.getBasePullDenominator(),
-					card.getPull().isFoil());
+				if (effectsEnabled)
+				{
+					CardEffectRenderer.drawCardFace(
+						graphics,
+						r,
+						card.getDefinition(),
+						card.getPull().isFoil(),
+						card.getRarityColor(),
+						linked,
+						card.getBasePullDenominator(),
+						card.getPull().isFoil(),
+						pointerX,
+						pointerY,
+						hoverLift,
+						card.getPull().isFoil(),
+						effectOptions);
+				}
+				else
+				{
+					SharedCardRenderer.drawCardFace(
+						graphics,
+						r,
+						card.getDefinition(),
+						card.getPull().isFoil(),
+						card.getRarityColor(),
+						linked,
+						card.getBasePullDenominator(),
+						card.getPull().isFoil());
+				}
 				if (card.isNew())
 				{
 					drawNewBadge(graphics, r);
@@ -267,7 +310,23 @@ public class PackRevealOverlay extends Overlay
 			}
 			else
 			{
-				SharedCardRenderer.drawCardBack(graphics, r, card.getPull().isFoil(), card.getRarityColor());
+				if (effectsEnabled)
+				{
+					CardEffectRenderer.drawCardBack(
+						graphics,
+						r,
+						card.getPull().isFoil(),
+						card.getRarityColor(),
+						pointerX,
+						pointerY,
+						hoverLift,
+						false,
+						effectOptions);
+				}
+				else
+				{
+					SharedCardRenderer.drawCardBack(graphics, r, card.getPull().isFoil(), card.getRarityColor());
+				}
 			}
 		}
 
@@ -277,13 +336,18 @@ public class PackRevealOverlay extends Overlay
 
 	public Rectangle currentPackBounds()
 	{
+		return currentPackBounds(client.getCanvasWidth(), client.getCanvasHeight());
+	}
+
+	public Rectangle currentPackBounds(int canvasWidth, int canvasHeight)
+	{
 		synchronized (revealService)
 		{
 			if (!revealService.isActive() || revealService.getPhase() != PackRevealService.Phase.PACK_READY)
 			{
 				return null;
 			}
-			Rectangle canvas = new Rectangle(0, 0, client.getCanvasWidth(), client.getCanvasHeight());
+			Rectangle canvas = new Rectangle(0, 0, Math.max(1, canvasWidth), Math.max(1, canvasHeight));
 			ViewportLayout layout = computeViewportLayout(canvas, revealService.getCards().size());
 			Rectangle packBase = layout.packRect(canvas);
 			return packDrawRect(packBase);
@@ -291,6 +355,11 @@ public class PackRevealOverlay extends Overlay
 	}
 
 	public List<Rectangle> currentCardBounds()
+	{
+		return currentCardBounds(client.getCanvasWidth(), client.getCanvasHeight());
+	}
+
+	public List<Rectangle> currentCardBounds(int canvasWidth, int canvasHeight)
 	{
 		synchronized (revealService)
 		{
@@ -300,7 +369,7 @@ public class PackRevealOverlay extends Overlay
 			{
 				return List.of();
 			}
-			Rectangle canvas = new Rectangle(0, 0, client.getCanvasWidth(), client.getCanvasHeight());
+			Rectangle canvas = new Rectangle(0, 0, Math.max(1, canvasWidth), Math.max(1, canvasHeight));
 			int n = revealService.getCards().size();
 			List<Rectangle> bases = layoutCardSlots(canvas, n, computeViewportLayout(canvas, n));
 			return withCardHoverVisualScale(bases);
@@ -465,8 +534,7 @@ public class PackRevealOverlay extends Overlay
 			int hi = indexOfRectUnderMouse(withCardHoverVisualScale(bases));
 			for (int i = 0; i < cardHoverLift.length; i++)
 			{
-				boolean faceUp = revealService.isCardRevealed(i);
-				double target = (!faceUp && i == hi) ? 1.0d : 0.0d;
+				double target = i == hi ? 1.0d : 0.0d;
 				cardHoverLift[i] = stepToward(cardHoverLift[i], target, lerp);
 			}
 			return;
@@ -1025,9 +1093,21 @@ public class PackRevealOverlay extends Overlay
 		{
 			g2.setFont(FontManager.getRunescapeBoldFont());
 			String text = "NEW!";
-			int textX = cardBounds.x + (cardBounds.width / 2) - (g2.getFontMetrics().stringWidth(text) / 2);
-			int textY = Math.max(14, cardBounds.y - 8);
+			FontMetrics metrics = g2.getFontMetrics();
+			int textW = metrics.stringWidth(text);
+			int textX = cardBounds.x + (cardBounds.width / 2) - (textW / 2);
+			int baseY = Math.max(14, cardBounds.y - 8);
+			double t = (System.currentTimeMillis() % 760L) / 760.0d;
+			double wave = Math.sin(t * Math.PI * 2.0d);
+			double bounce = Math.max(0.0d, wave) * 5.0d;
+			double scale = 1.0d + Math.max(0.0d, wave) * 0.12d;
+			int textY = (int) Math.round(baseY - bounce);
+			double pivotX = textX + textW / 2.0d;
+			double pivotY = textY - metrics.getAscent() / 2.0d;
 
+			g2.translate(pivotX, pivotY);
+			g2.scale(scale, scale);
+			g2.translate(-pivotX, -pivotY);
 			g2.setColor(new Color(0, 0, 0, 180));
 			g2.drawString(text, textX + 1, textY + 1);
 			g2.setColor(new Color(0xF2C94C));

@@ -17,6 +17,7 @@ repositories {
 
 def runeLiteVersion = 'latest.release'
 def pluginMainClass = 'com.osrstcg.OsrsTcgPluginTest'
+def cardPreviewMainClass = 'com.osrstcg.CardEffectPreview'
 
 dependencies {
 	compileOnly group: 'net.runelite', name: 'client', version: runeLiteVersion
@@ -40,8 +41,17 @@ tasks.register('run', JavaExec) {
 	classpath = sourceSets.test.runtimeClasspath
 	mainClass = pluginMainClass
 
-	jvmArgs "-ea"
+	jvmArgs "-ea",
+		"--add-exports=java.desktop/com.apple.eawt=ALL-UNNAMED",
+		"--add-opens=java.base/java.lang.reflect=ALL-UNNAMED"
 	args "--developer-mode", "--debug"
+}
+
+tasks.register('cardPreview', JavaExec) {
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = cardPreviewMainClass
+
+	jvmArgs "-ea"
 }
 
 tasks.register('shadowJar', Jar) {
