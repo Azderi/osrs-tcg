@@ -30,6 +30,7 @@ import com.osrstcg.party.TcgCardGiftResponsePartyMessage;
 import com.osrstcg.party.TcgChatStatsPartyMessage;
 import com.osrstcg.party.TcgCollectionSetCompletePartyMessage;
 import com.osrstcg.party.TcgPullPartyMessage;
+import com.osrstcg.party.TcgTradeListPartyMessage;
 import com.osrstcg.persist.TcgStateLoadResult;
 import com.osrstcg.persist.TcgStateLoadSource;
 import com.osrstcg.service.PackRevealSoundService;
@@ -38,6 +39,7 @@ import com.osrstcg.service.TcgChatStatsShareService;
 import com.osrstcg.service.TcgPartyAnnouncer;
 import com.osrstcg.service.TcgPublicStatsCalculator;
 import com.osrstcg.service.TcgStateService;
+import com.osrstcg.service.TcgTradeListShareService;
 import com.osrstcg.ui.TcgPanel;
 import com.osrstcg.ui.collectionalbum.CollectionAlbumManager;
 import com.osrstcg.util.NumberFormatting;
@@ -160,6 +162,8 @@ public class OsrsTcgPlugin extends Plugin
 	private PlayerCombatMonitor playerCombatMonitor;
 	@Inject
 	private PackSafeModeService packSafeModeService;
+	@Inject
+	private TcgTradeListShareService tcgTradeListShareService;
 
 	private NavigationButton navigationButton;
 	private boolean fileBackupLoadUsedThisSession;
@@ -196,11 +200,13 @@ public class OsrsTcgPlugin extends Plugin
 		eventBus.register(cardPartyTransferService);
 		eventBus.register(playerCombatMonitor);
 		eventBus.register(packSafeModeService);
+		eventBus.register(tcgTradeListShareService);
 		wsClient.registerMessage(TcgPullPartyMessage.class);
 		wsClient.registerMessage(TcgCollectionSetCompletePartyMessage.class);
 		wsClient.registerMessage(TcgCardGiftPartyMessage.class);
 		wsClient.registerMessage(TcgCardGiftResponsePartyMessage.class);
 		wsClient.registerMessage(TcgChatStatsPartyMessage.class);
+		wsClient.registerMessage(TcgTradeListPartyMessage.class);
 		chatCommandManager.registerCommandAsync(
 			TCG_PUBLIC_CHAT_COMMAND, this::lookupTcgPublicStatsChatCommand, this::submitTcgPublicStatsChatCommand);
 		tcgPanel.start();
@@ -224,12 +230,14 @@ public class OsrsTcgPlugin extends Plugin
 		eventBus.unregister(cardPartyTransferService);
 		eventBus.unregister(playerCombatMonitor);
 		eventBus.unregister(packSafeModeService);
+		eventBus.unregister(tcgTradeListShareService);
 		playerCombatMonitor.reset();
 		wsClient.unregisterMessage(TcgPullPartyMessage.class);
 		wsClient.unregisterMessage(TcgCollectionSetCompletePartyMessage.class);
 		wsClient.unregisterMessage(TcgCardGiftPartyMessage.class);
 		wsClient.unregisterMessage(TcgCardGiftResponsePartyMessage.class);
 		wsClient.unregisterMessage(TcgChatStatsPartyMessage.class);
+		wsClient.unregisterMessage(TcgTradeListPartyMessage.class);
 		chatCommandManager.unregisterCommand(TCG_PUBLIC_CHAT_COMMAND);
 		npcKillCreditTracker.shutdown();
 		overlayManager.remove(packRevealOverlay);

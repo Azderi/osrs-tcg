@@ -11,6 +11,7 @@ import com.osrstcg.service.CardPartyTransferService;
 import com.osrstcg.service.DuplicateSellCredits;
 import com.osrstcg.service.RarityMath;
 import com.osrstcg.service.TcgStateService;
+import com.osrstcg.service.TcgTradeListShareService;
 import com.osrstcg.service.WikiImageCacheService;
 import com.osrstcg.ui.SharedCardRenderer;
 import com.osrstcg.util.CollectionAlbumWindowSizeUtil;
@@ -55,6 +56,8 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
@@ -91,10 +94,13 @@ public final class CollectionAlbumWindow extends JFrame
 	private final WikiImageCacheService imageCacheService;
 	private final PartyService partyService;
 	private final CardPartyTransferService cardPartyTransferService;
+	private final TcgTradeListShareService tradeListShareService;
 
 	private final List<Long> partyMemberIds = new ArrayList<>();
 	private final JComboBox<String> partyMemberCombo = new JComboBox<>();
 	private final JButton sendCardBtn = new JButton("Send");
+	private final JButton shareDuplicatesBtn = new JButton("Share dupes");
+	private final JButton viewPartyMatchesBtn = new JButton("Party matches");
 	private final JButton sellCardBtn = new JButton("Sell");
 	private final JLabel sendStatusLabel = new JLabel(" ");
 	private final Timer partyUiTimer;
@@ -155,7 +161,8 @@ public final class CollectionAlbumWindow extends JFrame
 		PackCatalog packCatalog,
 		WikiImageCacheService imageCacheService,
 		PartyService partyService,
-		CardPartyTransferService cardPartyTransferService)
+		CardPartyTransferService cardPartyTransferService,
+		TcgTradeListShareService tradeListShareService)
 	{
 		super("OSRS TCG — Collection album");
 		if (WINDOW_ICON != null)
@@ -168,6 +175,7 @@ public final class CollectionAlbumWindow extends JFrame
 		this.imageCacheService = imageCacheService;
 		this.partyService = partyService;
 		this.cardPartyTransferService = cardPartyTransferService;
+		this.tradeListShareService = tradeListShareService;
 		this.grid = new CollectionAlbumGridPanel(imageCacheService,
 			this::onOwnedMultiCopyAlbumPress, this::onAlbumCardLockToggle, this::onSlotSelectionChanged);
 		this.variantsPanel = new CollectionAlbumVariantsPanel(imageCacheService, this::onVariantInstancePicked,
@@ -438,6 +446,14 @@ public final class CollectionAlbumWindow extends JFrame
 		sendCardBtn.setBackground(ColorScheme.DARKER_GRAY_COLOR.darker());
 		sendCardBtn.setForeground(Color.WHITE);
 		partyRow.add(sendCardBtn);
+		shareDuplicatesBtn.setFocusable(false);
+		shareDuplicatesBtn.setBackground(ColorScheme.DARKER_GRAY_COLOR.darker());
+		shareDuplicatesBtn.setForeground(Color.WHITE);
+		partyRow.add(shareDuplicatesBtn);
+		viewPartyMatchesBtn.setFocusable(false);
+		viewPartyMatchesBtn.setBackground(ColorScheme.DARKER_GRAY_COLOR.darker());
+		viewPartyMatchesBtn.setForeground(Color.WHITE);
+		partyRow.add(viewPartyMatchesBtn);
 		partyRow.add(sendStatusLabel);
 
 		JPanel sellRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
@@ -452,6 +468,8 @@ public final class CollectionAlbumWindow extends JFrame
 		south.add(sellRow, BorderLayout.EAST);
 		partyMemberCombo.addActionListener(e -> updateSouthBarButtons());
 		sendCardBtn.addActionListener(this::onSendToPartyClicked);
+		shareDuplicatesBtn.addActionListener(this::onShareDuplicatesClicked);
+		viewPartyMatchesBtn.addActionListener(this::onViewPartyMatchesClicked);
 		sellCardBtn.addActionListener(this::onSellSelectedCardClicked);
 		add(south, BorderLayout.SOUTH);
 
@@ -597,6 +615,8 @@ public final class CollectionAlbumWindow extends JFrame
 		variantPagingLabel.setFont(small);
 		variantCardTitleLbl.setFont(FontManager.getRunescapeBoldFont());
 		sendCardBtn.setFont(small);
+		shareDuplicatesBtn.setFont(small);
+		viewPartyMatchesBtn.setFont(small);
 		sellCardBtn.setFont(small);
 		sendStatusLabel.setFont(small);
 	}
@@ -1237,6 +1257,7 @@ public final class CollectionAlbumWindow extends JFrame
 		partyMemberCombo.setEnabled(partyTradeReady);
 		partyMemberCombo.setToolTipText(partyTradeReady ? null : PARTY_SEND_TOOLTIP);
 		sendCardBtn.setToolTipText(partyTradeReady ? null : PARTY_SEND_TOOLTIP);
+		updatePartyDiscoveryButtons();
 
 		if (prevId != null)
 		{
@@ -1303,6 +1324,7 @@ public final class CollectionAlbumWindow extends JFrame
 
 	private void updateSouthBarButtons()
 	{
+		updatePartyDiscoveryButtons();
 		boolean partyReady = partyMemberCombo.isEnabled();
 		int pi = partyMemberCombo.getSelectedIndex();
 		boolean recipientOk = partyReady && pi > 0 && pi < partyMemberIds.size()
@@ -1342,6 +1364,17 @@ public final class CollectionAlbumWindow extends JFrame
 		sellCardBtn.setText("Sell for " + NumberFormatting.format(sellValue));
 		sellCardBtn.setEnabled(true);
 		sellCardBtn.setToolTipText(null);
+	}
+
+	private void updatePartyDiscoveryButtons()
+	{
+		boolean inParty = partyService.isInParty() && partyService.getLocalMember() != null;
+		shareDuplicatesBtn.setEnabled(inParty);
+		shareDuplicatesBtn.setToolTipText(inParty
+			? "Share your unlocked duplicate card variants with party members."
+			: "Join a RuneLite party first.");
+		viewPartyMatchesBtn.setEnabled(inParty || tradeListShareService.hasRecentPartyLists());
+		viewPartyMatchesBtn.setToolTipText("Show party duplicates that are missing from your collection.");
 	}
 
 	private boolean isChosenInstanceLocked()
@@ -1391,6 +1424,29 @@ public final class CollectionAlbumWindow extends JFrame
 	private void onSellSelectedCardClicked(ActionEvent e)
 	{
 		sellSelectedCard();
+	}
+
+	private void onShareDuplicatesClicked(ActionEvent e)
+	{
+		String status = tradeListShareService.shareDuplicateList();
+		sendStatusLabel.setText(status);
+		updatePartyDiscoveryButtons();
+	}
+
+	private void onViewPartyMatchesClicked(ActionEvent e)
+	{
+		JTextArea text = new JTextArea(tradeListShareService.buildPartyTradeMatchSummary(), 22, 72);
+		text.setEditable(false);
+		text.setLineWrap(false);
+		text.setFont(FontManager.getRunescapeSmallFont());
+		text.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		text.setForeground(Color.WHITE);
+		text.setCaretPosition(0);
+
+		JScrollPane scroll = new JScrollPane(text);
+		scroll.setPreferredSize(new Dimension(680, 420));
+		JOptionPane.showMessageDialog(this, scroll, "Party trade matches", JOptionPane.INFORMATION_MESSAGE);
+		updatePartyDiscoveryButtons();
 	}
 
 	private void sellSelectedCard()

@@ -4,6 +4,7 @@ import com.osrstcg.data.CardDatabase;
 import com.osrstcg.data.PackCatalog;
 import com.osrstcg.service.CardPartyTransferService;
 import com.osrstcg.service.TcgStateService;
+import com.osrstcg.service.TcgTradeListShareService;
 import com.osrstcg.service.WikiImageCacheService;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -19,6 +20,7 @@ public final class CollectionAlbumManager
 	private final WikiImageCacheService imageCacheService;
 	private final PartyService partyService;
 	private final CardPartyTransferService cardPartyTransferService;
+	private final TcgTradeListShareService tradeListShareService;
 
 	private volatile CollectionAlbumWindow window;
 
@@ -29,7 +31,8 @@ public final class CollectionAlbumManager
 		PackCatalog packCatalog,
 		WikiImageCacheService imageCacheService,
 		PartyService partyService,
-		CardPartyTransferService cardPartyTransferService)
+		CardPartyTransferService cardPartyTransferService,
+		TcgTradeListShareService tradeListShareService)
 	{
 		this.cardDatabase = cardDatabase;
 		this.stateService = stateService;
@@ -37,6 +40,7 @@ public final class CollectionAlbumManager
 		this.imageCacheService = imageCacheService;
 		this.partyService = partyService;
 		this.cardPartyTransferService = cardPartyTransferService;
+		this.tradeListShareService = tradeListShareService;
 	}
 
 	public void showOrBringToFront()
@@ -47,7 +51,7 @@ public final class CollectionAlbumManager
 			{
 				window = new CollectionAlbumWindow(
 					cardDatabase, stateService, packCatalog, imageCacheService, partyService,
-					cardPartyTransferService);
+					cardPartyTransferService, tradeListShareService);
 			}
 			window.refreshData();
 			window.prepareToShow();
