@@ -242,7 +242,8 @@ public class WikiImageCacheService
 
 	private Path diskCacheDir()
 	{
-		return Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG", "images");
+		//Prefer wiki thumbs
+		return Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG", "images-v2");
 	}
 
 	private Path diskCacheFile(String normalizedUrl)
@@ -347,25 +348,59 @@ public class WikiImageCacheService
 
 		List<String> candidates = new ArrayList<>();
 
-		// Prefer direct /images/[name].png (GCS). Avoid Special:FilePath ÔÇö that hits MediaWiki/Cloudflare.
+		// Prefer wiki thumbs
+		addUnique(candidates, normalized);
+
 		String fromThumb = extractFilenameFromThumbPath(rawUrl);
 		if (!fromThumb.isEmpty())
 		{
+			addPotionDoseThumbFallbacks(candidates, fromThumb);
 			addUnique(candidates, directImageUrl(fromThumb));
 			addPotionDoseFallbacks(candidates, fromThumb);
 		}
-
-		// Original card URL (often a thumb); also served from GCS.
-		addUnique(candidates, normalized);
-
-		// Generic fallback from final path segment (skip MediaWiki thumb size names).
-		String fromPath = extractFilenameFromPath(normalized);
-		if (!fromPath.isEmpty() && !looksLikeThumbSizeSegment(fromPath))
+		else
 		{
-			addUnique(candidates, directImageUrl(fromPath));
-			addPotionDoseFallbacks(candidates, fromPath);
+			String fromPath = extractFilenameFromPath(normalized);
+			if (!fromPath.isEmpty() && !looksLikeThumbSizeSegment(fromPath))
+			{
+				addUnique(candidates, thumbImageUrl(fromPath));
+				addUnique(candidates, directImageUrl(fromPath));
+				addPotionDoseFallbacks(candidates, fromPath);
+			}
 		}
 		return candidates;
+	}
+
+	/** MediaWiki thumb URL matching Card.json style (130px). */
+	private String thumbImageUrl(String filename)
+	{
+		String safe = filename == null ? "" : filename.trim();
+		if (safe.isEmpty())
+		{
+			return "";
+		}
+		safe = safe.replace("(", "%28").replace(")", "%29");
+		return WIKI_BASE_URL + "/images/thumb/" + safe + "/130px-" + safe;
+	}
+
+	private void addPotionDoseThumbFallbacks(List<String> candidates, String filename)
+	{
+		if (filename == null || filename.isEmpty())
+		{
+			return;
+		}
+
+		if (filename.endsWith("_potion_detail.png") && !filename.contains("(4)"))
+		{
+			String fourDose = filename.replace("_potion_detail.png", "_potion(4)_detail.png");
+			addUnique(candidates, thumbImageUrl(fourDose));
+		}
+
+		if (filename.endsWith("_mix_detail.png") && !filename.contains("(2)"))
+		{
+			String twoDose = filename.replace("_mix_detail.png", "_mix(2)_detail.png");
+			addUnique(candidates, thumbImageUrl(twoDose));
+		}
 	}
 
 	private void addPotionDoseFallbacks(List<String> candidates, String filename)
