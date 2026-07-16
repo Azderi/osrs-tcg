@@ -54,6 +54,9 @@ public final class GameMessageCreditTracker
 	private static final long ABYSSAL_SIRE_KILL_CREDITS = 350L;
 	private static final String ABYSSAL_SIRE_KILL_PREFIX = "Your Abyssal Sire kill count is:";
 
+	private static final long SHELLBANE_GRYPHON_KILL_CREDITS = 235L;
+	private static final String SHELLBANE_GRYPHON_KILL_PREFIX = "Your Shellbane Gryphon kill count is:";
+
 	private static final List<CreditRule> CREDIT_RULES = buildCreditRules();
 
 	private static List<CreditRule> buildCreditRules()
@@ -107,6 +110,10 @@ public final class GameMessageCreditTracker
 			ABYSSAL_SIRE_KILL_PREFIX,
 			ABYSSAL_SIRE_KILL_CREDITS,
 			"Abyssal Sire kill"));
+		rules.add(CreditRule.prefix(
+			SHELLBANE_GRYPHON_KILL_PREFIX,
+			SHELLBANE_GRYPHON_KILL_CREDITS,
+			"Shellbane Gryphon kill"));
 		return List.copyOf(rules);
 	}
 

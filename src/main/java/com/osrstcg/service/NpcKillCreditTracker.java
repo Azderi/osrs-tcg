@@ -55,6 +55,7 @@ public final class NpcKillCreditTracker
 		NpcExclusionRule.exactName("Abyssal Sire"),
 		NpcExclusionRule.npcIds(ExcludedNpcIds.ABYSSAL_SIRE),
 		NpcExclusionRule.npcIds(ExcludedNpcIds.THE_GAUNTLET),
+		NpcExclusionRule.npcIds(ExcludedNpcIds.SHELLBANE_GRYPHON),
 	};
 
 	private final Client client;
@@ -292,6 +293,9 @@ public final class NpcKillCreditTracker
 		static final Set<Integer> THE_GAUNTLET = Set.of(
 			9021, 9022, 9023, 9024, 9025, 9026, 9027, 9028, 9029, 9030, 9031, 9032, 9033, 9034,
 			9035, 9036, 9037, 9038, 9039, 9040, 9041, 9042, 9043, 9044, 9046, 9047, 9048);
+
+		/** Shellbane gryphon — all forms (kill credits via {@link GameMessageCreditTracker}). */
+		static final Set<Integer> SHELLBANE_GRYPHON = Set.of(14860, 15010);
 
 		private ExcludedNpcIds()
 		{
