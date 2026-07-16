@@ -21,6 +21,7 @@ import java.util.Objects;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.ScrollPaneConstants;
 import javax.swing.Timer;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
@@ -49,6 +50,9 @@ final class PartyTradeMatchesPanel extends JPanel
 		grid = new MatchGridPanel(cardDatabase, imageCacheService, matches);
 		JScrollPane scrollPane = new JScrollPane(grid);
 		scrollPane.getViewport().setBackground(new Color(0x1E1E1E));
+		scrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+		scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+		scrollPane.setPreferredSize(MatchGridPanel.viewportSizeForRows(2));
 		add(scrollPane, BorderLayout.CENTER);
 
 		statusLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
@@ -98,9 +102,9 @@ final class PartyTradeMatchesPanel extends JPanel
 	{
 		private static final int COLS = 4;
 		private static final int GAP = 12;
-		private static final int CARD_W = 144;
-		private static final int CARD_H = 208;
-		private static final int LABEL_H = 32;
+		private static final int CARD_W = 126;
+		private static final int CARD_H = 182;
+		private static final int LABEL_H = 28;
 
 		private final CardDatabase cardDatabase;
 		private final WikiImageCacheService imageCacheService;
@@ -210,12 +214,20 @@ final class PartyTradeMatchesPanel extends JPanel
 		{
 			if (count <= 0)
 			{
-				return new Dimension(720, 420);
+				return viewportSizeForRows(2);
 			}
 			int rows = (int) Math.ceil(count / (double) COLS);
 			int width = GAP + COLS * (CARD_W + GAP);
 			int height = GAP + rows * (CARD_H + LABEL_H + GAP);
-			return new Dimension(width, Math.max(420, height));
+			return new Dimension(width, Math.max(viewportSizeForRows(2).height, height));
+		}
+
+		private static Dimension viewportSizeForRows(int rows)
+		{
+			int safeRows = Math.max(1, rows);
+			int width = GAP + COLS * (CARD_W + GAP) + 20;
+			int height = GAP + safeRows * (CARD_H + LABEL_H + GAP);
+			return new Dimension(width, height);
 		}
 	}
 }

@@ -464,7 +464,7 @@ public final class CollectionAlbumWindow extends JFrame
 
 		south.add(partyRow, BorderLayout.WEST);
 		south.add(sellRow, BorderLayout.EAST);
-		partyMemberCombo.addActionListener(e -> updateSouthBarButtons());
+		partyMemberCombo.addActionListener(this::onPartyMemberSelectionChanged);
 		sendCardBtn.addActionListener(this::onSendToPartyClicked);
 		shareDuplicatesBtn.addActionListener(this::onShareDuplicatesClicked);
 		viewPartyMatchesBtn.addActionListener(this::onViewPartyMatchesClicked);
@@ -566,6 +566,7 @@ public final class CollectionAlbumWindow extends JFrame
 	/** Re-applies persisted size before showing (layout during first build can reset early setSize). */
 	void prepareToShow()
 	{
+		sendStatusLabel.setText(" ");
 		applySavedWindowSize();
 	}
 
@@ -1276,6 +1277,12 @@ public final class CollectionAlbumWindow extends JFrame
 	private void onOwnedMultiCopyAlbumPress(int slotIndex, AlbumSlot slot)
 	{
 		enterAlbumVariantView(slot);
+	}
+
+	private void onPartyMemberSelectionChanged(ActionEvent e)
+	{
+		sendStatusLabel.setText(" ");
+		updateSouthBarButtons();
 	}
 
 	private void onSlotSelectionChanged()
