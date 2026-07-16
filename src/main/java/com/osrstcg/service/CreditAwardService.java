@@ -28,7 +28,7 @@ public class CreditAwardService
 	private static final long CREDITS_PER_CHUNK = 100L;
 	/** Level-up bonus at levels 1–2; base of the exponential curve to level 99. */
 	private static final int LEVEL_UP_REWARD_FLOOR = 1_250;
-	/** Level-up bonus when reaching level 99. */
+	/** Level-up bonus at level 99 and each virtual level after (100–126). */
 	private static final int LEVEL_UP_REWARD_CAP = 25_000;
 	private static final int LEVEL_UP_PROGRESS_LEVELS = 97;
 	private static final double LEVEL_UP_CURVE_STEEPNESS = 2.5d;
@@ -47,7 +47,8 @@ public class CreditAwardService
 
 	private final Client client;
 	private final TcgStateService stateService;
-	private final Map<Skill, Integer> lastKnownRealLevels = new EnumMap<>(Skill.class);
+	/** Last known skill level including virtual levels past 99 (1–126). */
+	private final Map<Skill, Integer> lastKnownLevels = new EnumMap<>(Skill.class);
 	private final int[] previousSkillXp = new int[Skill.values().length];
 	private boolean skillLevelsInitialized;
 	private boolean skillXpInitialized;
@@ -116,7 +117,8 @@ public class CreditAwardService
 			return;
 		}
 
-		trackXpGainFromStatChanged(skill, event.getXp());
+		int currentXp = event.getXp();
+		trackXpGainFromStatChanged(skill, currentXp);
 
 		if (isCreditAwardOnCooldown())
 		{
@@ -128,18 +130,18 @@ public class CreditAwardService
 			return;
 		}
 
-		int current = clampLevel(client.getRealSkillLevel(skill));
-		if (!skillLevelsInitialized || !lastKnownRealLevels.containsKey(skill))
+		int current = levelForXp(currentXp);
+		if (!skillLevelsInitialized || !lastKnownLevels.containsKey(skill))
 		{
-			lastKnownRealLevels.put(skill, current);
+			lastKnownLevels.put(skill, current);
 			return;
 		}
 
-		int previous = lastKnownRealLevels.get(skill);
+		int previous = lastKnownLevels.get(skill);
 
 		if (current <= previous)
 		{
-			lastKnownRealLevels.put(skill, current);
+			lastKnownLevels.put(skill, current);
 			return;
 		}
 
@@ -150,7 +152,7 @@ public class CreditAwardService
 			totalReward += Math.round(levelUpReward(level) * levelMult);
 		}
 
-		lastKnownRealLevels.put(skill, current);
+		lastKnownLevels.put(skill, current);
 		if (totalReward > 0)
 		{
 			addCredits(totalReward);
@@ -407,7 +409,7 @@ public class CreditAwardService
 
 	private void resetSkillCreditTracking(boolean clearUncreditedXpPool)
 	{
-		lastKnownRealLevels.clear();
+		lastKnownLevels.clear();
 		skillLevelsInitialized = false;
 		skillXpInitialized = false;
 		if (clearUncreditedXpPool)
@@ -455,7 +457,7 @@ public class CreditAwardService
 			return;
 		}
 
-		lastKnownRealLevels.clear();
+		lastKnownLevels.clear();
 		for (Skill skill : Skill.values())
 		{
 			if (isOverallSkill(skill))
@@ -463,7 +465,7 @@ public class CreditAwardService
 				continue;
 			}
 
-			lastKnownRealLevels.put(skill, clampLevel(client.getRealSkillLevel(skill)));
+			lastKnownLevels.put(skill, levelForXp(client.getSkillExperience(skill)));
 		}
 		skillLevelsInitialized = true;
 	}
@@ -481,11 +483,21 @@ public class CreditAwardService
 		{
 			return LEVEL_UP_REWARD_FLOOR;
 		}
+		if (clamped >= Experience.MAX_REAL_LEVEL)
+		{
+			return LEVEL_UP_REWARD_CAP;
+		}
 
 		double progress = (clamped - 2.0d) / LEVEL_UP_PROGRESS_LEVELS;
 		double curve = Math.pow(progress, LEVEL_UP_CURVE_STEEPNESS);
 		double multiplier = Math.pow((double) LEVEL_UP_REWARD_CAP / LEVEL_UP_REWARD_FLOOR, curve);
 		return (int) Math.round(LEVEL_UP_REWARD_FLOOR * multiplier);
+	}
+
+	/** Virtual-aware skill level from total XP (1–126). */
+	private int levelForXp(int xp)
+	{
+		return clampLevel(Experience.getLevelForXp(Math.max(0, xp)));
 	}
 
 	private int clampLevel(int level)
@@ -494,7 +506,7 @@ public class CreditAwardService
 		{
 			return 1;
 		}
-		return Math.min(level, 99);
+		return Math.min(level, Experience.MAX_VIRT_LEVEL);
 	}
 
 	private String safeName(String name)
