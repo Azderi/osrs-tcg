@@ -34,6 +34,9 @@ import okhttp3.Response;
 public class WikiImageCacheService
 {
 	private static final String WIKI_BASE_URL = "https://oldschool.runescape.wiki";
+	/** Pre-fetched artwork mirror (jsDelivr → Azderi/tcg-image-cache). */
+	private static final String IMAGE_MIRROR_BASE_URL =
+		"https://cdn.jsdelivr.net/gh/Azderi/tcg-image-cache@main/images/";
 	/** Max decoded images kept in heap; evicted entries remain on disk. */
 	private static final int MEMORY_CACHE_MAX_ENTRIES = 128;
 	/** Cap concurrent disk/network decodes so fast album paging cannot flood the common pool. */
@@ -186,7 +189,10 @@ public class WikiImageCacheService
 			return fromDisk;
 		}
 
-		List<String> candidates = buildCandidateUrls(url);
+		// Prefer the hosted cache mirror, then fall back to the OSRS Wiki.
+		List<String> candidates = new ArrayList<>();
+		candidates.add(IMAGE_MIRROR_BASE_URL + sha256Hex(url) + ".png");
+		candidates.addAll(buildCandidateUrls(url));
 		if (candidates.isEmpty())
 		{
 			return null;
@@ -194,35 +200,41 @@ public class WikiImageCacheService
 
 		for (String candidate : candidates)
 		{
-			try
+			BufferedImage image = downloadImage(candidate);
+			if (image != null)
 			{
-				Request request = new Request.Builder()
-					.url(candidate)
-					.header("User-Agent", "Mozilla/5.0 (osrstcg)")
-					.build();
-				try (Response response = okHttpClient.newCall(request).execute())
-				{
-					if (!response.isSuccessful() || response.body() == null)
-					{
-						continue;
-					}
-					try (InputStream inputStream = response.body().byteStream())
-					{
-						BufferedImage image = ImageIO.read(inputStream);
-						if (image != null)
-						{
-							persistToDisk(url, image);
-							return image;
-						}
-					}
-				}
-			}
-			catch (Exception ex)
-			{
-				log.debug("Failed to cache image candidate {}", candidate, ex);
+				persistToDisk(url, image);
+				return image;
 			}
 		}
 		return null;
+	}
+
+	private BufferedImage downloadImage(String candidateUrl)
+	{
+		try
+		{
+			Request request = new Request.Builder()
+				.url(candidateUrl)
+				.header("User-Agent", "Mozilla/5.0 (osrstcg)")
+				.build();
+			try (Response response = okHttpClient.newCall(request).execute())
+			{
+				if (!response.isSuccessful() || response.body() == null)
+				{
+					return null;
+				}
+				try (InputStream inputStream = response.body().byteStream())
+				{
+					return ImageIO.read(inputStream);
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			log.debug("Failed to download image candidate {}", candidateUrl, ex);
+			return null;
+		}
 	}
 
 	private Path diskCacheDir()
