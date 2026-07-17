@@ -37,6 +37,7 @@ public class TcgStateService
 	private final CreditsRateTracker creditsRateTracker;
 	private volatile TcgState state = TcgState.empty();
 	private Runnable rewardTuningFlushBeforeCredits;
+	private volatile Runnable collectionShareNotify;
 
 	@Inject
 	public TcgStateService(
@@ -96,6 +97,7 @@ public class TcgStateService
 		if (stripDebugProvenanceRowsIfDebugDisabled())
 		{
 			save();
+			notifyCollectionShareListeners();
 		}
 
 		return result;
@@ -166,6 +168,28 @@ public class TcgStateService
 			return;
 		}
 		stateStore.save(state);
+	}
+
+	/** Invoked after share-relevant collection / pack mutations (debounced web sync). */
+	public void setCollectionShareNotify(Runnable notify)
+	{
+		this.collectionShareNotify = notify;
+	}
+
+	private void notifyCollectionShareListeners()
+	{
+		Runnable notify = collectionShareNotify;
+		if (notify != null)
+		{
+			try
+			{
+				notify.run();
+			}
+			catch (Exception ex)
+			{
+				log.debug("Collection share notify failed", ex);
+			}
+		}
 	}
 
 	public TcgState getState()
@@ -251,6 +275,7 @@ public class TcgStateService
 		}
 		state = state.withRewardTuning(next);
 		save();
+		notifyCollectionShareListeners();
 		return true;
 	}
 
@@ -312,6 +337,7 @@ public class TcgStateService
 		flushRewardTuningDraftBeforeLocking();
 		state = state.withOpenedPacks(state.getEconomyState().getOpenedPacks() + 1L);
 		save();
+		notifyCollectionShareListeners();
 	}
 
 	public synchronized void addCard(String cardName, boolean foil, int quantity)
@@ -337,6 +363,7 @@ public class TcgStateService
 		}
 		state = state.withCollection(state.getCollectionState().withInstancesAdded(add));
 		save();
+		notifyCollectionShareListeners();
 	}
 
 	public synchronized void addOwnedCardInstance(OwnedCardInstance instance)
@@ -348,6 +375,7 @@ public class TcgStateService
 		flushRewardTuningDraftBeforeLocking();
 		state = state.withCollection(state.getCollectionState().withInstanceAdded(instance));
 		save();
+		notifyCollectionShareListeners();
 	}
 
 	/**
@@ -391,6 +419,7 @@ public class TcgStateService
 
 		state = state.withCollection(state.getCollectionState().withInstancesAdded(toAdd));
 		save();
+		notifyCollectionShareListeners();
 		return toAdd.size();
 	}
 
@@ -405,6 +434,7 @@ public class TcgStateService
 		flushRewardTuningDraftBeforeLocking();
 		state = state.withCollection(CollectionState.copyOf(replacement == null ? List.of() : replacement));
 		save();
+		notifyCollectionShareListeners();
 	}
 
 	public synchronized boolean toggleCardInstanceLock(String instanceId)
@@ -482,6 +512,7 @@ public class TcgStateService
 			.withOpenedPacks(state.getEconomyState().getOpenedPacks() + 1L)
 			.withCollection(nextColl);
 		save();
+		notifyCollectionShareListeners();
 		return true;
 	}
 
@@ -489,6 +520,7 @@ public class TcgStateService
 	{
 		state = TcgState.empty();
 		save();
+		notifyCollectionShareListeners();
 	}
 
 	public synchronized boolean removeCardInstance(String instanceId)
@@ -503,6 +535,7 @@ public class TcgStateService
 		}
 		state = state.withCollection(state.getCollectionState().withInstanceRemoved(instanceId));
 		save();
+		notifyCollectionShareListeners();
 		return true;
 	}
 
@@ -564,6 +597,7 @@ public class TcgStateService
 		}
 		state = state.withCollection(CollectionState.copyOf(list));
 		save();
+		notifyCollectionShareListeners();
 		return true;
 	}
 

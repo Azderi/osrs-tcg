@@ -3,6 +3,7 @@ package com.osrstcg.service;
 import com.osrstcg.data.CardDatabase;
 import com.osrstcg.data.CardDefinition;
 import com.osrstcg.model.CardCollectionKey;
+import com.osrstcg.model.CollectionState;
 import com.osrstcg.model.TcgPublicStats;
 import com.osrstcg.model.TcgState;
 import java.util.HashMap;
@@ -45,7 +46,28 @@ public class TcgPublicStatsCalculator
 		return compute(owned, openedPacks, customRates);
 	}
 
-	private TcgPublicStats compute(Map<CardCollectionKey, Integer> owned, long openedPacks, boolean customRates)
+	/**
+	 * Public web-share stats: same rules as {@link #computeLive()}, but owned quantities exclude
+	 * {@code DEBUG_} provenance rows so stats match the cards array that is uploaded.
+	 */
+	public TcgPublicStats computeForShare(CollectionState collectionState)
+	{
+		CollectionState shareSafe = collectionState == null
+			? CollectionState.empty()
+			: collectionState.withoutDebugProvenanceRows();
+		Map<CardCollectionKey, Integer> owned = new HashMap<>(shareSafe.getOwnedCards());
+		long openedPacks;
+		boolean customRates;
+		synchronized (stateService)
+		{
+			TcgState s = stateService.getState();
+			openedPacks = s.getEconomyState().getOpenedPacks();
+			customRates = !s.getRewardTuning().isDefault();
+		}
+		return compute(owned, openedPacks, customRates);
+	}
+
+	TcgPublicStats compute(Map<CardCollectionKey, Integer> owned, long openedPacks, boolean customRates)
 	{
 		List<CardDefinition> all = cardDatabase.getCards();
 		List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(all);
