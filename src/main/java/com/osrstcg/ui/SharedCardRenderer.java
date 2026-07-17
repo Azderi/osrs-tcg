@@ -557,7 +557,7 @@ public final class SharedCardRenderer
 		java.awt.Shape previousClip = g2.getClip();
 		try
 		{
-			g2.setClip(rect);
+			g2.clip(rect);
 			g2.drawImage(image, x, y, w, h, null);
 		}
 		finally
@@ -584,7 +584,7 @@ public final class SharedCardRenderer
 		java.awt.Shape previousClip = g2.getClip();
 		try
 		{
-			g2.setClip(rect);
+			g2.clip(rect);
 			g2.drawImage(image, x, y, w, h, null);
 		}
 		finally

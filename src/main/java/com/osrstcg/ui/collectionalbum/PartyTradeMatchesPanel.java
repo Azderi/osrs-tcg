@@ -14,6 +14,7 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
@@ -160,6 +161,11 @@ final class PartyTradeMatchesPanel extends JPanel
 			Graphics2D g2 = (Graphics2D) g.create();
 			try
 			{
+				Rectangle visible = getVisibleRect();
+				Shape oldClip = g2.getClip();
+				g2.setClip(visible);
+				g2.setColor(getBackground());
+				g2.fillRect(visible.x, visible.y, visible.width, visible.height);
 				g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 				g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
@@ -168,28 +174,36 @@ final class PartyTradeMatchesPanel extends JPanel
 					g2.setFont(FontManager.getRunescapeSmallFont());
 					g2.setColor(ColorScheme.LIGHT_GRAY_COLOR);
 					g2.drawString("No matches for the selected party member.", 16, 28);
-					return;
 				}
-
-				for (int i = 0; i < matches.size(); i++)
+				else
 				{
-					TcgTradeListShareService.TradeMatch match = matches.get(i);
-					int col = i % COLS;
-					int row = i / COLS;
-					int x = GAP + col * (CARD_W + GAP);
-					int y = GAP + row * (CARD_H + LABEL_H + GAP);
-					Rectangle cardBounds = new Rectangle(x, y, CARD_W, CARD_H);
-					CardDefinition card = cardForName(match.getCardName());
-					Color rarity = rarityTable.colorForCardName(match.getCardName());
-					BufferedImage art = imageCacheService.getCached(card == null ? null : card.getImageUrl());
-					SharedCardRenderer.drawCardFace(g2, cardBounds, card, match.isFoil(), rarity, art, 0L, match.isFoil());
+					for (int i = 0; i < matches.size(); i++)
+					{
+						TcgTradeListShareService.TradeMatch match = matches.get(i);
+						int col = i % COLS;
+						int row = i / COLS;
+						int x = GAP + col * (CARD_W + GAP);
+						int y = GAP + row * (CARD_H + LABEL_H + GAP);
+						Rectangle slotBounds = new Rectangle(x, y, CARD_W, CARD_H + LABEL_H);
+						if (!slotBounds.intersects(visible))
+						{
+							continue;
+						}
 
-					g2.setFont(FontManager.getRunescapeSmallFont());
-					g2.setColor(match.isTransferCompatible() ? Color.WHITE : new Color(0xE6, 0xA8, 0x4A));
-					String label = label(match);
-					int tx = x + Math.max(0, (CARD_W - g2.getFontMetrics().stringWidth(label)) / 2);
-					g2.drawString(label, tx, y + CARD_H + 18);
+						Rectangle cardBounds = new Rectangle(x, y, CARD_W, CARD_H);
+						CardDefinition card = cardForName(match.getCardName());
+						Color rarity = rarityTable.colorForCardName(match.getCardName());
+						BufferedImage art = imageCacheService.getCached(card == null ? null : card.getImageUrl());
+						SharedCardRenderer.drawCardFace(g2, cardBounds, card, match.isFoil(), rarity, art, 0L, match.isFoil());
+
+						g2.setFont(FontManager.getRunescapeSmallFont());
+						g2.setColor(match.isTransferCompatible() ? Color.WHITE : new Color(0xE6, 0xA8, 0x4A));
+						String label = label(match);
+						int tx = x + Math.max(0, (CARD_W - g2.getFontMetrics().stringWidth(label)) / 2);
+						g2.drawString(label, tx, y + CARD_H + 18);
+					}
 				}
+				g2.setClip(oldClip);
 			}
 			finally
 			{
