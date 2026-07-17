@@ -59,7 +59,8 @@ final class PartyTradeMatchesPanel extends JPanel
 		statusLabel.setFont(FontManager.getRunescapeSmallFont());
 		statusLabel.setText(statusText(matches));
 		JPanel south = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
-		south.setOpaque(false);
+		south.setOpaque(true);
+		south.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		south.add(statusLabel);
 		add(south, BorderLayout.SOUTH);
 

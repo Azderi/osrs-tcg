@@ -102,6 +102,7 @@ public final class CollectionAlbumWindow extends JFrame
 	private final JButton sellCardBtn = new JButton("Sell");
 	private final JLabel sendStatusLabel = new JLabel(" ");
 	private final Timer partyUiTimer;
+	private boolean suppressPartyMemberComboEvents;
 
 	private AlbumRarityTable rarityTable = AlbumRarityTable.build(List.of());
 	private List<TabFilter> tabFilters = List.of();
@@ -1217,60 +1218,67 @@ public final class CollectionAlbumWindow extends JFrame
 		Long prevId = prevSel >= 0 && prevSel < partyMemberIds.size() ? partyMemberIds.get(prevSel) : null;
 
 		partyMemberIds.clear();
-		partyMemberCombo.removeAllItems();
-		partyMemberCombo.addItem("— Select party member —");
-		partyMemberIds.add(-1L);
-
-		boolean inParty = partyService.isInParty();
-		PartyMember local = partyService.getLocalMember();
-		boolean hasOther = false;
-		if (inParty && local != null)
+		suppressPartyMemberComboEvents = true;
+		try
 		{
-			for (PartyMember m : partyService.getMembers())
-			{
-				if (m == null || m.getMemberId() == local.getMemberId())
-				{
-					continue;
-				}
-				String dn = m.getDisplayName();
-				String trimmedDn = dn == null ? "" : Text.removeTags(dn).trim();
-				if (trimmedDn.equalsIgnoreCase("<unknown>"))
-				{
-					continue;
-				}
-				if (trimmedDn.isEmpty())
-				{
-					continue;
-				}
-				if (trimmedDn.regionMatches(true, 0, "Member #", 0, "Member #".length()))
-				{
-					continue;
-				}
-				hasOther = true;
-				partyMemberCombo.addItem(trimmedDn);
-				partyMemberIds.add(m.getMemberId());
-			}
-		}
+			partyMemberCombo.removeAllItems();
+			partyMemberCombo.addItem("— Select party member —");
+			partyMemberIds.add(-1L);
 
-		boolean partyTradeReady = inParty && local != null && hasOther;
-		partyMemberCombo.setEnabled(partyTradeReady);
-		partyMemberCombo.setToolTipText(partyTradeReady ? null : PARTY_SEND_TOOLTIP);
-		sendCardBtn.setToolTipText(partyTradeReady ? null : PARTY_SEND_TOOLTIP);
-		updatePartyDiscoveryButtons();
-
-		if (prevId != null)
-		{
-			for (int i = 0; i < partyMemberIds.size(); i++)
+			boolean inParty = partyService.isInParty();
+			PartyMember local = partyService.getLocalMember();
+			boolean hasOther = false;
+			if (inParty && local != null)
 			{
-				if (prevId.equals(partyMemberIds.get(i)))
+				for (PartyMember m : partyService.getMembers())
 				{
-					partyMemberCombo.setSelectedIndex(i);
-					updateSouthBarButtons();
-					return;
+					if (m == null || m.getMemberId() == local.getMemberId())
+					{
+						continue;
+					}
+					String dn = m.getDisplayName();
+					String trimmedDn = dn == null ? "" : Text.removeTags(dn).trim();
+					if (trimmedDn.equalsIgnoreCase("<unknown>"))
+					{
+						continue;
+					}
+					if (trimmedDn.isEmpty())
+					{
+						continue;
+					}
+					if (trimmedDn.regionMatches(true, 0, "Member #", 0, "Member #".length()))
+					{
+						continue;
+					}
+					hasOther = true;
+					partyMemberCombo.addItem(trimmedDn);
+					partyMemberIds.add(m.getMemberId());
 				}
 			}
+
+			boolean partyTradeReady = inParty && local != null && hasOther;
+			partyMemberCombo.setEnabled(partyTradeReady);
+			partyMemberCombo.setToolTipText(partyTradeReady ? null : PARTY_SEND_TOOLTIP);
+			sendCardBtn.setToolTipText(partyTradeReady ? null : PARTY_SEND_TOOLTIP);
+
+			if (prevId != null)
+			{
+				for (int i = 0; i < partyMemberIds.size(); i++)
+				{
+					if (prevId.equals(partyMemberIds.get(i)))
+					{
+						partyMemberCombo.setSelectedIndex(i);
+						updateSouthBarButtons();
+						return;
+					}
+				}
+			}
+			partyMemberCombo.setSelectedIndex(0);
 		}
-		partyMemberCombo.setSelectedIndex(0);
+		finally
+		{
+			suppressPartyMemberComboEvents = false;
+		}
 		updateSouthBarButtons();
 	}
 
@@ -1281,6 +1289,11 @@ public final class CollectionAlbumWindow extends JFrame
 
 	private void onPartyMemberSelectionChanged(ActionEvent e)
 	{
+		if (suppressPartyMemberComboEvents)
+		{
+			updateSouthBarButtons();
+			return;
+		}
 		sendStatusLabel.setText(" ");
 		updateSouthBarButtons();
 	}
