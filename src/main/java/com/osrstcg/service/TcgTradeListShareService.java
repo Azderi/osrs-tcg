@@ -22,10 +22,6 @@ import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
 import net.runelite.client.util.Text;
 
-/**
- * Shares and caches opt-in duplicate lists from RuneLite party members so players can find useful card swaps without
- * exposing full collections or changing the existing one-way send flow.
- */
 @Singleton
 public class TcgTradeListShareService
 {
@@ -85,52 +81,6 @@ public class TcgTradeListShareService
 
 		return String.format(Locale.US, "Shared %d duplicate card variant%s.",
 			duplicates.size(), duplicates.size() == 1 ? "" : "s");
-	}
-
-	public boolean hasRecentPartyLists()
-	{
-		pruneExpired();
-		return !cacheByMemberId.isEmpty();
-	}
-
-	public String buildPartyTradeMatchSummary()
-	{
-		pruneExpired();
-		if (cacheByMemberId.isEmpty())
-		{
-			return "No party duplicate lists cached yet.\n\nAsk a party member to click Share dupes.";
-		}
-
-		Map<CardCollectionKey, Integer> mine = stateService.getState().getCollectionState().getOwnedCards();
-		List<CacheEntry> entries = new ArrayList<>(cacheByMemberId.values());
-		entries.sort(Comparator.comparing(e -> e.displayName, String.CASE_INSENSITIVE_ORDER));
-
-		StringBuilder out = new StringBuilder();
-		for (CacheEntry entry : entries)
-		{
-			List<String> matches = missingFromMine(entry, mine);
-			out.append(entry.displayName).append(" - ")
-				.append(entry.duplicates.size()).append(" duplicate variant")
-				.append(entry.duplicates.size() == 1 ? "" : "s");
-			if (!entry.transferCompatible)
-			{
-				out.append(" (rates/debug mismatch)");
-			}
-			out.append('\n');
-
-			if (matches.isEmpty())
-			{
-				out.append("  No shared duplicates are missing from your collection.\n\n");
-				continue;
-			}
-
-			for (String line : matches)
-			{
-				out.append("  ").append(line).append('\n');
-			}
-			out.append('\n');
-		}
-		return out.toString().trim();
 	}
 
 	public List<TradeMatch> matchesForMember(long memberId)
@@ -276,35 +226,10 @@ public class TcgTradeListShareService
 		return new ArrayList<>(byName.values());
 	}
 
-	private List<String> missingFromMine(CacheEntry entry, Map<CardCollectionKey, Integer> mine)
-	{
-		List<String> matches = new ArrayList<>();
-		for (TcgTradeListPartyMessage.Entry duplicate : entry.duplicates)
-		{
-			String name = duplicate.getCardName();
-			if (duplicate.getNormalAvailable() > 0 && !ownsVariant(mine, name, false))
-			{
-				matches.add(formatMatch(name, false, duplicate.getNormalAvailable()));
-			}
-			if (duplicate.getFoilAvailable() > 0 && !ownsVariant(mine, name, true))
-			{
-				matches.add(formatMatch(name, true, duplicate.getFoilAvailable()));
-			}
-		}
-		matches.sort(String.CASE_INSENSITIVE_ORDER);
-		return matches;
-	}
-
 	private static boolean ownsVariant(Map<CardCollectionKey, Integer> owned, String cardName, boolean foil)
 	{
 		Integer count = owned.get(new CardCollectionKey(cardName, foil));
 		return count != null && count > 0;
-	}
-
-	private static String formatMatch(String cardName, boolean foil, int available)
-	{
-		return String.format(Locale.US, "%s%s (%d available)",
-			cardName, foil ? " (foil)" : "", available);
 	}
 
 	private List<TcgTradeListPartyMessage.Entry> normalizeEntries(List<TcgTradeListPartyMessage.Entry> raw)

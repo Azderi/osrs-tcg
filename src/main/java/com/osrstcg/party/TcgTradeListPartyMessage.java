@@ -5,10 +5,6 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import net.runelite.client.party.messages.PartyMemberMessage;
 
-/**
- * Opt-in party sync for trade discovery. Contains only duplicate card variants the sender can offer, not their full
- * collection.
- */
 @Data
 @EqualsAndHashCode(callSuper = false)
 public class TcgTradeListPartyMessage extends PartyMemberMessage
