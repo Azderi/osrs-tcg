@@ -11,16 +11,131 @@ import net.runelite.client.config.ConfigSection;
 public interface OsrsTcgConfig extends Config
 {
 	@ConfigSection(
-		name = "Pull notifications",
-		description = "In-game chat and optional Dink webhook notifications for notable pack pulls.",
+		name = "General",
+		description = "General plugin settings.",
 		position = 0
+	)
+	String generalSection = "general";
+
+	@ConfigItem(
+		keyName = "creditsInfobox",
+		name = "Credits infobox",
+		description = "Show your credits on screen. Alt+drag to move.",
+		section = generalSection,
+		position = 0
+	)
+	default boolean creditsInfobox()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "shopNotifications",
+		name = "Shop notifications",
+		description = "Chat when you can afford a booster pack.",
+		section = generalSection,
+		position = 1
+	)
+	default boolean shopNotifications()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "enableSounds",
+		name = "Enable pack opening sounds",
+		description = "Play sounds when opening packs.",
+		section = generalSection,
+		position = 2
+	)
+	default boolean enableSounds()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "enableTransferSound",
+		name = "Enable transfer sound",
+		description = "Play a sound when a card trade finishes.",
+		section = generalSection,
+		position = 3
+	)
+	default boolean enableTransferSound()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "packRarityHighlight",
+		name = "Rarity Highlight",
+		description = "Show rarity when hovering unflipped pack cards.",
+		section = generalSection,
+		position = 4
+	)
+	default boolean packRarityHighlight()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "enableFileBackups",
+		name = "Backups",
+		description = "Save backup copies of your collection.",
+		section = generalSection,
+		position = 5
+	)
+	default boolean enableFileBackups()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "safeMode",
+		name = "Safe-mode",
+		description = "Block opening packs while in combat.",
+		section = generalSection,
+		position = 6
+	)
+	default boolean safeMode()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "chatPrefixColor",
+		name = "Chat prefix colour",
+		description = "Colour of the [OSRS TCG] chat tag.",
+		section = generalSection,
+		position = 7
+	)
+	default Color chatPrefixColor()
+	{
+		return new Color(0xC4, 0x94, 0x1A);
+	}
+
+	@ConfigItem(
+		keyName = "debugMessages",
+		name = "Debug messages",
+		description = "Show extra plugin details in chat.",
+		section = generalSection,
+		position = 8
+	)
+	default boolean debugMessages()
+	{
+		return false;
+	}
+
+	@ConfigSection(
+		name = "Pull notifications",
+		description = "Alerts for notable pack pulls.",
+		position = 10
 	)
 	String pullNotificationsSection = "pullNotifications";
 
 	@ConfigItem(
 		keyName = "notifyTier",
 		name = "Notify tier",
-		description = "Send notifications for cards of this rarity tier and higher.",
+		description = "Notify for this rarity and higher.",
 		section = pullNotificationsSection,
 		position = 0
 	)
@@ -32,7 +147,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "notifyNonFoils",
 		name = "Notify non-foils",
-		description = "Send notifications for non-foil cards that meet the selected notify tier.",
+		description = "Also notify for normal (non-foil) cards.",
 		section = pullNotificationsSection,
 		position = 1
 	)
@@ -44,7 +159,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "notifyFoils",
 		name = "Notify all foils",
-		description = "Also send notifications when you pull a foil card below the selected notify tier.",
+		description = "Notify for every foil pull.",
 		section = pullNotificationsSection,
 		position = 2
 	)
@@ -56,7 +171,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "notifyNewCardsOnly",
 		name = "Only notify new cards",
-		description = "Only send pull notifications for cards that are new to your collection.",
+		description = "Only notify when the card is new to you.",
 		section = pullNotificationsSection,
 		position = 3
 	)
@@ -68,8 +183,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "partyAnnounceMythicPulls",
 		name = "Party collection announcements",
-		description = "When in a RuneLite party, sync notable pull notifications to party members. "
-			+ "Uses the same notify tier, foil, and new-card rules as chat notifications.",
+		description = "Share pull alerts with your party.",
 		section = pullNotificationsSection,
 		position = 4
 	)
@@ -81,8 +195,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "dinkNotifications",
 		name = "Dink",
-		description = "When a pull triggers a chat notification, also send it to Discord via the Dink plugin "
-			+ "(requires Dink's External Plugin Notifications). Includes a screenshot of the client.",
+		description = "Also send pull alerts to Discord via Dink.",
 		section = pullNotificationsSection,
 		position = 5
 	)
@@ -94,10 +207,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "pullWebhookUrl",
 		name = "Webhook URL",
-		description = "Optional Discord webhook URL(s) for pull notifications. "
-			+ "You can target multiple webhooks by specifying their URLs on separate lines. "
-			+ "Sends a rarity-coloured embed with card artwork when a pull triggers a chat notification. "
-			+ "Leave empty to disable.",
+		description = "Discord webhook for pull alerts. Leave empty to disable.",
 		section = pullNotificationsSection,
 		position = 6
 	)
@@ -106,106 +216,35 @@ public interface OsrsTcgConfig extends Config
 		return "";
 	}
 
-	@ConfigItem(
-		keyName = "creditsInfobox",
-		name = "Credits infobox",
-		description = "Show a movable overlay with your credits and credits/h "
-			+ "(from gains in the last 5 minutes, after at least 3 credit drops). Alt+drag to reposition.",
-		position = 8
+	@ConfigSection(
+		name = "Web album",
+		description = "Share your collection online via osrs-tcg.xyz.",
+		position = 20
 	)
-	default boolean creditsInfobox()
+	String webAlbumSection = "webAlbum";
+
+	@ConfigItem(
+		keyName = "webShareEnabled",
+		name = "Share collection online",
+		description = "Show your collection on osrs-tcg.xyz while logged in.",
+		section = webAlbumSection,
+		position = 0
+	)
+	default boolean webShareEnabled()
 	{
 		return false;
 	}
 
 	@ConfigItem(
-		keyName = "shopNotifications",
-		name = "Shop notifications",
-		description = "Send a game message when you earn enough credits to buy a booster pack.",
-		position = 9
+		keyName = "webShareApiKey",
+		name = "API key",
+		description = "Key needed to share your collection online.",
+		section = webAlbumSection,
+		position = 1,
+		secret = true
 	)
-	default boolean shopNotifications()
+	default String webShareApiKey()
 	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "enableSounds",
-		name = "Enable pack opening sounds",
-		description = "Play custom plugin sounds during pack openings (deal, flip, reveal, hum, and apex hover).",
-		position = 10
-	)
-	default boolean enableSounds()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "enableTransferSound",
-		name = "Enable transfer sound",
-		description = "Play a sound when a party card transfer completes.",
-		position = 11
-	)
-	default boolean enableTransferSound()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "packRarityHighlight",
-		name = "Rarity Highlight",
-		description = "Peek at the rarity of the card when hovering over an unflipped card during pack openings.",
-		position = 12
-	)
-	default boolean packRarityHighlight()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "enableFileBackups",
-		name = "Backups",
-		description = "Keep up to 50 file backups under .runelite/OSRS-TCG/backups. "
-			+ "Written on logout, plugin load/unload, and ::tcg-save. "
-			+ "Used automatically when profile configuration saves fail to load.",
-		position = 13
-	)
-	default boolean enableFileBackups()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "safeMode",
-		name = "Safe-mode",
-		description = "Block opening booster packs while in combat. If a pack reveal is open when combat starts, close it immediately and list pulled cards in chat (cards remain in your collection).",
-		position = 14
-	)
-	default boolean safeMode()
-	{
-		return false;
-	}
-
-	@ConfigItem(
-		keyName = "chatPrefixColor",
-		name = "Chat prefix colour",
-		description = "Choose the colour used for the [OSRS TCG] chat prefix. "
-			+ "Written on plugin load/unload",
-		position = 15
-	)
-	default Color chatPrefixColor()
-	{
-		return new Color(0xC4, 0x94, 0x1A);
-	}
-
-	@ConfigItem(
-		keyName = "debugMessages",
-		name = "Debug messages",
-		description = "Show detailed credit-award lines in game chat.",
-		position = 16
-	)
-	default boolean debugMessages()
-	{
-		return false;
+		return "";
 	}
 }
