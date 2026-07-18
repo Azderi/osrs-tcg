@@ -16,9 +16,19 @@ public final class AlbumSlot
 	private final boolean lockBadge;
 	/** Set when exactly one owned copy exists; used for right-click lock toggle on the album grid. */
 	private final String soleInstanceId;
+	/** True when at least one owned copy of this card is offered in the active party trade. */
+	private final boolean offeredInTrade;
 
 	public AlbumSlot(CardDefinition card, Color rarityColor, boolean ownedAny, boolean displayFoil,
 		int nonFoilQty, int foilQty, String singleCopyHoverTooltip, boolean lockBadge, String soleInstanceId)
+	{
+		this(card, rarityColor, ownedAny, displayFoil, nonFoilQty, foilQty, singleCopyHoverTooltip, lockBadge,
+			soleInstanceId, false);
+	}
+
+	public AlbumSlot(CardDefinition card, Color rarityColor, boolean ownedAny, boolean displayFoil,
+		int nonFoilQty, int foilQty, String singleCopyHoverTooltip, boolean lockBadge, String soleInstanceId,
+		boolean offeredInTrade)
 	{
 		this.card = card;
 		this.rarityColor = rarityColor;
@@ -31,6 +41,7 @@ public final class AlbumSlot
 			: singleCopyHoverTooltip;
 		this.lockBadge = lockBadge;
 		this.soleInstanceId = soleInstanceId == null || soleInstanceId.isEmpty() ? null : soleInstanceId;
+		this.offeredInTrade = offeredInTrade;
 	}
 
 	public CardDefinition card()
@@ -81,5 +92,10 @@ public final class AlbumSlot
 	public String soleInstanceId()
 	{
 		return soleInstanceId;
+	}
+
+	public boolean offeredInTrade()
+	{
+		return offeredInTrade;
 	}
 }

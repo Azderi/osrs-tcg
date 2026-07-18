@@ -31,11 +31,14 @@ final class CollectionAlbumGridPanel extends JPanel
 	private static final int GAP = 5;
 	/** Vertical space below each card face for the owned-count line (Runescape small + padding). */
 	private static final int QTY_LABEL_RESERVE_PX = 18;
+	private static final Color SELECTION_BORDER = new Color(0x00E5FF);
+	private static final Color OFFERED_TRADE_BORDER = new Color(0x3DDC84);
 
 	private final WikiImageCacheService imageCacheService;
 	private final BiConsumer<Integer, AlbumSlot> ownedMultiCopyPressed;
 	private final Consumer<AlbumSlot> onLockToggle;
 	private final Runnable onSelectionChanged;
+	private final Consumer<AlbumSlot> onDoubleClickOffer;
 	private List<AlbumSlot> slots = Collections.emptyList();
 	private List<Rectangle> lastCardBounds = Collections.emptyList();
 	private int selectedIndex = -1;
@@ -43,12 +46,14 @@ final class CollectionAlbumGridPanel extends JPanel
 	CollectionAlbumGridPanel(WikiImageCacheService imageCacheService,
 		BiConsumer<Integer, AlbumSlot> ownedMultiCopyPressed,
 		Consumer<AlbumSlot> onLockToggle,
-		Runnable onSelectionChanged)
+		Runnable onSelectionChanged,
+		Consumer<AlbumSlot> onDoubleClickOffer)
 	{
 		this.imageCacheService = imageCacheService;
 		this.ownedMultiCopyPressed = ownedMultiCopyPressed;
 		this.onLockToggle = onLockToggle;
 		this.onSelectionChanged = onSelectionChanged == null ? () -> {} : onSelectionChanged;
+		this.onDoubleClickOffer = onDoubleClickOffer;
 		setOpaque(true);
 		setBackground(new Color(0x1E1E1E));
 		setMinimumSize(new Dimension(400, 260));
@@ -64,7 +69,21 @@ final class CollectionAlbumGridPanel extends JPanel
 				{
 					return;
 				}
+				if (e != null && e.getClickCount() >= 2)
+				{
+					return;
+				}
 				handlePress(e);
+			}
+
+			@Override
+			public void mouseClicked(MouseEvent e)
+			{
+				if (e == null || !SwingUtilities.isLeftMouseButton(e) || e.getClickCount() != 2)
+				{
+					return;
+				}
+				handleDoubleClick(e);
 			}
 
 			@Override
@@ -170,6 +189,25 @@ final class CollectionAlbumGridPanel extends JPanel
 		}
 		repaint();
 		onSelectionChanged.run();
+	}
+
+	private void handleDoubleClick(MouseEvent e)
+	{
+		if (onDoubleClickOffer == null || e == null || SwingUtilities.isRightMouseButton(e) || e.isPopupTrigger())
+		{
+			return;
+		}
+		int idx = hitTestSlotIndex(e);
+		if (idx < 0 || idx >= slots.size())
+		{
+			return;
+		}
+		AlbumSlot slot = slots.get(idx);
+		if (slot == null || !slot.ownedAny())
+		{
+			return;
+		}
+		onDoubleClickOffer.accept(slot);
 	}
 
 	void setSlots(List<AlbumSlot> next)
@@ -332,9 +370,15 @@ final class CollectionAlbumGridPanel extends JPanel
 					g2.drawString(qtyLine, tx, ty);
 				}
 
-				if (slot.ownedAny() && selectedIndex == i)
+				if (slot.ownedAny() && slot.offeredInTrade())
 				{
-					g2.setColor(new Color(0x00E5FF));
+					g2.setColor(OFFERED_TRADE_BORDER);
+					g2.setStroke(new BasicStroke(2f));
+					g2.drawRoundRect(bounds.x - 1, bounds.y - 1, bounds.width + 2, bounds.height + 2, 8, 8);
+				}
+				else if (slot.ownedAny() && selectedIndex == i)
+				{
+					g2.setColor(SELECTION_BORDER);
 					g2.setStroke(new BasicStroke(2f));
 					g2.drawRoundRect(bounds.x - 1, bounds.y - 1, bounds.width + 2, bounds.height + 2, 8, 8);
 				}

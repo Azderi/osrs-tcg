@@ -2,6 +2,7 @@ package com.osrstcg.ui.collectionalbum;
 
 import com.osrstcg.data.CardDatabase;
 import com.osrstcg.data.PackCatalog;
+import com.osrstcg.service.CardPartyTradeService;
 import com.osrstcg.service.CardPartyTransferService;
 import com.osrstcg.service.TcgStateService;
 import com.osrstcg.service.WikiImageCacheService;
@@ -19,6 +20,7 @@ public final class CollectionAlbumManager
 	private final WikiImageCacheService imageCacheService;
 	private final PartyService partyService;
 	private final CardPartyTransferService cardPartyTransferService;
+	private final CardPartyTradeService cardPartyTradeService;
 
 	private volatile CollectionAlbumWindow window;
 
@@ -29,7 +31,8 @@ public final class CollectionAlbumManager
 		PackCatalog packCatalog,
 		WikiImageCacheService imageCacheService,
 		PartyService partyService,
-		CardPartyTransferService cardPartyTransferService)
+		CardPartyTransferService cardPartyTransferService,
+		CardPartyTradeService cardPartyTradeService)
 	{
 		this.cardDatabase = cardDatabase;
 		this.stateService = stateService;
@@ -37,6 +40,7 @@ public final class CollectionAlbumManager
 		this.imageCacheService = imageCacheService;
 		this.partyService = partyService;
 		this.cardPartyTransferService = cardPartyTransferService;
+		this.cardPartyTradeService = cardPartyTradeService;
 	}
 
 	public void showOrBringToFront()
@@ -47,7 +51,7 @@ public final class CollectionAlbumManager
 			{
 				window = new CollectionAlbumWindow(
 					cardDatabase, stateService, packCatalog, imageCacheService, partyService,
-					cardPartyTransferService);
+					cardPartyTransferService, cardPartyTradeService);
 			}
 			window.refreshData();
 			window.prepareToShow();
@@ -64,6 +68,18 @@ public final class CollectionAlbumManager
 			if (w != null && w.isShowing())
 			{
 				w.rebuildModel();
+			}
+		});
+	}
+
+	public void refreshPartyTradeUiIfVisible()
+	{
+		SwingUtilities.invokeLater(() ->
+		{
+			CollectionAlbumWindow w = window;
+			if (w != null && w.isShowing())
+			{
+				w.refreshPartyTradeUi();
 			}
 		});
 	}

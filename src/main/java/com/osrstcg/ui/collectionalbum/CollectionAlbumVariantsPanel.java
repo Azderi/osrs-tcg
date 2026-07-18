@@ -41,6 +41,7 @@ public final class CollectionAlbumVariantsPanel extends JPanel
 	private final WikiImageCacheService imageCacheService;
 	private final Consumer<OwnedCardInstance> onPick;
 	private final Consumer<OwnedCardInstance> onLockToggle;
+	private final Consumer<OwnedCardInstance> onDoubleClickOffer;
 	private final VariantGrid variantGrid;
 
 	private JButton pagingPrevBtn;
@@ -53,18 +54,26 @@ public final class CollectionAlbumVariantsPanel extends JPanel
 	private List<OwnedCardInstance> allCopies = List.of();
 	private int variantPageIndex;
 	private String selectedInstanceId;
+	private java.util.function.Predicate<String> offeredInstancePredicate = id -> false;
 
 	public CollectionAlbumVariantsPanel(WikiImageCacheService imageCacheService, Consumer<OwnedCardInstance> onPick,
-		Consumer<OwnedCardInstance> onLockToggle)
+		Consumer<OwnedCardInstance> onLockToggle, Consumer<OwnedCardInstance> onDoubleClickOffer)
 	{
 		super(new BorderLayout());
 		this.imageCacheService = imageCacheService;
 		this.onPick = onPick;
 		this.onLockToggle = onLockToggle;
+		this.onDoubleClickOffer = onDoubleClickOffer;
 		this.variantGrid = new VariantGrid();
 		setOpaque(true);
 		setBackground(new Color(0x1E1E1E));
 		add(variantGrid, BorderLayout.CENTER);
+	}
+
+	public void setOfferedInstancePredicate(java.util.function.Predicate<String> predicate)
+	{
+		this.offeredInstancePredicate = predicate == null ? id -> false : predicate;
+		variantGrid.repaint();
 	}
 
 	/**
@@ -213,7 +222,21 @@ public final class CollectionAlbumVariantsPanel extends JPanel
 					{
 						return;
 					}
+					if (e != null && e.getClickCount() >= 2)
+					{
+						return;
+					}
 					handlePress(e);
+				}
+
+				@Override
+				public void mouseClicked(MouseEvent e)
+				{
+					if (e == null || !SwingUtilities.isLeftMouseButton(e) || e.getClickCount() != 2)
+					{
+						return;
+					}
+					handleDoubleClick(e);
 				}
 
 				@Override
@@ -264,6 +287,28 @@ public final class CollectionAlbumVariantsPanel extends JPanel
 					if (gi >= 0 && gi < allCopies.size())
 					{
 						selectInstance(allCopies.get(gi));
+					}
+					return;
+				}
+			}
+		}
+
+		private void handleDoubleClick(MouseEvent e)
+		{
+			if (onDoubleClickOffer == null || e == null || SwingUtilities.isRightMouseButton(e) || e.isPopupTrigger())
+			{
+				return;
+			}
+			int from = variantPageIndex * PAGE_SIZE;
+			for (int i = 0; i < lastCardBounds.size(); i++)
+			{
+				Rectangle r = lastCardBounds.get(i);
+				if (r != null && r.contains(e.getPoint()))
+				{
+					int gi = from + i;
+					if (gi >= 0 && gi < allCopies.size())
+					{
+						onDoubleClickOffer.accept(allCopies.get(gi));
 					}
 					return;
 				}
@@ -365,7 +410,14 @@ public final class CollectionAlbumVariantsPanel extends JPanel
 						SharedCardRenderer.drawLockBadge(g2, bounds);
 					}
 
-					if (selectedInstanceId != null && selectedInstanceId.equals(inst.getInstanceId()))
+					boolean offered = offeredInstancePredicate.test(inst.getInstanceId());
+					if (offered)
+					{
+						g2.setColor(new Color(0x3DDC84));
+						g2.setStroke(new BasicStroke(2f));
+						g2.drawRoundRect(bounds.x - 1, bounds.y - 1, bounds.width + 2, bounds.height + 2, 8, 8);
+					}
+					else if (selectedInstanceId != null && selectedInstanceId.equals(inst.getInstanceId()))
 					{
 						g2.setColor(new Color(0x00E5FF));
 						g2.setStroke(new BasicStroke(2f));
