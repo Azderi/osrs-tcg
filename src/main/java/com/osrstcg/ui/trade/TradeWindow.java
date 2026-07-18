@@ -65,6 +65,7 @@ public final class TradeWindow extends JFrame
 	private JScrollPane localScroll;
 	private JScrollPane remoteScroll;
 	private final JLabel statusLabel = new JLabel(" ");
+	private final JButton offerMissingDupesBtn = new JButton("Offer missing duplicates");
 	private final JButton acceptBtn = new JButton("Accept");
 	private final JButton cancelBtn = new JButton("Cancel");
 	private final Timer imagePollTimer;
@@ -109,10 +110,15 @@ public final class TradeWindow extends JFrame
 
 		JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
 		buttons.setOpaque(false);
+		styleButton(offerMissingDupesBtn);
 		styleButton(acceptBtn);
 		styleButton(cancelBtn);
+		offerMissingDupesBtn.setToolTipText(
+			"Offer one unlocked spare of each duplicate variant your partner does not own.");
+		offerMissingDupesBtn.addActionListener(e -> onOfferMissingDuplicatesClicked());
 		acceptBtn.addActionListener(e -> onAcceptClicked());
 		cancelBtn.addActionListener(e -> onCancelClicked());
+		buttons.add(offerMissingDupesBtn);
 		buttons.add(acceptBtn);
 		buttons.add(cancelBtn);
 		south.add(buttons, BorderLayout.EAST);
@@ -187,6 +193,7 @@ public final class TradeWindow extends JFrame
 			remotePanel.setOffers(List.of());
 			updateScrollBarPolicies(0, 0);
 			statusLabel.setText("No active trade.");
+			offerMissingDupesBtn.setEnabled(false);
 			acceptBtn.setEnabled(false);
 			acceptBtn.setText("Accept");
 			return;
@@ -199,6 +206,7 @@ public final class TradeWindow extends JFrame
 		remotePanel.setOffers(view.getRemoteOffers());
 		updateScrollBarPolicies(view.getLocalOffers().size(), view.getRemoteOffers().size());
 
+		String override = tradeService.getTradeStatusOverride();
 		String status;
 		if (view.isLocalReady() && view.isRemoteReady())
 		{
@@ -212,11 +220,18 @@ public final class TradeWindow extends JFrame
 		{
 			status = view.getPartnerDisplayName() + " has accepted. Click Accept to complete.";
 		}
+		else if (override != null && !override.isEmpty())
+		{
+			status = override;
+		}
 		else
 		{
 			status = "Offer cards from the album, then click Accept.";
 		}
 		statusLabel.setText(status);
+		boolean queryPending = tradeService.isMissingDupesQueryPending();
+		boolean offerFull = view.getLocalOffers().size() >= CardPartyTradeService.MAX_OFFERS_PER_SIDE;
+		offerMissingDupesBtn.setEnabled(!view.isLocalReady() && !queryPending && !offerFull);
 		acceptBtn.setEnabled(!view.isLocalReady());
 		acceptBtn.setText(view.isLocalReady() ? "Accepted" : "Accept");
 		localPanel.repaint();
@@ -322,6 +337,16 @@ public final class TradeWindow extends JFrame
 		suppressCloseCancel = true;
 		setVisible(false);
 		suppressCloseCancel = false;
+	}
+
+	private void onOfferMissingDuplicatesClicked()
+	{
+		String err = tradeService.offerMissingDuplicates();
+		if (err != null)
+		{
+			statusLabel.setText(err);
+		}
+		refreshFromService();
 	}
 
 	private void onAcceptClicked()

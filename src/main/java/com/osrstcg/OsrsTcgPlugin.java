@@ -37,6 +37,8 @@ import com.osrstcg.party.TcgTradeCommitPartyMessage;
 import com.osrstcg.party.TcgTradeInviteAckPartyMessage;
 import com.osrstcg.party.TcgTradeInvitePartyMessage;
 import com.osrstcg.party.TcgTradeInviteResponsePartyMessage;
+import com.osrstcg.party.TcgTradeMissingDupesQueryPartyMessage;
+import com.osrstcg.party.TcgTradeMissingDupesReplyPartyMessage;
 import com.osrstcg.party.TcgTradeOfferDeltaPartyMessage;
 import com.osrstcg.party.TcgTradeReadyPartyMessage;
 import com.osrstcg.persist.TcgStateLoadResult;
@@ -227,6 +229,8 @@ public class OsrsTcgPlugin extends Plugin
 		wsClient.registerMessage(TcgTradeReadyPartyMessage.class);
 		wsClient.registerMessage(TcgTradeCancelPartyMessage.class);
 		wsClient.registerMessage(TcgTradeCommitPartyMessage.class);
+		wsClient.registerMessage(TcgTradeMissingDupesQueryPartyMessage.class);
+		wsClient.registerMessage(TcgTradeMissingDupesReplyPartyMessage.class);
 		chatCommandManager.registerCommandAsync(
 			TCG_PUBLIC_CHAT_COMMAND, this::lookupTcgPublicStatsChatCommand, this::submitTcgPublicStatsChatCommand);
 		tcgPanel.start();
@@ -266,6 +270,8 @@ public class OsrsTcgPlugin extends Plugin
 		wsClient.unregisterMessage(TcgTradeReadyPartyMessage.class);
 		wsClient.unregisterMessage(TcgTradeCancelPartyMessage.class);
 		wsClient.unregisterMessage(TcgTradeCommitPartyMessage.class);
+		wsClient.unregisterMessage(TcgTradeMissingDupesQueryPartyMessage.class);
+		wsClient.unregisterMessage(TcgTradeMissingDupesReplyPartyMessage.class);
 		chatCommandManager.unregisterCommand(TCG_PUBLIC_CHAT_COMMAND);
 		npcKillCreditTracker.shutdown();
 		overlayManager.remove(packRevealOverlay);

@@ -1,12 +1,16 @@
 package com.osrstcg.service;
 
+import com.osrstcg.model.CardCollectionKey;
 import com.osrstcg.model.OwnedCardInstance;
 import com.osrstcg.model.RewardTuningState;
 import com.osrstcg.party.TcgTradeCancelPartyMessage;
+import com.osrstcg.party.TcgTradeCardVariantDto;
 import com.osrstcg.party.TcgTradeCommitPartyMessage;
 import com.osrstcg.party.TcgTradeInviteAckPartyMessage;
 import com.osrstcg.party.TcgTradeInvitePartyMessage;
 import com.osrstcg.party.TcgTradeInviteResponsePartyMessage;
+import com.osrstcg.party.TcgTradeMissingDupesQueryPartyMessage;
+import com.osrstcg.party.TcgTradeMissingDupesReplyPartyMessage;
 import com.osrstcg.party.TcgTradeOfferCardDto;
 import com.osrstcg.party.TcgTradeOfferDeltaPartyMessage;
 import com.osrstcg.party.TcgTradeReadyPartyMessage;
@@ -15,9 +19,12 @@ import com.osrstcg.ui.collectionalbum.CollectionAlbumManager;
 import com.osrstcg.ui.trade.TradeWindowManager;
 import com.osrstcg.util.TcgPluginGameMessages;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import javax.inject.Inject;
@@ -43,7 +50,9 @@ public class CardPartyTradeService
 	static final long INVITE_ACK_TIMEOUT_MS = 10_000L;
 	/** Cooldown after sending a trade request before another can be sent. */
 	static final long INVITE_SEND_COOLDOWN_MS = 10_000L;
-	static final int MAX_OFFERS_PER_SIDE = 28;
+	/** How long to wait for a missing-duplicates reply before clearing the pending query. */
+	static final long MISSING_DUPES_QUERY_TIMEOUT_MS = 12_000L;
+	public static final int MAX_OFFERS_PER_SIDE = 28;
 
 	static final int REJECT_NONE = 0;
 	static final int REJECT_TUNING_MISMATCH = 1;
@@ -66,8 +75,12 @@ public class CardPartyTradeService
 	private PendingOutboundInvite pendingOutbound;
 	/** One-shot status text for the album UI (e.g. invite TTL expiry). */
 	private String pendingStatusMessage;
+	/** Sticky status for the trade window (e.g. missing-duplicates query progress). */
+	private String tradeStatusOverride;
 	private TradeSession session;
 	private long lastInviteSendAtMs;
+	/** Epoch ms when a missing-duplicates query was sent; 0 when none pending. */
+	private long missingDupesQueryAtMs;
 	private final List<Runnable> uiListeners = new CopyOnWriteArrayList<>();
 	private int tickCounter;
 	private final java.util.Set<String> processedCommitTradeIds =
@@ -407,6 +420,26 @@ public class CardPartyTradeService
 		}
 	}
 
+	/** True while waiting for the partner to reply which duplicate variants they are missing. */
+	public boolean isMissingDupesQueryPending()
+	{
+		synchronized (lock)
+		{
+			return missingDupesQueryAtMs > 0L;
+		}
+	}
+
+	/**
+	 * Sticky trade-window status (query progress / result), or null to use the default ready-state text.
+	 */
+	public String getTradeStatusOverride()
+	{
+		synchronized (lock)
+		{
+			return tradeStatusOverride;
+		}
+	}
+
 	public boolean isBusy()
 	{
 		synchronized (lock)
@@ -604,6 +637,8 @@ public class CardPartyTradeService
 		{
 			pendingInbound = null;
 			pendingOutbound = null;
+			missingDupesQueryAtMs = 0L;
+			tradeStatusOverride = null;
 			session = new TradeSession(
 				invite.tradeId, invite.fromMemberId, name, invite.partnerTuning, invite.partnerDebugLogging);
 		}
@@ -769,6 +804,92 @@ public class CardPartyTradeService
 	}
 
 	/**
+	 * Asks the trade partner which of your unlocked duplicate variants they are missing, then offers one copy of
+	 * each match (up to remaining offer slots). Does not send instance ids or the full collection.
+	 *
+	 * @return null when the query was sent (or nothing to offer), or a user-facing error
+	 */
+	public String offerMissingDuplicates()
+	{
+		String tradeId;
+		List<TcgTradeCardVariantDto> variants;
+		synchronized (lock)
+		{
+			if (session == null || session.closed)
+			{
+				return "No active trade.";
+			}
+			if (missingDupesQueryAtMs > 0L)
+			{
+				return "Already asking your partner which duplicates they need…";
+			}
+			if (session.localOffers.size() >= MAX_OFFERS_PER_SIDE)
+			{
+				return "Trade offer is full (" + MAX_OFFERS_PER_SIDE + " cards).";
+			}
+			tradeId = session.tradeId;
+		}
+
+		Set<String> alreadyOffered = new HashSet<>();
+		synchronized (lock)
+		{
+			if (session != null && !session.closed)
+			{
+				for (TradeOfferView o : session.localOffers)
+				{
+					alreadyOffered.add(o.getCardInstanceId());
+				}
+			}
+		}
+
+		List<OwnedCardInstance> owned;
+		synchronized (stateService)
+		{
+			owned = List.copyOf(stateService.getState().getCollectionState().getOwnedInstances());
+		}
+		List<OwnedCardInstance> offerable = MissingDuplicateOfferPlanner.selectOfferableDuplicates(owned, alreadyOffered);
+		if (offerable.isEmpty())
+		{
+			synchronized (lock)
+			{
+				tradeStatusOverride = "No unlocked duplicates available to offer.";
+			}
+			notifyUi();
+			return null;
+		}
+
+		variants = new ArrayList<>(offerable.size());
+		for (OwnedCardInstance inst : offerable)
+		{
+			TcgTradeCardVariantDto dto = new TcgTradeCardVariantDto();
+			dto.setCardName(inst.getCardName().trim());
+			dto.setFoil(inst.isFoil());
+			variants.add(dto);
+		}
+
+		TcgTradeMissingDupesQueryPartyMessage m = new TcgTradeMissingDupesQueryPartyMessage();
+		m.setTradeId(tradeId);
+		m.setVariants(variants);
+		if (!sendParty(m, "Could not ask partner about missing cards (party connection)."))
+		{
+			return "Could not ask partner about missing cards (party connection).";
+		}
+
+		synchronized (lock)
+		{
+			if (session == null || session.closed || !tradeId.equals(session.tradeId))
+			{
+				return "No active trade.";
+			}
+			missingDupesQueryAtMs = System.currentTimeMillis();
+			tradeStatusOverride = "Asking " + session.partnerDisplayName
+				+ " which duplicates they are missing…";
+		}
+		notifyUi();
+		return null;
+	}
+
+	/**
 	 * Marks local player ready. When both are ready, the lower member id sends commit.
 	 *
 	 * @return null on success, or user-facing error
@@ -868,6 +989,7 @@ public class CardPartyTradeService
 	{
 		long now = System.currentTimeMillis();
 		boolean changed = false;
+		boolean missingDupesTimedOut = false;
 		String expiredOutboundTradeId = null;
 		String failedAckTradeId = null;
 		String failedAckName = null;
@@ -882,12 +1004,24 @@ public class CardPartyTradeService
 				pendingStatusMessage = "Failed to send trade request to " + failedAckName + ".";
 				changed = true;
 			}
+			if (missingDupesQueryAtMs > 0L
+				&& now - missingDupesQueryAtMs > MISSING_DUPES_QUERY_TIMEOUT_MS)
+			{
+				missingDupesQueryAtMs = 0L;
+				tradeStatusOverride =
+					"Partner did not reply about missing duplicates (they may need to update the plugin).";
+				missingDupesTimedOut = true;
+			}
 		}
 		if (failedAckTradeId != null)
 		{
 			TcgTradeCancelPartyMessage m = new TcgTradeCancelPartyMessage();
 			m.setTradeId(failedAckTradeId);
 			sendParty(m, null);
+			notifyUi();
+		}
+		else if (missingDupesTimedOut)
+		{
 			notifyUi();
 		}
 
@@ -1048,6 +1182,215 @@ public class CardPartyTradeService
 		clientThread.invokeLater(() -> handleCommitOnClientThread(msg));
 	}
 
+	@Subscribe
+	public void onTcgTradeMissingDupesQueryPartyMessage(TcgTradeMissingDupesQueryPartyMessage msg)
+	{
+		if (msg == null || msg.getTradeId() == null || msg.getTradeId().isEmpty())
+		{
+			return;
+		}
+		PartyMember local = partyService.getLocalMember();
+		if (local == null || msg.getMemberId() == local.getMemberId())
+		{
+			return;
+		}
+		clientThread.invokeLater(() -> handleMissingDupesQueryOnClientThread(msg));
+	}
+
+	@Subscribe
+	public void onTcgTradeMissingDupesReplyPartyMessage(TcgTradeMissingDupesReplyPartyMessage msg)
+	{
+		if (msg == null || msg.getTradeId() == null || msg.getTradeId().isEmpty())
+		{
+			return;
+		}
+		PartyMember local = partyService.getLocalMember();
+		if (local == null || msg.getMemberId() == local.getMemberId())
+		{
+			return;
+		}
+		clientThread.invokeLater(() -> handleMissingDupesReplyOnClientThread(msg));
+	}
+
+	private void handleMissingDupesQueryOnClientThread(TcgTradeMissingDupesQueryPartyMessage msg)
+	{
+		String tradeId;
+		synchronized (lock)
+		{
+			if (session == null || session.closed || !session.tradeId.equals(msg.getTradeId()))
+			{
+				return;
+			}
+			if (msg.getMemberId() != session.partnerMemberId)
+			{
+				return;
+			}
+			tradeId = session.tradeId;
+		}
+
+		List<CardCollectionKey> queried = new ArrayList<>();
+		List<TcgTradeCardVariantDto> wire = msg.getVariants();
+		if (wire != null)
+		{
+			for (TcgTradeCardVariantDto dto : wire)
+			{
+				if (dto == null || dto.getCardName() == null || dto.getCardName().trim().isEmpty())
+				{
+					continue;
+				}
+				queried.add(new CardCollectionKey(dto.getCardName().trim(), dto.isFoil()));
+			}
+		}
+
+		Map<CardCollectionKey, Integer> ownedCounts;
+		synchronized (stateService)
+		{
+			ownedCounts = stateService.getState().getCollectionState().getOwnedCards();
+		}
+		List<CardCollectionKey> missing = MissingDuplicateOfferPlanner.variantsMissingFromCollection(
+			queried, ownedCounts);
+
+		List<TcgTradeCardVariantDto> replyVariants = new ArrayList<>(missing.size());
+		for (CardCollectionKey key : missing)
+		{
+			TcgTradeCardVariantDto dto = new TcgTradeCardVariantDto();
+			dto.setCardName(key.getCardName());
+			dto.setFoil(key.isFoil());
+			replyVariants.add(dto);
+		}
+
+		TcgTradeMissingDupesReplyPartyMessage reply = new TcgTradeMissingDupesReplyPartyMessage();
+		reply.setTradeId(tradeId);
+		reply.setMissingVariants(replyVariants);
+		sendParty(reply, null);
+	}
+
+	private void handleMissingDupesReplyOnClientThread(TcgTradeMissingDupesReplyPartyMessage msg)
+	{
+		synchronized (lock)
+		{
+			if (session == null || session.closed || !session.tradeId.equals(msg.getTradeId()))
+			{
+				return;
+			}
+			if (msg.getMemberId() != session.partnerMemberId)
+			{
+				return;
+			}
+			if (missingDupesQueryAtMs <= 0L)
+			{
+				return;
+			}
+			missingDupesQueryAtMs = 0L;
+		}
+
+		Set<CardCollectionKey> missingKeys = new HashSet<>();
+		List<TcgTradeCardVariantDto> wire = msg.getMissingVariants();
+		if (wire != null)
+		{
+			for (TcgTradeCardVariantDto dto : wire)
+			{
+				if (dto == null || dto.getCardName() == null || dto.getCardName().trim().isEmpty())
+				{
+					continue;
+				}
+				missingKeys.add(new CardCollectionKey(dto.getCardName().trim(), dto.isFoil()));
+			}
+		}
+
+		if (missingKeys.isEmpty())
+		{
+			synchronized (lock)
+			{
+				tradeStatusOverride = "Partner already has all of your unlocked duplicates.";
+			}
+			notifyUi();
+			return;
+		}
+
+		Set<String> alreadyOffered = new HashSet<>();
+		int slotsLeft;
+		synchronized (lock)
+		{
+			if (session == null || session.closed)
+			{
+				return;
+			}
+			for (TradeOfferView o : session.localOffers)
+			{
+				alreadyOffered.add(o.getCardInstanceId());
+			}
+			slotsLeft = MAX_OFFERS_PER_SIDE - session.localOffers.size();
+		}
+		if (slotsLeft <= 0)
+		{
+			synchronized (lock)
+			{
+				tradeStatusOverride = "Trade offer is full (" + MAX_OFFERS_PER_SIDE + " cards).";
+			}
+			notifyUi();
+			return;
+		}
+
+		List<OwnedCardInstance> owned;
+		synchronized (stateService)
+		{
+			owned = List.copyOf(stateService.getState().getCollectionState().getOwnedInstances());
+		}
+		List<OwnedCardInstance> toOffer = MissingDuplicateOfferPlanner.filterToMissing(
+			MissingDuplicateOfferPlanner.selectOfferableDuplicates(owned, alreadyOffered),
+			missingKeys,
+			owned,
+			alreadyOffered);
+
+		int offered = 0;
+		int skipped = 0;
+		String lastErr = null;
+		for (OwnedCardInstance inst : toOffer)
+		{
+			if (inst == null || inst.isLocked())
+			{
+				continue;
+			}
+			if (offered >= slotsLeft)
+			{
+				skipped = toOffer.size() - offered;
+				break;
+			}
+			String err = offerCard(inst.getInstanceId());
+			if (err == null)
+			{
+				offered++;
+			}
+			else
+			{
+				lastErr = err;
+			}
+		}
+
+		synchronized (lock)
+		{
+			if (offered == 0)
+			{
+				tradeStatusOverride = lastErr != null
+					? lastErr
+					: "Could not offer any missing duplicates.";
+			}
+			else if (skipped > 0)
+			{
+				tradeStatusOverride = "Offered " + offered + " missing duplicate"
+					+ (offered == 1 ? "" : "s")
+					+ " (offer full; " + skipped + " more matched).";
+			}
+			else
+			{
+				tradeStatusOverride = "Offered " + offered + " missing duplicate"
+					+ (offered == 1 ? "" : "s") + ".";
+			}
+		}
+		notifyUi();
+	}
+
 	private void handleInviteOnClientThread(TcgTradeInvitePartyMessage msg)
 	{
 		long fromId = msg.getMemberId();
@@ -1151,6 +1494,8 @@ public class CardPartyTradeService
 
 		synchronized (lock)
 		{
+			missingDupesQueryAtMs = 0L;
+			tradeStatusOverride = null;
 			session = new TradeSession(
 				msg.getTradeId(),
 				msg.getMemberId(),
@@ -1522,6 +1867,8 @@ public class CardPartyTradeService
 			session.closed = true;
 			session = null;
 		}
+		missingDupesQueryAtMs = 0L;
+		tradeStatusOverride = null;
 		if (chatMessage != null && !chatMessage.isEmpty())
 		{
 			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, chatMessage);
