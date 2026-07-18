@@ -17,6 +17,7 @@ import com.osrstcg.overlay.CreditsInfoboxOverlay;
 import com.osrstcg.overlay.PackRevealInputListener;
 import com.osrstcg.overlay.PackRevealOverlay;
 import com.osrstcg.service.CollectionShareService;
+import com.osrstcg.service.CardPartyTradeService;
 import com.osrstcg.service.CardPartyTransferService;
 import com.osrstcg.service.CreditAwardService;
 import com.osrstcg.service.GameMessageCreditTracker;
@@ -31,6 +32,13 @@ import com.osrstcg.party.TcgCardGiftResponsePartyMessage;
 import com.osrstcg.party.TcgChatStatsPartyMessage;
 import com.osrstcg.party.TcgCollectionSetCompletePartyMessage;
 import com.osrstcg.party.TcgPullPartyMessage;
+import com.osrstcg.party.TcgTradeCancelPartyMessage;
+import com.osrstcg.party.TcgTradeCommitPartyMessage;
+import com.osrstcg.party.TcgTradeInviteAckPartyMessage;
+import com.osrstcg.party.TcgTradeInvitePartyMessage;
+import com.osrstcg.party.TcgTradeInviteResponsePartyMessage;
+import com.osrstcg.party.TcgTradeOfferDeltaPartyMessage;
+import com.osrstcg.party.TcgTradeReadyPartyMessage;
 import com.osrstcg.persist.TcgStateLoadResult;
 import com.osrstcg.persist.TcgStateLoadSource;
 import com.osrstcg.service.PackRevealSoundService;
@@ -41,6 +49,7 @@ import com.osrstcg.service.TcgPublicStatsCalculator;
 import com.osrstcg.service.TcgStateService;
 import com.osrstcg.ui.TcgPanel;
 import com.osrstcg.ui.collectionalbum.CollectionAlbumManager;
+import com.osrstcg.ui.trade.TradeWindowManager;
 import com.osrstcg.util.NumberFormatting;
 import com.osrstcg.util.TcgPluginGameMessages;
 import java.awt.Color;
@@ -150,6 +159,10 @@ public class OsrsTcgPlugin extends Plugin
 	@Inject
 	private CardPartyTransferService cardPartyTransferService;
 	@Inject
+	private CardPartyTradeService cardPartyTradeService;
+	@Inject
+	private TradeWindowManager tradeWindowManager;
+	@Inject
 	private ChatCommandManager chatCommandManager;
 	@Inject
 	private ScheduledExecutorService scheduledExecutorService;
@@ -199,6 +212,7 @@ public class OsrsTcgPlugin extends Plugin
 		eventBus.register(npcKillCreditTracker);
 		eventBus.register(gameMessageCreditTracker);
 		eventBus.register(cardPartyTransferService);
+		eventBus.register(cardPartyTradeService);
 		eventBus.register(playerCombatMonitor);
 		eventBus.register(packSafeModeService);
 		wsClient.registerMessage(TcgPullPartyMessage.class);
@@ -206,6 +220,13 @@ public class OsrsTcgPlugin extends Plugin
 		wsClient.registerMessage(TcgCardGiftPartyMessage.class);
 		wsClient.registerMessage(TcgCardGiftResponsePartyMessage.class);
 		wsClient.registerMessage(TcgChatStatsPartyMessage.class);
+		wsClient.registerMessage(TcgTradeInvitePartyMessage.class);
+		wsClient.registerMessage(TcgTradeInviteAckPartyMessage.class);
+		wsClient.registerMessage(TcgTradeInviteResponsePartyMessage.class);
+		wsClient.registerMessage(TcgTradeOfferDeltaPartyMessage.class);
+		wsClient.registerMessage(TcgTradeReadyPartyMessage.class);
+		wsClient.registerMessage(TcgTradeCancelPartyMessage.class);
+		wsClient.registerMessage(TcgTradeCommitPartyMessage.class);
 		chatCommandManager.registerCommandAsync(
 			TCG_PUBLIC_CHAT_COMMAND, this::lookupTcgPublicStatsChatCommand, this::submitTcgPublicStatsChatCommand);
 		tcgPanel.start();
@@ -229,6 +250,7 @@ public class OsrsTcgPlugin extends Plugin
 		eventBus.unregister(npcKillCreditTracker);
 		eventBus.unregister(gameMessageCreditTracker);
 		eventBus.unregister(cardPartyTransferService);
+		eventBus.unregister(cardPartyTradeService);
 		eventBus.unregister(playerCombatMonitor);
 		eventBus.unregister(packSafeModeService);
 		playerCombatMonitor.reset();
@@ -237,6 +259,13 @@ public class OsrsTcgPlugin extends Plugin
 		wsClient.unregisterMessage(TcgCardGiftPartyMessage.class);
 		wsClient.unregisterMessage(TcgCardGiftResponsePartyMessage.class);
 		wsClient.unregisterMessage(TcgChatStatsPartyMessage.class);
+		wsClient.unregisterMessage(TcgTradeInvitePartyMessage.class);
+		wsClient.unregisterMessage(TcgTradeInviteAckPartyMessage.class);
+		wsClient.unregisterMessage(TcgTradeInviteResponsePartyMessage.class);
+		wsClient.unregisterMessage(TcgTradeOfferDeltaPartyMessage.class);
+		wsClient.unregisterMessage(TcgTradeReadyPartyMessage.class);
+		wsClient.unregisterMessage(TcgTradeCancelPartyMessage.class);
+		wsClient.unregisterMessage(TcgTradeCommitPartyMessage.class);
 		chatCommandManager.unregisterCommand(TCG_PUBLIC_CHAT_COMMAND);
 		npcKillCreditTracker.shutdown();
 		overlayManager.remove(packRevealOverlay);
@@ -247,6 +276,7 @@ public class OsrsTcgPlugin extends Plugin
 		packRevealSoundService.hardStop();
 		packRevealService.reset();
 		collectionAlbumManager.dispose();
+		tradeWindowManager.dispose();
 		stateService.setRewardTuningFlushBeforeCredits(null);
 		collectionShareService.setStatusListener(null);
 		collectionShareService.stop();

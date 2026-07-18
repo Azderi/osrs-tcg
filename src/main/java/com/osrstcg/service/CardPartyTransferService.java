@@ -89,6 +89,15 @@ public class CardPartyTransferService
 		this.collectionAlbumManagerProvider = collectionAlbumManagerProvider;
 	}
 
+	public boolean isInstancePendingGift(String cardInstanceId)
+	{
+		if (cardInstanceId == null || cardInstanceId.isEmpty())
+		{
+			return false;
+		}
+		return pendingInstanceIds.contains(cardInstanceId);
+	}
+
 	/**
 	 * @return null on success, or user-facing error
 	 */

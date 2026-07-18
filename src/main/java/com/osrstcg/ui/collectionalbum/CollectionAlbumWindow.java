@@ -7,6 +7,7 @@ import com.osrstcg.data.PackCatalog;
 import com.osrstcg.model.CardCollectionKey;
 import com.osrstcg.model.OwnedCardInstance;
 import com.osrstcg.model.TcgState;
+import com.osrstcg.service.CardPartyTradeService;
 import com.osrstcg.service.CardPartyTransferService;
 import com.osrstcg.service.DuplicateSellCredits;
 import com.osrstcg.service.RarityMath;
@@ -91,13 +92,18 @@ public final class CollectionAlbumWindow extends JFrame
 	private final WikiImageCacheService imageCacheService;
 	private final PartyService partyService;
 	private final CardPartyTransferService cardPartyTransferService;
+	private final CardPartyTradeService cardPartyTradeService;
 
 	private final List<Long> partyMemberIds = new ArrayList<>();
 	private final JComboBox<String> partyMemberCombo = new JComboBox<>();
 	private final JButton sendCardBtn = new JButton("Send");
+	private final JButton sendTradeOfferBtn = new JButton("Send a trade offer");
+	private final JButton acceptTradeBtn = new JButton("Accept trade request");
+	private final JButton offerForTradeBtn = new JButton("Offer up for trade");
 	private final JButton sellCardBtn = new JButton("Sell");
 	private final JLabel sendStatusLabel = new JLabel(" ");
 	private final Timer partyUiTimer;
+	private Timer statusFlashTimer;
 
 	private AlbumRarityTable rarityTable = AlbumRarityTable.build(List.of());
 	private List<TabFilter> tabFilters = List.of();
@@ -155,7 +161,8 @@ public final class CollectionAlbumWindow extends JFrame
 		PackCatalog packCatalog,
 		WikiImageCacheService imageCacheService,
 		PartyService partyService,
-		CardPartyTransferService cardPartyTransferService)
+		CardPartyTransferService cardPartyTransferService,
+		CardPartyTradeService cardPartyTradeService)
 	{
 		super("OSRS TCG — Collection album");
 		if (WINDOW_ICON != null)
@@ -168,10 +175,12 @@ public final class CollectionAlbumWindow extends JFrame
 		this.imageCacheService = imageCacheService;
 		this.partyService = partyService;
 		this.cardPartyTransferService = cardPartyTransferService;
+		this.cardPartyTradeService = cardPartyTradeService;
 		this.grid = new CollectionAlbumGridPanel(imageCacheService,
-			this::onOwnedMultiCopyAlbumPress, this::onAlbumCardLockToggle, this::onSlotSelectionChanged);
+			this::onOwnedMultiCopyAlbumPress, this::onAlbumCardLockToggle, this::onSlotSelectionChanged,
+			this::onAlbumDoubleClickOffer);
 		this.variantsPanel = new CollectionAlbumVariantsPanel(imageCacheService, this::onVariantInstancePicked,
-			this::onVariantCardLockToggle);
+			this::onVariantCardLockToggle, this::onVariantDoubleClickOffer);
 
 		setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
 		setMinimumSize(new Dimension(
@@ -426,6 +435,10 @@ public final class CollectionAlbumWindow extends JFrame
 		south.setOpaque(false);
 		south.setBorder(new EmptyBorder(0, 8, 6, 8));
 
+		JPanel partyColumn = new JPanel();
+		partyColumn.setOpaque(false);
+		partyColumn.setLayout(new BoxLayout(partyColumn, BoxLayout.Y_AXIS));
+
 		JPanel partyRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
 		partyRow.setOpaque(false);
 		JLabel partyLbl = new JLabel("Party:");
@@ -434,24 +447,33 @@ public final class CollectionAlbumWindow extends JFrame
 		partyMemberCombo.setForeground(Color.WHITE);
 		partyMemberCombo.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		partyRow.add(partyMemberCombo);
-		sendCardBtn.setFocusable(false);
-		sendCardBtn.setBackground(ColorScheme.DARKER_GRAY_COLOR.darker());
-		sendCardBtn.setForeground(Color.WHITE);
+		styleSouthBarButton(sendCardBtn);
 		partyRow.add(sendCardBtn);
+		styleSouthBarButton(sendTradeOfferBtn);
+		partyRow.add(sendTradeOfferBtn);
+		styleSouthBarButton(acceptTradeBtn);
+		acceptTradeBtn.setVisible(false);
+		partyRow.add(acceptTradeBtn);
 		partyRow.add(sendStatusLabel);
+		partyColumn.add(partyRow);
 
 		JPanel sellRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
 		sellRow.setOpaque(false);
-		sellCardBtn.setFocusable(false);
-		sellCardBtn.setBackground(ColorScheme.DARKER_GRAY_COLOR.darker());
-		sellCardBtn.setForeground(Color.WHITE);
+		styleSouthBarButton(offerForTradeBtn);
+		offerForTradeBtn.setVisible(false);
+		offerForTradeBtn.setEnabled(false);
+		sellRow.add(offerForTradeBtn);
+		styleSouthBarButton(sellCardBtn);
 		sellCardBtn.setEnabled(false);
 		sellRow.add(sellCardBtn);
 
-		south.add(partyRow, BorderLayout.WEST);
+		south.add(partyColumn, BorderLayout.WEST);
 		south.add(sellRow, BorderLayout.EAST);
 		partyMemberCombo.addActionListener(e -> updateSouthBarButtons());
 		sendCardBtn.addActionListener(this::onSendToPartyClicked);
+		sendTradeOfferBtn.addActionListener(this::onSendTradeOfferClicked);
+		acceptTradeBtn.addActionListener(e -> onAcceptTradeClicked());
+		offerForTradeBtn.addActionListener(e -> onOfferForTradeClicked());
 		sellCardBtn.addActionListener(this::onSellSelectedCardClicked);
 		add(south, BorderLayout.SOUTH);
 
@@ -460,6 +482,7 @@ public final class CollectionAlbumWindow extends JFrame
 			if (isShowing())
 			{
 				refreshPartyMemberCombo();
+				refreshPartyTradeUi();
 			}
 		});
 
@@ -551,6 +574,7 @@ public final class CollectionAlbumWindow extends JFrame
 	void prepareToShow()
 	{
 		applySavedWindowSize();
+		refreshPartyTradeUi();
 	}
 
 	@Override
@@ -597,8 +621,54 @@ public final class CollectionAlbumWindow extends JFrame
 		variantPagingLabel.setFont(small);
 		variantCardTitleLbl.setFont(FontManager.getRunescapeBoldFont());
 		sendCardBtn.setFont(small);
+		sendTradeOfferBtn.setFont(small);
+		acceptTradeBtn.setFont(small);
+		offerForTradeBtn.setFont(small);
 		sellCardBtn.setFont(small);
 		sendStatusLabel.setFont(small);
+		syncSouthBarButtonHeights();
+	}
+
+	private static void styleSouthBarButton(JButton btn)
+	{
+		btn.setFocusable(false);
+		btn.setBackground(ColorScheme.DARKER_GRAY_COLOR.darker());
+		btn.setForeground(Color.WHITE);
+		btn.setFont(FontManager.getRunescapeSmallFont());
+		btn.setMargin(new Insets(3, 10, 3, 10));
+	}
+
+	private void syncSouthBarButtonHeights()
+	{
+		JButton[] buttons = {
+			sendCardBtn, sendTradeOfferBtn, acceptTradeBtn, offerForTradeBtn, sellCardBtn
+		};
+		for (JButton btn : buttons)
+		{
+			btn.setPreferredSize(null);
+			btn.setMinimumSize(null);
+			btn.setMaximumSize(null);
+		}
+		int height = 0;
+		for (JButton btn : buttons)
+		{
+			height = Math.max(height, btn.getPreferredSize().height);
+		}
+		if (height <= 0)
+		{
+			return;
+		}
+		for (JButton btn : buttons)
+		{
+			Dimension pref = btn.getPreferredSize();
+			btn.setPreferredSize(new Dimension(Math.max(1, pref.width), height));
+			btn.setMinimumSize(new Dimension(0, height));
+			btn.setMaximumSize(new Dimension(Integer.MAX_VALUE, height));
+		}
+		partyMemberCombo.setPreferredSize(null);
+		Dimension comboPref = partyMemberCombo.getPreferredSize();
+		int comboH = Math.max(comboPref.height, height);
+		partyMemberCombo.setPreferredSize(new Dimension(comboPref.width, comboH));
 	}
 
 	private void stopTimers()
@@ -609,6 +679,10 @@ public final class CollectionAlbumWindow extends JFrame
 		if (searchDebounceTimer != null)
 		{
 			searchDebounceTimer.stop();
+		}
+		if (statusFlashTimer != null)
+		{
+			statusFlashTimer.stop();
 		}
 	}
 
@@ -884,6 +958,7 @@ public final class CollectionAlbumWindow extends JFrame
 			String singleTip = singleCopyAlbumHoverTooltip(name, nQty, fQty, ownAny);
 			boolean lockBadge = false;
 			String soleInstanceId = null;
+			boolean offeredInTrade = false;
 			if (ownAny)
 			{
 				List<OwnedCardInstance> row = stateService.getState().getCollectionState().instancesForCardName(name);
@@ -892,8 +967,20 @@ public final class CollectionAlbumWindow extends JFrame
 				{
 					soleInstanceId = row.get(0).getInstanceId();
 				}
+				if (cardPartyTradeService.isTradeActive())
+				{
+					for (OwnedCardInstance inst : row)
+					{
+						if (inst != null && cardPartyTradeService.isInstanceOfferedLocally(inst.getInstanceId()))
+						{
+							offeredInTrade = true;
+							break;
+						}
+					}
+				}
 			}
-			slots.add(new AlbumSlot(c, rarity, ownAny, displayFoil, nQty, fQty, singleTip, lockBadge, soleInstanceId));
+			slots.add(new AlbumSlot(c, rarity, ownAny, displayFoil, nQty, fQty, singleTip, lockBadge, soleInstanceId,
+				offeredInTrade));
 		}
 		grid.setSlots(slots, selectionPreserveIndex(slots));
 		updatePageControls(from, to);
@@ -1140,6 +1227,68 @@ public final class CollectionAlbumWindow extends JFrame
 		updateSouthBarButtons();
 	}
 
+	private void onAlbumDoubleClickOffer(AlbumSlot slot)
+	{
+		if (!cardPartyTradeService.isTradeActive() || slot == null || !slot.ownedAny())
+		{
+			return;
+		}
+		if (slot.soleInstanceId() != null)
+		{
+			offerInstanceForTrade(slot.soleInstanceId());
+			return;
+		}
+		if (slot.totalOwnedQty() > 1 && slot.card() != null)
+		{
+			onOwnedMultiCopyAlbumPress(-1, slot);
+		}
+	}
+
+	private void onVariantDoubleClickOffer(OwnedCardInstance inst)
+	{
+		if (!cardPartyTradeService.isTradeActive() || inst == null)
+		{
+			return;
+		}
+		onVariantInstancePicked(inst);
+		offerInstanceForTrade(inst.getInstanceId());
+	}
+
+	private void offerInstanceForTrade(String instanceId)
+	{
+		if (instanceId == null || instanceId.isEmpty())
+		{
+			return;
+		}
+		boolean locked = stateService.getState().getCollectionState().findInstanceById(instanceId)
+			.map(OwnedCardInstance::isLocked)
+			.orElse(false);
+		if (locked)
+		{
+			sendStatusLabel.setText(LOCKED_CARD_ACTION_TOOLTIP);
+			return;
+		}
+		String err = cardPartyTradeService.offerCard(instanceId);
+		if (err != null)
+		{
+			sendStatusLabel.setText(err);
+		}
+		else
+		{
+			sendStatusLabel.setText("");
+			sendChosenInstanceId = instanceId;
+			stateService.getState().getCollectionState().findInstanceById(instanceId).ifPresent(inst ->
+			{
+				String n = inst.getCardName() == null ? "" : inst.getCardName().trim();
+				if (!n.isEmpty())
+				{
+					sendFocusCardName = n;
+				}
+			});
+		}
+		refreshPartyTradeUi();
+	}
+
 	private void onAlbumCardLockToggle(AlbumSlot slot)
 	{
 		if (slot == null || slot.soleInstanceId() == null)
@@ -1301,6 +1450,60 @@ public final class CollectionAlbumWindow extends JFrame
 		updateSouthBarButtons();
 	}
 
+	void refreshPartyTradeUi()
+	{
+		String statusHint = cardPartyTradeService.consumePendingStatusMessage();
+		if (statusHint != null && !statusHint.isEmpty())
+		{
+			showTemporaryStatus(statusHint);
+		}
+
+		CardPartyTradeService.PendingInboundInvite invite = cardPartyTradeService.getPendingInboundInvite();
+		if (invite != null)
+		{
+			acceptTradeBtn.setText("Accept trade request from " + invite.getFromDisplayName());
+			acceptTradeBtn.setVisible(true);
+		}
+		else
+		{
+			acceptTradeBtn.setVisible(false);
+		}
+		variantsPanel.setOfferedInstancePredicate(cardPartyTradeService::isInstanceOfferedLocally);
+		if (albumVariantsVisible)
+		{
+			refreshActiveVariantCopies();
+		}
+		else
+		{
+			refreshCurrentPage();
+		}
+		updateSouthBarButtons();
+		acceptTradeBtn.getParent().revalidate();
+		acceptTradeBtn.getParent().repaint();
+	}
+
+	private void showTemporaryStatus(String message)
+	{
+		if (message == null || message.isEmpty())
+		{
+			return;
+		}
+		sendStatusLabel.setText(message);
+		if (statusFlashTimer == null)
+		{
+			statusFlashTimer = new Timer(10_000, e ->
+			{
+				String current = sendStatusLabel.getText();
+				if (current != null && !current.isBlank())
+				{
+					sendStatusLabel.setText(" ");
+				}
+			});
+			statusFlashTimer.setRepeats(false);
+		}
+		statusFlashTimer.restart();
+	}
+
 	private void updateSouthBarButtons()
 	{
 		boolean partyReady = partyMemberCombo.isEnabled();
@@ -1316,12 +1519,55 @@ public final class CollectionAlbumWindow extends JFrame
 		boolean idOk = sendChosenInstanceId != null && !sendChosenInstanceId.isEmpty()
 			&& stateService.getState().getCollectionState().findInstanceById(sendChosenInstanceId).isPresent();
 		boolean locked = isChosenInstanceLocked();
+		boolean tradeActive = cardPartyTradeService.isTradeActive();
+		boolean outboundPending = cardPartyTradeService.hasPendingOutboundInvite();
+		boolean tradeBusy = cardPartyTradeService.isBusy();
+		boolean inviteCooldown = cardPartyTradeService.isTradeInviteOnCooldown();
+		long cooldownMs = cardPartyTradeService.getTradeInviteCooldownRemainingMs();
+
+		if (outboundPending)
+		{
+			sendTradeOfferBtn.setText("Cancel trade offer");
+			sendTradeOfferBtn.setEnabled(true);
+			sendTradeOfferBtn.setToolTipText("Cancel the pending trade request.");
+		}
+		else
+		{
+			sendTradeOfferBtn.setText("Send a trade offer");
+			boolean canInvite = recipientOk && !tradeBusy && !inviteCooldown;
+			sendTradeOfferBtn.setEnabled(canInvite);
+			if (!recipientOk)
+			{
+				sendTradeOfferBtn.setToolTipText(PARTY_SEND_TOOLTIP);
+			}
+			else if (tradeBusy)
+			{
+				sendTradeOfferBtn.setToolTipText("Finish or cancel your current trade first.");
+			}
+			else if (inviteCooldown)
+			{
+				long secs = Math.max(1L, (cooldownMs + 999L) / 1000L);
+				sendTradeOfferBtn.setToolTipText("Wait " + secs + "s before sending another trade request.");
+			}
+			else
+			{
+				sendTradeOfferBtn.setToolTipText(null);
+			}
+		}
+
+		offerForTradeBtn.setVisible(tradeActive);
+		if (!tradeActive)
+		{
+			offerForTradeBtn.setEnabled(false);
+		}
 
 		if (!selectionOk || !idOk)
 		{
 			sendCardBtn.setEnabled(false);
+			offerForTradeBtn.setEnabled(false);
 			sellCardBtn.setEnabled(false);
 			sellCardBtn.setText("Sell");
+			syncSouthBarButtonHeights();
 			return;
 		}
 
@@ -1329,19 +1575,33 @@ public final class CollectionAlbumWindow extends JFrame
 		{
 			sendCardBtn.setEnabled(false);
 			sendCardBtn.setToolTipText(LOCKED_CARD_ACTION_TOOLTIP);
+			offerForTradeBtn.setEnabled(false);
+			offerForTradeBtn.setToolTipText(LOCKED_CARD_ACTION_TOOLTIP);
 			sellCardBtn.setText("Sell");
 			sellCardBtn.setEnabled(false);
 			sellCardBtn.setToolTipText(LOCKED_CARD_ACTION_TOOLTIP);
+			syncSouthBarButtonHeights();
 			return;
 		}
 
-		sendCardBtn.setEnabled(recipientOk);
+		sendCardBtn.setEnabled(recipientOk && !tradeActive);
 		sendCardBtn.setToolTipText(recipientOk ? null : PARTY_SEND_TOOLTIP);
+
+		if (tradeActive)
+		{
+			boolean alreadyOffered = cardPartyTradeService.isInstanceOfferedLocally(sendChosenInstanceId);
+			boolean giftPending = cardPartyTransferService.isInstancePendingGift(sendChosenInstanceId);
+			offerForTradeBtn.setEnabled(!alreadyOffered && !giftPending);
+			offerForTradeBtn.setToolTipText(alreadyOffered
+				? "That card is already in your trade offer."
+				: (giftPending ? "That card copy is already being sent." : null));
+		}
 
 		long sellValue = sellCreditsForChosenInstance();
 		sellCardBtn.setText("Sell for " + NumberFormatting.format(sellValue));
 		sellCardBtn.setEnabled(true);
 		sellCardBtn.setToolTipText(null);
+		syncSouthBarButtonHeights();
 	}
 
 	private boolean isChosenInstanceLocked()
@@ -1500,6 +1760,68 @@ public final class CollectionAlbumWindow extends JFrame
 			sendPickFromVariantOnly = false;
 			rebuildModel();
 		}
+	}
+
+	private void onSendTradeOfferClicked(ActionEvent e)
+	{
+		if (cardPartyTradeService.hasPendingOutboundInvite())
+		{
+			String err = cardPartyTradeService.cancelPendingOutboundInvite();
+			if (err != null)
+			{
+				sendStatusLabel.setText(err);
+			}
+			else
+			{
+				showTemporaryStatus("Trade offer cancelled.");
+			}
+			refreshPartyTradeUi();
+			return;
+		}
+
+		int pi = partyMemberCombo.getSelectedIndex();
+		if (pi <= 0 || pi >= partyMemberIds.size())
+		{
+			return;
+		}
+		long recipientId = partyMemberIds.get(pi);
+		String recipientName = String.valueOf(partyMemberCombo.getSelectedItem());
+		String err = cardPartyTradeService.sendTradeInvite(recipientId);
+		if (err != null)
+		{
+			sendStatusLabel.setText(err);
+		}
+		else
+		{
+			CardPartyTradeService.PendingOutboundInviteView outbound =
+				cardPartyTradeService.getPendingOutboundInvite();
+			String who = outbound != null ? outbound.getRecipientDisplayName() : recipientName;
+			showTemporaryStatus("Trade request sent to " + who + ".");
+		}
+		refreshPartyTradeUi();
+	}
+
+	private void onAcceptTradeClicked()
+	{
+		String err = cardPartyTradeService.acceptPendingInvite();
+		if (err != null)
+		{
+			sendStatusLabel.setText(err);
+		}
+		else
+		{
+			sendStatusLabel.setText("");
+		}
+		refreshPartyTradeUi();
+	}
+
+	private void onOfferForTradeClicked()
+	{
+		if (sendChosenInstanceId == null || sendChosenInstanceId.isEmpty())
+		{
+			return;
+		}
+		offerInstanceForTrade(sendChosenInstanceId);
 	}
 
 	private static final class TabFilter

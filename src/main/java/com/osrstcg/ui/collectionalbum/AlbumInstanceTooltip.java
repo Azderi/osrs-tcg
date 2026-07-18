@@ -21,8 +21,13 @@ public final class AlbumInstanceTooltip
 		{
 			return null;
 		}
-		String displayBy = OwnedCardInstance.formatPulledByForUi(o.getPulledByUsername());
-		long at = o.getPulledAtEpochMs();
+		return format(o.getPulledByUsername(), o.getPulledAtEpochMs(), o.isLocked());
+	}
+
+	public static String format(String pulledByUsername, long pulledAtEpochMs, boolean locked)
+	{
+		String displayBy = OwnedCardInstance.formatPulledByForUi(pulledByUsername);
+		long at = Math.max(0L, pulledAtEpochMs);
 		StringBuilder sb = new StringBuilder();
 		if (!displayBy.isEmpty())
 		{
@@ -38,7 +43,7 @@ public final class AlbumInstanceTooltip
 				.format(Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()));
 			sb.append(when);
 		}
-		if (o.isLocked())
+		if (locked)
 		{
 			if (sb.length() > 0)
 			{
