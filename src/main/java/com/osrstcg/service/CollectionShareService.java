@@ -74,6 +74,7 @@ public class CollectionShareService
 	private final AtomicReference<String> rejectedApiKey = new AtomicReference<>(null);
 	private final AtomicReference<WebShareIndicatorState> indicatorState =
 		new AtomicReference<>(WebShareIndicatorState.HIDDEN);
+	private final Runnable collectionChangeListener = this::onCollectionChanged;
 
 	public enum WebShareIndicatorState
 	{
@@ -120,7 +121,7 @@ public class CollectionShareService
 			return;
 		}
 		catalogVersion.set(loadCatalogVersion());
-		stateService.setCollectionShareNotify(this::onCollectionChanged);
+		stateService.addCollectionChangeListener(collectionChangeListener);
 		keepaliveFuture = scheduler.scheduleAtFixedRate(
 			this::keepaliveTick,
 			KEEPALIVE_PERIOD_MS,
@@ -150,7 +151,7 @@ public class CollectionShareService
 		{
 			return;
 		}
-		stateService.setCollectionShareNotify(null);
+		stateService.removeCollectionChangeListener(collectionChangeListener);
 		synchronized (debounceLock)
 		{
 			if (debounceFuture != null)

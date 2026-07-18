@@ -17,6 +17,7 @@ import com.osrstcg.overlay.CreditsInfoboxOverlay;
 import com.osrstcg.overlay.PackRevealInputListener;
 import com.osrstcg.overlay.PackRevealOverlay;
 import com.osrstcg.service.CollectionShareService;
+import com.osrstcg.service.OwnedCardNamesApiService;
 import com.osrstcg.service.CardPartyTradeService;
 import com.osrstcg.service.CardPartyTransferService;
 import com.osrstcg.service.CreditAwardService;
@@ -180,6 +181,8 @@ public class OsrsTcgPlugin extends Plugin
 	private PackSafeModeService packSafeModeService;
 	@Inject
 	private CollectionShareService collectionShareService;
+	@Inject
+	private OwnedCardNamesApiService ownedCardNamesApiService;
 
 	private NavigationButton navigationButton;
 	private boolean fileBackupLoadUsedThisSession;
@@ -237,6 +240,7 @@ public class OsrsTcgPlugin extends Plugin
 		stateService.setRewardTuningFlushBeforeCredits(tcgPanel::flushRewardTuningDraftToState);
 		collectionShareService.setStatusListener(() -> SwingUtilities.invokeLater(tcgPanel::updateWebShareLiveIndicator));
 		collectionShareService.start();
+		ownedCardNamesApiService.start();
 		tcgPanel.refresh();
 		stateService.saveToFileBackup();
 		TcgPluginGameMessages.setPrefixColor(config.chatPrefixColor());
@@ -286,6 +290,7 @@ public class OsrsTcgPlugin extends Plugin
 		stateService.setRewardTuningFlushBeforeCredits(null);
 		collectionShareService.setStatusListener(null);
 		collectionShareService.stop();
+		ownedCardNamesApiService.stop();
 		tcgPanel.stop();
 		stateService.saveToFileBackup();
 		log.info("OSRS TCG plugin stopped");

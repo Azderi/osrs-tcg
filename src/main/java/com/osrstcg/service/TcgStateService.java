@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
@@ -37,7 +38,7 @@ public class TcgStateService
 	private final CreditsRateTracker creditsRateTracker;
 	private volatile TcgState state = TcgState.empty();
 	private Runnable rewardTuningFlushBeforeCredits;
-	private volatile Runnable collectionShareNotify;
+	private final CopyOnWriteArrayList<Runnable> collectionChangeListeners = new CopyOnWriteArrayList<>();
 
 	@Inject
 	public TcgStateService(
@@ -170,16 +171,26 @@ public class TcgStateService
 		stateStore.save(state);
 	}
 
-	/** Invoked after share-relevant collection / pack mutations (debounced web sync). */
-	public void setCollectionShareNotify(Runnable notify)
+	/** Invoked after share-relevant collection / pack mutations (web sync, interop broadcasts). */
+	public void addCollectionChangeListener(Runnable listener)
 	{
-		this.collectionShareNotify = notify;
+		if (listener != null)
+		{
+			collectionChangeListeners.addIfAbsent(listener);
+		}
+	}
+
+	public void removeCollectionChangeListener(Runnable listener)
+	{
+		if (listener != null)
+		{
+			collectionChangeListeners.remove(listener);
+		}
 	}
 
 	private void notifyCollectionShareListeners()
 	{
-		Runnable notify = collectionShareNotify;
-		if (notify != null)
+		for (Runnable notify : collectionChangeListeners)
 		{
 			try
 			{
@@ -187,7 +198,7 @@ public class TcgStateService
 			}
 			catch (Exception ex)
 			{
-				log.debug("Collection share notify failed", ex);
+				log.debug("Collection change listener failed", ex);
 			}
 		}
 	}
