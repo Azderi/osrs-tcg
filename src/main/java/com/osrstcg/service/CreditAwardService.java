@@ -139,9 +139,9 @@ public class CreditAwardService
 
 		int previous = lastKnownLevels.get(skill);
 
+		// Skill levels cannot decrease; ignore transient drops (e.g. disconnect/reconnect).
 		if (current <= previous)
 		{
-			lastKnownLevels.put(skill, current);
 			return;
 		}
 
@@ -298,7 +298,21 @@ public class CreditAwardService
 		}
 
 		int previousXp = previousSkillXp[skillIndex];
-		if (skillXpInitialized && currentXp > previousXp)
+		// Skill XP cannot decrease; never lower the baseline (avoids disconnect false awards).
+		if (currentXp < previousXp)
+		{
+			debugAward(String.format(
+				"Ignored skill XP drop for %s (%s -> %s); keeping baseline",
+				skill.getName(), NumberFormatting.format(previousXp), NumberFormatting.format(currentXp)));
+			return;
+		}
+
+		if (currentXp == previousXp)
+		{
+			return;
+		}
+
+		if (skillXpInitialized)
 		{
 			long xpGained = (long) currentXp - previousXp;
 			if (isCombatSkill(skill))
@@ -446,7 +460,22 @@ public class CreditAwardService
 		}
 
 		int[] experiences = client.getSkillExperiences();
-		System.arraycopy(experiences, 0, previousSkillXp, 0, Math.min(experiences.length, previousSkillXp.length));
+		int n = Math.min(experiences.length, previousSkillXp.length);
+		if (!skillXpInitialized)
+		{
+			System.arraycopy(experiences, 0, previousSkillXp, 0, n);
+		}
+		else
+		{
+			// Never lower an already-established baseline from a transient client snapshot.
+			for (int i = 0; i < n; i++)
+			{
+				if (experiences[i] > previousSkillXp[i])
+				{
+					previousSkillXp[i] = experiences[i];
+				}
+			}
+		}
 		skillXpInitialized = true;
 	}
 
@@ -457,7 +486,10 @@ public class CreditAwardService
 			return;
 		}
 
-		lastKnownLevels.clear();
+		if (!skillLevelsInitialized)
+		{
+			lastKnownLevels.clear();
+		}
 		for (Skill skill : Skill.values())
 		{
 			if (isOverallSkill(skill))
@@ -465,7 +497,12 @@ public class CreditAwardService
 				continue;
 			}
 
-			lastKnownLevels.put(skill, levelForXp(client.getSkillExperience(skill)));
+			int level = levelForXp(client.getSkillExperience(skill));
+			Integer previous = lastKnownLevels.get(skill);
+			if (previous == null || level > previous)
+			{
+				lastKnownLevels.put(skill, level);
+			}
 		}
 		skillLevelsInitialized = true;
 	}
