@@ -98,13 +98,14 @@ public class TcgStateService
 		}
 
 		boolean strippedDebug = stripDebugProvenanceRowsIfDebugDisabled();
-		// Rewrite older profiles so persisted JSON includes skillCreditBaseline (schema 4).
+		// Rewrite older profiles so persisted JSON includes skillCreditBaseline / schema-5 fields.
 		boolean upgradedSkillBaseline = ensureSkillCreditBaselineSchemaField();
+		boolean upgradedProfileMeta = ensureProfileMetaSchemaFields();
 		if (upgradedSkillBaseline)
 		{
 			state = state.withSkillCreditBaseline(SkillCreditBaseline.absent());
 		}
-		if (strippedDebug || upgradedSkillBaseline)
+		if (strippedDebug || upgradedSkillBaseline || upgradedProfileMeta)
 		{
 			save();
 			if (strippedDebug)
@@ -152,6 +153,7 @@ public class TcgStateService
 		{
 			state = state.withSkillCreditBaseline(SkillCreditBaseline.absent());
 		}
+		ensureProfileMetaSchemaFields();
 		save();
 		if (strippedDebug)
 		{
@@ -174,6 +176,22 @@ public class TcgStateService
 			return true;
 		}
 		return baseline.needsSchemaUpgradePersist();
+	}
+
+	/**
+	 * Stamps schema-5 profile metadata when missing (legacy saves).
+	 *
+	 * @return true if state was updated and should be persisted
+	 */
+	private boolean ensureProfileMetaSchemaFields()
+	{
+		boolean changed = false;
+		if (state.getProfileCreatedAtUnix() <= 0L)
+		{
+			state = state.withProfileCreatedAtUnix(TcgState.currentUnixSeconds());
+			changed = true;
+		}
+		return changed;
 	}
 
 	/** Replaces the persisted skill XP baseline in memory (does not save by itself). */
@@ -210,6 +228,7 @@ public class TcgStateService
 		{
 			return;
 		}
+		state = state.withProfileSavedAtUnix(TcgState.currentUnixSeconds());
 		stateStore.save(state);
 	}
 
@@ -353,7 +372,8 @@ public class TcgStateService
 
 		long creditsBefore = state.getEconomyState().getCredits();
 		long creditsAfter = creditsBefore + amount;
-		state = state.withCredits(creditsAfter);
+		long gainedAfter = state.getTotalCreditsGained() + amount;
+		state = state.withCredits(creditsAfter).withTotalCreditsGained(gainedAfter);
 		save();
 
 		if (creditsRateTracker != null)

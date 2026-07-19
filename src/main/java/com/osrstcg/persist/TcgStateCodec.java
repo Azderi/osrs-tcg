@@ -94,7 +94,12 @@ public class TcgStateCodec
 		int albumH = stored.albumWindowHeight == null ? 0 : stored.albumWindowHeight;
 		SkillCreditBaseline skillBaseline = parseSkillCreditBaseline(stored.skillCreditBaseline);
 
-		// Always materialize the current schema (upgrades older profiles that lack skill snapshots).
+		long totalGained = stored.totalCreditsGained == null ? 0L : Math.max(0L, stored.totalCreditsGained);
+		// 0 = missing/legacy; caller may stamp "now" on first schema-5 persist.
+		long createdAt = stored.profileCreatedAtUnix == null ? 0L : Math.max(0L, stored.profileCreatedAtUnix);
+		long savedAt = stored.profileSavedAtUnix == null ? 0L : Math.max(0L, stored.profileSavedAtUnix);
+
+		// Always materialize the current schema (upgrades older profiles).
 		return new TcgState(
 			TcgState.CURRENT_SCHEMA_VERSION,
 			new EconomyState(stored.credits, stored.openedPacks),
@@ -104,7 +109,10 @@ public class TcgStateCodec
 			packZoom,
 			albumW,
 			albumH,
-			skillBaseline
+			skillBaseline,
+			totalGained,
+			createdAt,
+			savedAt
 		);
 	}
 
@@ -127,6 +135,9 @@ public class TcgStateCodec
 		serialized.albumWindowWidth = s.getAlbumWindowWidth();
 		serialized.albumWindowHeight = s.getAlbumWindowHeight();
 		serialized.skillCreditBaseline = serializeSkillCreditBaseline(s.getSkillCreditBaseline());
+		serialized.totalCreditsGained = s.getTotalCreditsGained();
+		serialized.profileCreatedAtUnix = s.getProfileCreatedAtUnix();
+		serialized.profileSavedAtUnix = s.getProfileSavedAtUnix();
 
 		for (OwnedCardInstance inst : s.getCollectionState().getOwnedInstances())
 		{
@@ -204,6 +215,9 @@ public class TcgStateCodec
 		private Integer albumWindowWidth;
 		private Integer albumWindowHeight;
 		private SerializedSkillCreditBaseline skillCreditBaseline;
+		private Long totalCreditsGained;
+		private Long profileCreatedAtUnix;
+		private Long profileSavedAtUnix;
 	}
 
 	private static class SerializedSkillCreditBaseline
