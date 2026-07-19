@@ -1,10 +1,14 @@
 package com.osrstcg.service;
 
+import com.osrstcg.model.SkillCreditBaseline;
 import com.osrstcg.util.NumberFormatting;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -35,7 +39,7 @@ public class CreditAwardService
 	/** Ignore bogus fake XP drop payloads. */
 	private static final int FAKE_XP_DROP_SANITY_CAP = 20_000_000;
 	/** Suppress credit awards while stats settle after login or a world hop. */
-	private static final int CREDIT_AWARD_COOLDOWN_TICKS = 15;
+	private static final int CREDIT_AWARD_COOLDOWN_TICKS = 3;
 	private static final Set<Skill> COMBAT_SKILLS = EnumSet.of(
 		Skill.ATTACK,
 		Skill.DEFENCE,
@@ -55,6 +59,8 @@ public class CreditAwardService
 	private boolean creditAwardCooldownActive;
 	private int creditAwardCooldownUntilTick;
 	private boolean pendingStatsSettleAfterLoginOrHop;
+	/** When true, restore uncredited XP from the persisted snapshot after settle (login / logout). */
+	private boolean restoreUncreditedXpFromPersistedBaseline;
 	private GameState lastObservedGameState;
 
 	/** XP from skill drops not yet converted into credit chunks. */
@@ -69,13 +75,25 @@ public class CreditAwardService
 
 	/**
 	 * Call when the RuneScape profile (or persisted plugin state) changes so we do not compare XP across characters.
+	 * Keeps the persisted skill snapshot for post-settle retroactive awards; only resets live tracking.
 	 */
 	public void resetExperienceCreditBaseline()
 	{
-		clearUncreditedXpPool("profile change");
 		skillXpInitialized = false;
+		skillLevelsInitialized = false;
+		lastKnownLevels.clear();
 		Arrays.fill(previousSkillXp, 0);
-		snapshotSkillBaselinesIfLoggedIn();
+
+		SkillCreditBaseline saved = stateService.getState().getSkillCreditBaseline();
+		if (saved != null && saved.isPresent())
+		{
+			uncreditedXp = saved.getUncreditedXp();
+		}
+		else
+		{
+			clearUncreditedXpPool("profile change");
+		}
+		// Do not snapshot live client stats here — wait for the settle cooldown so retro awards can run first.
 	}
 
 	public void awardNpcKillCredits(String npcName, int combatLevel)
@@ -145,20 +163,8 @@ public class CreditAwardService
 			return;
 		}
 
-		long totalReward = 0L;
-		double levelMult = Math.max(0.0d, stateService.getState().getRewardTuning().getLevelUpCreditMultiplier());
-		for (int level = previous + 1; level <= current; level++)
-		{
-			totalReward += Math.round(levelUpReward(level) * levelMult);
-		}
-
+		awardLevelUps(skill, previous, current);
 		lastKnownLevels.put(skill, current);
-		if (totalReward > 0)
-		{
-			addCredits(totalReward);
-			debugAward(String.format("Level up %s: %d -> %d -> +%s credits (total %s)",
-				skill.getName(), previous, current, NumberFormatting.format(totalReward), NumberFormatting.format(stateService.getCredits())));
-		}
 	}
 
 	public void onFakeXpDrop(FakeXpDrop event)
@@ -211,16 +217,19 @@ public class CreditAwardService
 		if (current == GameState.LOGIN_SCREEN)
 		{
 			pendingStatsSettleAfterLoginOrHop = true;
+			restoreUncreditedXpFromPersistedBaseline = true;
 			suppressCreditAwardsUntilStatsSettle(true);
 		}
 		else if (current == GameState.HOPPING)
 		{
 			pendingStatsSettleAfterLoginOrHop = true;
+			restoreUncreditedXpFromPersistedBaseline = false;
 			suppressCreditAwardsUntilStatsSettle(false);
 		}
 		else if (current == GameState.LOGGED_IN)
 		{
 			pendingStatsSettleAfterLoginOrHop = true;
+			restoreUncreditedXpFromPersistedBaseline = false;
 			suppressCreditAwardsUntilStatsSettle(false);
 		}
 	}
@@ -232,14 +241,18 @@ public class CreditAwardService
 
 		if (next == GameState.LOGIN_SCREEN)
 		{
+			persistSkillBaselineToState(true);
 			pendingStatsSettleAfterLoginOrHop = true;
+			restoreUncreditedXpFromPersistedBaseline = true;
 			suppressCreditAwardsUntilStatsSettle(true);
 			return;
 		}
 
 		if (next == GameState.HOPPING)
 		{
+			persistSkillBaselineToState(true);
 			pendingStatsSettleAfterLoginOrHop = true;
+			restoreUncreditedXpFromPersistedBaseline = false;
 			suppressCreditAwardsUntilStatsSettle(false);
 			return;
 		}
@@ -273,7 +286,12 @@ public class CreditAwardService
 
 			creditAwardCooldownActive = false;
 			pendingStatsSettleAfterLoginOrHop = false;
-			snapshotSkillBaselinesIfLoggedIn();
+			applyRetroactiveCreditsFromPersistedBaseline();
+			if (!skillXpInitialized || !skillLevelsInitialized)
+			{
+				snapshotSkillBaselinesIfLoggedIn();
+			}
+			persistSkillBaselineToState(true);
 			debugAward("Credit award cooldown ended; resuming credit gains");
 			return;
 		}
@@ -281,7 +299,164 @@ public class CreditAwardService
 		if (!skillXpInitialized || !skillLevelsInitialized)
 		{
 			snapshotSkillBaselinesIfLoggedIn();
+			persistSkillBaselineToState(false);
 		}
+	}
+
+	private void applyRetroactiveCreditsFromPersistedBaseline()
+	{
+		SkillCreditBaseline saved = stateService.getState().getSkillCreditBaseline();
+		if (saved == null || !saved.isPresent())
+		{
+			restoreUncreditedXpFromPersistedBaseline = false;
+			return;
+		}
+
+		if (restoreUncreditedXpFromPersistedBaseline)
+		{
+			uncreditedXp = saved.getUncreditedXp();
+			restoreUncreditedXpFromPersistedBaseline = false;
+		}
+
+		if (client == null || client.getGameState() != GameState.LOGGED_IN)
+		{
+			return;
+		}
+
+		int[] liveXp = client.getSkillExperiences();
+		if (liveXp == null)
+		{
+			return;
+		}
+
+		long pendingNonCombatXp = 0L;
+		List<RetroLevelUp> pendingLevelUps = new ArrayList<>();
+
+		for (Skill skill : Skill.values())
+		{
+			if (isOverallSkill(skill))
+			{
+				continue;
+			}
+
+			OptionalInt savedXpOpt = saved.xpFor(skill);
+			if (savedXpOpt.isEmpty())
+			{
+				continue;
+			}
+
+			int skillIndex = skill.ordinal();
+			if (skillIndex < 0 || skillIndex >= liveXp.length)
+			{
+				continue;
+			}
+
+			int previousXp = savedXpOpt.getAsInt();
+			int currentXp = Math.max(0, liveXp[skillIndex]);
+			if (currentXp < previousXp)
+			{
+				continue;
+			}
+
+			long gained = (long) currentXp - previousXp;
+			if (gained > 0L)
+			{
+				if (isCombatSkill(skill))
+				{
+					debugAward(String.format(
+						"Retro: ignored +%s combat skill XP (%s)",
+						NumberFormatting.format(gained), skill.getName()));
+				}
+				else
+				{
+					pendingNonCombatXp += gained;
+					debugAward(String.format(
+						"Retro: +%s XP (%s) since last snapshot",
+						NumberFormatting.format(gained), skill.getName()));
+				}
+			}
+
+			int previousLevel = levelForXp(previousXp);
+			int currentLevel = levelForXp(currentXp);
+			if (currentLevel > previousLevel)
+			{
+				pendingLevelUps.add(new RetroLevelUp(skill, previousLevel, currentLevel));
+			}
+		}
+
+		// Persist live skill XP before awarding so a crash cannot double-pay the same gap next login.
+		snapshotSkillBaselinesIfLoggedIn();
+		persistSkillBaselineToState(true);
+
+		long levelCredits = 0L;
+		for (RetroLevelUp levelUp : pendingLevelUps)
+		{
+			levelCredits += awardLevelUps(levelUp.skill, levelUp.previousLevel, levelUp.currentLevel);
+		}
+		if (pendingNonCombatXp > 0L)
+		{
+			applyXpGain(pendingNonCombatXp, "offline");
+		}
+
+		if (pendingNonCombatXp > 0L || levelCredits > 0L)
+		{
+			debugAward(String.format(
+				"Retroactive skill credits after settle: +%s non-combat XP, +%s level-up credits (total %s)",
+				NumberFormatting.format(pendingNonCombatXp),
+				NumberFormatting.format(levelCredits),
+				NumberFormatting.format(stateService.getCredits())));
+		}
+		else
+		{
+			debugAward("Retroactive skill check after settle: no XP or level gains since last snapshot");
+		}
+	}
+
+	private static final class RetroLevelUp
+	{
+		private final Skill skill;
+		private final int previousLevel;
+		private final int currentLevel;
+
+		private RetroLevelUp(Skill skill, int previousLevel, int currentLevel)
+		{
+			this.skill = skill;
+			this.previousLevel = previousLevel;
+			this.currentLevel = currentLevel;
+		}
+	}
+
+	private long awardLevelUps(Skill skill, int previousLevel, int currentLevel)
+	{
+		long totalReward = awardLevelUps(previousLevel, currentLevel);
+		if (totalReward > 0L && skill != null)
+		{
+			debugAward(String.format("Level up %s: %d -> %d -> +%s credits (total %s)",
+				skill.getName(), previousLevel, currentLevel,
+				NumberFormatting.format(totalReward), NumberFormatting.format(stateService.getCredits())));
+		}
+		return totalReward;
+	}
+
+	private long awardLevelUps(int previousLevel, int currentLevel)
+	{
+		if (currentLevel <= previousLevel)
+		{
+			return 0L;
+		}
+
+		long totalReward = 0L;
+		double levelMult = Math.max(0.0d, stateService.getState().getRewardTuning().getLevelUpCreditMultiplier());
+		for (int level = previousLevel + 1; level <= currentLevel; level++)
+		{
+			totalReward += Math.round(levelUpReward(level) * levelMult);
+		}
+
+		if (totalReward > 0L)
+		{
+			addCredits(totalReward);
+		}
+		return totalReward;
 	}
 
 	private void trackXpGainFromStatChanged(Skill skill, int currentXp)
@@ -321,7 +496,7 @@ public class CreditAwardService
 					"Ignored +%s combat skill XP (%s)",
 					NumberFormatting.format(xpGained), skill.getName()));
 			}
-			else
+			else if (!isCreditAwardOnCooldown())
 			{
 				applyXpGain(xpGained, skill.getName());
 			}
@@ -343,6 +518,7 @@ public class CreditAwardService
 
 		uncreditedXp = nextUncreditedXp;
 		awardCreditsFromUncreditedXp(source);
+		persistSkillBaselineToState(false);
 	}
 
 	/** @return true if credits were added from XP chunks */
@@ -378,7 +554,30 @@ public class CreditAwardService
 			return;
 		}
 
+		persistSkillBaselineToState(false);
 		stateService.addCredits(credits);
+	}
+
+	/**
+	 * Writes the current in-memory skill baselines into profile state.
+	 *
+	 * @param save whether to flush to disk immediately
+	 */
+	private void persistSkillBaselineToState(boolean save)
+	{
+		if (!skillXpInitialized)
+		{
+			return;
+		}
+
+		SkillCreditBaseline baseline = SkillCreditBaseline.fromClientExperiences(
+			Arrays.copyOf(previousSkillXp, previousSkillXp.length),
+			uncreditedXp);
+		stateService.replaceSkillCreditBaseline(baseline);
+		if (save)
+		{
+			stateService.save();
+		}
 	}
 
 	private void suppressCreditAwardsUntilStatsSettle(boolean clearUncreditedXpPool)

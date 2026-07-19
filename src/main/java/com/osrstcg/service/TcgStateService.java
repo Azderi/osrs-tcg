@@ -6,6 +6,7 @@ import com.osrstcg.model.CollectionState;
 import com.osrstcg.model.OwnedCardInstance;
 import com.osrstcg.model.PackCardResult;
 import com.osrstcg.model.RewardTuningState;
+import com.osrstcg.model.SkillCreditBaseline;
 import com.osrstcg.model.TcgState;
 import com.osrstcg.persist.TcgStateLoadResult;
 import com.osrstcg.persist.TcgStateLoadSource;
@@ -19,6 +20,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -95,10 +97,20 @@ public class TcgStateService
 			log.info("OSRS TCG: loaded profile had debug mode enabled; keeping collection (developer mode active).");
 		}
 
-		if (stripDebugProvenanceRowsIfDebugDisabled())
+		boolean strippedDebug = stripDebugProvenanceRowsIfDebugDisabled();
+		// Rewrite older profiles so persisted JSON includes skillCreditBaseline (schema 4).
+		boolean upgradedSkillBaseline = ensureSkillCreditBaselineSchemaField();
+		if (upgradedSkillBaseline)
+		{
+			state = state.withSkillCreditBaseline(SkillCreditBaseline.absent());
+		}
+		if (strippedDebug || upgradedSkillBaseline)
 		{
 			save();
-			notifyCollectionShareListeners();
+			if (strippedDebug)
+			{
+				notifyCollectionShareListeners();
+			}
 		}
 
 		return result;
@@ -135,14 +147,44 @@ public class TcgStateService
 			log.info("OSRS TCG: file backup had debug mode enabled; keeping collection (developer mode active).");
 		}
 
-		if (stripDebugProvenanceRowsIfDebugDisabled())
+		boolean strippedDebug = stripDebugProvenanceRowsIfDebugDisabled();
+		if (ensureSkillCreditBaselineSchemaField())
 		{
-			save();
+			state = state.withSkillCreditBaseline(SkillCreditBaseline.absent());
+		}
+		save();
+		if (strippedDebug)
+		{
+			notifyCollectionShareListeners();
+		}
+		return true;
+	}
+
+	/**
+	 * Ensures older profiles that omitted skillCreditBaseline are rewritten on disk.
+	 *
+	 * @return true if the loaded profile needs a schema placeholder written on next save
+	 */
+	private boolean ensureSkillCreditBaselineSchemaField()
+	{
+		SkillCreditBaseline baseline = state.getSkillCreditBaseline();
+		if (baseline == null)
+		{
+			state = state.withSkillCreditBaseline(SkillCreditBaseline.absent());
 			return true;
 		}
+		return baseline.needsSchemaUpgradePersist();
+	}
 
-		save();
-		return true;
+	/** Replaces the persisted skill XP baseline in memory (does not save by itself). */
+	public synchronized void replaceSkillCreditBaseline(SkillCreditBaseline baseline)
+	{
+		SkillCreditBaseline next = baseline == null ? SkillCreditBaseline.absent() : baseline;
+		if (Objects.equals(state.getSkillCreditBaseline(), next))
+		{
+			return;
+		}
+		state = state.withSkillCreditBaseline(next);
 	}
 
 	/**

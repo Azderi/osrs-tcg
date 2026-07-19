@@ -4,7 +4,7 @@ import com.osrstcg.util.PackRevealZoomUtil;
 
 public final class TcgState
 {
-	public static final int CURRENT_SCHEMA_VERSION = 3;
+	public static final int CURRENT_SCHEMA_VERSION = 4;
 
 	private final int schemaVersion;
 	private final EconomyState economyState;
@@ -14,10 +14,11 @@ public final class TcgState
 	private final double packRevealOverlayScale;
 	private final int albumWindowWidth;
 	private final int albumWindowHeight;
+	private final SkillCreditBaseline skillCreditBaseline;
 
 	public TcgState(int schemaVersion, EconomyState economyState, CollectionState collectionState,
 		RewardTuningState rewardTuning, boolean debugLogging, double packRevealOverlayScale,
-		int albumWindowWidth, int albumWindowHeight)
+		int albumWindowWidth, int albumWindowHeight, SkillCreditBaseline skillCreditBaseline)
 	{
 		this.schemaVersion = schemaVersion <= 0 ? CURRENT_SCHEMA_VERSION : schemaVersion;
 		this.economyState = economyState == null ? EconomyState.empty() : economyState;
@@ -27,12 +28,13 @@ public final class TcgState
 		this.packRevealOverlayScale = PackRevealZoomUtil.clamp(packRevealOverlayScale);
 		this.albumWindowWidth = Math.max(0, albumWindowWidth);
 		this.albumWindowHeight = Math.max(0, albumWindowHeight);
+		this.skillCreditBaseline = skillCreditBaseline == null ? SkillCreditBaseline.absent() : skillCreditBaseline;
 	}
 
 	public static TcgState empty()
 	{
 		return new TcgState(CURRENT_SCHEMA_VERSION, EconomyState.empty(), CollectionState.empty(),
-			RewardTuningState.DEFAULTS, false, 1.0d, 0, 0);
+			RewardTuningState.DEFAULTS, false, 1.0d, 0, 0, SkillCreditBaseline.absent());
 	}
 
 	public int getSchemaVersion()
@@ -75,46 +77,60 @@ public final class TcgState
 		return albumWindowHeight;
 	}
 
+	public SkillCreditBaseline getSkillCreditBaseline()
+	{
+		return skillCreditBaseline;
+	}
+
 	public TcgState withCredits(long newCredits)
 	{
 		return new TcgState(schemaVersion, new EconomyState(newCredits, economyState.getOpenedPacks()),
-			collectionState, rewardTuning, debugLogging, packRevealOverlayScale, albumWindowWidth, albumWindowHeight);
+			collectionState, rewardTuning, debugLogging, packRevealOverlayScale, albumWindowWidth, albumWindowHeight,
+			skillCreditBaseline);
 	}
 
 	public TcgState withOpenedPacks(long openedPacks)
 	{
 		return new TcgState(schemaVersion, new EconomyState(economyState.getCredits(), openedPacks),
-			collectionState, rewardTuning, debugLogging, packRevealOverlayScale, albumWindowWidth, albumWindowHeight);
+			collectionState, rewardTuning, debugLogging, packRevealOverlayScale, albumWindowWidth, albumWindowHeight,
+			skillCreditBaseline);
 	}
 
 	public TcgState withCollection(CollectionState newCollectionState)
 	{
 		return new TcgState(schemaVersion, economyState, newCollectionState, rewardTuning,
-			debugLogging, packRevealOverlayScale, albumWindowWidth, albumWindowHeight);
+			debugLogging, packRevealOverlayScale, albumWindowWidth, albumWindowHeight, skillCreditBaseline);
 	}
 
 	public TcgState withRewardTuning(RewardTuningState next)
 	{
 		return new TcgState(schemaVersion, economyState, collectionState,
 			next == null ? RewardTuningState.DEFAULTS : next, debugLogging, packRevealOverlayScale,
-			albumWindowWidth, albumWindowHeight);
+			albumWindowWidth, albumWindowHeight, skillCreditBaseline);
 	}
 
 	public TcgState withDebugLogging(boolean enabled)
 	{
 		return new TcgState(schemaVersion, economyState, collectionState, rewardTuning, enabled,
-			packRevealOverlayScale, albumWindowWidth, albumWindowHeight);
+			packRevealOverlayScale, albumWindowWidth, albumWindowHeight, skillCreditBaseline);
 	}
 
 	public TcgState withPackRevealOverlayScale(double multiplier)
 	{
 		return new TcgState(schemaVersion, economyState, collectionState, rewardTuning, debugLogging,
-			multiplier, albumWindowWidth, albumWindowHeight);
+			multiplier, albumWindowWidth, albumWindowHeight, skillCreditBaseline);
 	}
 
 	public TcgState withAlbumWindowSize(int width, int height)
 	{
 		return new TcgState(schemaVersion, economyState, collectionState, rewardTuning, debugLogging,
-			packRevealOverlayScale, width, height);
+			packRevealOverlayScale, width, height, skillCreditBaseline);
+	}
+
+	public TcgState withSkillCreditBaseline(SkillCreditBaseline baseline)
+	{
+		return new TcgState(schemaVersion, economyState, collectionState, rewardTuning, debugLogging,
+			packRevealOverlayScale, albumWindowWidth, albumWindowHeight,
+			baseline == null ? SkillCreditBaseline.absent() : baseline);
 	}
 }
