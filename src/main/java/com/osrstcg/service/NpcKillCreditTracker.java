@@ -48,6 +48,7 @@ public final class NpcKillCreditTracker
 		NpcExclusionRule.npcIds(ExcludedNpcIds.AMOXLIATL_UNSTABLE_ICE),
 		NpcExclusionRule.npcIds(ExcludedNpcIds.CRACKED_ICE),
 		NpcExclusionRule.npcIds(ExcludedNpcIds.GREAT_OLM),
+		NpcExclusionRule.npcIds(ExcludedNpcIds.TOA_WARDENS),
 		NpcExclusionRule.exactName("The Nightmare"),
 		NpcExclusionRule.exactName("Phosani's Nightmare"),
 		NpcExclusionRule.npcIds(ExcludedNpcIds.THE_NIGHTMARE),
@@ -275,6 +276,11 @@ public final class NpcKillCreditTracker
 
 		/** Great Olm — head and claws, normal and challenge mode (kill credits via {@link GameMessageCreditTracker}). */
 		static final Set<Integer> GREAT_OLM = Set.of(7550, 7551, 7552, 7553, 7554, 7555);
+
+		/** Tombs of Amascut Wardens fight — both Wardens, all phases, and the Obelisk (kill credits via {@link GameMessageCreditTracker}). */
+		static final Set<Integer> TOA_WARDENS = Set.of(
+			11746, 11747, 11748, 11749, 11750, 11751, 11752, 11753,
+			11754, 11755, 11756, 11757, 11758, 11759, 11760);
 
 		/** The Nightmare — minions and non-kill phases (kill credits via {@link GameMessageCreditTracker}). */
 		static final Set<Integer> THE_NIGHTMARE = Set.of(

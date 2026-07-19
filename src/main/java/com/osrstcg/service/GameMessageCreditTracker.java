@@ -25,6 +25,17 @@ public final class GameMessageCreditTracker
 	private static final long CHAMBERS_OF_XERIC_COMPLETION_CREDITS = 12_500L;
 	private static final String CHAMBERS_OF_XERIC_COMPLETION_PREFIX = "Your completed Chambers of Xeric count is:";
 
+	private static final long TOMBS_OF_AMASCUT_EXPERT_MODE_COMPLETION_CREDITS = 18_500L;
+	private static final String TOMBS_OF_AMASCUT_EXPERT_MODE_COMPLETION_PREFIX =
+		"Your completed Tombs of Amascut: Expert Mode count is:";
+
+	private static final long TOMBS_OF_AMASCUT_ENTRY_MODE_COMPLETION_CREDITS = 3_500L;
+	private static final String TOMBS_OF_AMASCUT_ENTRY_MODE_COMPLETION_PREFIX =
+		"Your completed Tombs of Amascut: Entry Mode count is:";
+
+	private static final long TOMBS_OF_AMASCUT_COMPLETION_CREDITS = 12_500L;
+	private static final String TOMBS_OF_AMASCUT_COMPLETION_PREFIX = "Your completed Tombs of Amascut count is:";
+
 	private static final long GAUNTLET_COMPLETION_CREDITS = 1_750L;
 	private static final String GAUNTLET_COMPLETION_PREFIX = "Your Gauntlet completion count is:";
 
@@ -78,6 +89,18 @@ public final class GameMessageCreditTracker
 			CHAMBERS_OF_XERIC_COMPLETION_PREFIX,
 			CHAMBERS_OF_XERIC_COMPLETION_CREDITS,
 			"Chambers of Xeric completion"));
+		rules.add(CreditRule.prefix(
+			TOMBS_OF_AMASCUT_EXPERT_MODE_COMPLETION_PREFIX,
+			TOMBS_OF_AMASCUT_EXPERT_MODE_COMPLETION_CREDITS,
+			"Tombs of Amascut Expert Mode completion"));
+		rules.add(CreditRule.prefix(
+			TOMBS_OF_AMASCUT_ENTRY_MODE_COMPLETION_PREFIX,
+			TOMBS_OF_AMASCUT_ENTRY_MODE_COMPLETION_CREDITS,
+			"Tombs of Amascut Entry Mode completion"));
+		rules.add(CreditRule.prefix(
+			TOMBS_OF_AMASCUT_COMPLETION_PREFIX,
+			TOMBS_OF_AMASCUT_COMPLETION_CREDITS,
+			"Tombs of Amascut completion"));
 		rules.add(CreditRule.prefix(
 			GAUNTLET_COMPLETION_PREFIX,
 			GAUNTLET_COMPLETION_CREDITS,
