@@ -10,7 +10,7 @@ import javax.inject.Singleton;
 @Singleton
 public class CreditsRateTracker
 {
-	private static final long WINDOW_MS = 5L * 60L * 1000L;
+	private static final long WINDOW_MS = 15L * 60L * 1000L;
 	private static final int MIN_DROPS_TO_SHOW = 3;
 
 	private final ArrayDeque<CreditDrop> drops = new ArrayDeque<>();
@@ -32,7 +32,7 @@ public class CreditsRateTracker
 
 	/**
 	 * @return last credits/h computed on a credit drop, or {@code null} until at least
-	 * {@value #MIN_DROPS_TO_SHOW} drops are in the 5-minute window, or after 5 minutes
+	 * {@value #MIN_DROPS_TO_SHOW} drops are in the 15-minute window, or after 15 minutes
 	 * with no new drops
 	 */
 	public synchronized Long creditsPerHourOrNull()
