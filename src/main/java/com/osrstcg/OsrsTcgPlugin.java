@@ -14,6 +14,7 @@ import com.osrstcg.model.OwnedCardInstance;
 import com.osrstcg.model.TcgPublicStats;
 import com.osrstcg.overlay.PackRevealInputListener;
 import com.osrstcg.overlay.PackRevealOverlay;
+import com.osrstcg.service.OwnedCardNamesApiService;
 import com.osrstcg.service.CardPartyTransferService;
 import com.osrstcg.service.CreditAwardService;
 import com.osrstcg.service.GameMessageCreditTracker;
@@ -156,6 +157,8 @@ public class OsrsTcgPlugin extends Plugin
 	private PlayerCombatMonitor playerCombatMonitor;
 	@Inject
 	private PackSafeModeService packSafeModeService;
+	@Inject
+	private OwnedCardNamesApiService ownedCardNamesApiService;
 
 	private NavigationButton navigationButton;
 	private boolean fileBackupLoadUsedThisSession;
@@ -200,6 +203,7 @@ public class OsrsTcgPlugin extends Plugin
 			TCG_PUBLIC_CHAT_COMMAND, this::lookupTcgPublicStatsChatCommand, this::submitTcgPublicStatsChatCommand);
 		tcgPanel.start();
 		stateService.setRewardTuningFlushBeforeCredits(tcgPanel::flushRewardTuningDraftToState);
+		ownedCardNamesApiService.start();
 		tcgPanel.refresh();
 		stateService.saveToFileBackup();
 		TcgPluginGameMessages.setPrefixColor(config.chatPrefixColor());
@@ -235,6 +239,7 @@ public class OsrsTcgPlugin extends Plugin
 		packRevealService.reset();
 		collectionAlbumManager.dispose();
 		stateService.setRewardTuningFlushBeforeCredits(null);
+		ownedCardNamesApiService.stop();
 		tcgPanel.stop();
 		stateService.saveToProfile();
 		log.info("OSRS TCG plugin stopped");

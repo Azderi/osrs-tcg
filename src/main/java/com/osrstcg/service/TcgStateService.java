@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +35,7 @@ public class TcgStateService
 	private final boolean runeliteDeveloperMode;
 	private volatile TcgState state = TcgState.empty();
 	private Runnable rewardTuningFlushBeforeCredits;
+	private final CopyOnWriteArrayList<Runnable> collectionChangeListeners = new CopyOnWriteArrayList<>();
 	private long lastFileBackupEpochMs;
 
 	@Inject
@@ -85,6 +87,7 @@ public class TcgStateService
 		if (stripDebugProvenanceRowsIfDebugDisabled())
 		{
 			save();
+			notifyCollectionShareListeners();
 		}
 
 		return result;
@@ -122,8 +125,12 @@ public class TcgStateService
 			log.info("OSRS TCG: file backup had debug mode enabled; keeping collection (developer mode active).");
 		}
 
-		stripDebugProvenanceRowsIfDebugDisabled();
+		boolean strippedDebug = stripDebugProvenanceRowsIfDebugDisabled();
 		saveToProfile();
+		if (strippedDebug)
+		{
+			notifyCollectionShareListeners();
+		}
 		return true;
 	}
 
@@ -186,6 +193,38 @@ public class TcgStateService
 		if (stateStore.saveToFileBackup(state))
 		{
 			lastFileBackupEpochMs = now;
+		}
+	}
+
+	/** Invoked after share-relevant collection / pack mutations (interop broadcasts). */
+	public void addCollectionChangeListener(Runnable listener)
+	{
+		if (listener != null)
+		{
+			collectionChangeListeners.addIfAbsent(listener);
+		}
+	}
+
+	public void removeCollectionChangeListener(Runnable listener)
+	{
+		if (listener != null)
+		{
+			collectionChangeListeners.remove(listener);
+		}
+	}
+
+	private void notifyCollectionShareListeners()
+	{
+		for (Runnable notify : collectionChangeListeners)
+		{
+			try
+			{
+				notify.run();
+			}
+			catch (Exception ex)
+			{
+				log.debug("Collection change listener failed", ex);
+			}
 		}
 	}
 
@@ -340,6 +379,7 @@ public class TcgStateService
 		}
 		state = state.withCollection(state.getCollectionState().withInstancesAdded(add));
 		save();
+		notifyCollectionShareListeners();
 	}
 
 	public synchronized void addOwnedCardInstance(OwnedCardInstance instance)
@@ -351,6 +391,7 @@ public class TcgStateService
 		flushRewardTuningDraftBeforeLocking();
 		state = state.withCollection(state.getCollectionState().withInstanceAdded(instance));
 		save();
+		notifyCollectionShareListeners();
 	}
 
 	/**
@@ -394,6 +435,7 @@ public class TcgStateService
 
 		state = state.withCollection(state.getCollectionState().withInstancesAdded(toAdd));
 		save();
+		notifyCollectionShareListeners();
 		return toAdd.size();
 	}
 
@@ -408,6 +450,7 @@ public class TcgStateService
 		flushRewardTuningDraftBeforeLocking();
 		state = state.withCollection(CollectionState.copyOf(replacement == null ? List.of() : replacement));
 		save();
+		notifyCollectionShareListeners();
 	}
 
 	public synchronized boolean toggleCardInstanceLock(String instanceId)
@@ -485,6 +528,7 @@ public class TcgStateService
 			.withOpenedPacks(state.getEconomyState().getOpenedPacks() + 1L)
 			.withCollection(nextColl);
 		save();
+		notifyCollectionShareListeners();
 		return true;
 	}
 
@@ -492,6 +536,7 @@ public class TcgStateService
 	{
 		state = TcgState.empty();
 		saveToProfile();
+		notifyCollectionShareListeners();
 	}
 
 	public synchronized boolean removeCardInstance(String instanceId)
@@ -506,6 +551,7 @@ public class TcgStateService
 		}
 		state = state.withCollection(state.getCollectionState().withInstanceRemoved(instanceId));
 		save();
+		notifyCollectionShareListeners();
 		return true;
 	}
 
@@ -567,6 +613,7 @@ public class TcgStateService
 		}
 		state = state.withCollection(CollectionState.copyOf(list));
 		save();
+		notifyCollectionShareListeners();
 		return true;
 	}
 
