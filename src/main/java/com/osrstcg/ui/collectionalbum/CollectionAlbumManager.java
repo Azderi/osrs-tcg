@@ -11,6 +11,7 @@ import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import net.runelite.client.party.PartyService;
 
 @Singleton
@@ -26,6 +27,7 @@ public final class CollectionAlbumManager
 	private final Provider<TcgPanel> tcgPanelProvider;
 
 	private volatile CollectionAlbumWindow window;
+	private Timer collectionRefreshDebounceTimer;
 
 	@Inject
 	public CollectionAlbumManager(
@@ -102,6 +104,11 @@ public final class CollectionAlbumManager
 	{
 		SwingUtilities.invokeLater(() ->
 		{
+			if (collectionRefreshDebounceTimer != null)
+			{
+				collectionRefreshDebounceTimer.stop();
+				collectionRefreshDebounceTimer = null;
+			}
 			if (window != null)
 			{
 				window.disposeInternal();

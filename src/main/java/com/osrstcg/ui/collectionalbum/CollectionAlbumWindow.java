@@ -42,6 +42,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.swing.BorderFactory;
@@ -155,6 +157,7 @@ public final class CollectionAlbumWindow extends JFrame
 	private String sendFocusCardName;
 	/** Last size from user resize; used when persisting on hide (getSize() can be wrong while closing). */
 	private Dimension trackedWindowSize;
+	private final AtomicLong modelRebuildGen = new AtomicLong();
 
 	public CollectionAlbumWindow(
 		CardDatabase cardDatabase,
@@ -842,68 +845,179 @@ public final class CollectionAlbumWindow extends JFrame
 
 	public void rebuildModel()
 	{
-		exitAlbumVariantView();
-		refreshPartyMemberCombo();
+		scheduleModelRebuild(true);
+	}
+
+	/**
+	 * Lightweight refresh when collection data changes externally (trade, gift, sell).
+	 * Avoids resetting variant view or rebuilding the party combo; heavy filter/sort runs off the EDT.
+	 */
+	void refreshFromCollectionChange()
+	{
+		if (!SwingUtilities.isEventDispatchThread())
+		{
+			SwingUtilities.invokeLater(this::refreshFromCollectionChange);
+			return;
+		}
+		if (!isShowing())
+		{
+			return;
+		}
+		if (needsFullRefilterForCollectionChange())
+		{
+			scheduleModelRebuild(false);
+			return;
+		}
+		if (albumVariantsVisible)
+		{
+			refreshActiveVariantCopies();
+		}
+		else
+		{
+			refreshCurrentPage();
+		}
+		updateSouthBarButtons();
+	}
+
+	private boolean needsFullRefilterForCollectionChange()
+	{
+		return radObtained.isSelected()
+			|| radDuplicates.isSelected()
+			|| radMissing.isSelected()
+			|| foilOnlyCheck.isSelected();
+	}
+
+	private void scheduleModelRebuild(boolean userInitiated)
+	{
+		if (!SwingUtilities.isEventDispatchThread())
+		{
+			SwingUtilities.invokeLater(() -> scheduleModelRebuild(userInitiated));
+			return;
+		}
+		if (userInitiated)
+		{
+			exitAlbumVariantView();
+			refreshPartyMemberCombo();
+		}
 		int collectionIdx = collectionCombo.getSelectedIndex();
 		if (tabFilters.isEmpty() || collectionIdx < 0 || collectionIdx >= tabFilters.size())
 		{
-			filteredSortedCards = List.of();
-			filteredTotal = 0;
-			pageCount = 1;
-			pageIndex = 0;
-			grid.setSlots(List.of(), selectionPreserveIndex(List.of()));
-			updatePageControls(0, 0);
+			applyEmptyFilteredModel();
 			return;
 		}
 
-		Predicate<CardDefinition> tabPred = tabFilters.get(collectionIdx).getInclude();
-		List<CardDefinition> working = cardDatabase.getCards().stream()
-			.filter(CollectionAlbumWindow::hasCardName)
-			.filter(tabPred)
-			.collect(Collectors.toCollection(ArrayList::new));
-
-		String rarityPick = (String) rarityCombo.getSelectedItem();
-		if (rarityPick != null && !RARITY_FILTER_ALL.equals(rarityPick))
+		ModelRebuildInputs inputs = captureModelRebuildInputs(collectionIdx);
+		final long gen = modelRebuildGen.incrementAndGet();
+		ForkJoinPool.commonPool().execute(() ->
 		{
-			working.removeIf(c -> !rarityPick.equals(rarityTable.tierLabelForCard(c)));
-		}
+			List<CardDefinition> working = computeFilteredSortedCards(inputs);
+			SwingUtilities.invokeLater(() -> applyModelRebuild(gen, inputs.preservePageIndex, working));
+		});
+	}
 
-		String q = searchField.getText().trim().toLowerCase(Locale.ROOT);
-		if (!q.isEmpty())
-		{
-			working.removeIf(c -> !c.getName().toLowerCase(Locale.ROOT).contains(q));
-		}
+	private void applyEmptyFilteredModel()
+	{
+		filteredSortedCards = List.of();
+		filteredTotal = 0;
+		pageCount = 1;
+		pageIndex = 0;
+		grid.setSlots(List.of(), selectionPreserveIndex(List.of()));
+		updatePageControls(0, 0);
+	}
 
-		Map<CardCollectionKey, Integer> owned = stateService.getState().getCollectionState().getOwnedCards();
-		Set<String> collected = collectedNamesFromOwned(owned);
-
-		if (foilOnlyCheck.isSelected())
-		{
-			working.removeIf(c -> !hasFoilOwned(owned, c.getName()));
-		}
-
-		if (radObtained.isSelected())
-		{
-			working.removeIf(c -> !collected.contains(c.getName()));
-		}
-		else if (radDuplicates.isSelected())
-		{
-			working.removeIf(c -> !hasDuplicateOwned(owned, c.getName()));
-		}
-		else if (radMissing.isSelected())
-		{
-			working.removeIf(c -> collected.contains(c.getName()));
-		}
-
+	private ModelRebuildInputs captureModelRebuildInputs(int collectionIdx)
+	{
 		AlbumSortMode mode = (AlbumSortMode) sortCombo.getSelectedItem();
 		if (mode == null)
 		{
 			mode = AlbumSortMode.SCORE_DESC;
 		}
+		return new ModelRebuildInputs(
+			collectionIdx,
+			new ArrayList<>(cardDatabase.getCards()),
+			tabFilters,
+			rarityTable,
+			(String) rarityCombo.getSelectedItem(),
+			searchField.getText().trim().toLowerCase(Locale.ROOT),
+			stateService.getState().getCollectionState().getOwnedCards(),
+			foilOnlyCheck.isSelected(),
+			radObtained.isSelected(),
+			radDuplicates.isSelected(),
+			radMissing.isSelected(),
+			mode,
+			pageIndex);
+	}
+
+	private void applyModelRebuild(long gen, int preservePageIndex, List<CardDefinition> working)
+	{
+		if (gen != modelRebuildGen.get())
+		{
+			return;
+		}
+		if (!SwingUtilities.isEventDispatchThread())
+		{
+			SwingUtilities.invokeLater(() -> applyModelRebuild(gen, preservePageIndex, working));
+			return;
+		}
+		filteredSortedCards = working;
+		filteredTotal = working.size();
+		pageCount = Math.max(1, (filteredTotal + PAGE_SIZE - 1) / PAGE_SIZE);
+		pageIndex = Math.max(0, Math.min(preservePageIndex, pageCount - 1));
+		refreshCurrentPage();
+	}
+
+	private static List<CardDefinition> computeFilteredSortedCards(ModelRebuildInputs inputs)
+	{
+		if (inputs.tabFilters.isEmpty()
+			|| inputs.collectionIdx < 0
+			|| inputs.collectionIdx >= inputs.tabFilters.size())
+		{
+			return List.of();
+		}
+
+		Predicate<CardDefinition> tabPred = inputs.tabFilters.get(inputs.collectionIdx).getInclude();
+		List<CardDefinition> working = inputs.allCards.stream()
+			.filter(CollectionAlbumWindow::hasCardName)
+			.filter(tabPred)
+			.collect(Collectors.toCollection(ArrayList::new));
+
+		String rarityPick = inputs.rarityPick;
+		if (rarityPick != null && !RARITY_FILTER_ALL.equals(rarityPick))
+		{
+			working.removeIf(c -> !rarityPick.equals(inputs.rarityTable.tierLabelForCard(c)));
+		}
+
+		String q = inputs.searchQuery;
+		if (q != null && !q.isEmpty())
+		{
+			working.removeIf(c -> c.getName() == null || !c.getName().toLowerCase(Locale.ROOT).contains(q));
+		}
+
+		Map<CardCollectionKey, Integer> owned = inputs.owned;
+		Set<String> collected = collectedNamesFromOwned(owned);
+
+		if (inputs.foilOnly)
+		{
+			working.removeIf(c -> !hasFoilOwned(owned, c.getName()));
+		}
+
+		if (inputs.obtainedOnly)
+		{
+			working.removeIf(c -> !collected.contains(c.getName()));
+		}
+		else if (inputs.duplicatesOnly)
+		{
+			working.removeIf(c -> !hasDuplicateOwned(owned, c.getName()));
+		}
+		else if (inputs.missingOnly)
+		{
+			working.removeIf(c -> collected.contains(c.getName()));
+		}
+
 		Comparator<CardDefinition> byName = Comparator.comparing(
 			c -> c.getName() == null ? "" : c.getName(),
 			String.CASE_INSENSITIVE_ORDER);
-		switch (mode)
+		switch (inputs.sortMode)
 		{
 			case SCORE_DESC:
 				working.sort(Comparator.<CardDefinition>comparingDouble(c -> albumSortScore(owned, c))
@@ -912,7 +1026,7 @@ public final class CollectionAlbumWindow extends JFrame
 				break;
 			case RARITY_DESC:
 				working.sort(Comparator.<CardDefinition>comparingInt(
-					c -> tierSortKey(rarityTable.tierLabelForCard(c)))
+					c -> tierSortKey(inputs.rarityTable.tierLabelForCard(c)))
 					.reversed()
 					.thenComparing(byName));
 				break;
@@ -921,12 +1035,7 @@ public final class CollectionAlbumWindow extends JFrame
 				working.sort(byName);
 				break;
 		}
-
-		filteredSortedCards = working;
-		filteredTotal = working.size();
-		pageCount = Math.max(1, (filteredTotal + PAGE_SIZE - 1) / PAGE_SIZE);
-		pageIndex = Math.max(0, Math.min(pageIndex, pageCount - 1));
-		refreshCurrentPage();
+		return working;
 	}
 
 	/** Updates the visible page from {@link #filteredSortedCards} without re-filtering or re-sorting. */
@@ -945,6 +1054,8 @@ public final class CollectionAlbumWindow extends JFrame
 
 		Map<CardCollectionKey, Integer> owned = stateService.getState().getCollectionState().getOwnedCards();
 		Set<String> collected = collectedNamesFromOwned(owned);
+		Map<String, List<OwnedCardInstance>> instancesByName = indexInstancesByName(
+			stateService.getState().getCollectionState().getOwnedInstances());
 
 		List<AlbumSlot> slots = new ArrayList<>();
 		for (int i = from; i < to; i++)
@@ -958,13 +1069,13 @@ public final class CollectionAlbumWindow extends JFrame
 			Integer ff = owned.get(new CardCollectionKey(name, true));
 			int nQty = nf == null ? 0 : nf;
 			int fQty = ff == null ? 0 : ff;
-			String singleTip = singleCopyAlbumHoverTooltip(name, nQty, fQty, ownAny);
+			List<OwnedCardInstance> row = instancesByName.getOrDefault(name, List.of());
+			String singleTip = singleCopyAlbumHoverTooltip(name, nQty, fQty, ownAny, row);
 			boolean lockBadge = false;
 			String soleInstanceId = null;
 			boolean offeredInTrade = false;
 			if (ownAny)
 			{
-				List<OwnedCardInstance> row = stateService.getState().getCollectionState().instancesForCardName(name);
 				lockBadge = row.stream().anyMatch(OwnedCardInstance::isLocked);
 				if (row.size() == 1)
 				{
@@ -1140,18 +1251,41 @@ public final class CollectionAlbumWindow extends JFrame
 		return total > 1;
 	}
 
-	private String singleCopyAlbumHoverTooltip(String cardName, int nQty, int fQty, boolean ownAny)
+	private String singleCopyAlbumHoverTooltip(String cardName, int nQty, int fQty, boolean ownAny,
+		List<OwnedCardInstance> row)
 	{
 		if (!ownAny || cardName == null || nQty + fQty != 1)
 		{
 			return null;
 		}
-		List<OwnedCardInstance> row = stateService.getState().getCollectionState().instancesForCardName(cardName);
-		if (row.size() != 1)
+		if (row == null || row.size() != 1)
 		{
 			return null;
 		}
 		return AlbumInstanceTooltip.format(row.get(0));
+	}
+
+	private static Map<String, List<OwnedCardInstance>> indexInstancesByName(List<OwnedCardInstance> instances)
+	{
+		if (instances == null || instances.isEmpty())
+		{
+			return Map.of();
+		}
+		Map<String, List<OwnedCardInstance>> out = new HashMap<>();
+		for (OwnedCardInstance inst : instances)
+		{
+			if (inst == null || inst.getCardName() == null)
+			{
+				continue;
+			}
+			String name = inst.getCardName().trim();
+			if (name.isEmpty())
+			{
+				continue;
+			}
+			out.computeIfAbsent(name, k -> new ArrayList<>()).add(inst);
+		}
+		return out;
 	}
 
 	private void exitAlbumVariantView()
@@ -1829,6 +1963,53 @@ public final class CollectionAlbumWindow extends JFrame
 			return;
 		}
 		offerInstanceForTrade(sendChosenInstanceId);
+	}
+
+	private static final class ModelRebuildInputs
+	{
+		private final int collectionIdx;
+		private final List<CardDefinition> allCards;
+		private final List<TabFilter> tabFilters;
+		private final AlbumRarityTable rarityTable;
+		private final String rarityPick;
+		private final String searchQuery;
+		private final Map<CardCollectionKey, Integer> owned;
+		private final boolean foilOnly;
+		private final boolean obtainedOnly;
+		private final boolean duplicatesOnly;
+		private final boolean missingOnly;
+		private final AlbumSortMode sortMode;
+		private final int preservePageIndex;
+
+		private ModelRebuildInputs(
+			int collectionIdx,
+			List<CardDefinition> allCards,
+			List<TabFilter> tabFilters,
+			AlbumRarityTable rarityTable,
+			String rarityPick,
+			String searchQuery,
+			Map<CardCollectionKey, Integer> owned,
+			boolean foilOnly,
+			boolean obtainedOnly,
+			boolean duplicatesOnly,
+			boolean missingOnly,
+			AlbumSortMode sortMode,
+			int preservePageIndex)
+		{
+			this.collectionIdx = collectionIdx;
+			this.allCards = allCards;
+			this.tabFilters = tabFilters;
+			this.rarityTable = rarityTable;
+			this.rarityPick = rarityPick;
+			this.searchQuery = searchQuery;
+			this.owned = owned;
+			this.foilOnly = foilOnly;
+			this.obtainedOnly = obtainedOnly;
+			this.duplicatesOnly = duplicatesOnly;
+			this.missingOnly = missingOnly;
+			this.sortMode = sortMode;
+			this.preservePageIndex = preservePageIndex;
+		}
 	}
 
 	private static final class TabFilter
