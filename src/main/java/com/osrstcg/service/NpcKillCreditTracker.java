@@ -46,6 +46,8 @@ public final class NpcKillCreditTracker
 		NpcExclusionRule.npcIds(ExcludedNpcIds.AMOXLIATL_UNSTABLE_ICE),
 		NpcExclusionRule.npcIds(ExcludedNpcIds.CRACKED_ICE),
 		NpcExclusionRule.npcIds(ExcludedNpcIds.GREAT_OLM),
+		NpcExclusionRule.npcIds(ExcludedNpcIds.TZHAAR_FIGHT_CAVE),
+		NpcExclusionRule.npcIds(ExcludedNpcIds.INFERNO),
 		NpcExclusionRule.npcIds(ExcludedNpcIds.THEATRE_OF_BLOOD),
 		NpcExclusionRule.npcIds(ExcludedNpcIds.TOMBS_OF_AMASCUT),
 		NpcExclusionRule.exactName("The Nightmare"),
@@ -275,6 +277,41 @@ public final class NpcKillCreditTracker
 
 		/** Great Olm — head and claws, normal and challenge mode (kill credits via {@link GameMessageCreditTracker}). */
 		static final Set<Integer> GREAT_OLM = Set.of(7550, 7551, 7552, 7553, 7554, 7555);
+
+		/**
+		 * TzHaar Fight Cave — TzTok-Jad and the wave monsters (credits via {@link GameMessageCreditTracker}).
+		 * The completion is paid flat from the TzTok-Jad kill-count message, so the whole cave is excluded from
+		 * per-kill. The TzHaar-Ket-Rak's Challenge Jad (6506) is not included: it does not fire that message and
+		 * keeps paying per kill.
+		 */
+		static final Set<Integer> TZHAAR_FIGHT_CAVE = Set.of(
+			3116, 3117,  // Tz-Kih
+			3118, 3119,  // Tz-Kek
+			3120,        // Tz-Kek (split)
+			3121, 3122,  // Tok-Xil
+			3123, 3124,  // Yt-MejKot
+			3125, 3126,  // Ket-Zek
+			3127,        // TzTok-Jad
+			3128);       // Yt-HurKot (Jad healer)
+
+		/**
+		 * The Inferno — TzKal-Zuk and the wave monsters (credits via {@link GameMessageCreditTracker}). The
+		 * completion is paid flat from the TzKal-Zuk kill-count message, so the whole encounter is excluded from
+		 * per-kill. Non-combat ids in the same range (7690 master, 7707/7709/7710 safespot markers) are omitted.
+		 */
+		static final Set<Integer> INFERNO = Set.of(
+			7691,        // Jal-Nib (nibbler)
+			7692,        // Jal-MejRah (bat)
+			7693,        // Jal-Ak (blob)
+			7694, 7695, 7696,  // Jal-AkRek-Mej / -Xil / -Ket (blob splits)
+			7697,        // Jal-ImKot (meleer)
+			7698,        // Jal-Xil (ranger)
+			7699,        // Jal-Zek (mager)
+			7700, 7701,  // JalTok-Jad and its healer
+			7702, 7703,  // Jal-Xil / Jal-Zek (final wave)
+			7704, 7705,  // JalTok-Jad and its healer (final wave)
+			7706,        // TzKal-Zuk
+			7708);       // Jal-MejJak (Zuk healer)
 
 		/**
 		 * Theatre of Blood — every NPC inside the raid, all difficulty modes (kill credits via

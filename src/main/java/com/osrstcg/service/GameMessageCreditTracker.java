@@ -55,6 +55,12 @@ public final class GameMessageCreditTracker
 	private static final long CORRUPTED_GAUNTLET_COMPLETION_CREDITS = 4_500L;
 	private static final String CORRUPTED_GAUNTLET_COMPLETION_PREFIX = "Your Corrupted Gauntlet completion count is:";
 
+	private static final long TZKAL_ZUK_KILL_CREDITS = 25_000L;
+	private static final String TZKAL_ZUK_KILL_PREFIX = "Your TzKal-Zuk kill count is:";
+
+	private static final long TZTOK_JAD_KILL_CREDITS = 10_000L;
+	private static final String TZTOK_JAD_KILL_PREFIX = "Your TzTok-Jad kill count is:";
+
 	private static final long ALCHEMICAL_HYDRA_KILL_CREDITS = 426L;
 	private static final String ALCHEMICAL_HYDRA_KILL_PREFIX = "Your Alchemical Hydra kill count is:";
 
@@ -142,6 +148,14 @@ public final class GameMessageCreditTracker
 			CORRUPTED_GAUNTLET_COMPLETION_PREFIX,
 			CORRUPTED_GAUNTLET_COMPLETION_CREDITS,
 			"Corrupted Gauntlet completion"));
+		rules.add(CreditRule.prefix(
+			TZKAL_ZUK_KILL_PREFIX,
+			TZKAL_ZUK_KILL_CREDITS,
+			"TzKal-Zuk kill"));
+		rules.add(CreditRule.prefix(
+			TZTOK_JAD_KILL_PREFIX,
+			TZTOK_JAD_KILL_CREDITS,
+			"TzTok-Jad kill"));
 		rules.add(CreditRule.prefix(
 			ALCHEMICAL_HYDRA_KILL_PREFIX,
 			ALCHEMICAL_HYDRA_KILL_CREDITS,
