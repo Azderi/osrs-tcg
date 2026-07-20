@@ -268,6 +268,10 @@ public class PackRevealOverlay extends Overlay
 			else
 			{
 				SharedCardRenderer.drawCardBack(graphics, r, card.getPull().isFoil(), card.getRarityColor());
+				if (config.packRarityText() && lift > 0.001d)
+				{
+					drawRarityLabel(graphics, r, card.getTier().getLabel(), card.getRarityColor(), (float) lift);
+				}
 			}
 		}
 
@@ -1031,6 +1035,32 @@ public class PackRevealOverlay extends Overlay
 			g2.setColor(new Color(0, 0, 0, 180));
 			g2.drawString(text, textX + 1, textY + 1);
 			g2.setColor(new Color(0xF2C94C));
+			g2.drawString(text, textX, textY);
+		}
+		finally
+		{
+			g2.dispose();
+		}
+	}
+
+	private void drawRarityLabel(Graphics2D g, Rectangle cardBounds, String text, Color color, float alpha)
+	{
+		float clampedAlpha = Math.max(0f, Math.min(1f, alpha));
+		if (text == null || clampedAlpha <= 0.01f)
+		{
+			return;
+		}
+
+		Graphics2D g2 = (Graphics2D) g.create();
+		try
+		{
+			g2.setFont(FontManager.getRunescapeBoldFont());
+			int textX = cardBounds.x + (cardBounds.width / 2) - (g2.getFontMetrics().stringWidth(text) / 2);
+			int textY = Math.max(14, cardBounds.y - 8);
+
+			g2.setColor(withAlpha(Color.BLACK, clampedAlpha * (180f / 255f)));
+			g2.drawString(text, textX + 1, textY + 1);
+			g2.setColor(withAlpha(color == null ? Color.WHITE : color, clampedAlpha));
 			g2.drawString(text, textX, textY);
 		}
 		finally

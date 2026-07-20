@@ -78,6 +78,19 @@ public interface OsrsTcgConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "packRarityText",
+		name = "Rarity Text",
+		description = "Show the rarity name above unflipped pack cards on hover. Helps colour blind users "
+			+ "tell rarities apart without relying on the highlight colour.",
+		section = generalSection,
+		position = 5
+	)
+	default boolean packRarityText()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "enableFileBackups",
 		name = "Backups",
 		description = "Keep up to 50 file backups under .runelite/OSRS-TCG/backups. "
@@ -85,7 +98,7 @@ public interface OsrsTcgConfig extends Config
 			+ "Preferred on load when newer than the profile configuration timestamp; "
 			+ "also used when profile configuration saves fail to load.",
 		section = generalSection,
-		position = 5
+		position = 6
 	)
 	default boolean enableFileBackups()
 	{
@@ -97,7 +110,7 @@ public interface OsrsTcgConfig extends Config
 		name = "Safe-mode",
 		description = "Block opening packs while in combat.",
 		section = generalSection,
-		position = 6
+		position = 7
 	)
 	default boolean safeMode()
 	{
@@ -109,7 +122,7 @@ public interface OsrsTcgConfig extends Config
 		name = "Chat prefix colour",
 		description = "Colour of the [OSRS TCG] chat tag.",
 		section = generalSection,
-		position = 7
+		position = 8
 	)
 	default Color chatPrefixColor()
 	{
@@ -121,7 +134,7 @@ public interface OsrsTcgConfig extends Config
 		name = "Debug messages",
 		description = "Show extra plugin details in chat.",
 		section = generalSection,
-		position = 8
+		position = 9
 	)
 	default boolean debugMessages()
 	{
