@@ -30,8 +30,8 @@ public final class NpcKillCreditTracker
 	private static final int INTERACTION_TIMEOUT_TICKS = 7;
 
 	/** Boss display name -> NPC ids that count as the real kill (final phase only). */
-	private static final Map<String, Set<Integer>> FINAL_PHASE_IDS = Map.ofEntries(
-		Map.entry("Kalphite Queen", Set.of(965)),
+	private static final Map<String, Set<Integer>> FINAL_PHASE_IDS = Map.of(
+		"Kalphite Queen", Set.of(965)
 	);
 
 	/** Kill-credit exclusions: exact name, name fragment (with optional exception), or NPC id. */
@@ -293,6 +293,10 @@ public final class NpcKillCreditTracker
 				java.util.stream.IntStream.rangeClosed(8338, 8389),
 				// Entry Mode and Hard Mode
 				java.util.stream.IntStream.rangeClosed(10766, 10869))
+			.boxed()
+			.collect(java.util.stream.Collectors.toUnmodifiableSet());
+
+		/**
 		 * Tombs of Amascut — every NPC inside the raid (kill credits via {@link GameMessageCreditTracker}).
 		 * The raid's NPCs occupy the contiguous gameval id block TOA_SCABARAS_SCARAB (11697) through
 		 * AKKHA_SHADOW_ENRAGE_DUMMY (11799): path monsters and baboons, Kephri and her scarabs, Zebak and
