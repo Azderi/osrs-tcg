@@ -947,10 +947,15 @@ public class TcgPanel extends PluginPanel
 		contentLayout.show(content, tab.name());
 		if (tab == Tab.SHOP)
 		{
-			shopScrollPane.getViewport().revalidate();
-			shopScrollPane.revalidate();
-			shopScrollPane.repaint();
+			revalidateTabScrollPane(shopScrollPane);
 		}
+	}
+
+	private static void revalidateTabScrollPane(JScrollPane scrollPane)
+	{
+		scrollPane.getViewport().revalidate();
+		scrollPane.revalidate();
+		scrollPane.repaint();
 	}
 
 	private JPanel panelForTab(Tab tab)
@@ -1535,7 +1540,7 @@ public class TcgPanel extends PluginPanel
 		{
 			if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0 && scrollPane.isShowing())
 			{
-				SwingUtilities.updateComponentTreeUI(scrollPane);
+				SwingUtilities.updateComponentTreeUI(vbar);
 			}
 		});
 	}
@@ -1776,11 +1781,24 @@ public class TcgPanel extends PluginPanel
 
 	private JLabel textPanel(String text)
 	{
-		JLabel label = new JLabel(text);
+		JLabel label = new JLabel(text)
+		{
+			@Override
+			public void updateUI()
+			{
+				super.updateUI();
+				applySidebarStatLabelStyle(this);
+			}
+		};
+		applySidebarStatLabelStyle(label);
+		return label;
+	}
+
+	private static void applySidebarStatLabelStyle(JLabel label)
+	{
 		label.setForeground(Color.WHITE);
 		label.setVerticalAlignment(SwingConstants.CENTER);
 		label.setFont(FontManager.getRunescapeSmallFont());
-		return label;
 	}
 
 	private static final int SHOP_BOOSTER_GRID_GAP = 6;
@@ -1949,11 +1967,24 @@ public class TcgPanel extends PluginPanel
 
 	private static JLabel shopBoosterTextLabel(String text)
 	{
-		JLabel label = new JLabel(text, SwingConstants.CENTER);
+		JLabel label = new JLabel(text, SwingConstants.CENTER)
+		{
+			@Override
+			public void updateUI()
+			{
+				super.updateUI();
+				applyShopBoosterTextLabelStyle(this);
+			}
+		};
+		applyShopBoosterTextLabelStyle(label);
+		return label;
+	}
+
+	private static void applyShopBoosterTextLabelStyle(JLabel label)
+	{
 		label.setAlignmentX(Component.CENTER_ALIGNMENT);
 		label.setForeground(Color.WHITE);
 		label.setFont(FontManager.getRunescapeSmallFont());
-		return label;
 	}
 
 	private static final class ShopPackProgressBar extends JPanel

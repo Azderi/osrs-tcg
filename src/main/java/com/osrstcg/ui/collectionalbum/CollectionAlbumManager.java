@@ -6,7 +6,9 @@ import com.osrstcg.service.CardPartyTradeService;
 import com.osrstcg.service.CardPartyTransferService;
 import com.osrstcg.service.TcgStateService;
 import com.osrstcg.service.WikiImageCacheService;
+import com.osrstcg.ui.TcgPanel;
 import javax.inject.Inject;
+import javax.inject.Provider;
 import javax.inject.Singleton;
 import javax.swing.SwingUtilities;
 import net.runelite.client.party.PartyService;
@@ -21,6 +23,7 @@ public final class CollectionAlbumManager
 	private final PartyService partyService;
 	private final CardPartyTransferService cardPartyTransferService;
 	private final CardPartyTradeService cardPartyTradeService;
+	private final Provider<TcgPanel> tcgPanelProvider;
 
 	private volatile CollectionAlbumWindow window;
 
@@ -32,7 +35,8 @@ public final class CollectionAlbumManager
 		WikiImageCacheService imageCacheService,
 		PartyService partyService,
 		CardPartyTransferService cardPartyTransferService,
-		CardPartyTradeService cardPartyTradeService)
+		CardPartyTradeService cardPartyTradeService,
+		Provider<TcgPanel> tcgPanelProvider)
 	{
 		this.cardDatabase = cardDatabase;
 		this.stateService = stateService;
@@ -41,6 +45,7 @@ public final class CollectionAlbumManager
 		this.partyService = partyService;
 		this.cardPartyTransferService = cardPartyTransferService;
 		this.cardPartyTradeService = cardPartyTradeService;
+		this.tcgPanelProvider = tcgPanelProvider;
 	}
 
 	public void showOrBringToFront()
@@ -51,7 +56,7 @@ public final class CollectionAlbumManager
 			{
 				window = new CollectionAlbumWindow(
 					cardDatabase, stateService, packCatalog, imageCacheService, partyService,
-					cardPartyTransferService, cardPartyTradeService);
+					cardPartyTransferService, cardPartyTradeService, this::refreshSidebarIfVisible);
 			}
 			window.refreshData();
 			window.prepareToShow();
@@ -82,6 +87,15 @@ public final class CollectionAlbumManager
 				w.refreshPartyTradeUi();
 			}
 		});
+	}
+
+	private void refreshSidebarIfVisible()
+	{
+		TcgPanel panel = tcgPanelProvider.get();
+		if (panel != null)
+		{
+			panel.refresh();
+		}
 	}
 
 	public void dispose()

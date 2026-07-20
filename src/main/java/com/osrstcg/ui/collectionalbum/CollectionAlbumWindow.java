@@ -93,6 +93,7 @@ public final class CollectionAlbumWindow extends JFrame
 	private final PartyService partyService;
 	private final CardPartyTransferService cardPartyTransferService;
 	private final CardPartyTradeService cardPartyTradeService;
+	private final Runnable sidebarRefresh;
 
 	private final List<Long> partyMemberIds = new ArrayList<>();
 	private final JComboBox<String> partyMemberCombo = new JComboBox<>();
@@ -162,7 +163,8 @@ public final class CollectionAlbumWindow extends JFrame
 		WikiImageCacheService imageCacheService,
 		PartyService partyService,
 		CardPartyTransferService cardPartyTransferService,
-		CardPartyTradeService cardPartyTradeService)
+		CardPartyTradeService cardPartyTradeService,
+		Runnable sidebarRefresh)
 	{
 		super("OSRS TCG — Collection album");
 		if (WINDOW_ICON != null)
@@ -176,6 +178,7 @@ public final class CollectionAlbumWindow extends JFrame
 		this.partyService = partyService;
 		this.cardPartyTransferService = cardPartyTransferService;
 		this.cardPartyTradeService = cardPartyTradeService;
+		this.sidebarRefresh = sidebarRefresh;
 		this.grid = new CollectionAlbumGridPanel(imageCacheService,
 			this::onOwnedMultiCopyAlbumPress, this::onAlbumCardLockToggle, this::onSlotSelectionChanged,
 			this::onAlbumDoubleClickOffer);
@@ -1694,6 +1697,10 @@ public final class CollectionAlbumWindow extends JFrame
 		sendFocusCardName = null;
 		sendStatusLabel.setText("");
 		rebuildModel();
+		if (sidebarRefresh != null)
+		{
+			sidebarRefresh.run();
+		}
 	}
 
 	private boolean isOnlyOwnedCopy(String instanceId)
