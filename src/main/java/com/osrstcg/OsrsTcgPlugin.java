@@ -51,6 +51,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
@@ -67,6 +68,7 @@ import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ChatInput;
+import net.runelite.client.events.ClientShutdown;
 import net.runelite.client.events.RuneScapeProfileChanged;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.party.PartyMember;
@@ -243,6 +245,16 @@ public class OsrsTcgPlugin extends Plugin
 		tcgPanel.stop();
 		stateService.saveToProfile();
 		log.info("OSRS TCG plugin stopped");
+	}
+
+	@Subscribe
+	public void onClientShutdown(ClientShutdown event)
+	{
+		Future<?> future = stateService.submitSaveToProfile(scheduledExecutorService);
+		if (future != null)
+		{
+			event.waitFor(future);
+		}
 	}
 
 	@Subscribe

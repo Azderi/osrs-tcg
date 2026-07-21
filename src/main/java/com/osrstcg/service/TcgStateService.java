@@ -20,7 +20,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
@@ -171,6 +174,43 @@ public class TcgStateService
 		{
 			lastFileBackupEpochMs = System.currentTimeMillis();
 		}
+	}
+
+	/**
+	 * Persists RSProfile configuration synchronously, then returns a {@link Future} for the file
+	 * backup write. RSProfile keys must be written on the calling thread before
+	 * {@link net.runelite.client.config.ConfigManager}'s {@code ClientShutdown} handler runs
+	 * {@code sendConfig()}; the returned future is for {@code ClientShutdown#waitFor(Future)}.
+	 */
+	public Future<?> submitSaveToProfile(Executor executor)
+	{
+		final TcgState snapshot;
+		synchronized (this)
+		{
+			flushRewardTuningDraftBeforeLocking();
+			if (stateStore == null)
+			{
+				return null;
+			}
+			stateStore.save(state);
+			snapshot = state;
+		}
+
+		if (executor == null)
+		{
+			return null;
+		}
+
+		return CompletableFuture.runAsync(() ->
+		{
+			if (stateStore.saveToFileBackup(snapshot))
+			{
+				synchronized (this)
+				{
+					lastFileBackupEpochMs = System.currentTimeMillis();
+				}
+			}
+		}, executor);
 	}
 
 	/**
