@@ -152,7 +152,7 @@ public class PullNotificationService
 
 	private boolean shouldNotifyDink(RarityMath.Tier tier, boolean foil, boolean newForCollection)
 	{
-		if (!newForCollection && !config.dinkNotifyDuplicates())
+		if (!newForCollection && config.dinkOnlyNotifyNew())
 		{
 			return false;
 		}

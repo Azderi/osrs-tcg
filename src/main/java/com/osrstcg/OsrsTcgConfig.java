@@ -239,8 +239,8 @@ public interface OsrsTcgConfig extends Config
 
 	@ConfigItem(
 		keyName = "dinkNewCardNotifyTier",
-		name = "New card rank threshold",
-		description = "Minimum card rank for new-card Dink notifications.",
+		name = "Notify tier",
+		description = "Notify for this rarity and higher.",
 		section = dinkSection,
 		position = 2
 	)
@@ -250,39 +250,39 @@ public interface OsrsTcgConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "dinkNotifyDuplicates",
-		name = "Notify duplicate cards",
-		description = "Send Dink notifications for duplicate cards at or above the selected rank threshold.",
-		section = dinkSection,
-		position = 3
-	)
-	default boolean dinkNotifyDuplicates()
-	{
-		return false;
-	}
-
-	@ConfigItem(
-		keyName = "dinkDuplicateNotifyTier",
-		name = "Duplicate rank threshold",
-		description = "Minimum card rank for duplicate Dink notifications.",
-		section = dinkSection,
-		position = 4
-	)
-	default PullNotifyTier dinkDuplicateNotifyTier()
-	{
-		return PullNotifyTier.MYTHIC;
-	}
-
-	@ConfigItem(
 		keyName = "dinkAlwaysNotifyFoils",
-		name = "Always notify foils",
+		name = "Notify all foils",
 		description = "Notify for foils regardless of rank. When disabled, foils must meet the relevant rank threshold.",
 		section = dinkSection,
-		position = 5
+		position = 3
 	)
 	default boolean dinkAlwaysNotifyFoils()
 	{
 		return true;
+	}
+
+	@ConfigItem(
+		keyName = "dinkOnlyNotifyNew",
+		name = "Only notify new cards",
+		description = "Only send Dink notifications for new cards at or above the selected rank threshold.",
+		section = dinkSection,
+		position = 4
+	)
+	default boolean dinkOnlyNotifyNew()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "dinkDuplicateNotifyTier",
+		name = "Duplicate notify tier",
+		description = "Minimum card rank for duplicate Dink notifications if only notify new cards is turned off.",
+		section = dinkSection,
+		position = 5
+	)
+	default PullNotifyTier dinkDuplicateNotifyTier()
+	{
+		return PullNotifyTier.MYTHIC;
 	}
 
 	@ConfigSection(
