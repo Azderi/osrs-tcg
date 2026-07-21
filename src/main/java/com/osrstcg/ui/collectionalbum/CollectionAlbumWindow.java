@@ -137,9 +137,8 @@ public final class CollectionAlbumWindow extends JFrame
 	 */
 	private Timer imageRepaintDebounceTimer;
 	private final Consumer<String> imageLoadListener = this::onWikiImageLoaded;
-	/** Repaints foil sheen during its short sweep window. */
+	/** High-rate foil sparkle/sheen repaints while foil cards are visible. */
 	private final Timer foilAnimTimer;
-	private long lastFoilSparkleRepaintMs;
 
 	private final CardLayout albumNorthLayout = new CardLayout();
 	private final JPanel albumNorthHost = new JPanel(albumNorthLayout);
@@ -499,7 +498,7 @@ public final class CollectionAlbumWindow extends JFrame
 
 		partyUiTimer = new Timer(2000, e ->
 		{
-			if (isShowing())
+			if (isShowing() && partyService.isInParty())
 			{
 				refreshPartyMemberCombo();
 				refreshPartyTradeChrome();
@@ -512,7 +511,7 @@ public final class CollectionAlbumWindow extends JFrame
 			{
 				return;
 			}
-			grid.repaint();
+			grid.refreshFacesAfterImageLoad();
 			if (albumVariantsVisible)
 			{
 				variantsPanel.repaint();
@@ -521,35 +520,21 @@ public final class CollectionAlbumWindow extends JFrame
 		imageRepaintDebounceTimer.setRepeats(false);
 		imageCacheService.addLoadListener(imageLoadListener);
 
+		// Continuous foil animation; paint path only blits cached faces + cheap overlays.
 		foilAnimTimer = new Timer(SharedCardRenderer.FOIL_SPARKLE_FRAME_MS, e ->
 		{
 			if (!isShowing())
 			{
 				return;
 			}
-			long now = System.currentTimeMillis();
-			boolean sheen = SharedCardRenderer.isFoilSheenAnimating();
-			boolean repaintGrid = grid.hasVisibleFoilCards()
-				&& (sheen || now - lastFoilSparkleRepaintMs >= SharedCardRenderer.FOIL_SPARKLE_FRAME_MS);
-			boolean repaintVariants = albumVariantsVisible && variantsPanel.hasVisibleFoilCards()
-				&& (sheen || now - lastFoilSparkleRepaintMs >= SharedCardRenderer.FOIL_SPARKLE_FRAME_MS);
-			if (!repaintGrid && !repaintVariants)
-			{
-				return;
-			}
-			if (!sheen)
-			{
-				lastFoilSparkleRepaintMs = now;
-			}
-			if (repaintGrid)
+			if (grid.hasVisibleFoilCards())
 			{
 				grid.repaint();
 			}
-			if (repaintVariants)
+			if (albumVariantsVisible && variantsPanel.hasVisibleFoilCards())
 			{
 				variantsPanel.repaint();
 			}
-			updateAlbumRepaintTimers();
 		});
 
 		styleFrameFonts();
@@ -724,11 +709,14 @@ public final class CollectionAlbumWindow extends JFrame
 
 	private void startTimers()
 	{
-		partyUiTimer.start();
+		if (partyService.isInParty())
+		{
+			partyUiTimer.start();
+		}
 		updateAlbumRepaintTimers();
 	}
 
-	/** Start/stop foil repaint timer based on whether the current view needs it. */
+	/** Start/stop continuous foil sparkle timer when foil cards are on screen. */
 	private void updateAlbumRepaintTimers()
 	{
 		if (!isShowing())
@@ -737,9 +725,9 @@ public final class CollectionAlbumWindow extends JFrame
 			return;
 		}
 
-		boolean foilAnim = grid.hasVisibleFoilCards()
+		boolean hasFoil = grid.hasVisibleFoilCards()
 			|| (albumVariantsVisible && variantsPanel.hasVisibleFoilCards());
-		if (foilAnim)
+		if (hasFoil)
 		{
 			if (!foilAnimTimer.isRunning())
 			{

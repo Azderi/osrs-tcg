@@ -11,13 +11,14 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.Rectangle;
-import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.swing.JPanel;
@@ -33,6 +34,7 @@ final class CollectionAlbumGridPanel extends JPanel
 	private static final int QTY_LABEL_RESERVE_PX = 18;
 	private static final Color SELECTION_BORDER = new Color(0x00E5FF);
 	private static final Color OFFERED_TRADE_BORDER = new Color(0x3DDC84);
+	private static final Color PLACEHOLDER_FACE = new Color(0x2A2A2A);
 
 	private final WikiImageCacheService imageCacheService;
 	private final BiConsumer<Integer, AlbumSlot> ownedMultiCopyPressed;
@@ -42,6 +44,15 @@ final class CollectionAlbumGridPanel extends JPanel
 	private List<AlbumSlot> slots = Collections.emptyList();
 	private List<Rectangle> lastCardBounds = Collections.emptyList();
 	private int selectedIndex = -1;
+
+	/** Off-EDT rasterized card faces (no animated foil overlays); painted via blit only. */
+	private BufferedImage[] faceRasters = new BufferedImage[0];
+	private int faceRasterW;
+	private int faceRasterH;
+	private final AtomicLong faceRasterGen = new AtomicLong();
+	/** Generation currently being rasterized; avoids re-queueing every paint while faces load. */
+	private long scheduledFaceGen = -1L;
+	private final AtomicBoolean faceRepaintScheduled = new AtomicBoolean();
 
 	CollectionAlbumGridPanel(WikiImageCacheService imageCacheService,
 		BiConsumer<Integer, AlbumSlot> ownedMultiCopyPressed,
@@ -226,6 +237,7 @@ final class CollectionAlbumGridPanel extends JPanel
 		{
 			selectedIndex = -1;
 		}
+		invalidateFaceRasters();
 		repaint();
 		onSelectionChanged.run();
 	}
@@ -240,6 +252,120 @@ final class CollectionAlbumGridPanel extends JPanel
 			}
 		}
 		return false;
+	}
+
+	/** Re-rasterize faces after wiki art arrives in memory (previous rasters may lack art). */
+	void refreshFacesAfterImageLoad()
+	{
+		invalidateFaceRasters();
+		repaint();
+	}
+
+	private void invalidateFaceRasters()
+	{
+		faceRasterGen.incrementAndGet();
+		scheduledFaceGen = -1L;
+		faceRasters = new BufferedImage[slots.size()];
+		faceRasterW = 0;
+		faceRasterH = 0;
+	}
+
+	private void scheduleFaceRasters(int cW, int cH)
+	{
+		if (cW <= 0 || cH <= 0 || slots.isEmpty())
+		{
+			return;
+		}
+		// Already rasterizing (or done) for this slot list + size — do not cancel in-flight work.
+		if (cW == faceRasterW && cH == faceRasterH
+			&& faceRasters.length == slots.size()
+			&& scheduledFaceGen == faceRasterGen.get())
+		{
+			return;
+		}
+
+		faceRasterW = cW;
+		faceRasterH = cH;
+		faceRasters = new BufferedImage[slots.size()];
+		final long gen = faceRasterGen.incrementAndGet();
+		scheduledFaceGen = gen;
+		final List<AlbumSlot> snap = new ArrayList<>(slots);
+		final int width = cW;
+		final int height = cH;
+		for (int i = 0; i < snap.size(); i++)
+		{
+			final int index = i;
+			final AlbumSlot slot = snap.get(i);
+			imageCacheService.executeBackground(() ->
+			{
+				if (gen != faceRasterGen.get())
+				{
+					return;
+				}
+				BufferedImage raster = rasterizeFace(slot, width, height);
+				SwingUtilities.invokeLater(() ->
+				{
+					if (gen != faceRasterGen.get())
+					{
+						return;
+					}
+					if (index >= faceRasters.length)
+					{
+						return;
+					}
+					faceRasters[index] = raster;
+					scheduleCoalescedRepaint();
+				});
+			});
+		}
+	}
+
+	private void scheduleCoalescedRepaint()
+	{
+		if (!faceRepaintScheduled.compareAndSet(false, true))
+		{
+			return;
+		}
+		SwingUtilities.invokeLater(() ->
+		{
+			faceRepaintScheduled.set(false);
+			repaint();
+		});
+	}
+
+	private BufferedImage rasterizeFace(AlbumSlot slot, int cW, int cH)
+	{
+		BufferedImage raster = new BufferedImage(cW, cH, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D g2 = raster.createGraphics();
+		try
+		{
+			CardDefinition card = slot == null ? null : slot.card();
+			Color rarity = slot == null ? Color.WHITE : slot.rarityColor();
+			boolean foil = slot != null && slot.displayFoil();
+			boolean owned = slot != null && slot.ownedAny();
+			BufferedImage art = imageCacheService.getIfPresent(card == null ? null : card.getImageUrl());
+			Rectangle bounds = new Rectangle(0, 0, cW, cH);
+			boolean foilScoreLabel = owned && foil;
+			if (!owned)
+			{
+				g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.3f));
+			}
+			// Static face only — animated foil overlays are drawn on the EDT blit path.
+			SharedCardRenderer.drawCardFace(g2, bounds, card, foil, rarity, art, 0L, foilScoreLabel, false);
+			if (slot != null && slot.lockBadge())
+			{
+				SharedCardRenderer.drawLockBadge(g2, bounds);
+			}
+			if (!owned)
+			{
+				g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
+			}
+		}
+		finally
+		{
+			g2.dispose();
+		}
+		return raster;
 	}
 
 	@Override
@@ -274,9 +400,6 @@ final class CollectionAlbumGridPanel extends JPanel
 		List<Rectangle> paintedBounds = new ArrayList<>();
 		try
 		{
-			g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-			g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-
 			int w = getWidth();
 			int h = getHeight();
 			if (w <= 0 || h <= 0)
@@ -310,7 +433,9 @@ final class CollectionAlbumGridPanel extends JPanel
 				contentH / (double) SharedCardRenderer.DEFAULT_CARD_HEIGHT) * 0.94d;
 			int cW = Math.max(1, (int) Math.round(SharedCardRenderer.DEFAULT_CARD_WIDTH * scale));
 			int cH = Math.max(1, (int) Math.round(SharedCardRenderer.DEFAULT_CARD_HEIGHT * scale));
+			scheduleFaceRasters(cW, cH);
 
+			boolean foilSheen = SharedCardRenderer.isFoilSheenAnimating();
 			for (int i = 0; i < slots.size() && i < COLS * ROWS; i++)
 			{
 				int col = i % COLS;
@@ -323,22 +448,21 @@ final class CollectionAlbumGridPanel extends JPanel
 				paintedBounds.add(bounds);
 
 				AlbumSlot slot = slots.get(i);
-				CardDefinition card = slot.card();
-				Color rarity = slot.rarityColor();
-				BufferedImage art = imageCacheService.getCached(card == null ? null : card.getImageUrl());
-				if (!slot.ownedAny())
+				BufferedImage face = i < faceRasters.length ? faceRasters[i] : null;
+				if (face != null)
 				{
-					g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.3f));
+					g2.drawImage(face, bounds.x, bounds.y, null);
 				}
-				boolean foilScoreLabel = slot.ownedAny() && slot.displayFoil();
-				SharedCardRenderer.drawCardFace(g2, bounds, card, slot.displayFoil(), rarity, art, 0L, foilScoreLabel);
-				if (slot.lockBadge())
+				else
 				{
-					SharedCardRenderer.drawLockBadge(g2, bounds);
+					g2.setColor(PLACEHOLDER_FACE);
+					g2.fillRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, 8, 8);
 				}
-				if (!slot.ownedAny())
+
+				// Continuous foil sparkles + sheen (sheen is a no-op most of the cycle).
+				if (slot != null && slot.displayFoil())
 				{
-					g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
+					SharedCardRenderer.drawFoilOverlays(g2, bounds, slot.card(), true);
 				}
 
 				String qtyLine = qtyLabel(slot);
@@ -352,13 +476,13 @@ final class CollectionAlbumGridPanel extends JPanel
 					g2.drawString(qtyLine, tx, ty);
 				}
 
-				if (slot.ownedAny() && slot.offeredInTrade())
+				if (slot != null && slot.ownedAny() && slot.offeredInTrade())
 				{
 					g2.setColor(OFFERED_TRADE_BORDER);
 					g2.setStroke(new BasicStroke(2f));
 					g2.drawRoundRect(bounds.x - 1, bounds.y - 1, bounds.width + 2, bounds.height + 2, 8, 8);
 				}
-				else if (slot.ownedAny() && selectedIndex == i)
+				else if (slot != null && slot.ownedAny() && selectedIndex == i)
 				{
 					g2.setColor(SELECTION_BORDER);
 					g2.setStroke(new BasicStroke(2f));

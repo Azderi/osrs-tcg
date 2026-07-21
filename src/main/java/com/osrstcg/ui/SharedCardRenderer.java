@@ -109,6 +109,16 @@ public final class SharedCardRenderer
 	public static void drawCardFace(Graphics2D g, Rectangle bounds, CardDefinition card, boolean foil, Color rarityColor, BufferedImage linkedImage, long basePullDenominator,
 		boolean useFoilAdjustedScoreForLabel)
 	{
+		drawCardFace(g, bounds, card, foil, rarityColor, linkedImage, basePullDenominator, useFoilAdjustedScoreForLabel, true);
+	}
+
+	/**
+	 * @param drawFoilOverlays when false, still draws the foil frame/score but skips animated sheen/sparkles
+	 *                         (for off-EDT raster caches that blit overlays separately).
+	 */
+	public static void drawCardFace(Graphics2D g, Rectangle bounds, CardDefinition card, boolean foil, Color rarityColor, BufferedImage linkedImage, long basePullDenominator,
+		boolean useFoilAdjustedScoreForLabel, boolean drawFoilOverlays)
+	{
 		if (g == null || bounds == null)
 		{
 			return;
@@ -173,11 +183,33 @@ public final class SharedCardRenderer
 			String stats = "Score: " + formatScore(card, useFoilAdjustedScoreForLabel);
 			drawCenteredText(g2, statsR, stats, FontManager.getRunescapeSmallFont(), Color.WHITE);
 
-			if (foil)
+			if (foil && drawFoilOverlays)
 			{
 				drawFoilSheen(g2, bounds, outerArc);
 				drawFoilSparkles(g2, bounds, outerArc, ft, card);
 			}
+		}
+		finally
+		{
+			g2.dispose();
+		}
+	}
+
+	/** Animated foil sheen/sparkles only (frame already drawn). No-op when {@code foil} is false. */
+	public static void drawFoilOverlays(Graphics2D g, Rectangle bounds, CardDefinition card, boolean foil)
+	{
+		if (!foil || g == null || bounds == null)
+		{
+			return;
+		}
+		Graphics2D g2 = (Graphics2D) g.create();
+		try
+		{
+			enableQuality(g2);
+			int ft = frameThicknessFor(bounds);
+			int outerArc = outerFrameArc(bounds);
+			drawFoilSheen(g2, bounds, outerArc);
+			drawFoilSparkles(g2, bounds, outerArc, ft, card);
 		}
 		finally
 		{

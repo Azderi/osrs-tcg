@@ -249,6 +249,30 @@ public class WikiImageCacheService
 		return normalized;
 	}
 
+	/** Memory-cache peek only; never starts a disk/network load. Safe on paint paths. */
+	public BufferedImage getIfPresent(String url)
+	{
+		if (url == null)
+		{
+			return null;
+		}
+		String normalized = normalizeUrl(url);
+		if (normalized.isEmpty())
+		{
+			return null;
+		}
+		return memoryCache.get(normalized);
+	}
+
+	/** Runs work on the wiki-image background pool (disk decode / card-face rasterization). */
+	public void executeBackground(Runnable task)
+	{
+		if (task != null)
+		{
+			imageLoadExecutor.execute(task);
+		}
+	}
+
 	/**
 	 * Returns a cached image if present. Safe to call from overlay/UI paint paths:
 	 * only reads the memory cache and may kick off a background load — never blocks
