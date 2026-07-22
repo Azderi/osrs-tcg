@@ -10,8 +10,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Builds the share-safe JSON payload for {@code PUT /shares/{id}/collection}.
+ * Builds the share-safe JSON snapshot for {@code PUT /shares/{id}/collection}.
  * Schema v2 uses compact {@code cardEntries} (same variant shape as profile persistence).
+ * The JSON is {@link com.osrstcg.persist.TcgStateStorageEncoding encoded} before upload.
  */
 public final class CollectionShareSnapshotBuilder
 {

@@ -6,6 +6,7 @@ import com.osrstcg.model.CollectionState;
 import com.osrstcg.model.TcgPublicStats;
 import com.osrstcg.model.TcgState;
 import com.osrstcg.persist.CollectionShareCredentialsStore;
+import com.osrstcg.persist.TcgStateStorageEncoding;
 import com.osrstcg.util.TcgPluginGameMessages;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -35,12 +36,14 @@ import okhttp3.ResponseBody;
 
 /**
  * Creates a web share and PUTs share-safe collection snapshots to osrs-tcg.xyz.
+ * Collection bodies use the same {@link TcgStateStorageEncoding} blob format as local saves.
  */
 @Slf4j
 @Singleton
 public class CollectionShareService
 {
 	private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
+	private static final MediaType ENCODED_BLOB = MediaType.parse("text/plain; charset=utf-8");
 	private static final String DEFAULT_PUBLIC_BASE = "https://osrs-tcg.xyz";
 	private static final String API_BASE = DEFAULT_PUBLIC_BASE + "/api/v1";
 	private static final long DEBOUNCE_MS = 1500L;
@@ -647,10 +650,15 @@ public class CollectionShareService
 			stats,
 			collection,
 			Instant.now());
+		String encoded = TcgStateStorageEncoding.encode(gson.toJson(payload));
+		if (encoded == null || encoded.isEmpty())
+		{
+			throw new IOException("Failed to encode collection share payload");
+		}
 
 		Request request = new Request.Builder()
 			.url(url)
-			.put(RequestBody.create(JSON, gson.toJson(payload)))
+			.put(RequestBody.create(ENCODED_BLOB, encoded))
 			.header("X-Api-Key", apiKey)
 			.header("Authorization", "Bearer " + writeToken)
 			.header("Accept", "application/json")
