@@ -44,7 +44,7 @@ public final class SharedCardRenderer
 	/** Idle time after each sweep before the next (ms). */
 	private static final int FOIL_SHEEN_COOLDOWN_MS = 5000;
 	private static final int FOIL_SHEEN_CYCLE_MS = FOIL_SHEEN_SWEEP_MS + FOIL_SHEEN_COOLDOWN_MS;
-	private static final Color CARD_BG = new Color(0x2A2A2A);
+	private static final Color CARD_BG = Color.BLACK;
 	private static final Color PANEL_DARK = new Color(0x222222);
 	private static final Color PANEL_MID = new Color(0x2F2F2F);
 	private static final BufferedImage CARD_BACK_IMAGE = ImageUtil.loadImageResource(SharedCardRenderer.class, "/Cardback.png");
