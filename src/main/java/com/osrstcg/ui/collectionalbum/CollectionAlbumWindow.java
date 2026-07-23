@@ -37,6 +37,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -90,6 +92,8 @@ public final class CollectionAlbumWindow extends JFrame
 	private static final String RARITY_FILTER_ALL = "All";
 	private static final List<String> RARITY_TIERS_LOW_TO_HIGH = List.of(
 		"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Godly");
+	private static final List<String> CATEGORY_FILTER_ORDER = List.of(
+		"Armour", "Weapon", "Consumable", "Monster");
 
 	private final CardDatabase cardDatabase;
 	private final TcgStateService stateService;
@@ -118,6 +122,7 @@ public final class CollectionAlbumWindow extends JFrame
 	private final JTextField searchField = new JTextField(18);
 	private final JComboBox<AlbumSortMode> sortCombo = new JComboBox<>(AlbumSortMode.values());
 	private final JComboBox<String> rarityCombo = new JComboBox<>();
+	private final Map<String, JCheckBox> categoryCheckboxes = new LinkedHashMap<>();
 	private final JRadioButton radCardsAll = new JRadioButton("All cards", true);
 	private final JRadioButton radObtained = new JRadioButton("Obtained only");
 	private final JRadioButton radDuplicates = new JRadioButton("Duplicates only");
@@ -371,6 +376,44 @@ public final class CollectionAlbumWindow extends JFrame
 		filterRow.setAlignmentX(Component.CENTER_ALIGNMENT);
 		filterRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, filterRow.getPreferredSize().height));
 		controls.add(filterRow);
+
+		JPanel categoryRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 2));
+		categoryRow.setOpaque(false);
+
+		JLabel categoryLbl = new JLabel("Categories:");
+		categoryLbl.setForeground(Color.WHITE);
+		categoryRow.add(categoryLbl);
+
+		categoryCheckboxes.clear();
+
+		for (String category : CATEGORY_FILTER_ORDER)
+		{
+			JCheckBox checkBox = new JCheckBox(category.equals("Monster") ? "NPC" : category); /** NPC is broader, but "Monster" is the category */
+			checkBox.setForeground(Color.WHITE);
+			checkBox.setOpaque(false);
+			checkBox.setFocusPainted(false);
+			checkBox.setSelected(true);
+			checkBox.addActionListener(e -> onCategoryAction());
+			
+			String key = categoryFilterKey(category);
+			categoryCheckboxes.put(key, checkBox);
+			categoryRow.add(checkBox);
+		}
+
+		JCheckBox checkBox = new JCheckBox("Other");
+		checkBox.setForeground(Color.WHITE);
+		checkBox.setOpaque(false);
+		checkBox.setFocusPainted(false);
+		checkBox.setSelected(true);
+		checkBox.addActionListener(e -> onCategoryAction());
+
+		String key = categoryFilterKey("Other");
+		categoryCheckboxes.put(key, checkBox);
+		categoryRow.add(checkBox);
+
+		categoryRow.setAlignmentX(Component.CENTER_ALIGNMENT);
+		categoryRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, categoryRow.getPreferredSize().height));
+		controls.add(categoryRow);
 
 		JPanel row4 = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 2));
 		row4.setOpaque(false);
@@ -916,6 +959,20 @@ public final class CollectionAlbumWindow extends JFrame
 		return out;
 	}
 
+	private void onCategoryAction()
+	{
+		pageIndex = 0;
+		rebuildModel();
+	}
+
+	private Set<String> selectedCategoryKeysSnapshot()
+	{
+		return categoryCheckboxes.entrySet().stream()
+			.filter(entry -> entry.getValue().isSelected())
+			.map(Map.Entry::getKey)
+			.collect(Collectors.toCollection(LinkedHashSet::new));
+	}
+
 	private static boolean hasCardName(CardDefinition c)
 	{
 		return c != null && c.getName() != null && !c.getName().trim().isEmpty();
@@ -1039,6 +1096,8 @@ public final class CollectionAlbumWindow extends JFrame
 			rarityTable,
 			(String) rarityCombo.getSelectedItem(),
 			searchField.getText().trim().toLowerCase(Locale.ROOT),
+			!categoryCheckboxes.isEmpty(),
+			selectedCategoryKeysSnapshot(),
 			stateService.getState().getCollectionState().getOwnedCards(),
 			mostRecentPulledAtByCardName(stateService.getState().getCollectionState().getLastObtainedMap()),
 			foilOnlyCheck.isSelected(),
@@ -1094,6 +1153,49 @@ public final class CollectionAlbumWindow extends JFrame
 		if (q != null && !q.isEmpty())
 		{
 			working.removeIf(c -> c.getName() == null || !c.getName().toLowerCase(Locale.ROOT).contains(q));
+		}
+
+		if (inputs.categoryFilterActive)
+		{
+		  boolean otherSelected = inputs.selectedCategoryKeys.contains(categoryFilterKey("Other"));
+
+		  Set<String> mainKeys = CATEGORY_FILTER_ORDER.stream()
+			  .map(CollectionAlbumWindow::categoryFilterKey)
+			  .collect(Collectors.toSet());
+
+		  working.removeIf(c -> {
+			List<String> cardCategories = c.getCategoryTags();
+
+			/** If a card has no categories, treat it as an "Other" card */
+			if (cardCategories == null || cardCategories.isEmpty())
+			{
+			  return !otherSelected;
+			}
+
+			boolean matchesSelectedMain = false;
+			boolean hasAnyMain = false;
+
+			for (String rawCat : cardCategories)
+			{
+			  String key = categoryFilterKey(rawCat);
+
+			  if (mainKeys.contains(key))
+			  {
+				hasAnyMain = true;
+
+				if (inputs.selectedCategoryKeys.contains(key))
+				{
+				  matchesSelectedMain = true;
+				}
+			  }
+			}
+
+			boolean isOtherCard = !hasAnyMain;
+
+			boolean keepCard = matchesSelectedMain || (isOtherCard && otherSelected);
+
+			return !keepCard;
+		  });
 		}
 
 		Map<CardCollectionKey, Integer> owned = inputs.owned;
@@ -1323,6 +1425,11 @@ public final class CollectionAlbumWindow extends JFrame
 			default:
 				return 0;
 		}
+	}
+
+	private static String categoryFilterKey(String label)
+	{
+		return label == null ? "" : label.trim().toLowerCase(Locale.ROOT);
 	}
 
 	private static Set<String> collectedNamesFromOwned(Map<CardCollectionKey, Integer> owned)
@@ -2160,6 +2267,8 @@ public final class CollectionAlbumWindow extends JFrame
 		private final AlbumRarityTable rarityTable;
 		private final String rarityPick;
 		private final String searchQuery;
+		private final boolean categoryFilterActive;
+		private final Set<String> selectedCategoryKeys;
 		private final Map<CardCollectionKey, Integer> owned;
 		private final Map<String, Long> mostRecentPulledAtByName;
 		private final boolean foilOnly;
@@ -2176,6 +2285,8 @@ public final class CollectionAlbumWindow extends JFrame
 			AlbumRarityTable rarityTable,
 			String rarityPick,
 			String searchQuery,
+			boolean categoryFilterActive,
+			Set<String> selectedCategoryKeys,
 			Map<CardCollectionKey, Integer> owned,
 			Map<String, Long> mostRecentPulledAtByName,
 			boolean foilOnly,
@@ -2191,6 +2302,8 @@ public final class CollectionAlbumWindow extends JFrame
 			this.rarityTable = rarityTable;
 			this.rarityPick = rarityPick;
 			this.searchQuery = searchQuery;
+			this.categoryFilterActive = categoryFilterActive;
+			this.selectedCategoryKeys = selectedCategoryKeys == null ? Set.of() : selectedCategoryKeys;
 			this.owned = owned;
 			this.mostRecentPulledAtByName = mostRecentPulledAtByName;
 			this.foilOnly = foilOnly;

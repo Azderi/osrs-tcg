@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="Gradle: net.runelite:runelite-api:1.12.33">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/net.runelite/runelite-api/1.12.33/374bde784d23d8b559923bd43bc6007dc602eef7/runelite-api-1.12.33.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/net.runelite/runelite-api/1.12.33/c57ab3d475239f6b602def23a7b0319c633e8a79/runelite-api-1.12.33-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

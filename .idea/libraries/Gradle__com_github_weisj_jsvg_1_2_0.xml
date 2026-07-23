@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="Gradle: com.github.weisj:jsvg:1.2.0">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.github.weisj/jsvg/1.2.0/7a1dfd541dc48ca58e706c356d1604971f58db25/jsvg-1.2.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.github.weisj/jsvg/1.2.0/f3f54bd92eeb97e49037989a088020633f340bdd/jsvg-1.2.0-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

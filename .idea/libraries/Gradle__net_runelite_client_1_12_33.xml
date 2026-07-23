@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="Gradle: net.runelite:client:1.12.33">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/net.runelite/client/1.12.33/8f0628b24212cf42ca4dc41bfa38c4dde5f4aea9/client-1.12.33.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/net.runelite/client/1.12.33/16e8f66b14f3ab270163f9b41cb72844d35eada/client-1.12.33-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

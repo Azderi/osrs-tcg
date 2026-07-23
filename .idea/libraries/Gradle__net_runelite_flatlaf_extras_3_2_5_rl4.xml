@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="Gradle: net.runelite:flatlaf-extras:3.2.5-rl4">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/net.runelite/flatlaf-extras/3.2.5-rl4/1112b8c52e3c113b60747ed83d6ab9cbdb84f0/flatlaf-extras-3.2.5-rl4.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/net.runelite/flatlaf-extras/3.2.5-rl4/48f3aba6747fca3006037134be0d81d2ca72ae75/flatlaf-extras-3.2.5-rl4-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

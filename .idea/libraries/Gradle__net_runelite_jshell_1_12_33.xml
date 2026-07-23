@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="Gradle: net.runelite:jshell:1.12.33">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/net.runelite/jshell/1.12.33/77716bb8db728b87676e87828019f48ea9eee69c/jshell-1.12.33.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/net.runelite/jshell/1.12.33/943b79d2d492c12be311d1c8fce0529c67d1cecf/jshell-1.12.33-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>
