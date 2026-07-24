@@ -435,7 +435,6 @@ final class CollectionAlbumGridPanel extends JPanel
 			int cH = Math.max(1, (int) Math.round(SharedCardRenderer.DEFAULT_CARD_HEIGHT * scale));
 			scheduleFaceRasters(cW, cH);
 
-			boolean foilSheen = SharedCardRenderer.isFoilSheenAnimating();
 			for (int i = 0; i < slots.size() && i < COLS * ROWS; i++)
 			{
 				int col = i % COLS;

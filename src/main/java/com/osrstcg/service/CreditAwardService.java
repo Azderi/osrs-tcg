@@ -96,6 +96,24 @@ public class CreditAwardService
 		// Do not snapshot live client stats here — wait for the settle cooldown so retro awards can run first.
 	}
 
+	/**
+	 * After a disk save restore: keep restored collection/economy, and set this profile's skill credit
+	 * baselines to the character's current stats (no retro awards from the save's old XP snapshot).
+	 */
+	public void rebaseExperienceCreditBaselineToCurrentStats()
+	{
+		skillXpInitialized = false;
+		skillLevelsInitialized = false;
+		lastKnownLevels.clear();
+		Arrays.fill(previousSkillXp, 0);
+		clearUncreditedXpPool("disk save restore");
+		stateService.replaceSkillCreditBaseline(SkillCreditBaseline.absent());
+
+		snapshotSkillBaselinesIfLoggedIn();
+		persistSkillBaselineToState(false);
+		debugAward("Set skill credit baselines to current stats after disk save restore");
+	}
+
 	public void awardNpcKillCredits(String npcName, int combatLevel)
 	{
 		if (combatLevel <= 0 || isCreditAwardOnCooldown())

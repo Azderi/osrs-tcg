@@ -650,7 +650,9 @@ public class OsrsTcgPlugin extends Plugin
 			}
 
 			fileBackupLoadUsedThisSession = true;
-			creditAwardService.resetExperienceCreditBaseline();
+			// Collection/economy come from the save; skill baselines become this profile's live stats.
+			creditAwardService.rebaseExperienceCreditBaselineToCurrentStats();
+			stateService.saveCheckpoint(TcgSaveTrigger.LOAD);
 			packRevealService.reset();
 			tcgPanel.clearPackRevealSidebarFreeze();
 			tcgPanel.syncRewardDraftFromPersistent();

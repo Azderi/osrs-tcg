@@ -259,10 +259,9 @@ public class TcgStateService
 		}
 
 		boolean strippedDebug = stripDebugProvenanceRowsIfDebugDisabled();
-		if (ensureSkillCreditBaselineSchemaField())
-		{
-			state = state.withSkillCreditBaseline(SkillCreditBaseline.absent());
-		}
+		// Disk restores keep collection/economy from the save, but never its skill XP baselines —
+		// CreditAwardService rebases those to live stats for the current profile after restore.
+		state = state.withSkillCreditBaseline(SkillCreditBaseline.absent());
 		ensureProfileMetaSchemaFields();
 		saveCheckpoint(TcgSaveTrigger.LOAD);
 		if (strippedDebug)
