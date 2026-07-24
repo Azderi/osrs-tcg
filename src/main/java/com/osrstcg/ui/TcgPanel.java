@@ -58,6 +58,7 @@ import javax.inject.Singleton;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.GrayFilter;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -1038,9 +1039,10 @@ public class TcgPanel extends PluginPanel
 			{
 				continue;
 			}
-			JButton buy = createBoosterBuyButton(row.booster, row.progressOwn, row.progressFoilOwn, row.progressTotal);
 			int price = row.booster.getPrice();
-			buy.setEnabled(credits >= price);
+			boolean canBuy = credits >= price;
+			JButton buy = createBoosterBuyButton(row.booster, row.progressOwn, row.progressFoilOwn, row.progressTotal, canBuy);
+			buy.setEnabled(canBuy);
 			grid.add(buy);
 		}
 
@@ -1841,9 +1843,10 @@ public class TcgPanel extends PluginPanel
 		long credits = displaySnap.credits;
 		for (BoosterPackDefinition booster : boosters)
 		{
-			JButton buy = createBoosterBuyButton(booster, allCards, rollPool, owned);
 			int price = booster.getPrice();
-			buy.setEnabled(!revealBusy && !packOpeningBlocked && credits >= price);
+			boolean canBuy = credits >= price;
+			JButton buy = createBoosterBuyButton(booster, allCards, rollPool, owned, canBuy);
+			buy.setEnabled(!revealBusy && !packOpeningBlocked && canBuy);
 			if (packOpeningBlocked)
 			{
 				String blockMessage = packSafeModeService.packOpeningBlockMessage();
@@ -1885,7 +1888,7 @@ public class TcgPanel extends PluginPanel
 		return TcgPanel.class.getResource("/" + SHOP_DEFAULT_PACK_THUMBNAIL);
 	}
 
-	private JButton createBoosterBuyButton(BoosterPackDefinition booster, int progressOwn, int progressFoilOwn, int progressTotal)
+	private JButton createBoosterBuyButton(BoosterPackDefinition booster, int progressOwn, int progressFoilOwn, int progressTotal, boolean canBuy)
 	{
 		int price = booster.getPrice();
 		String title = booster.getName() == null ? "Booster" : booster.getName();
@@ -1901,7 +1904,12 @@ public class TcgPanel extends PluginPanel
 		URL packIconUrl = shopPackIconUrl(booster);
 		if (packIconUrl != null)
 		{
-			JLabel iconLabel = new JLabel(new ImageIcon(packIconUrl));
+			ImageIcon icon = new ImageIcon(packIconUrl);
+			if (!canBuy)
+			{
+				icon = new ImageIcon(GrayFilter.createDisabledImage(icon.getImage()));
+			}
+			JLabel iconLabel = new JLabel(icon);
 			iconLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 			iconLabel.setBorder(new EmptyBorder(0, 0, 5, 0));
 			content.add(iconLabel);
@@ -2051,10 +2059,11 @@ public class TcgPanel extends PluginPanel
 		BoosterPackDefinition booster,
 		List<CardDefinition> allCards,
 		List<CardDefinition> rollPool,
-		Map<CardCollectionKey, Integer> owned)
+		Map<CardCollectionKey, Integer> owned,
+		boolean canBuy)
 	{
 		int[] progress = shopProgressOwnedTotal(booster, allCards, rollPool, owned);
-		return createBoosterBuyButton(booster, progress[0], progress[1], progress[2]);
+		return createBoosterBuyButton(booster, progress[0], progress[1], progress[2], canBuy);
 	}
 
 	private JPanel sellDuplicatesPanel()
