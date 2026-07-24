@@ -9,6 +9,7 @@ import java.util.Comparator;
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import net.runelite.client.Notifier;
 import net.runelite.client.chat.ChatMessageManager;
 
 /**
@@ -21,18 +22,21 @@ public class ShopNotificationService
 	private final PackCatalog packCatalog;
 	private final TcgStateService stateService;
 	private final ChatMessageManager chatMessageManager;
+	private final Notifier notifier;
 
 	@Inject
 	ShopNotificationService(
 		OsrsTcgConfig config,
 		PackCatalog packCatalog,
 		TcgStateService stateService,
-		ChatMessageManager chatMessageManager)
+		ChatMessageManager chatMessageManager,
+		Notifier notifier)
 	{
 		this.config = config;
 		this.packCatalog = packCatalog;
 		this.stateService = stateService;
 		this.chatMessageManager = chatMessageManager;
+		this.notifier = notifier;
 	}
 
 	public void onCreditsIncreased(long creditsBefore, long creditsAfter)
@@ -62,9 +66,13 @@ public class ShopNotificationService
 				continue;
 			}
 
-			TcgPluginGameMessages.queuePrefixedGameMessage(
-				chatMessageManager,
-				"You have enough credits to purchase " + packDisplayName(booster) + "!");
+			String message = "You have enough credits to purchase " + packDisplayName(booster) + "!";
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, message);
+
+			if (config.runeliteNotifications())
+			{
+				notifier.notify(message);
+			}
 		}
 	}
 
