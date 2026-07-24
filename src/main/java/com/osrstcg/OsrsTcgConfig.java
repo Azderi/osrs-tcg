@@ -1,6 +1,8 @@
 package com.osrstcg;
 
 import com.osrstcg.model.DinkNotificationTrigger;
+import com.osrstcg.model.DuplicateKeepTier;
+import com.osrstcg.model.DuplicateKeepVersion;
 import com.osrstcg.model.PullNotifyTier;
 import java.awt.Color;
 import net.runelite.client.config.Config;
@@ -137,6 +139,37 @@ public interface OsrsTcgConfig extends Config
 	default boolean debugMessages()
 	{
 		return false;
+	}
+
+	@ConfigSection(
+		name = "Duplicates",
+		description = "Duplicates settings.",
+		position = 1
+	)
+	String duplicateSection = "duplicate";
+
+	@ConfigItem(
+		keyName = "keepTier",
+		name = "Keep tier",
+		description = "Keep duplicates for this rarity and higher.",
+		section = duplicateSection,
+		position = 0
+	)
+	default DuplicateKeepTier keepTier()
+	{
+		return DuplicateKeepTier.NONE;
+	}
+	
+	@ConfigItem(
+		keyName = "keepVersion",
+		name = "Keep version",
+		description = "Keep either the newest card or the oldest card of the duplicates.",
+		section = duplicateSection,
+		position = 1
+	)
+	default DuplicateKeepVersion keepVersion()
+	{
+		return DuplicateKeepVersion.NEWEST;
 	}
 
 	@ConfigSection(

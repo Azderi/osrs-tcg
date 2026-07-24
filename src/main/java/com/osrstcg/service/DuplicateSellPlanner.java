@@ -1,7 +1,10 @@
 package com.osrstcg.service;
 
 import com.osrstcg.data.CardDefinition;
+import com.osrstcg.model.DuplicateKeepTier;
+import com.osrstcg.model.DuplicateKeepVersion;
 import com.osrstcg.model.OwnedCardInstance;
+import com.osrstcg.model.PullNotifyTier;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -45,12 +48,14 @@ public final class DuplicateSellPlanner
 	{
 	}
 
-	public static boolean hasSellableDuplicates(List<OwnedCardInstance> all)
+	public static boolean hasSellableDuplicates(List<OwnedCardInstance> all, DuplicateKeepVersion keepVersion,
+		Function<String, RarityMath.Tier> tierForName, DuplicateKeepTier keepTier)
 	{
-		return plan(all, name -> null).getCardsSold() > 0;
+		return plan(all, name -> null, keepVersion, tierForName, keepTier).getCardsSold() > 0;
 	}
 
-	public static Result plan(List<OwnedCardInstance> all, Function<String, CardDefinition> cardDefForName)
+	public static Result plan(List<OwnedCardInstance> all, Function<String, CardDefinition> cardDefForName,
+		DuplicateKeepVersion keepVersion, Function<String, RarityMath.Tier> tierForName, DuplicateKeepTier keepTier)
 	{
 		if (all == null || all.isEmpty())
 		{
@@ -76,6 +81,13 @@ public final class DuplicateSellPlanner
 			String name = entry.getKey();
 			List<OwnedCardInstance> lst = entry.getValue();
 			if (lst.size() <= 1)
+			{
+				kept.addAll(lst);
+				continue;
+			}
+
+			RarityMath.Tier tier = tierForName == null ? null : tierForName.apply(name);
+			if (keepTier != null && keepTier.toRarityTier() != null && (tier == null || tier.ordinal() >= keepTier.toRarityTier().ordinal()))
 			{
 				kept.addAll(lst);
 				continue;
@@ -119,7 +131,7 @@ public final class DuplicateSellPlanner
 			{
 				if (!unlockedFoils.isEmpty())
 				{
-					OwnedCardInstance keeper = newest(unlockedFoils);
+					OwnedCardInstance keeper = keeper(unlockedFoils, keepVersion);
 					kept.add(keeper);
 					for (OwnedCardInstance inst : unlockedFoils)
 					{
@@ -138,7 +150,7 @@ public final class DuplicateSellPlanner
 			}
 			else if (!unlockedNormals.isEmpty())
 			{
-				OwnedCardInstance keeper = newest(unlockedNormals);
+				OwnedCardInstance keeper = keeper(unlockedNormals, keepVersion);
 				kept.add(keeper);
 				for (OwnedCardInstance inst : unlockedNormals)
 				{
@@ -154,10 +166,22 @@ public final class DuplicateSellPlanner
 		return new Result(kept, creditsToAdd, cardsSold);
 	}
 
+	private static OwnedCardInstance keeper(List<OwnedCardInstance> list, DuplicateKeepVersion keepVersion)
+	{
+		return keepVersion == DuplicateKeepVersion.OLDEST ? oldest(list) : newest(list);
+	}
+
 	private static OwnedCardInstance newest(List<OwnedCardInstance> list)
 	{
 		return list.stream()
 			.max(Comparator.comparingLong(OwnedCardInstance::getPulledAtEpochMs))
+			.orElse(list.get(0));
+	}
+	
+	private static OwnedCardInstance oldest(List<OwnedCardInstance> list)
+	{
+		return list.stream()
+			.min(Comparator.comparingLong(OwnedCardInstance::getPulledAtEpochMs))
 			.orElse(list.get(0));
 	}
 }

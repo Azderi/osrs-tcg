@@ -2070,7 +2070,8 @@ public class TcgPanel extends PluginPanel
 	private void updateSellDuplicatesButtonState()
 	{
 		List<OwnedCardInstance> instances = stateService.getState().getCollectionState().getOwnedInstances();
-		boolean hasDuplicates = DuplicateSellPlanner.hasSellableDuplicates(instances);
+		boolean hasDuplicates = DuplicateSellPlanner.hasSellableDuplicates(instances, config.keepVersion(),
+			cardDatabase.displayTiersByCardName()::get, config.keepTier());
 		sellDuplicatesButton.setEnabled(hasDuplicates);
 		sellDuplicatesButton.setToolTipText(hasDuplicates ? null : "No duplicate cards to sell.");
 	}
@@ -2085,7 +2086,8 @@ public class TcgPanel extends PluginPanel
 			return;
 		}
 
-		DuplicateSellPlanner.Result plan = DuplicateSellPlanner.plan(all, this::cardDefinitionForName);
+		DuplicateSellPlanner.Result plan = DuplicateSellPlanner.plan(all, this::cardDefinitionForName, config.keepVersion(),
+			cardDatabase.displayTiersByCardName()::get, config.keepTier());
 		int cardsSold = plan.getCardsSold();
 		long creditsToAdd = plan.getCreditsToAdd();
 

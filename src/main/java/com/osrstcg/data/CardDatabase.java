@@ -38,6 +38,8 @@ public class CardDatabase
 	private Map<String, Color> chatRarityColorByLowerCaseName = Map.of();
 	/** Exact card-name keys; display tier colours (same as collection album / pack reveal). */
 	private Map<String, Color> displayRarityColorByCardName = Map.of();
+	/** Exact card-name keys; display tiers (same as collection album / pack reveal). */
+	private Map<String, RarityMath.Tier> displayTierByCardName = Map.of();
 
 	@Inject
 	public CardDatabase(Gson gson)
@@ -128,12 +130,22 @@ public class CardDatabase
 		return displayRarityColorByCardName;
 	}
 
+	/**
+	 * Precomputed display tiers keyed by exact card name (built once with {@link #load()}).
+	 * Safe to reuse across album opens without re-running {@link RarityMath#displayTierByCardName(List)}.
+	 */
+	public synchronized Map<String, RarityMath.Tier> displayTiersByCardName()
+	{
+		return displayTierByCardName;
+	}
+
 	private void rebuildChatRarityColorIndex()
 	{
 		if (cards.isEmpty())
 		{
 			chatRarityColorByLowerCaseName = Map.of();
 			displayRarityColorByCardName = Map.of();
+			displayTierByCardName = Map.of();
 			return;
 		}
 		List<CardDefinition> all = new ArrayList<>(cards);
@@ -156,6 +168,7 @@ public class CardDatabase
 		}
 		chatRarityColorByLowerCaseName = Collections.unmodifiableMap(chatMap);
 		displayRarityColorByCardName = Collections.unmodifiableMap(displayMap);
+		displayTierByCardName = Collections.unmodifiableMap(tierByName);
 	}
 
 	private List<CardDefinition> loadFromClasspath()
