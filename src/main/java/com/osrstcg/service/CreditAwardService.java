@@ -114,6 +114,13 @@ public class CreditAwardService
 		debugAward("Set skill credit baselines to current stats after disk save restore");
 	}
 
+	/** Flush live skill XP / uncredited pool into profile state before a checkpoint (logout, unload, etc.). */
+	public void flushSkillBaselineForPersist()
+	{
+		snapshotSkillBaselinesIfLoggedIn();
+		persistSkillBaselineToState(false);
+	}
+
 	public void awardNpcKillCredits(String npcName, int combatLevel)
 	{
 		if (combatLevel <= 0 || isCreditAwardOnCooldown())

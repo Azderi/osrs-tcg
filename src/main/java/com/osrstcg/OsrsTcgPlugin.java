@@ -251,6 +251,10 @@ public class OsrsTcgPlugin extends Plugin
 	@Override
 	protected void shutDown()
 	{
+		// Flush skill baselines + write RSProfile and local tcg.save / snapshot before teardown.
+		creditAwardService.flushSkillBaselineForPersist();
+		stateService.saveFullCheckpoint(TcgSaveTrigger.PLUGIN_UNLOAD);
+
 		if (navigationButton != null)
 		{
 			clientToolbar.removeNavigation(navigationButton);
