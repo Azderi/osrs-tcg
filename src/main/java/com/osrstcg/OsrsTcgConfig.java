@@ -335,4 +335,39 @@ public interface OsrsTcgConfig extends Config
 	{
 		return "";
 	}
+
+	@ConfigSection(
+		name = "Group",
+		description = "Group Ironman shared card collection.",
+		position = 31
+	)
+	String groupSection = "group";
+
+	@ConfigItem(
+		keyName = "groupCollectionEnabled",
+		name = "Pool card collection with group",
+		description = "Treat a card owned by ANY listed teammate as owned by you too, for challenge-plugin "
+			+ "gating (e.g. tcg-locked / bronzeman-tcg). Only card ownership is pooled — credits, packs, "
+			+ "foils and the in-game economy are never shared or moved between accounts. Every teammate "
+			+ "must also enable \"Share collection online\" above and list each other here.",
+		section = groupSection,
+		position = 0
+	)
+	default boolean groupCollectionEnabled()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "groupMembers",
+		name = "Group members",
+		description = "Teammates' OSRS display names, one per line or comma-separated. Each must have "
+			+ "\"Share collection online\" enabled. You don't need to list yourself.",
+		section = groupSection,
+		position = 1
+	)
+	default String groupMembers()
+	{
+		return "";
+	}
 }
