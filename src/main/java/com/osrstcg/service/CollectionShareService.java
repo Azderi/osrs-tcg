@@ -44,8 +44,6 @@ public class CollectionShareService
 {
 	private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 	private static final MediaType ENCODED_BLOB = MediaType.parse("text/plain; charset=utf-8");
-	private static final String DEFAULT_PUBLIC_BASE = "https://osrs-tcg.xyz";
-	private static final String API_BASE = DEFAULT_PUBLIC_BASE + "/api/v1";
 	private static final long DEBOUNCE_MS = 1500L;
 	private static final long KEEPALIVE_PERIOD_MS = 4L * 60L * 1000L + 30L * 1000L; // 4.5 min
 	private static final long FAILURE_COOLDOWN_MS = 30_000L;
@@ -574,7 +572,7 @@ public class CollectionShareService
 	 */
 	private boolean createShare(String displayName) throws IOException
 	{
-		HttpUrl url = HttpUrl.parse(API_BASE + "/shares");
+		HttpUrl url = HttpUrl.parse(WebShareEndpoints.API_BASE + "/shares");
 		if (url == null)
 		{
 			throw new IOException("Invalid API URL");
@@ -629,7 +627,7 @@ public class CollectionShareService
 
 	private int putCollection(String shareId, String writeToken, String displayName, String apiKey) throws IOException
 	{
-		HttpUrl url = HttpUrl.parse(API_BASE + "/shares/" + shareId + "/collection");
+		HttpUrl url = HttpUrl.parse(WebShareEndpoints.API_BASE + "/shares/" + shareId + "/collection");
 		if (url == null)
 		{
 			throw new IOException("Invalid share PUT URL");
@@ -693,32 +691,7 @@ public class CollectionShareService
 
 	private static String publicUrlForDisplayName(String displayName)
 	{
-		return DEFAULT_PUBLIC_BASE + "/" + encodePathSegment(displayName);
-	}
-
-	private static String encodePathSegment(String value)
-	{
-		// Space → %20; keep letters/digits/_/- unescaped for readable OSRS names
-		StringBuilder sb = new StringBuilder(value.length() + 8);
-		for (int i = 0; i < value.length(); i++)
-		{
-			char c = value.charAt(i);
-			if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
-				|| c == '_' || c == '-')
-			{
-				sb.append(c);
-			}
-			else if (c == ' ')
-			{
-				sb.append("%20");
-			}
-			else
-			{
-				sb.append('%');
-				sb.append(String.format("%02X", (int) c));
-			}
-		}
-		return sb.toString();
+		return WebShareEndpoints.DEFAULT_PUBLIC_BASE + "/" + WebShareEndpoints.encodePathSegment(displayName);
 	}
 
 	private void setStatus(String text)
