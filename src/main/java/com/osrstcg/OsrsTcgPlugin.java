@@ -17,6 +17,7 @@ import com.osrstcg.overlay.CreditsInfoboxOverlay;
 import com.osrstcg.overlay.PackRevealInputListener;
 import com.osrstcg.overlay.PackRevealOverlay;
 import com.osrstcg.service.CollectionShareService;
+import com.osrstcg.service.GroupCollectionSyncService;
 import com.osrstcg.service.OwnedCardNamesApiService;
 import com.osrstcg.service.CardPartyTradeService;
 import com.osrstcg.service.CardPartyTransferService;
@@ -188,6 +189,8 @@ public class OsrsTcgPlugin extends Plugin
 	private CollectionShareService collectionShareService;
 	@Inject
 	private OwnedCardNamesApiService ownedCardNamesApiService;
+	@Inject
+	private GroupCollectionSyncService groupCollectionSyncService;
 
 	private NavigationButton navigationButton;
 	private boolean fileBackupLoadUsedThisSession;
@@ -243,6 +246,7 @@ public class OsrsTcgPlugin extends Plugin
 		stateService.setRewardTuningFlushBeforeCredits(tcgPanel::flushRewardTuningDraftToState);
 		collectionShareService.setStatusListener(() -> SwingUtilities.invokeLater(tcgPanel::updateWebShareLiveIndicator));
 		collectionShareService.start();
+		groupCollectionSyncService.start();
 		ownedCardNamesApiService.start();
 		tcgPanel.refresh();
 		TcgPluginGameMessages.setPrefixColor(config.chatPrefixColor());
@@ -296,6 +300,7 @@ public class OsrsTcgPlugin extends Plugin
 		collectionShareService.setStatusListener(null);
 		collectionShareService.stop();
 		ownedCardNamesApiService.stop();
+		groupCollectionSyncService.stop();
 		tcgPanel.stop();
 		log.info("OSRS TCG plugin stopped");
 	}
@@ -355,6 +360,10 @@ public class OsrsTcgPlugin extends Plugin
 		{
 			collectionShareService.onConfigChanged();
 			tcgPanel.updateWebShareLiveIndicator();
+		}
+		else if ("groupCollectionEnabled".equals(event.getKey()) || "groupMembers".equals(event.getKey()))
+		{
+			groupCollectionSyncService.onConfigChanged();
 		}
 		else if ("chatPrefixColor".equals(event.getKey()))
 		{
@@ -442,6 +451,7 @@ public class OsrsTcgPlugin extends Plugin
 		applyLoadedProfileState(loadResult);
 		announceLoadResult(loadResult);
 		collectionShareService.onLoginOrProfileReady();
+		groupCollectionSyncService.onProfileChanged();
 	}
 
 	/** After {@link TcgStateService#load()} on login / profile switch; clears UI when debug-tainted saves are reset. */

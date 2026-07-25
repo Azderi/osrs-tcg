@@ -22,6 +22,11 @@ import net.runelite.client.events.PluginMessage;
  * <p>
  * Query: post {@code new PluginMessage(NAMESPACE, QUERY)} → reply {@link #REPLY} with {@link #KEY_OWNED_NAMES}.
  * Push: {@link #CHANGED} with the same payload after collection mutations.
+ * <p>
+ * When the opt-in Group Ironman shared collection is enabled ({@link GroupCollectionSyncService}),
+ * both the reply and the push payload contain the UNION of the local player's names and the pooled
+ * teammate names, so downstream challenge plugins (tcg-locked / bronzeman-tcg) see a card as owned
+ * if any group member owns it.
  */
 @Slf4j
 @Singleton
@@ -35,14 +40,17 @@ public class OwnedCardNamesApiService
 
 	private final EventBus eventBus;
 	private final TcgStateService stateService;
+	private final GroupCollectionSyncService groupCollectionSyncService;
 	private final AtomicBoolean started = new AtomicBoolean(false);
 	private final Runnable onCollectionChanged = this::broadcastChanged;
 
 	@Inject
-	OwnedCardNamesApiService(EventBus eventBus, TcgStateService stateService)
+	OwnedCardNamesApiService(
+		EventBus eventBus, TcgStateService stateService, GroupCollectionSyncService groupCollectionSyncService)
 	{
 		this.eventBus = eventBus;
 		this.stateService = stateService;
+		this.groupCollectionSyncService = groupCollectionSyncService;
 	}
 
 	public void start()
@@ -53,6 +61,7 @@ public class OwnedCardNamesApiService
 		}
 		eventBus.register(this);
 		stateService.addCollectionChangeListener(onCollectionChanged);
+		groupCollectionSyncService.setChangeListener(onCollectionChanged);
 	}
 
 	public void stop()
@@ -61,6 +70,7 @@ public class OwnedCardNamesApiService
 		{
 			return;
 		}
+		groupCollectionSyncService.setChangeListener(null);
 		stateService.removeCollectionChangeListener(onCollectionChanged);
 		eventBus.unregister(this);
 	}
@@ -95,8 +105,22 @@ public class OwnedCardNamesApiService
 			collection = stateService.getState().getCollectionState();
 		}
 		Map<String, Object> data = new HashMap<>();
-		data.put(KEY_OWNED_NAMES, distinctOwnedNames(collection));
+		data.put(KEY_OWNED_NAMES, ownedNames(collection));
 		return data;
+	}
+
+	private List<String> ownedNames(CollectionState collection)
+	{
+		List<String> localNames = distinctOwnedNames(collection);
+		if (!groupCollectionSyncService.isEnabled())
+		{
+			return localNames;
+		}
+		Set<String> union = new LinkedHashSet<>(localNames);
+		union.addAll(groupCollectionSyncService.getPooledOwnedNames());
+		List<String> sorted = new ArrayList<>(union);
+		sorted.sort(String.CASE_INSENSITIVE_ORDER);
+		return sorted;
 	}
 
 	static List<String> distinctOwnedNames(CollectionState collection)
