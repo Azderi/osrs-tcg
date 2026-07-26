@@ -628,7 +628,7 @@ public class PackRevealService
 		}
 
 		List<CardDefinition> universe = cardDatabase.getCards();
-		Map<String, RarityMath.Tier> tierByName = RarityMath.displayTierByCardName(universe);
+		Map<String, RarityMath.Tier> tierByName = cardDatabase.displayTiersByCardName();
 		List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(universe);
 		cardPoolSize = (int) rollPool.stream()
 			.filter(card -> card != null && card.getName() != null && !card.getName().trim().isEmpty())

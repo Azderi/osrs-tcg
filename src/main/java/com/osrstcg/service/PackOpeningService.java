@@ -257,7 +257,7 @@ public class PackOpeningService
 			return map;
 		}
 
-		Map<String, RarityMath.Tier> tierByName = RarityMath.displayTierByCardName(cardDatabase.getCards());
+		Map<String, RarityMath.Tier> tierByName = cardDatabase.displayTiersByCardName();
 		for (CardDefinition card : globalRollPool)
 		{
 			if (card == null || card.getName() == null || card.getName().trim().isEmpty())
