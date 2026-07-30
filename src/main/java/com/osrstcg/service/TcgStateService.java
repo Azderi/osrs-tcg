@@ -667,6 +667,45 @@ public class TcgStateService
 		notifyCollectionShareListeners();
 	}
 
+	/**
+	 * Replaces the collection with {@code kept} and awards sell credits, but only if the collection
+	 * still contains exactly the instances the sell plan was computed from. Party trades and gifts
+	 * are applied on the client thread while the sell confirmation dialog blocks the EDT, so a plain
+	 * {@link #setCollectionInstances(List)} could clobber cards received (or resurrect cards given
+	 * away) in the meantime.
+	 *
+	 * @return true if the plan was applied; false if the collection changed and the caller should re-plan
+	 */
+	public synchronized boolean sellDuplicatesIfUnchanged(Set<String> plannedInstanceIds,
+		List<OwnedCardInstance> kept, long creditsToAdd)
+	{
+		if (plannedInstanceIds == null)
+		{
+			return false;
+		}
+		List<OwnedCardInstance> current = state.getCollectionState().getOwnedInstances();
+		if (current.size() != plannedInstanceIds.size())
+		{
+			return false;
+		}
+		for (OwnedCardInstance instance : current)
+		{
+			if (!plannedInstanceIds.contains(instance.getInstanceId()))
+			{
+				return false;
+			}
+		}
+		flushRewardTuningDraftBeforeLocking();
+		state = state.withCollection(CollectionState.copyOf(kept == null ? List.of() : kept));
+		if (creditsToAdd > 0L)
+		{
+			addCredits(creditsToAdd);
+		}
+		saveMasterOnly(TcgSaveTrigger.COLLECTION_CHANGE);
+		notifyCollectionShareListeners();
+		return true;
+	}
+
 	public synchronized boolean toggleCardInstanceLock(String instanceId)
 	{
 		if (instanceId == null || instanceId.isEmpty())

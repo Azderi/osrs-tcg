@@ -2118,10 +2118,21 @@ public class TcgPanel extends PluginPanel
 			return;
 		}
 
-		stateService.setCollectionInstances(plan.getKept());
-		if (creditsToAdd > 0L)
+		// The collection can change while the modal is open (e.g. a party trade or gift lands on the
+		// client thread), so the plan is applied atomically and rejected if it went stale.
+		Set<String> plannedInstanceIds = new HashSet<>();
+		for (OwnedCardInstance instance : all)
 		{
-			stateService.addCredits(creditsToAdd);
+			plannedInstanceIds.add(instance.getInstanceId());
+		}
+		boolean applied = stateService.sellDuplicatesIfUnchanged(plannedInstanceIds, plan.getKept(), creditsToAdd);
+		if (!applied)
+		{
+			JOptionPane.showMessageDialog(
+				this,
+				"Your collection changed while confirming, so no cards were sold. Please try again.",
+				"Sell duplicates",
+				JOptionPane.INFORMATION_MESSAGE);
 		}
 		refresh();
 	}
