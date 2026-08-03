@@ -114,7 +114,7 @@ public class DinkNotificationService
 
 	void notifyPackSummary(List<PackPull> pulls)
 	{
-		if (pulls == null || pulls.isEmpty())
+		if (!hasNotificationEligiblePull(pulls))
 		{
 			return;
 		}
@@ -165,6 +165,22 @@ public class DinkNotificationService
 		{
 			log.debug("Failed to post Dink pack summary", ex);
 		}
+	}
+
+	static boolean hasNotificationEligiblePull(List<PackPull> pulls)
+	{
+		if (pulls == null || pulls.isEmpty())
+		{
+			return false;
+		}
+		for (PackPull pull : pulls)
+		{
+			if (pull != null && pull.notificationEligible)
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static int tierRank(PackPull pull)
