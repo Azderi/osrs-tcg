@@ -1,7 +1,9 @@
 package com.osrstcg.persist;
 
 import com.google.gson.Gson;
+import com.osrstcg.model.OwnedCardInstance;
 import com.osrstcg.model.TcgState;
+import com.osrstcg.service.TcgStateService;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -255,6 +257,30 @@ public class TcgStateMigrationTest
 		// The migration seed must also come from the freshest source, not the stale config.
 		TcgState master = diskStore.loadMaster().orElseThrow();
 		Assert.assertEquals(999L, master.getEconomyState().getCredits());
+	}
+
+	@Test
+	public void crashAfterCollectionChangeRestoresMasterOverStaleConfig()
+	{
+		// Collection changes persist only tcg.save; config is written on checkpoints.
+		// For the stale-config recovery above to ever fire in practice, the master
+		// write must advance profileSavedAtUnix past the config blob's — otherwise an
+		// abnormal exit (crash, kill, power loss) rolls the session back to the stale
+		// config, and the next master save then overwrites tcg.save from that rolled-back
+		// state, losing the session's cards permanently.
+		putEncodedConfig(SCHEMA_5_JSON); // profileSavedAtUnix = 1700000100
+
+		TcgStateService service = new TcgStateService(store, false, null, null, null);
+		service.load();
+		service.addOwnedCardInstance(
+			new OwnedCardInstance("crash-1", "Abyssal whip", false, "Player", 1710000000000L));
+		// Process dies here: no logout/shutdown checkpoint runs.
+
+		TestableTcgStateStore freshStore = new TestableTcgStateStore(codec, diskStore, profile, global);
+		TcgStateLoadResult result = freshStore.load();
+
+		Assert.assertEquals(TcgStateLoadSource.DISK, result.getSource());
+		Assert.assertEquals(2, result.getState().getCollectionState().getOwnedInstances().size());
 	}
 
 	private void putEncodedConfig(String plainJson)

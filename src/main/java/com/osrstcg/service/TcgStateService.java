@@ -331,6 +331,10 @@ public class TcgStateService
 		{
 			return false;
 		}
+		// Advance the save timestamp so that after a crash (no logout/shutdown checkpoint),
+		// load() sees tcg.save as strictly newer than the stale RSProfile config and
+		// restores it instead of rolling the session back.
+		state = state.withProfileSavedAtUnix(TcgState.currentUnixSeconds());
 		return stateStore.saveMasterOnly(state, trigger == null ? TcgSaveTrigger.COLLECTION_CHANGE : trigger);
 	}
 
