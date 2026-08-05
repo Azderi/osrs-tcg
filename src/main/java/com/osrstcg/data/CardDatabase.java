@@ -36,6 +36,8 @@ public class CardDatabase
 	private List<CardDefinition> cards = Collections.emptyList();
 	private boolean loaded;
 	private Map<String, Color> chatRarityColorByLowerCaseName = Map.of();
+	/** Trimmed lower-case name → first card with that name (same match rule as {@link #findByName}). */
+	private Map<String, CardDefinition> cardByLowerCaseName = Map.of();
 	/** Exact card-name keys; display tier colours (same as collection album / pack reveal). */
 	private Map<String, Color> displayRarityColorByCardName = Map.of();
 	/** Exact card-name keys; display tiers (same as collection album / pack reveal). */
@@ -58,7 +60,7 @@ public class CardDatabase
 
 		cards = Collections.unmodifiableList(loadedCards);
 		loaded = true;
-		rebuildChatRarityColorIndex();
+		rebuildNameIndexes();
 		log.info("Loaded {} cards from Card.json", cards.size());
 	}
 
@@ -88,23 +90,14 @@ public class CardDatabase
 		{
 			return Optional.empty();
 		}
-		String key = cardName.trim().toLowerCase(Locale.ROOT);
-		for (CardDefinition card : cards)
-		{
-			if (card != null && card.getName() != null
-				&& card.getName().trim().toLowerCase(Locale.ROOT).equals(key))
-			{
-				return Optional.of(card);
-			}
-		}
-		return Optional.empty();
+		return Optional.ofNullable(cardByLowerCaseName.get(cardName.trim().toLowerCase(Locale.ROOT)));
 	}
 
 	public synchronized void setCardsForTesting(List<CardDefinition> testCards)
 	{
 		cards = Collections.unmodifiableList(new ArrayList<>(testCards));
 		loaded = true;
-		rebuildChatRarityColorIndex();
+		rebuildNameIndexes();
 	}
 
 	/**
@@ -139,11 +132,12 @@ public class CardDatabase
 		return displayTierByCardName;
 	}
 
-	private void rebuildChatRarityColorIndex()
+	private void rebuildNameIndexes()
 	{
 		if (cards.isEmpty())
 		{
 			chatRarityColorByLowerCaseName = Map.of();
+			cardByLowerCaseName = Map.of();
 			displayRarityColorByCardName = Map.of();
 			displayTierByCardName = Map.of();
 			return;
@@ -151,6 +145,7 @@ public class CardDatabase
 		List<CardDefinition> all = new ArrayList<>(cards);
 		Map<String, RarityMath.Tier> tierByName = RarityMath.displayTierByCardName(all);
 		Map<String, Color> chatMap = new HashMap<>();
+		Map<String, CardDefinition> cardMap = new HashMap<>();
 		Map<String, Color> displayMap = new HashMap<>();
 		for (CardDefinition c : all)
 		{
@@ -164,9 +159,13 @@ public class CardDatabase
 			Color chatColor = t == RarityMath.Tier.GODLY
 				? TcgPluginGameMessages.CHAT_EMPHASIS_GOLD
 				: displayColor;
-			chatMap.put(c.getName().trim().toLowerCase(Locale.ROOT), chatColor);
+			String lowerName = c.getName().trim().toLowerCase(Locale.ROOT);
+			chatMap.put(lowerName, chatColor);
+			// putIfAbsent: duplicate names in Card.json resolve to the first card, matching the old linear scan.
+			cardMap.putIfAbsent(lowerName, c);
 		}
 		chatRarityColorByLowerCaseName = Collections.unmodifiableMap(chatMap);
+		cardByLowerCaseName = Collections.unmodifiableMap(cardMap);
 		displayRarityColorByCardName = Collections.unmodifiableMap(displayMap);
 		displayTierByCardName = Collections.unmodifiableMap(tierByName);
 	}
