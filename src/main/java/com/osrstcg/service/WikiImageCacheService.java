@@ -54,8 +54,11 @@ public class WikiImageCacheService
 	 */
 	private static final String USER_AGENT =
 		"osrs-tcg (https://github.com/Azderi/osrs-tcg)";
-	/** Max decoded images kept in heap; evicted entries remain on disk. */
-	private static final int MEMORY_CACHE_MAX_ENTRIES = 256;
+	/**
+	 * Max decoded bytes kept in heap (ARGB estimate); evicted entries remain on disk.
+	 * At the 130px edge cap an image is at most ~66 KB, so this holds 500+ cards (~25 album pages).
+	 */
+	private static final long MEMORY_CACHE_BUDGET_BYTES = 32L * 1024 * 1024;
 	/**
 	 * Longest edge kept in the memory cache. Album cards are drawn ~100px wide; full wiki
 	 * detail PNGs in the disk cache otherwise cause large GC pauses while decoding.
@@ -72,19 +75,16 @@ public class WikiImageCacheService
 	};
 
 	private final OkHttpClient okHttpClient;
+	private final Path diskCacheDir;
+	private final long memoryBudgetBytes;
 	private final Semaphore loadPermits = new Semaphore(MAX_IN_FLIGHT_LOADS);
 	/** Dedicated pool so blocking ImageIO/HTTP does not stall the common ForkJoinPool. */
 	private final ExecutorService imageLoadExecutor = Executors.newFixedThreadPool(
 		MAX_IN_FLIGHT_LOADS, IMAGE_LOADER_THREAD_FACTORY);
 	private final Map<String, BufferedImage> memoryCache = Collections.synchronizedMap(
-		new LinkedHashMap<String, BufferedImage>(MEMORY_CACHE_MAX_ENTRIES + 1, 0.75f, true)
-		{
-			@Override
-			protected boolean removeEldestEntry(Map.Entry<String, BufferedImage> eldest)
-			{
-				return size() > MEMORY_CACHE_MAX_ENTRIES;
-			}
-		});
+		new LinkedHashMap<>(512, 0.75f, true));
+	/** ARGB byte estimate of everything in {@link #memoryCache}; guarded by its mutex. */
+	private long memoryCacheBytes;
 	private final Map<String, CompletableFuture<BufferedImage>> loadingFutures = new ConcurrentHashMap<>();
 	/** URLs that failed to load; skip re-fetching on the overlay/album paint path. */
 	private final Set<String> failedUrls = ConcurrentHashMap.newKeySet();
@@ -97,7 +97,16 @@ public class WikiImageCacheService
 	@Inject
 	public WikiImageCacheService(OkHttpClient okHttpClient)
 	{
+		this(okHttpClient,
+			Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG", "images-v2"),
+			MEMORY_CACHE_BUDGET_BYTES);
+	}
+
+	WikiImageCacheService(OkHttpClient okHttpClient, Path diskCacheDir, long memoryBudgetBytes)
+	{
 		this.okHttpClient = okHttpClient;
+		this.diskCacheDir = diskCacheDir;
+		this.memoryBudgetBytes = memoryBudgetBytes;
 	}
 
 	/** Register for image load completion. Listener may run off the EDT; argument is the normalized URL. */
@@ -335,7 +344,7 @@ public class WikiImageCacheService
 				if (image != null)
 				{
 					failedUrls.remove(key);
-					memoryCache.put(key, image);
+					cacheInMemory(key, image);
 				}
 				else
 				{
@@ -344,6 +353,28 @@ public class WikiImageCacheService
 				loadingFutures.remove(key);
 				notifyLoadListeners(key);
 			}));
+	}
+
+	private void cacheInMemory(String key, BufferedImage image)
+	{
+		synchronized (memoryCache)
+		{
+			BufferedImage previous = memoryCache.put(key, image);
+			memoryCacheBytes += estimateBytes(image) - estimateBytes(previous);
+			// Access-order put leaves the new entry at the tail, so eviction from the head
+			// never removes it; size() > 1 keeps the sole remaining entry even over budget.
+			var eldestIt = memoryCache.values().iterator();
+			while (memoryCacheBytes > memoryBudgetBytes && memoryCache.size() > 1 && eldestIt.hasNext())
+			{
+				memoryCacheBytes -= estimateBytes(eldestIt.next());
+				eldestIt.remove();
+			}
+		}
+	}
+
+	private static long estimateBytes(BufferedImage image)
+	{
+		return image == null ? 0L : (long) image.getWidth() * image.getHeight() * 4;
 	}
 
 	private void notifyLoadListeners(String normalizedUrl)
@@ -363,6 +394,12 @@ public class WikiImageCacheService
 
 	private BufferedImage loadImage(String url)
 	{
+		BufferedImage fromThumbnail = tryLoadThumbnail(url);
+		if (fromThumbnail != null)
+		{
+			return fromThumbnail;
+		}
+
 		BufferedImage fromDisk = tryLoadFromDisk(url);
 		if (fromDisk != null)
 		{
@@ -403,6 +440,8 @@ public class WikiImageCacheService
 							{
 								return fromCache;
 							}
+							// Full-res persist/decode failed; skip the thumbnail so the next
+							// session re-fetches instead of freezing this fallback's pixels.
 							return downscaleForMemoryCache(image);
 						}
 					}
@@ -448,15 +487,56 @@ public class WikiImageCacheService
 		return scaled;
 	}
 
-	private Path diskCacheDir()
-	{
-		//Prefer wiki thumbs
-		return Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG", "images-v2");
-	}
-
 	private Path diskCacheFile(String normalizedUrl)
 	{
-		return diskCacheDir().resolve(sha256Hex(normalizedUrl) + ".png");
+		return diskCacheDir.resolve(sha256Hex(normalizedUrl) + ".png");
+	}
+
+	/** Thumbnail cache is keyed by the memory edge cap so a cap change invalidates it wholesale. */
+	private Path thumbnailCacheFile(String normalizedUrl)
+	{
+		return diskCacheDir.resolve("thumbs-" + MAX_MEMORY_IMAGE_EDGE_PX)
+			.resolve(sha256Hex(normalizedUrl) + ".png");
+	}
+
+	/**
+	 * Decodes the small persisted thumbnail — the cheap path for repeat album visits.
+	 * An unreadable thumbnail is deleted so the full-res fallback rewrites it.
+	 */
+	private BufferedImage tryLoadThumbnail(String normalizedUrl)
+	{
+		Path file = thumbnailCacheFile(normalizedUrl);
+		if (!Files.isRegularFile(file))
+		{
+			return null;
+		}
+		try (InputStream in = Files.newInputStream(file))
+		{
+			BufferedImage image = ImageIO.read(in);
+			if (image != null)
+			{
+				return image;
+			}
+		}
+		catch (Exception ex)
+		{
+			log.debug("Thumbnail cache read failed for {}", file, ex);
+		}
+		try
+		{
+			Files.deleteIfExists(file);
+		}
+		catch (Exception ex)
+		{
+			log.debug("Could not delete bad thumbnail {}", file, ex);
+		}
+		return null;
+	}
+
+	/** Persists the exact image the memory cache holds, so later loads skip the full-res decode. */
+	private void persistThumbnail(String normalizedUrl, BufferedImage image)
+	{
+		writePngAtomically(thumbnailCacheFile(normalizedUrl), image);
 	}
 
 	private BufferedImage tryLoadFromDisk(String normalizedUrl)
@@ -502,7 +582,16 @@ public class WikiImageCacheService
 					Files.deleteIfExists(file);
 					return null;
 				}
-				return downscaleForMemoryCache(image);
+				BufferedImage scaled = downscaleForMemoryCache(image);
+				// Card.json URLs are 130px-wide wiki thumbs (portrait art runs taller, up to
+				// ~2x). Only sources past the subsample threshold earn a thumbnail file —
+				// below it the decode is a single cheap pass and a thumbnail would just
+				// duplicate a small file on disk.
+				if (maxEdge > MAX_MEMORY_IMAGE_EDGE_PX * 2)
+				{
+					persistThumbnail(normalizedUrl, scaled);
+				}
+				return scaled;
 			}
 			finally
 			{
@@ -518,12 +607,16 @@ public class WikiImageCacheService
 
 	private void persistToDisk(String normalizedUrl, BufferedImage image)
 	{
+		writePngAtomically(diskCacheFile(normalizedUrl), image);
+	}
+
+	private void writePngAtomically(Path target, BufferedImage image)
+	{
 		if (image == null)
 		{
 			return;
 		}
-		Path dir = diskCacheDir();
-		Path target = diskCacheFile(normalizedUrl);
+		Path dir = target.getParent();
 		Path tmp = dir.resolve(target.getFileName().toString() + ".tmp");
 		try
 		{

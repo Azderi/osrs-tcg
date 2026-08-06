@@ -168,6 +168,8 @@ public final class CollectionAlbumWindow extends JFrame
 	private int pageIndex;
 	private int filteredTotal;
 	private int pageCount;
+	/** Last page-turn direction (+1 next, -1 prev); picks which neighbor page to prefetch. */
+	private int lastPageStep = 1;
 	/** Filtered + sorted card list for the active tab; paging reuses this without re-sorting. */
 	private List<CardDefinition> filteredSortedCards = List.of();
 	/** Selected collection row for party send; cleared when changing cards or after a successful send. */
@@ -324,11 +326,13 @@ public final class CollectionAlbumWindow extends JFrame
 
 		prevBtn.addActionListener(e ->
 		{
+			lastPageStep = -1;
 			pageIndex = Math.max(0, pageIndex - 1);
 			refreshCurrentPage();
 		});
 		nextBtn.addActionListener(e ->
 		{
+			lastPageStep = 1;
 			pageIndex = Math.min(Math.max(0, pageCount - 1), pageIndex + 1);
 			refreshCurrentPage();
 		});
@@ -987,6 +991,7 @@ public final class CollectionAlbumWindow extends JFrame
 		int next = Math.max(0, Math.min(pageCount - 1, pageIndex + e.getWheelRotation()));
 		if (next != pageIndex)
 		{
+			lastPageStep = next > pageIndex ? 1 : -1;
 			pageIndex = next;
 			refreshCurrentPage();
 		}
@@ -1340,6 +1345,40 @@ public final class CollectionAlbumWindow extends JFrame
 		grid.setSlots(slots, selectionPreserveIndex(slots));
 		updatePageControls(from, to);
 		updateAlbumRepaintTimers();
+		prefetchAdjacentPageImages();
+	}
+
+	/** Warms the neighbor page's images in the background so the next page-turn paints instantly. */
+	private void prefetchAdjacentPageImages()
+	{
+		int target = adjacentPrefetchPage(pageIndex, pageCount, lastPageStep);
+		if (target < 0)
+		{
+			return;
+		}
+		int from = target * PAGE_SIZE;
+		int to = Math.min(from + PAGE_SIZE, filteredSortedCards.size());
+		imageCacheService.preload(imageUrlsBetween(filteredSortedCards, from, to));
+	}
+
+	/**
+	 * Page to prefetch after landing on {@code pageIndex}: the neighbor in the direction of
+	 * travel, the opposite neighbor at either end, or -1 when no other page exists.
+	 */
+	static int adjacentPrefetchPage(int pageIndex, int pageCount, int lastStep)
+	{
+		int step = lastStep < 0 ? -1 : 1;
+		int target = pageIndex + step;
+		if (target >= 0 && target < pageCount)
+		{
+			return target;
+		}
+		target = pageIndex - step;
+		if (target >= 0 && target < pageCount)
+		{
+			return target;
+		}
+		return -1;
 	}
 
 	private void updatePageControls(int from, int to)
