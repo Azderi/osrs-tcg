@@ -37,6 +37,22 @@ tasks.withType(JavaCompile).configureEach {
 	options.release.set(11)
 }
 
+tasks.withType(Test).configureEach {
+	testLogging {
+		events 'passed', 'skipped', 'failed'
+	}
+	afterSuite { descriptor, result ->
+		if (descriptor.parent == null) {
+			def line = "Tests: ${result.testCount} run, ${result.failedTestCount} failed, ${result.skippedTestCount} skipped"
+			println line
+			def summaryPath = System.getenv('GITHUB_STEP_SUMMARY')
+			if (summaryPath) {
+				new File(summaryPath) << "**${line}**\n"
+			}
+		}
+	}
+}
+
 tasks.register('run', JavaExec) {
 	classpath = sourceSets.test.runtimeClasspath
 	mainClass = pluginMainClass
