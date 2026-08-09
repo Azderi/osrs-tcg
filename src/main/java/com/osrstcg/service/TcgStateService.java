@@ -40,7 +40,7 @@ public class TcgStateService
 	private final TcgStateStore stateStore;
 	private final boolean runeliteDeveloperMode;
 	private final Provider<OsrsTcgConfig> config;
-	private final Provider<ShopNotificationService> shopNotificationService;
+	private final Provider<CreditNotificationService> creditNotificationService;
 	private final CreditsRateTracker creditsRateTracker;
 	private volatile TcgState state = TcgState.empty();
 	private Runnable rewardTuningFlushBeforeCredits;
@@ -51,13 +51,13 @@ public class TcgStateService
 		TcgStateStore stateStore,
 		@Named("developerMode") boolean runeliteDeveloperMode,
 		Provider<OsrsTcgConfig> config,
-		Provider<ShopNotificationService> shopNotificationService,
+		Provider<CreditNotificationService> creditNotificationService,
 		CreditsRateTracker creditsRateTracker)
 	{
 		this.stateStore = stateStore;
 		this.runeliteDeveloperMode = runeliteDeveloperMode;
 		this.config = config;
-		this.shopNotificationService = shopNotificationService;
+		this.creditNotificationService = creditNotificationService;
 		this.creditsRateTracker = creditsRateTracker;
 	}
 
@@ -66,7 +66,7 @@ public class TcgStateService
 		this.stateStore = null;
 		this.runeliteDeveloperMode = false;
 		this.config = null;
-		this.shopNotificationService = null;
+		this.creditNotificationService = null;
 		this.creditsRateTracker = null;
 		this.state = initialState == null ? TcgState.empty() : initialState;
 	}
@@ -542,9 +542,9 @@ public class TcgStateService
 			creditsRateTracker.recordCreditGain(amount);
 		}
 
-		if (shopNotificationService != null)
+		if (creditNotificationService != null)
 		{
-			shopNotificationService.get().onCreditsIncreased(creditsBefore, creditsAfter);
+			creditNotificationService.get().onCreditsIncreased(creditsBefore, creditsAfter);
 		}
 	}
 
