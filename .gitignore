@@ -1,0 +1,6 @@
+.gradle
+build
+RuneLiteAPI
+bin/
+docs
+/*.log

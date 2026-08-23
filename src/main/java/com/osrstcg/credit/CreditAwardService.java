@@ -1,0 +1,693 @@
+package com.osrstcg.credit;
+
+import com.google.gson.JsonObject;
+import com.osrstcg.cloud.session.CloudSessionService;
+import com.osrstcg.cloud.attest.CreditAttestQueue;
+import com.osrstcg.state.SkillCreditBaseline;
+import com.osrstcg.util.NumberFormatting;
+import com.osrstcg.util.TcgPluginGameMessages;
+import java.util.EnumSet;
+import java.util.Set;
+import javax.inject.Inject;
+import javax.inject.Singleton;
+import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.Client;
+import net.runelite.api.Experience;
+import net.runelite.api.GameState;
+import net.runelite.api.Skill;
+import net.runelite.api.events.FakeXpDrop;
+import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.GameTick;
+import net.runelite.api.events.StatChanged;
+import net.runelite.client.chat.ChatMessageManager;
+import net.runelite.client.eventbus.Subscribe;
+import com.osrstcg.state.TcgStateService;
+
+@Singleton
+@Slf4j
+public class CreditAwardService
+{
+	/** Ignore bogus fake XP drop payloads. */
+	private static final int FAKE_XP_DROP_SANITY_CAP = 20_000_000;
+	/** Suppress credit awards while stats settle after login or a world hop. */
+	private static final int CREDIT_AWARD_COOLDOWN_TICKS = 3;
+	private static final Set<Skill> COMBAT_SKILLS = EnumSet.of(
+		Skill.ATTACK,
+		Skill.DEFENCE,
+		Skill.STRENGTH,
+		Skill.MAGIC,
+		Skill.RANGED
+	);
+
+	private final Client client;
+	private final TcgStateService stateService;
+	private final CloudSessionService session;
+	private final CreditAttestQueue attestQueue;
+	private final ChatMessageManager chatMessageManager;
+	private final SkillCreditSession skills = new SkillCreditSession();
+	private boolean creditAwardCooldownActive;
+	private int creditAwardCooldownUntilTick;
+	private boolean pendingStatsSettleAfterLoginOrHop;
+	/** When true, restore uncredited XP from the persisted snapshot after settle (login / logout). */
+	private boolean restoreUncreditedXpFromPersistedBaseline;
+	private GameState lastObservedGameState;
+
+	@Inject
+	public CreditAwardService(Client client, TcgStateService stateService, CloudSessionService session,
+		CreditAttestQueue attestQueue, ChatMessageManager chatMessageManager)
+	{
+		this.client = client;
+		this.stateService = stateService;
+		this.session = session;
+		this.attestQueue = attestQueue;
+		this.chatMessageManager = chatMessageManager;
+	}
+
+	/**
+	 * Call when the RuneScape profile (or persisted plugin state) changes.
+	 * Keeps the persisted skill snapshot for live-session tracking only; offline/retro credits are server hiscores settle.
+	 */
+	public void resetExperienceCreditBaseline()
+	{
+		skills.resetTracking();
+
+		SkillCreditBaseline saved = stateService.getState().getSkillCreditBaseline();
+		if (saved != null && saved.isPresent())
+		{
+			skills.restoreUncreditedXp(saved);
+		}
+		else
+		{
+			clearUncreditedXpPool("profile change");
+		}
+		// Do not snapshot live client stats here - wait for the settle cooldown so live baselines are clean.
+	}
+
+	/**
+	 * After a disk save restore: keep restored collection/economy, and set this profile's skill credit
+	 * baselines to the character's current stats.
+	 */
+	public void rebaseExperienceCreditBaselineToCurrentStats()
+	{
+		skills.resetTracking();
+		clearUncreditedXpPool("disk save restore");
+		stateService.replaceSkillCreditBaseline(SkillCreditBaseline.absent());
+
+		skills.snapshotSkillBaselinesIfLoggedIn(client);
+		persistSkillBaselineToState(false);
+		debugAward("Set skill credit baselines to current stats after disk save restore");
+	}
+
+	/** Flush live skill XP / uncredited pool into profile state before a checkpoint (logout, unload, etc.). */
+	public void flushSkillBaselineForPersist()
+	{
+		if (!isCreditTrackingAllowed())
+		{
+			return;
+		}
+		skills.snapshotSkillBaselinesIfLoggedIn(client);
+		persistSkillBaselineToState(false);
+	}
+
+	/** Whether XP / level / kill credit tracking is active (false when banned or quarantined). */
+	public boolean isCreditTrackingAllowed()
+	{
+		return !session.isAccountLocked();
+	}
+
+	/**
+	 * Clears in-memory credit tracking when the server locks the account. Pending attests are
+	 * discarded separately by {@link com.osrstcg.cloud.session.CloudSessionService}.
+	 */
+	public void stopCreditTrackingForAccountLock()
+	{
+		clearUncreditedXpPool("account locked");
+		skills.resetTracking();
+		SkillCreditBaseline saved = stateService.getState().getSkillCreditBaseline();
+		if (saved != null && saved.isPresent() && !saved.getUncreditedXpBySkill().isEmpty())
+		{
+			stateService.replaceSkillCreditBaseline(
+				SkillCreditBaseline.of(saved.getSkillXpByName(), java.util.Map.of()));
+		}
+	}
+
+	/** @return true if a 1000 XP credit chunk was awarded (panel should refresh) */
+	public boolean onStatChanged(StatChanged event)
+	{
+		if (!isCreditTrackingAllowed())
+		{
+			return false;
+		}
+
+		Skill skill = event.getSkill();
+		if (skill == null)
+		{
+			return false;
+		}
+
+		int currentXp = event.getXp();
+		boolean xpChunkAwarded = trackXpGainFromStatChanged(skill, currentXp);
+
+		if (isCreditAwardOnCooldown())
+		{
+			return xpChunkAwarded;
+		}
+
+		if (isOverallSkill(skill))
+		{
+			return xpChunkAwarded;
+		}
+
+		int current = LevelUpCreditMath.levelForXp(currentXp);
+		if (!skills.skillLevelsInitialized || !skills.lastKnownLevels.containsKey(skill))
+		{
+			skills.lastKnownLevels.put(skill, current);
+			return xpChunkAwarded;
+		}
+
+		int previous = skills.lastKnownLevels.get(skill);
+
+		// Skill levels cannot decrease; ignore transient drops.
+		if (current <= previous)
+		{
+			return xpChunkAwarded;
+		}
+
+		awardLevelUps(skill, previous, current);
+		skills.lastKnownLevels.put(skill, current);
+		return xpChunkAwarded;
+	}
+
+	/** @return true if a 1000 XP credit chunk was awarded (panel should refresh) */
+	public boolean onFakeXpDrop(FakeXpDrop event)
+	{
+		if (!isCreditTrackingAllowed())
+		{
+			return false;
+		}
+
+		if (event == null || event.getSkill() == null || isCreditAwardOnCooldown())
+		{
+			return false;
+		}
+
+		Skill skill = event.getSkill();
+		if (isCombatSkill(skill))
+		{
+			int xp = event.getXp();
+			if (xp > 0 && xp < FAKE_XP_DROP_SANITY_CAP)
+			{
+				debugAward(String.format(
+					"Ignored fake XP drop for combat skill %s (+%s XP)",
+					skill.getName(), NumberFormatting.format(xp)));
+			}
+			return false;
+		}
+
+		if (!isGenuineMaxedSkillFakeXpDrop(skill))
+		{
+			debugAward(String.format(
+				"Ignored fake XP drop for %s (skill below %s XP)",
+				skill.getName(), NumberFormatting.format(Experience.MAX_SKILL_XP)));
+			return false;
+		}
+
+		int xp = event.getXp();
+		if (xp <= 0 || xp >= FAKE_XP_DROP_SANITY_CAP)
+		{
+			return false;
+		}
+
+		if (skill == Skill.HITPOINTS)
+		{
+			attestXpWithoutCreditBucket(xp, skill.getName() + " drop");
+			return false;
+		}
+
+		return applyXpGain(xp, skill);
+	}
+
+	/** Call when the plugin is enabled mid-session so stats are not credited against empty baselines. */
+	public void onPluginStarted()
+	{
+		if (client == null)
+		{
+			return;
+		}
+
+		lastObservedGameState = client.getGameState();
+		GameState current = lastObservedGameState;
+		if (current == GameState.LOGIN_SCREEN)
+		{
+			pendingStatsSettleAfterLoginOrHop = true;
+			restoreUncreditedXpFromPersistedBaseline = true;
+			suppressCreditAwardsUntilStatsSettle(true);
+		}
+		else if (current == GameState.HOPPING)
+		{
+			pendingStatsSettleAfterLoginOrHop = true;
+			restoreUncreditedXpFromPersistedBaseline = false;
+			suppressCreditAwardsUntilStatsSettle(false);
+		}
+		else if (current == GameState.LOGGED_IN)
+		{
+			pendingStatsSettleAfterLoginOrHop = true;
+			restoreUncreditedXpFromPersistedBaseline = false;
+			suppressCreditAwardsUntilStatsSettle(false);
+		}
+	}
+
+	public void onGameStateChanged(GameStateChanged event)
+	{
+		GameState next = event.getGameState();
+		lastObservedGameState = next;
+
+		if (next == GameState.LOGIN_SCREEN)
+		{
+			persistSkillBaselineToState(true);
+			pendingStatsSettleAfterLoginOrHop = true;
+			restoreUncreditedXpFromPersistedBaseline = true;
+			suppressCreditAwardsUntilStatsSettle(true);
+			return;
+		}
+
+		if (next == GameState.HOPPING)
+		{
+			persistSkillBaselineToState(true);
+			pendingStatsSettleAfterLoginOrHop = true;
+			restoreUncreditedXpFromPersistedBaseline = false;
+			suppressCreditAwardsUntilStatsSettle(false);
+			return;
+		}
+
+		if (next != GameState.LOGGED_IN)
+		{
+			return;
+		}
+
+		if (pendingStatsSettleAfterLoginOrHop)
+		{
+			// Tracking was already reset at login screen / hop; realign to post-login ticks only.
+			beginCreditAwardCooldown();
+		}
+	}
+
+	@Subscribe
+	public void onGameTick(GameTick event)
+	{
+		if (!isCreditTrackingAllowed())
+		{
+			return;
+		}
+
+		if (client == null || client.getGameState() != GameState.LOGGED_IN)
+		{
+			return;
+		}
+
+		if (creditAwardCooldownActive)
+		{
+			if (isCreditAwardOnCooldown())
+			{
+				return;
+			}
+
+			creditAwardCooldownActive = false;
+			pendingStatsSettleAfterLoginOrHop = false;
+			captureSkillBaselinesAfterLoginSettle();
+			debugAward("Credit award cooldown ended; resuming live credit gains");
+			return;
+		}
+
+		if (!skills.skillXpInitialized || !skills.skillLevelsInitialized)
+		{
+			skills.snapshotSkillBaselinesIfLoggedIn(client);
+			persistSkillBaselineToState(false);
+		}
+	}
+
+	/**
+	 * After the post-login/hop settle window: restore leftover uncredited XP chunk remainder and
+	 * snapshot live skill XP/levels for in-session attest.
+	 */
+	private void captureSkillBaselinesAfterLoginSettle()
+	{
+		SkillCreditBaseline saved = stateService.getState().getSkillCreditBaseline();
+		if (restoreUncreditedXpFromPersistedBaseline)
+		{
+			skills.restoreUncreditedXp(saved);
+			restoreUncreditedXpFromPersistedBaseline = false;
+		}
+
+		if (!skills.skillXpInitialized || !skills.skillLevelsInitialized)
+		{
+			skills.snapshotSkillBaselinesIfLoggedIn(client);
+		}
+		persistSkillBaselineToState(true);
+		debugAward("Live skill baselines captured after settle");
+	}
+
+	private long awardLevelUps(Skill skill, int previousLevel, int currentLevel)
+	{
+		if (currentLevel <= previousLevel)
+		{
+			return 0L;
+		}
+
+		long totalReward = 0L;
+		for (int level = previousLevel + 1; level <= currentLevel; level++)
+		{
+			totalReward += LevelUpCreditMath.levelUpReward(level);
+		}
+
+		if (totalReward <= 0L)
+		{
+			return 0L;
+		}
+
+		if (!session.canCollectAttests())
+		{
+			debugAward(String.format("Cloud offline; discarding level up %s -> %d..%d credit reward",
+				skill == null ? "?" : skill.getName(), previousLevel, currentLevel));
+			return 0L;
+		}
+
+		persistSkillBaselineToState(false);
+		JsonObject evidence = new JsonObject();
+		evidence.addProperty("skill", skill == null ? "" : skill.getName());
+		evidence.addProperty("fromLevel", previousLevel);
+		evidence.addProperty("toLevel", currentLevel);
+		attestQueue.enqueue("level_up", evidence, totalReward);
+
+		debugAward(String.format("Level up %s: %d -> %d -> +%s credits (total %s)",
+			skill == null ? "?" : skill.getName(), previousLevel, currentLevel,
+			NumberFormatting.format(totalReward), NumberFormatting.format(stateService.getCredits())));
+		return totalReward;
+	}
+
+	/** @return true if a 1000 XP credit chunk was awarded */
+	private boolean trackXpGainFromStatChanged(Skill skill, int currentXp)
+	{
+		if (isOverallSkill(skill))
+		{
+			return false;
+		}
+
+		int skillIndex = skill.ordinal();
+		if (skillIndex < 0 || skillIndex >= skills.previousSkillXp.length)
+		{
+			return false;
+		}
+
+		int previousXp = skills.previousSkillXp[skillIndex];
+		// Skill XP cannot decrease; never lower the baseline.
+		if (currentXp < previousXp)
+		{
+			debugAward(String.format(
+				"Ignored skill XP drop for %s (%s -> %s); keeping baseline",
+				skill.getName(), NumberFormatting.format(previousXp), NumberFormatting.format(currentXp)));
+			return false;
+		}
+
+		if (currentXp == previousXp)
+		{
+			return false;
+		}
+
+		boolean xpChunkAwarded = false;
+		if (skills.skillXpInitialized)
+		{
+			long xpGained = (long) currentXp - previousXp;
+			if (isCombatSkill(skill))
+			{
+				debugAward(String.format(
+					"Ignored +%s combat skill XP (%s)",
+					NumberFormatting.format(xpGained), skill.getName()));
+			}
+			else if (!isCreditAwardOnCooldown())
+			{
+				if (skill == Skill.HITPOINTS)
+				{
+					attestXpWithoutCreditBucket(xpGained, skill.getName());
+				}
+				else
+				{
+					xpChunkAwarded = applyXpGain(xpGained, skill);
+				}
+			}
+		}
+		skills.previousSkillXp[skillIndex] = currentXp;
+		return xpChunkAwarded;
+	}
+
+	/** @return true if optimistic XP credits were applied */
+	private boolean applyXpGain(long xpGained, Skill skill)
+	{
+		if (xpGained <= 0L || skill == null)
+		{
+			return false;
+		}
+		if (skill == Skill.HITPOINTS)
+		{
+			attestXpWithoutCreditBucket(xpGained, skill.getName());
+			return false;
+		}
+		if (skill == Skill.SLAYER)
+		{
+			return attestSlayerXp(xpGained, skill.getName());
+		}
+
+		long nextUncreditedXp = skills.addUncreditedXp(skill, xpGained);
+		debugAward(String.format("Registered +%s XP (%s) -> %s / %s",
+			NumberFormatting.format(xpGained), skill.getName(),
+			NumberFormatting.format(nextUncreditedXp), NumberFormatting.format(XpCreditMath.XP_PER_CREDIT_CHUNK)));
+
+		boolean awarded = awardCreditsFromUncreditedXp(skill);
+		persistSkillBaselineToState(false);
+		return awarded;
+	}
+
+	/**
+	 * Hitpoints XP is attested but never fills the credit remainder.
+	 */
+	private void attestXpWithoutCreditBucket(long xpGained, String source)
+	{
+		if (xpGained <= 0L)
+		{
+			return;
+		}
+		if (!session.canCollectAttests())
+		{
+			debugAward(String.format("Cloud offline; +%s XP (%s) not attested",
+				NumberFormatting.format(xpGained), safeName(source)));
+			return;
+		}
+
+		JsonObject evidence = new JsonObject();
+		evidence.addProperty("skill", source == null ? "" : source);
+		evidence.addProperty("xpDelta", xpGained);
+		attestQueue.enqueue("xp_chunk", evidence, 0L);
+		debugAward(String.format("Registered +%s XP (%s) (ignored)",
+			NumberFormatting.format(xpGained), safeName(source),
+			NumberFormatting.format(XpCreditMath.XP_PER_CREDIT_CHUNK)));
+	}
+
+	/**
+	 * Always enqueue Slayer XP (any amount) so boss kills under 1000 XP still attest;
+	 * optimistic credits use the 100 XP bucket (server owns the true remainder).
+	 */
+	private boolean attestSlayerXp(long xpGained, String source)
+	{
+		if (xpGained <= 0L)
+		{
+			return false;
+		}
+
+		skills.pendingSlayerXpToAttest += xpGained;
+		debugAward(String.format("Registered +%s XP (%s) -> pending attest %s (bucket %s)",
+			NumberFormatting.format(xpGained), safeName(source),
+			NumberFormatting.format(skills.pendingSlayerXpToAttest),
+			NumberFormatting.format(XpCreditMath.SLAYER_XP_PER_CREDIT_CHUNK)));
+
+		if (!session.canCollectAttests())
+		{
+			debugAward(String.format("Cloud offline; +%s Slayer XP pending until reconnected",
+				NumberFormatting.format(xpGained)));
+			persistSkillBaselineToState(false);
+			return false;
+		}
+
+		long toSend = skills.pendingSlayerXpToAttest;
+		skills.pendingSlayerXpToAttest = 0L;
+		skills.slayerOptimisticRemainder += toSend;
+		long chunks = skills.slayerOptimisticRemainder / XpCreditMath.SLAYER_XP_PER_CREDIT_CHUNK;
+		long credits = chunks * XpCreditMath.SLAYER_CREDITS_PER_CHUNK;
+		skills.slayerOptimisticRemainder -= chunks * XpCreditMath.SLAYER_XP_PER_CREDIT_CHUNK;
+
+		persistSkillBaselineToState(false);
+		JsonObject evidence = new JsonObject();
+		evidence.addProperty("skill", source == null ? "" : source);
+		evidence.addProperty("xpDelta", toSend);
+		attestQueue.enqueue("xp_chunk", evidence, credits);
+		debugAward(String.format("XP drop +%s (%s) -> +%s credits (total %s)",
+			NumberFormatting.format(toSend), safeName(source),
+			NumberFormatting.format(credits), NumberFormatting.format(stateService.getCredits())));
+		return credits > 0L;
+	}
+
+	/** @return true if optimistic credits were applied from XP chunks */
+	private boolean awardCreditsFromUncreditedXp(Skill skill)
+	{
+		if (skill == null)
+		{
+			return false;
+		}
+
+		long remainder = skills.uncreditedXpFor(skill);
+		long chunks = remainder / XpCreditMath.XP_PER_CREDIT_CHUNK;
+		if (chunks <= 0L)
+		{
+			return false;
+		}
+
+		long xpCredited = chunks * XpCreditMath.XP_PER_CREDIT_CHUNK;
+		long credits = chunks * XpCreditMath.CREDITS_PER_CHUNK;
+
+		if (!session.canCollectAttests())
+		{
+			debugAward(String.format("Cloud offline; +%s XP (%s) pending until reconnected",
+				NumberFormatting.format(xpCredited), skill.getName()));
+			return false;
+		}
+
+		persistSkillBaselineToState(false);
+		JsonObject evidence = new JsonObject();
+		evidence.addProperty("skill", skill.getName());
+		evidence.addProperty("xpDelta", xpCredited);
+		attestQueue.enqueue("xp_chunk", evidence, credits);
+		skills.subtractUncreditedXp(skill, xpCredited);
+		debugAward(String.format("XP drop +%s (%s) -> +%s credits (total %s)",
+			NumberFormatting.format(xpCredited), skill.getName(),
+			NumberFormatting.format(credits), NumberFormatting.format(stateService.getCredits())));
+		return credits > 0L;
+	}
+
+	/**
+	 * Writes the current in-memory skill baselines into profile state.
+	 *
+	 * @param save whether to flush to disk immediately
+	 */
+	private void persistSkillBaselineToState(boolean save)
+	{
+		if (!isCreditTrackingAllowed() || !skills.skillXpInitialized)
+		{
+			return;
+		}
+
+		SkillCreditBaseline baseline = skills.toBaseline();
+		stateService.replaceSkillCreditBaseline(baseline);
+		if (save)
+		{
+			stateService.save();
+		}
+	}
+
+	private void suppressCreditAwardsUntilStatsSettle(boolean clearUncreditedXpPool)
+	{
+		beginCreditAwardCooldown();
+		skills.resetTracking();
+		if (clearUncreditedXpPool)
+		{
+			clearUncreditedXpPool("login or logout");
+		}
+	}
+
+	private void beginCreditAwardCooldown()
+	{
+		creditAwardCooldownActive = true;
+		if (client == null)
+		{
+			creditAwardCooldownUntilTick = 0;
+			return;
+		}
+
+		creditAwardCooldownUntilTick = client.getTickCount() + CREDIT_AWARD_COOLDOWN_TICKS;
+	}
+
+	/** Whether NPC-kill / activity credit awards should be suppressed right now (settle window after login/hop). */
+	public boolean isCreditAwardOnCooldown()
+	{
+		if (!creditAwardCooldownActive || client == null)
+		{
+			return false;
+		}
+
+		int tick = client.getTickCount();
+		if (tick >= creditAwardCooldownUntilTick)
+		{
+			return false;
+		}
+
+		// Cooldown armed before the tick counter reset.
+		if (creditAwardCooldownUntilTick - tick > CREDIT_AWARD_COOLDOWN_TICKS)
+		{
+			return false;
+		}
+
+		return true;
+	}
+
+	private void clearUncreditedXpPool(String reason)
+	{
+		long totalRemainder = skills.totalUncreditedXp();
+		if (totalRemainder > 0L)
+		{
+			debugAward(String.format(
+				"Uncredited XP pool cleared (%s); lost %s XP toward next chunk",
+				reason, NumberFormatting.format(totalRemainder)));
+		}
+		skills.clearUncreditedXpPool();
+	}
+
+	private String safeName(String name)
+	{
+		return name == null || name.isEmpty() ? "Unknown NPC" : name;
+	}
+
+	private void debugAward(String message)
+	{
+		boolean chat = stateService.isDebugChatEnabled();
+		boolean trace = stateService.isDebugTracingActive();
+		if (!chat && !trace)
+		{
+			return;
+		}
+
+		log.info("[TCG DEBUG] {}", message);
+		if (chat)
+		{
+			TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, message);
+		}
+	}
+
+	static boolean isOverallSkill(Skill skill)
+	{
+		return skill != null && "Overall".equalsIgnoreCase(skill.getName());
+	}
+
+	private boolean isCombatSkill(Skill skill)
+	{
+		return skill != null && COMBAT_SKILLS.contains(skill);
+	}
+
+
+	private boolean isGenuineMaxedSkillFakeXpDrop(Skill skill)
+	{
+		if (client == null || isOverallSkill(skill))
+		{
+			return false;
+		}
+
+		return client.getSkillExperience(skill) >= Experience.MAX_SKILL_XP;
+	}
+}

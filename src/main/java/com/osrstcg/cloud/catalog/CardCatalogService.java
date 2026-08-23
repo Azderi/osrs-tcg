@@ -1,0 +1,393 @@
+package com.osrstcg.cloud.catalog;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonSyntaxException;
+import com.google.gson.reflect.TypeToken;
+import com.osrstcg.catalog.CardDatabase;
+import com.osrstcg.catalog.CardDefinition;
+import com.osrstcg.state.TcgStateService;
+import java.io.IOException;
+import java.io.Reader;
+import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import javax.inject.Inject;
+import javax.inject.Provider;
+import javax.inject.Singleton;
+import lombok.extern.slf4j.Slf4j;
+import net.runelite.client.RuneLite;
+import com.osrstcg.cloud.api.CloudApiClient;
+import com.osrstcg.cloud.api.CloudApiException;
+
+/**
+ * Fetches the live card catalog from {@code GET /api/v1/catalog/cards/live}
+ * ({@code { items, npcs }}). Persists a disk cache under {@code ~/.runelite/OSRS-TCG/catalog/}
+ * for offline / pre-login use.
+ */
+@Slf4j
+@Singleton
+public final class CardCatalogService
+{
+	private static final Type LEGACY_CARD_LIST_TYPE = new TypeToken<List<CardDefinition>>() { }.getType();
+	private static final String LIVE_CACHE_FILE = "cards.live.json";
+	private static final String LIVE_VERSION_FILE = "cards.live.version";
+	private static final String CARD_ART_CACHE_FILE = "card-art.json";
+	private static final String CARD_ART_VERSION_FILE = "card-art.version";
+	private static final String LEGACY_CACHE_FILE = "Card.json";
+
+	private final CloudApiClient api;
+	private final Gson gson;
+	private final CardDatabase cardDatabase;
+	private final Provider<TcgStateService> stateService;
+	private final ScheduledExecutorService scheduler;
+	private final AtomicBoolean loginFetchAttempted = new AtomicBoolean(false);
+	private final AtomicReference<Runnable> changeListener = new AtomicReference<>(null);
+	private final AtomicReference<String> cachedCatalogVersion = new AtomicReference<>(null);
+	/** Snapshot kept while Overview debug mode is on. */
+	private final AtomicReference<List<CardDefinition>> debugPinnedCatalog = new AtomicReference<>(null);
+
+	@Inject
+	CardCatalogService(
+		CloudApiClient api,
+		Gson gson,
+		CardDatabase cardDatabase,
+		Provider<TcgStateService> stateService,
+		ScheduledExecutorService scheduler)
+	{
+		this.api = api;
+		this.gson = gson;
+		this.cardDatabase = cardDatabase;
+		this.stateService = stateService;
+		this.scheduler = scheduler;
+	}
+
+	public void setChangeListener(Runnable listener)
+	{
+		changeListener.set(listener);
+	}
+
+	/**
+	 * Load disk cache into {@link CardDatabase} if present (no network). Safe to call on plugin start.
+	 * Custom foil art is not applied from disk - only pack-pull paths carry foil art.
+	 */
+	public void loadDiskCacheIfPresent()
+	{
+		deleteObsoleteCardArtOverlayCache();
+		Path live = diskCacheDir().resolve(LIVE_CACHE_FILE);
+		if (Files.isRegularFile(live))
+		{
+			try
+			{
+				String json = Files.readString(live, StandardCharsets.UTF_8);
+				List<CardDefinition> parsed = parseLiveJson(json);
+				if (!parsed.isEmpty())
+				{
+					cardDatabase.replaceCards(parsed, "disk cache");
+					cachedCatalogVersion.set(readDiskVersion());
+					return;
+				}
+			}
+			catch (Exception ex)
+			{
+				log.warn("Failed reading live card catalog disk cache {}", live, ex);
+			}
+		}
+
+		Path legacy = diskCacheDir().resolve(LEGACY_CACHE_FILE);
+		if (!Files.isRegularFile(legacy))
+		{
+			return;
+		}
+		try (Reader reader = Files.newBufferedReader(legacy, StandardCharsets.UTF_8))
+		{
+			List<CardDefinition> parsed = gson.fromJson(reader, LEGACY_CARD_LIST_TYPE);
+			if (parsed == null || parsed.isEmpty())
+			{
+				return;
+			}
+			cardDatabase.replaceCards(parsed, "disk cache (legacy)");
+		}
+		catch (IOException | JsonSyntaxException ex)
+		{
+			log.warn("Failed reading legacy card catalog disk cache {}", legacy, ex);
+		}
+	}
+
+	/**
+	 * Background fetch. Does not consume the login fetch gate.
+	 */
+	public CompletableFuture<Void> prefetchAsync()
+	{
+		return CompletableFuture.runAsync(this::fetchAndApply, scheduler);
+	}
+
+	/**
+	 * Exactly once after cloud session is established.
+	 */
+	public CompletableFuture<Void> refreshOnLogin()
+	{
+		if (!loginFetchAttempted.compareAndSet(false, true))
+		{
+			return CompletableFuture.completedFuture(null);
+		}
+		return CompletableFuture.runAsync(this::fetchAndApply, scheduler);
+	}
+
+	/** Logout - allow a fresh fetch on the next login. Keeps in-memory / disk catalog. */
+	public void resetLoginFetchGate()
+	{
+		loginFetchAttempted.set(false);
+	}
+
+	/** Drop the debug pin when leaving Overview debug mode. */
+	public void clearDebugCatalogPin()
+	{
+		debugPinnedCatalog.set(null);
+	}
+
+	/**
+	 * Ensure card definitions are available for debug tools ({@code ::tcg-complete} / {@code ::tcg-give}).
+	 * Order: memory → debug pin → disk cache → live public catalog fetch (sync).
+	 */
+	public synchronized void ensureCachedCatalogForDebug()
+	{
+		if (cardDatabase.size() > 0)
+		{
+			rememberDebugPinFromMemory();
+			return;
+		}
+		List<CardDefinition> pinned = debugPinnedCatalog.get();
+		if (pinned != null && !pinned.isEmpty())
+		{
+			cardDatabase.replaceCards(new ArrayList<>(pinned), "debug pin");
+			return;
+		}
+		loadDiskCacheIfPresent();
+		if (cardDatabase.size() > 0)
+		{
+			rememberDebugPinFromMemory();
+			return;
+		}
+		fetchAndApply();
+		if (cardDatabase.size() > 0)
+		{
+			rememberDebugPinFromMemory();
+		}
+	}
+
+	private void rememberDebugPinFromMemory()
+	{
+		if (cardDatabase.size() > 0)
+		{
+			debugPinnedCatalog.set(List.copyOf(cardDatabase.getCards()));
+		}
+	}
+
+	/** Force refetch. */
+	public CompletableFuture<Void> refreshNow()
+	{
+		loginFetchAttempted.set(true);
+		return CompletableFuture.runAsync(this::fetchAndApply, scheduler);
+	}
+
+	private void fetchAndApply()
+	{
+		try
+		{
+			String cachedVersion = cachedCatalogVersion.get();
+			if (cachedVersion == null || cachedVersion.isBlank())
+			{
+				cachedVersion = readDiskVersion();
+			}
+			LiveCardsResponse response = api.getLiveCards(cachedVersion);
+			if (response.isNotModified())
+			{
+				if (cardDatabase.size() == 0)
+				{
+					loadDiskCacheIfPresent();
+				}
+				if (response.getCatalogVersion() != null && !response.getCatalogVersion().isBlank())
+				{
+					cachedCatalogVersion.set(response.getCatalogVersion());
+				}
+				log.debug("Live card catalog not modified (version={})", cachedCatalogVersion.get());
+				notifyChanged();
+				return;
+			}
+			JsonObject body = response.getBody();
+			List<CardDefinition> parsed = LiveCardsCatalogParser.parse(body);
+			if (parsed.isEmpty())
+			{
+				log.error("Live card catalog returned empty items/npcs; keeping previous");
+				return;
+			}
+			String raw = response.getRawJson();
+			if (raw != null && !raw.isBlank())
+			{
+				persistDiskCache(raw, response.getCatalogVersion());
+			}
+			if (response.getCatalogVersion() != null && !response.getCatalogVersion().isBlank())
+			{
+				cachedCatalogVersion.set(response.getCatalogVersion());
+			}
+			cardDatabase.replaceCards(parsed, "GET /api/v1/catalog/cards/live");
+			if (stateService.get().isDebugLogging())
+			{
+				rememberDebugPinFromMemory();
+			}
+			notifyChanged();
+		}
+		catch (Exception ex)
+		{
+			if (ex instanceof CloudApiException && "consent_required".equals(((CloudApiException) ex).getCode()))
+			{
+				log.debug("Live card catalog skipped until cloud consent");
+				return;
+			}
+			log.warn("Live card catalog fetch failed", ex);
+		}
+	}
+
+	/** Drop stale global overlay cache so it cannot re-apply art into CardDatabase. */
+	private void deleteObsoleteCardArtOverlayCache()
+	{
+		Path dir = diskCacheDir();
+		try
+		{
+			Files.deleteIfExists(dir.resolve(CARD_ART_CACHE_FILE));
+			Files.deleteIfExists(dir.resolve(CARD_ART_VERSION_FILE));
+		}
+		catch (Exception ex)
+		{
+			log.debug("Failed deleting obsolete card-art overlay cache", ex);
+		}
+	}
+
+	private static List<CardDefinition> parseLiveJson(String json)
+	{
+		JsonObject obj = new JsonParser().parse(json).getAsJsonObject();
+		return LiveCardsCatalogParser.parse(obj);
+	}
+
+	private void notifyChanged()
+	{
+		Runnable listener = changeListener.get();
+		if (listener != null)
+		{
+			try
+			{
+				listener.run();
+			}
+			catch (Exception ex)
+			{
+				log.debug("Card catalog change listener failed", ex);
+			}
+		}
+	}
+
+	private void persistDiskCache(String json, String version)
+	{
+		Path dir = diskCacheDir();
+		Path target = dir.resolve(LIVE_CACHE_FILE);
+		Path tmp = dir.resolve(LIVE_CACHE_FILE + ".tmp");
+		try
+		{
+			Files.createDirectories(dir);
+			Files.writeString(tmp, json, StandardCharsets.UTF_8);
+			try
+			{
+				Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+			}
+			catch (java.nio.file.AtomicMoveNotSupportedException ex)
+			{
+				Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+			}
+			if (version != null && !version.isBlank())
+			{
+				Files.writeString(dir.resolve(LIVE_VERSION_FILE), version.trim(), StandardCharsets.UTF_8);
+			}
+		}
+		catch (Exception ex)
+		{
+			log.debug("Card catalog disk cache write failed", ex);
+			try
+			{
+				Files.deleteIfExists(tmp);
+			}
+			catch (Exception ignored)
+			{
+				// ignore
+			}
+		}
+	}
+
+	private static String readDiskVersion()
+	{
+		Path file = diskCacheDir().resolve(LIVE_VERSION_FILE);
+		if (!Files.isRegularFile(file))
+		{
+			return null;
+		}
+		try
+		{
+			String v = Files.readString(file, StandardCharsets.UTF_8).trim();
+			return v.isEmpty() ? null : v;
+		}
+		catch (IOException ex)
+		{
+			return null;
+		}
+	}
+
+	private static Path diskCacheDir()
+	{
+		return Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG", "catalog");
+	}
+
+	/**
+	 * Removes the on-disk catalog cache. In-memory cards are kept;
+	 * call {@link #refreshNow()} afterward to repopulate disk from the live host.
+	 */
+	public void deleteDiskCache()
+	{
+		cachedCatalogVersion.set(null);
+		deleteDirectoryQuietly(diskCacheDir());
+	}
+
+	private static void deleteDirectoryQuietly(Path dir)
+	{
+		if (dir == null || !Files.isDirectory(dir))
+		{
+			return;
+		}
+		try (java.util.stream.Stream<Path> walk = Files.walk(dir))
+		{
+			walk.sorted(java.util.Comparator.reverseOrder()).forEach(path ->
+			{
+				try
+				{
+					Files.deleteIfExists(path);
+				}
+				catch (Exception ex)
+				{
+					log.debug("Failed deleting catalog cache path {}", path, ex);
+				}
+			});
+			log.info("Removed obsolete card catalog disk cache {}", dir);
+		}
+		catch (Exception ex)
+		{
+			log.debug("Failed walking catalog cache dir {}", dir, ex);
+		}
+	}
+}

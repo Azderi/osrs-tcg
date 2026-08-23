@@ -1,0 +1,175 @@
+package com.osrstcg.ui.shop;
+
+import com.osrstcg.catalog.BoosterPackDefinition;
+import com.osrstcg.catalog.CardDefinition;
+import com.osrstcg.catalog.CollectionSetCompletionUtil;
+import com.osrstcg.state.CardCollectionKey;
+import com.osrstcg.ui.layout.PackCloseSnapshot;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+public final class ShopProgress
+{
+	private static final Object ELIGIBLE_LOCK = new Object();
+	private static List<CardDefinition> cachedAllCards;
+	private static List<CardDefinition> cachedRollPool;
+	private static final Map<String, Set<String>> eligibleByPackKey = new java.util.HashMap<>();
+
+	private ShopProgress()
+	{
+	}
+
+	/** Distinct card names with at least one foil copy owned. */
+	public static Set<String> foilCollectedNamesFromOwned(Map<CardCollectionKey, Integer> owned)
+	{
+		Set<String> foilNames = new HashSet<>();
+		for (Map.Entry<CardCollectionKey, Integer> entry : owned.entrySet())
+		{
+			CardCollectionKey key = entry.getKey();
+			if (key == null || !key.isFoil())
+			{
+				continue;
+			}
+			String cardName = key.getCardName();
+			Integer qty = entry.getValue();
+			if (cardName == null || qty == null || qty <= 0)
+			{
+				continue;
+			}
+			String trimmed = cardName.trim();
+			if (!trimmed.isEmpty())
+			{
+				foilNames.add(trimmed);
+			}
+		}
+		return foilNames;
+	}
+
+	/**
+	 * Shop progress: Standard (empty category) = distinct names in the roll pool; regional = distinct names in the full
+	 * catalog that match {@link BoosterPackDefinition#cardMatchesRegion}.
+	 * {@code owned} should exclude beta copies.
+	 * Returns {@code [standardOwned, foilOwned, total]}.
+	 */
+	public static int[] ownedTotal(
+		BoosterPackDefinition booster,
+		List<CardDefinition> allCards,
+		List<CardDefinition> rollPool,
+		Map<CardCollectionKey, Integer> owned)
+	{
+		Set<String> collectedNames = CollectionSetCompletionUtil.collectedNamesFromOwned(owned);
+		Set<String> foilCollectedNames = foilCollectedNamesFromOwned(owned);
+		Set<String> eligible = eligibleNames(booster, allCards, rollPool);
+		int total = eligible.size();
+		int own = 0;
+		int foilOwn = 0;
+		for (String name : eligible)
+		{
+			if (collectedNames.contains(name))
+			{
+				own++;
+			}
+			if (foilCollectedNames.contains(name))
+			{
+				foilOwn++;
+			}
+		}
+		return new int[] { own, foilOwn, total };
+	}
+
+	private static Set<String> eligibleNames(
+		BoosterPackDefinition booster,
+		List<CardDefinition> allCards,
+		List<CardDefinition> rollPool)
+	{
+		synchronized (ELIGIBLE_LOCK)
+		{
+			if (allCards != cachedAllCards || rollPool != cachedRollPool)
+			{
+				eligibleByPackKey.clear();
+				cachedAllCards = allCards;
+				cachedRollPool = rollPool;
+			}
+			String key = packEligibleKey(booster);
+			Set<String> cached = eligibleByPackKey.get(key);
+			if (cached != null)
+			{
+				return cached;
+			}
+			Set<String> eligible = computeEligible(booster, allCards, rollPool);
+			eligibleByPackKey.put(key, eligible);
+			return eligible;
+		}
+	}
+
+	private static String packEligibleKey(BoosterPackDefinition booster)
+	{
+		if (booster == null)
+		{
+			return "";
+		}
+		String id = booster.getId();
+		if (id != null && !id.isBlank())
+		{
+			return id;
+		}
+		return String.valueOf(booster.getCategoryFilters());
+	}
+
+	private static Set<String> computeEligible(
+		BoosterPackDefinition booster,
+		List<CardDefinition> allCards,
+		List<CardDefinition> rollPool)
+	{
+		List<String> filters = booster.getCategoryFilters();
+		Set<String> eligible = new HashSet<>();
+		if (filters.isEmpty())
+		{
+			for (CardDefinition c : rollPool)
+			{
+				if (c == null || c.getName() == null || c.getName().trim().isEmpty())
+				{
+					continue;
+				}
+				eligible.add(c.getName().trim());
+			}
+		}
+		else
+		{
+			for (CardDefinition c : allCards)
+			{
+				if (c == null || c.getName() == null || c.getName().trim().isEmpty())
+				{
+					continue;
+				}
+				if (BoosterPackDefinition.cardMatchesRegion(c, filters))
+				{
+					eligible.add(c.getName().trim());
+				}
+			}
+		}
+		return eligible;
+	}
+
+	public static List<BoosterShopRow> computeRows(
+		PackCloseSnapshot snap,
+		List<CardDefinition> allCards,
+		List<CardDefinition> rollPool,
+		List<BoosterPackDefinition> boosters)
+	{
+		List<BoosterShopRow> out = new ArrayList<>(boosters.size());
+		for (BoosterPackDefinition booster : boosters)
+		{
+			if (booster == null)
+			{
+				continue;
+			}
+			int[] p = ownedTotal(booster, allCards, rollPool, snap.owned);
+			out.add(new BoosterShopRow(booster, p[0], p[1], p[2]));
+		}
+		return out;
+	}
+}

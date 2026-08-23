@@ -1,0 +1,1508 @@
+package com.osrstcg.ui;
+
+import com.osrstcg.OsrsTcgConfig;
+import com.osrstcg.catalog.CardDatabase;
+import com.osrstcg.catalog.CardDefinition;
+import com.osrstcg.catalog.CardImageCacheService;
+import com.osrstcg.catalog.RollPoolFilter;
+import com.osrstcg.cloud.api.CloudApiClient;
+import com.osrstcg.cloud.catalog.PackCatalogService;
+import com.osrstcg.cloud.session.CloudSessionService;
+import com.osrstcg.cloud.shop.CloudPackService;
+import com.osrstcg.cloud.shop.CloudSellService;
+import com.osrstcg.cloud.trade.TradeCloudService;
+import com.osrstcg.pack.PackOpenCoordinator;
+import com.osrstcg.pack.PackRevealService;
+import com.osrstcg.pack.PackSafeModeService;
+import com.osrstcg.interop.TcgPublicStatsCalculator;
+import com.osrstcg.state.CloudSidebarCollectionStats;
+import com.osrstcg.state.CollectionState;
+import com.osrstcg.state.TcgState;
+import com.osrstcg.state.TcgStateService;
+import com.osrstcg.ui.account.AccountPanelLauncher;
+import com.osrstcg.ui.account.MigrateCollectionController;
+import com.osrstcg.ui.account.SidebarNoticeView;
+import com.osrstcg.ui.collection.CollectionListModel;
+import com.osrstcg.ui.collection.CollectionTab;
+import com.osrstcg.ui.layout.PackCloseSnapshot;
+import com.osrstcg.ui.layout.SidebarChrome;
+import com.osrstcg.ui.layout.SidebarLayout;
+import com.osrstcg.ui.overview.OverviewTab;
+import com.osrstcg.ui.shop.BoosterShopRow;
+import com.osrstcg.ui.shop.ShopTab;
+import com.osrstcg.ui.welcome.WelcomeContent;
+import com.osrstcg.ui.welcome.WelcomeTab;
+import com.osrstcg.ui.save.SaveRestoreManager;
+import com.osrstcg.util.TcgPluginGameMessages;
+import java.awt.BorderLayout;
+import java.awt.CardLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Container;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.GridLayout;
+import java.awt.Insets;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
+import java.util.HashMap;
+import java.util.List;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
+import javax.inject.Inject;
+import javax.inject.Named;
+import javax.inject.Singleton;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JButton;
+import javax.swing.JComponent;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextPane;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.border.CompoundBorder;
+import javax.swing.border.EmptyBorder;
+import javax.swing.border.MatteBorder;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.Client;
+import net.runelite.api.GameState;
+import net.runelite.client.chat.ChatMessageManager;
+import net.runelite.client.ui.ColorScheme;
+import net.runelite.client.ui.FontManager;
+import net.runelite.client.ui.PluginPanel;
+
+@Slf4j
+@Singleton
+public class TcgPanel extends PluginPanel implements SidebarRefresh
+{
+	private static final int MAIN_PANEL_INSET = SidebarLayout.MAIN_PANEL_INSET;
+	private static final int TAB_BUTTON_GAP = SidebarLayout.TAB_BUTTON_GAP;
+
+	private enum Tab
+	{
+		WELCOME("Welcome"),
+		OVERVIEW("Overview"),
+		COLLECTION("Collection"),
+		SHOP("Shop");
+
+		@Getter
+		private final String label;
+
+		Tab(String label)
+		{
+			this.label = label;
+		}
+
+	}
+
+	private final TcgStateService stateService;
+	private final CardDatabase cardDatabase;
+	private final WelcomeContent welcomeContentCatalog;
+	private final PackRevealService packRevealService;
+	private final Client client;
+	private final CloudSessionService cloudSessionService;
+	private final TradeCloudService tradeCloudService;
+	private final SaveRestoreManager saveRestoreManager;
+	private final ScheduledExecutorService scheduler;
+	private final ChatMessageManager chatMessageManager;
+	private final JButton openAccountPanelButton;
+	private final JButton migrateCollectionButton;
+	private final JTextPane migratePromptPane;
+
+	private final JPanel mainPanel = new JPanel();
+	private final JPanel content = new JPanel();
+	private final CardLayout contentLayout = new CardLayout();
+	private final JPanel welcomeContent = new JPanel();
+	private final JPanel overviewContent = new JPanel();
+	private final JPanel collectionContent = new JPanel(new BorderLayout(0, 6));
+	private final JPanel collectionListHost = new JPanel(new CardLayout());
+	private final JList<CollectionListModel.Row> collectionList = new JList<>();
+	private final JScrollPane collectionListScrollPane = new JScrollPane(collectionList);
+	private final JLabel collectionEmptyLabel = new JLabel("No owned cards match these filters.");
+	/** Shop root: fixed header (credits + sell) + scrollable pack grid only. */
+	private final JPanel shopContent = new JPanel(new BorderLayout(0, 8));
+	private final JPanel shopHeaderPanel = new JPanel();
+	private final JPanel packsContent = new JPanel();
+	private final JScrollPane welcomeScrollPane = new JScrollPane(welcomeContent);
+	private final JScrollPane overviewScrollPane = new JScrollPane(overviewContent);
+	private final JScrollPane shopPacksScrollPane = new JScrollPane(packsContent);
+	private final JPanel footerPanel = new JPanel();
+	private final JPanel migrateFooterWrap = new JPanel(new BorderLayout(0, 0));
+	private final Component migrateFooterSpacer = Box.createRigidArea(new Dimension(0, 10));
+	private final JPanel albumFooterWrap = new JPanel(new BorderLayout(0, 0));
+	private final JPanel tradeFooterWrap = new JPanel(new BorderLayout(0, 0));
+	private final Component tradeFooterSpacer = Box.createRigidArea(new Dimension(0, 10));
+	private final JPanel titlePanel;
+	private JPanel titleTabWrapper;
+	private final JComponent cloudStatusIndicator;
+	private final JButton openTradesButton;
+	private final JButton welcomeTabButton = new JButton(Tab.WELCOME.getLabel());
+	private final JButton overviewTabButton = new JButton(Tab.OVERVIEW.getLabel());
+	private final JButton collectionTabButton = new JButton(Tab.COLLECTION.getLabel());
+	private final JButton shopTabButton = new JButton(Tab.SHOP.getLabel());
+	private Tab selectedTab = Tab.OVERVIEW;
+	private final Runnable onCollectionChanged = () -> SwingUtilities.invokeLater(this::refresh);
+	/** After first in-world refresh, {@link #selectedTab} is only user-driven. */
+	private boolean defaultTabSelectionInitialized;
+	private boolean refreshQueued;
+	private boolean creditsRefreshQueued;
+	private volatile boolean panelVisible;
+	private int lastPanelWidthForLayout = -1;
+	private int lastPanelHeightForLayout = -1;
+	/** Bumps when a new pack-close refresh is scheduled so stale async results are ignored. */
+	private final AtomicLong packCloseRefreshGen = new AtomicLong();
+	/** While a pack is opening, sidebar stats use this pre-transaction snapshot so pulls are not spoiled. */
+	private PackCloseSnapshot sidebarRevealSpoilerFreeze;
+	/** During an active reveal, each tab is built at most once from {@link #sidebarRevealSpoilerFreeze}. */
+	private boolean welcomeBuiltForActiveReveal;
+	private boolean overviewBuiltForActiveReveal;
+	private boolean collectionBuiltForActiveReveal;
+	private boolean shopBuiltForActiveReveal;
+	/** Last debug status line key ({@code color|tooltip}). */
+	private String lastDebugStatusKey;
+
+
+	private final WelcomeTab welcomeTab;
+	private final OverviewTab overviewTab;
+	private final CollectionTab collectionTab;
+	private final ShopTab shopTab;
+	private final MigrateCollectionController migrateController;
+	private final AccountPanelLauncher accountLauncher;
+	private final SidebarNoticeView sidebarNoticeView;
+
+	private final boolean runeliteDeveloperMode;
+
+	@Inject
+	public TcgPanel(
+		TcgStateService stateService,
+		CardDatabase cardDatabase,
+		WelcomeContent welcomeContentCatalog,
+		CloudPackService cloudPackService,
+		PackRevealService packRevealService,
+		PackSafeModeService packSafeModeService,
+		PackOpenCoordinator packOpenCoordinator,
+		PackCatalogService packCatalogService,
+		CardImageCacheService imageCacheService,
+		OsrsTcgConfig config,
+		Client client,
+		CloudSessionService cloudSessionService,
+		TradeCloudService tradeCloudService,
+		CloudApiClient cloudApiClient,
+		CloudSellService cloudSellService,
+		SaveRestoreManager saveRestoreManager,
+		ScheduledExecutorService scheduler,
+		ChatMessageManager chatMessageManager,
+		@Named("developerMode") boolean runeliteDeveloperMode)
+	{
+		super(false);
+		this.runeliteDeveloperMode = runeliteDeveloperMode;
+		this.stateService = stateService;
+		this.cardDatabase = cardDatabase;
+		this.welcomeContentCatalog = welcomeContentCatalog;
+		this.packRevealService = packRevealService;
+		this.client = client;
+		this.cloudSessionService = cloudSessionService;
+		this.tradeCloudService = tradeCloudService;
+		this.saveRestoreManager = saveRestoreManager;
+		this.scheduler = scheduler;
+		this.chatMessageManager = chatMessageManager;
+		this.openAccountPanelButton = new JButton("Open web album");
+		this.migrateCollectionButton = new JButton("Migrate collection");
+		this.migratePromptPane = MigrateCollectionController.createMigratePromptPane();
+		this.cloudStatusIndicator = SidebarChrome.createCloudStatusIndicator();
+		this.openTradesButton = createOpenTradesButton();
+		this.welcomeTab = new WelcomeTab(welcomeContentCatalog);
+		this.overviewTab = new OverviewTab(
+			config, cloudPackService, stateService, runeliteDeveloperMode,
+			this::persistDebugLogging, this::liveSidebarContentWidth, TcgPanel.class);
+		this.accountLauncher = new AccountPanelLauncher(
+			cloudSessionService, cloudApiClient, scheduler, chatMessageManager,
+			this::updateManageAccountButtonState);
+		this.openAccountPanelButton.addActionListener(e -> accountLauncher.open());
+		this.migrateController = new MigrateCollectionController(
+			cloudSessionService, stateService, saveRestoreManager, scheduler, chatMessageManager,
+			this, this::refresh, this::selectOverviewAfterMigrate, this::afterMigrateUi);
+		this.migrateCollectionButton.addActionListener(e -> migrateController.migrate());
+		this.sidebarNoticeView = new SidebarNoticeView(
+			openAccountPanelButton, albumFooterWrap, cloudSessionService, this::updateManageAccountButtonState);
+		this.collectionTab = new CollectionTab(
+			cardDatabase, packCatalogService, scheduler,
+			this::liveSidebarContentWidth, this::capturePackCloseSnapshotForDisplay,
+			this::onCollectionTabRendered, () -> selectedTab == Tab.COLLECTION,
+			collectionContent, collectionListHost, collectionList, collectionListScrollPane, collectionEmptyLabel);
+		this.shopTab = new ShopTab(
+			stateService, cardDatabase, packRevealService, packSafeModeService,
+			packOpenCoordinator, packCatalogService, imageCacheService, config, cloudSessionService,
+			cloudSellService, scheduler, chatMessageManager, overviewTab,
+			this::liveShopPacksContentWidth, this::capturePackCloseSnapshotForDisplay,
+			this::refresh, this::beginPackRevealSidebarFreeze, this::clearPackRevealSidebarFreeze,
+			this, shopHeaderPanel, packsContent);
+
+		setLayout(new BorderLayout());
+
+		mainPanel.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		mainPanel.setLayout(new BorderLayout(0, 8));
+		mainPanel.setBorder(new EmptyBorder(
+			MAIN_PANEL_INSET, MAIN_PANEL_INSET, MAIN_PANEL_INSET, MAIN_PANEL_INSET));
+
+		content.setLayout(contentLayout);
+		content.setOpaque(false);
+		welcomeContent.setLayout(new BorderLayout());
+		welcomeContent.setOpaque(false);
+		SidebarLayout.initializeTabContentPanel(overviewContent);
+		SidebarLayout.initializeTabContentPanel(packsContent);
+		collectionContent.setOpaque(false);
+		collectionTab.configureList();
+		SidebarLayout.configureTabScrollPane(collectionListScrollPane);
+		collectionListHost.setOpaque(false);
+		collectionListHost.add(collectionListScrollPane, CollectionTab.LIST_CARD);
+		JPanel emptyWrap = new JPanel(new BorderLayout());
+		emptyWrap.setOpaque(false);
+		emptyWrap.add(collectionEmptyLabel, BorderLayout.NORTH);
+		collectionListHost.add(emptyWrap, CollectionTab.EMPTY_CARD);
+		collectionContent.add(collectionListHost, BorderLayout.CENTER);
+		shopContent.setOpaque(false);
+		shopHeaderPanel.setLayout(new BoxLayout(shopHeaderPanel, BoxLayout.Y_AXIS));
+		shopHeaderPanel.setOpaque(false);
+		shopHeaderPanel.setAlignmentX(LEFT_ALIGNMENT);
+		shopContent.add(shopHeaderPanel, BorderLayout.NORTH);
+		shopContent.add(shopPacksScrollPane, BorderLayout.CENTER);
+		content.add(welcomeScrollPane, Tab.WELCOME.name());
+		content.add(overviewScrollPane, Tab.OVERVIEW.name());
+		content.add(collectionContent, Tab.COLLECTION.name());
+		content.add(shopContent, Tab.SHOP.name());
+		content.add(sidebarNoticeView.content(), SidebarNoticeView.CARD);
+
+		SidebarLayout.configureTabScrollPane(welcomeScrollPane);
+		SidebarLayout.configureTabScrollPane(overviewScrollPane);
+		SidebarLayout.configureTabScrollPane(shopPacksScrollPane);
+		// Always reserve the bar so pack tiles size to the final viewport (AS_NEEDED would
+		// first layout full-width, then clip the right column when the bar appears).
+		shopPacksScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
+
+		populateFooterPanel();
+
+		titlePanel = buildTitlePanel();
+		mainPanel.add(titlePanel, BorderLayout.NORTH);
+		mainPanel.add(content, BorderLayout.CENTER);
+		mainPanel.add(footerPanel, BorderLayout.SOUTH);
+
+		add(mainPanel, BorderLayout.CENTER);
+
+		addComponentListener(new ComponentAdapter()
+		{
+			@Override
+			public void componentShown(ComponentEvent e)
+			{
+				panelVisible = true;
+				refresh();
+			}
+
+			@Override
+			public void componentHidden(ComponentEvent e)
+			{
+				panelVisible = false;
+			}
+
+			@Override
+			public void componentResized(ComponentEvent e)
+			{
+				if (!panelVisible)
+				{
+					return;
+				}
+				int nw = getWidth();
+				int nh = getHeight();
+				boolean widthChanged = nw > 0 && nw != lastPanelWidthForLayout;
+				boolean heightChanged = nh > 0 && nh != lastPanelHeightForLayout;
+				if (!widthChanged && !heightChanged)
+				{
+					return;
+				}
+				lastPanelWidthForLayout = nw;
+				lastPanelHeightForLayout = nh;
+				if (widthChanged)
+				{
+					refresh();
+				}
+				else
+				{
+					revalidate();
+					repaint();
+				}
+			}
+		});
+
+		panelVisible = isShowing();
+	}
+
+	/**
+	 * Fill the sidebar tab height so {@code BorderLayout.SOUTH} keeps the footer pinned
+	 * to the bottom when tab content is shorter than the client.
+	 */
+	@Override
+	public Dimension getPreferredSize()
+	{
+		Dimension pref = super.getPreferredSize();
+		Container parent = getParent();
+		int height = pref.height;
+		if (parent != null)
+		{
+			height = Math.max(height, parent.getHeight());
+		}
+		return new Dimension(pref.width, height);
+	}
+
+	@Override
+	public Dimension getMinimumSize()
+	{
+		Dimension pref = getPreferredSize();
+		return new Dimension(pref.width, 0);
+	}
+
+	@Override
+	public Dimension getMaximumSize()
+	{
+		Dimension pref = getPreferredSize();
+		return new Dimension(pref.width, Integer.MAX_VALUE);
+	}
+
+	public void start()
+	{
+		cardDatabase.load();
+		welcomeContentCatalog.load();
+		if (!runeliteDeveloperMode && stateService.isDebugLogging())
+		{
+			stateService.setDebugLogging(false);
+		}
+		else if (stateService.isDebugLogging())
+		{
+			cloudSessionService.pauseForDebugMode();
+		}
+		stateService.addCollectionChangeListener(onCollectionChanged);
+		ensureRootAttached();
+		updateCloudStatusIndicator();
+		refresh();
+	}
+
+	public void stop()
+	{
+		saveRestoreManager.dispose();
+		stateService.removeCollectionChangeListener(onCollectionChanged);
+		collectionTab.cancelPendingRebuilds();
+		welcomeContent.removeAll();
+		overviewContent.removeAll();
+		collectionContent.removeAll();
+		collectionTab.clearList();
+		shopTab.clear();
+		mainPanel.revalidate();
+		mainPanel.repaint();
+	}
+
+	public void resetSessionUi()
+	{
+		refresh();
+	}
+
+	@Override
+	public void refresh()
+	{
+		if (!panelVisible)
+		{
+			return;
+		}
+
+		if (!SwingUtilities.isEventDispatchThread())
+		{
+			queueRefreshOnEdt();
+			return;
+		}
+
+		refreshNow();
+	}
+
+	@Override
+	public void refreshCredits()
+	{
+		if (!panelVisible)
+		{
+			return;
+		}
+		if (sidebarRevealSpoilerFreeze != null && packRevealService.isActive())
+		{
+			return;
+		}
+		if (!SwingUtilities.isEventDispatchThread())
+		{
+			if (creditsRefreshQueued || refreshQueued)
+			{
+				return;
+			}
+			creditsRefreshQueued = true;
+			SwingUtilities.invokeLater(() ->
+			{
+				creditsRefreshQueued = false;
+				refreshCredits();
+			});
+			return;
+		}
+		long credits = stateService.getCredits();
+		overviewTab.updateCredits(credits);
+		shopTab.updateCredits(credits);
+	}
+
+	/**
+	 * After the pack reveal overlay closes, recomputes heavy overview stats off the EDT so the client thread returns
+	 * quickly, then applies Swing updates on the EDT.
+	 */
+	@Override
+	public void refreshAfterPackRevealClose()
+	{
+		if (!panelVisible)
+		{
+			return;
+		}
+		if (packRevealService.isActive())
+		{
+			queueRefreshOnEdt();
+			return;
+		}
+		if (!SwingUtilities.isEventDispatchThread())
+		{
+			SwingUtilities.invokeLater(this::refreshAfterPackRevealClose);
+			return;
+		}
+		clearPackRevealSidebarFreeze();
+		final long gen = packCloseRefreshGen.incrementAndGet();
+		ForkJoinPool.commonPool().execute(() ->
+		{
+			try
+			{
+				PackCloseSnapshot snap = capturePackCloseSnapshot();
+				List<CardDefinition> all = cardDatabase.getCards();
+				List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(all);
+				CloudSidebarCollectionStats metrics = TcgPublicStatsCalculator.resolveOverview(snap, all, rollPool);
+				List<BoosterShopRow> shopRows = shopTab.computeRows(snap);
+				SwingUtilities.invokeLater(() -> applyPackCloseRefresh(gen, snap, metrics, shopRows));
+			}
+			catch (Exception ex)
+			{
+				log.warn("Async overview refresh failed; falling back to EDT refresh", ex);
+				SwingUtilities.invokeLater(() ->
+				{
+					if (gen == packCloseRefreshGen.get())
+					{
+						refresh();
+					}
+				});
+			}
+		});
+	}
+
+	private void applyPackCloseRefresh(long gen, PackCloseSnapshot snap, CloudSidebarCollectionStats metrics, List<BoosterShopRow> shopRows)
+	{
+		if (gen != packCloseRefreshGen.get())
+		{
+			return;
+		}
+		if (!SwingUtilities.isEventDispatchThread())
+		{
+			SwingUtilities.invokeLater(() -> applyPackCloseRefresh(gen, snap, metrics, shopRows));
+			return;
+		}
+		if (!panelVisible)
+		{
+			return;
+		}
+		ensureRootAttached();
+		if (shouldShowLoggedOutPrompt())
+		{
+			showLoggedOutWelcome();
+			mainPanel.revalidate();
+			mainPanel.repaint();
+			return;
+		}
+		if (cloudSessionService.isAccountLocked())
+		{
+			showAccountLockedNotice();
+			mainPanel.revalidate();
+			mainPanel.repaint();
+			return;
+		}
+		if (cloudSessionService.isRestrictedWorld())
+		{
+			showEventWorldUnavailable();
+			mainPanel.revalidate();
+			mainPanel.repaint();
+			return;
+		}
+		titleTabWrapper.setVisible(true);
+		footerPanel.setVisible(true);
+		sidebarNoticeView.restoreOpenAccountPanelButtonToFooter();
+		applyDefaultTabSelectionOnce();
+		updateTabStyles();
+		if (selectedTab == Tab.OVERVIEW)
+		{
+			overviewContent.removeAll();
+			renderOverviewTabFromMetrics(overviewContent, snap, metrics);
+			contentLayout.show(content, Tab.OVERVIEW.name());
+		}
+		else if (selectedTab == Tab.COLLECTION)
+		{
+			renderCollectionTab();
+			contentLayout.show(content, Tab.COLLECTION.name());
+		}
+		else if (selectedTab == Tab.SHOP)
+		{
+			renderPacksTabFromPackClose(snap, shopRows);
+			showTabContent(Tab.SHOP);
+		}
+		else if (selectedTab == Tab.WELCOME)
+		{
+			welcomeContent.removeAll();
+			renderWelcomeTab(welcomeContent);
+			contentLayout.show(content, Tab.WELCOME.name());
+		}
+		else
+		{
+			renderSelectedTab();
+		}
+		mainPanel.revalidate();
+		mainPanel.repaint();
+	}
+
+	private void queueRefreshOnEdt()
+	{
+		if (refreshQueued)
+		{
+			return;
+		}
+
+		refreshQueued = true;
+		SwingUtilities.invokeLater(() ->
+		{
+			refreshQueued = false;
+			refresh();
+		});
+	}
+
+	private void refreshNow()
+	{
+		if (!packRevealService.isActive())
+		{
+			clearPackRevealSidebarFreeze();
+		}
+		ensureRootAttached();
+		updateCloudStatusIndicator();
+		if (shouldShowLoggedOutPrompt())
+		{
+			showLoggedOutWelcome();
+			mainPanel.revalidate();
+			mainPanel.repaint();
+			return;
+		}
+		if (cloudSessionService.isAccountLocked())
+		{
+			showAccountLockedNotice();
+			mainPanel.revalidate();
+			mainPanel.repaint();
+			return;
+		}
+		if (cloudSessionService.isRestrictedWorld())
+		{
+			showEventWorldUnavailable();
+			mainPanel.revalidate();
+			mainPanel.repaint();
+			return;
+		}
+		titleTabWrapper.setVisible(true);
+		footerPanel.setVisible(true);
+		sidebarNoticeView.restoreOpenAccountPanelButtonToFooter();
+		applyDefaultTabSelectionOnce();
+		updateTabStyles();
+		renderSelectedTab();
+		mainPanel.revalidate();
+		mainPanel.repaint();
+	}
+
+	private void ensureRootAttached()
+	{
+		if (mainPanel.getComponentCount() == 0)
+		{
+			mainPanel.add(titlePanel, BorderLayout.NORTH);
+			mainPanel.add(content, BorderLayout.CENTER);
+			mainPanel.add(footerPanel, BorderLayout.SOUTH);
+		}
+	}
+
+	private void applyDefaultTabSelectionOnce()
+	{
+		if (defaultTabSelectionInitialized)
+		{
+			return;
+		}
+		defaultTabSelectionInitialized = true;
+		long openedPacks = stateService.getState().getEconomyState().getOpenedPacks();
+		selectedTab = openedPacks == 0 ? Tab.WELCOME : Tab.OVERVIEW;
+	}
+
+	private void populateFooterPanel()
+	{
+		footerPanel.setLayout(new BoxLayout(footerPanel, BoxLayout.Y_AXIS));
+		footerPanel.setOpaque(false);
+		footerPanel.setBorder(new CompoundBorder(
+			new MatteBorder(1, 0, 0, 0, ColorScheme.LIGHT_GRAY_COLOR.darker()),
+			new EmptyBorder(8, 0, 0, 0)
+		));
+
+		JPanel migrateWrap = migrateFooterWrap;
+		migrateWrap.setOpaque(false);
+		migrateWrap.setLayout(new BorderLayout(0, 8));
+		migrateWrap.setAlignmentX(JComponent.LEFT_ALIGNMENT);
+
+		SidebarLayout.stylePrimaryFooterButton(migrateCollectionButton);
+		migrateWrap.add(migratePromptPane, BorderLayout.NORTH);
+		migrateWrap.add(migrateCollectionButton, BorderLayout.SOUTH);
+		footerPanel.add(migrateWrap);
+
+		footerPanel.add(migrateFooterSpacer);
+
+		JPanel tradeWrap = tradeFooterWrap;
+		tradeWrap.setOpaque(false);
+		SidebarLayout.stylePrimaryFooterButton(openTradesButton);
+		tradeWrap.add(openTradesButton, BorderLayout.CENTER);
+		SidebarLayout.clampPanelWidth(tradeWrap);
+		footerPanel.add(tradeWrap);
+
+		footerPanel.add(tradeFooterSpacer);
+
+		JPanel albumWrap = albumFooterWrap;
+		albumWrap.setOpaque(false);
+		SidebarLayout.stylePrimaryFooterButton(openAccountPanelButton);
+		albumWrap.add(openAccountPanelButton, BorderLayout.CENTER);
+		SidebarLayout.clampPanelWidth(albumWrap);
+		footerPanel.add(albumWrap);
+
+		updateFooterVisibility();
+	}
+
+	private boolean shouldShowLoggedOutPrompt()
+	{
+		if (!isShowing())
+		{
+			return false;
+		}
+		return !isClientInGameWorld();
+	}
+
+	private void showLoggedOutWelcome()
+	{
+		sidebarNoticeView.restoreOpenAccountPanelButtonToFooter();
+		titleTabWrapper.setVisible(true);
+		selectedTab = Tab.WELCOME;
+		updateTabStyles();
+		welcomeContent.removeAll();
+		renderWelcomeTab(welcomeContent);
+		contentLayout.show(content, Tab.WELCOME.name());
+	}
+
+	/**
+	 * {@link GameState#LOGGED_IN} is the normal case; {@link Client#getLocalPlayer()} covers brief or client-specific
+	 * states where the game world is active but {@code getGameState()} is not yet {@code LOGGED_IN}.
+	 */
+	private boolean isClientInGameWorld()
+	{
+		if (client.getGameState() == GameState.LOGGED_IN)
+		{
+			return true;
+		}
+		return client.getLocalPlayer() != null;
+	}
+
+	private JPanel buildTitlePanel()
+	{
+		JPanel title = new JPanel();
+		title.setLayout(new BoxLayout(title, BoxLayout.Y_AXIS));
+		title.setOpaque(false);
+
+		// Title row: equal-width side slots keep "OSRS TCG" centered; links stay hoverable.
+		JPanel titleRow = new JPanel(new BorderLayout(0, 0));
+		titleRow.setOpaque(false);
+		titleRow.setBorder(new CompoundBorder(
+			new MatteBorder(0, 0, 1, 0, ColorScheme.LIGHT_GRAY_COLOR.darker()),
+			new EmptyBorder(0, 8, 2, 8)
+		));
+		titleRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 20));
+
+		Dimension indicatorSlot = new Dimension(8, 8);
+
+		JPanel leftLinks = new JPanel();
+		leftLinks.setLayout(new BoxLayout(leftLinks, BoxLayout.X_AXIS));
+		leftLinks.setOpaque(false);
+		leftLinks.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		JComponent discordLink = SidebarLayout.createTitleSvgLinkButton("/com/osrstcg/images/discord.svg", "Join our Discord", SidebarLayout.DISCORD_URL);
+		JComponent patreonLink = SidebarLayout.createTitleSvgLinkButton("/com/osrstcg/images/patreon.svg", "Support on Patreon", SidebarLayout.PATREON_URL);
+		if (discordLink != null)
+		{
+			leftLinks.add(discordLink);
+		}
+		if (discordLink != null && patreonLink != null)
+		{
+			leftLinks.add(Box.createRigidArea(new Dimension(6, 0)));
+		}
+		if (patreonLink != null)
+		{
+			leftLinks.add(patreonLink);
+		}
+
+		JLabel titleLabel = new JLabel("OSRS TCG");
+		titleLabel.setForeground(Color.WHITE);
+		titleLabel.setFont(FontManager.getRunescapeBoldFont());
+		titleLabel.setHorizontalAlignment(SwingConstants.CENTER);
+
+		cloudStatusIndicator.setPreferredSize(indicatorSlot);
+		cloudStatusIndicator.setMinimumSize(indicatorSlot);
+		cloudStatusIndicator.setMaximumSize(indicatorSlot);
+
+		// Match side widths so the title stays in the true horizontal center.
+		int sideW = Math.max(leftLinks.getPreferredSize().width, indicatorSlot.width);
+		int sideH = Math.max(16, Math.max(leftLinks.getPreferredSize().height, indicatorSlot.height));
+		Dimension sideSlot = new Dimension(sideW, sideH);
+
+		JPanel leftSlot = new JPanel(new BorderLayout(0, 0));
+		leftSlot.setOpaque(false);
+		leftSlot.setPreferredSize(sideSlot);
+		leftSlot.setMinimumSize(sideSlot);
+		leftSlot.setMaximumSize(sideSlot);
+		leftSlot.add(leftLinks, BorderLayout.WEST);
+
+		// Equal-width slot, but pin the status dot to the right edge (mirror of left links).
+		JPanel rightSlot = new JPanel(new BorderLayout(0, 0));
+		rightSlot.setOpaque(false);
+		rightSlot.setPreferredSize(sideSlot);
+		rightSlot.setMinimumSize(sideSlot);
+		rightSlot.setMaximumSize(sideSlot);
+		JPanel indicatorWrap = new JPanel(new BorderLayout(0, 0));
+		indicatorWrap.setOpaque(false);
+		indicatorWrap.setBorder(new EmptyBorder(0, 0, 2, 0));
+		indicatorWrap.add(cloudStatusIndicator, BorderLayout.EAST);
+		rightSlot.add(indicatorWrap, BorderLayout.EAST);
+
+		titleRow.add(leftSlot, BorderLayout.WEST);
+		titleRow.add(titleLabel, BorderLayout.CENTER);
+		titleRow.add(rightSlot, BorderLayout.EAST);
+
+		// Bleed into mainPanel padding so the tab rail reaches the sidebar edges.
+		JPanel tabStrip = new JPanel(new BorderLayout(0, 0))
+		{
+			@Override
+			protected void paintChildren(Graphics g)
+			{
+				super.paintChildren(g);
+				paintTabRailLine(this, g);
+			}
+		};
+		tabStrip.setOpaque(true);
+		tabStrip.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		tabStrip.setBorder(new EmptyBorder(4, -MAIN_PANEL_INSET, 0, -MAIN_PANEL_INSET));
+
+		JPanel tabButtons = new JPanel(new GridLayout(1, 4, TAB_BUTTON_GAP, 0));
+		tabButtons.setOpaque(false);
+		tabButtons.add(configureTabButton(welcomeTabButton, Tab.WELCOME));
+		tabButtons.add(configureTabButton(overviewTabButton, Tab.OVERVIEW));
+		tabButtons.add(configureTabButton(collectionTabButton, Tab.COLLECTION));
+		tabButtons.add(configureTabButton(shopTabButton, Tab.SHOP));
+
+		// Side wings: line runs past the buttons into the panel margin.
+		JComponent leftWing = SidebarLayout.tabRailWing();
+		JComponent rightWing = SidebarLayout.tabRailWing();
+		tabStrip.add(leftWing, BorderLayout.WEST);
+		tabStrip.add(tabButtons, BorderLayout.CENTER);
+		tabStrip.add(rightWing, BorderLayout.EAST);
+
+		title.add(titleRow);
+		title.add(tabStrip);
+		titleTabWrapper = tabStrip;
+		updateCloudStatusIndicator();
+		updateTabStyles();
+		return title;
+	}
+
+	/** Continuous bottom rail under tabs/gaps/wings, broken under the selected tab. */
+	private void paintTabRailLine(JComponent strip, Graphics g)
+	{
+		JButton active = tabButtonFor(selectedTab);
+		if (active != null && (!active.isShowing() || !isTabAvailable(selectedTab)))
+		{
+			active = null;
+		}
+		SidebarChrome.paintTabRailLine(strip, g, active);
+	}
+
+	private JButton tabButtonFor(Tab tab)
+	{
+		if (tab == null)
+		{
+			return null;
+		}
+		switch (tab)
+		{
+			case WELCOME:
+				return welcomeTabButton;
+			case OVERVIEW:
+				return overviewTabButton;
+			case COLLECTION:
+				return collectionTabButton;
+			case SHOP:
+				return shopTabButton;
+			default:
+				return null;
+		}
+	}
+
+	public void updateCloudStatusIndicator()
+	{
+		if (cloudStatusIndicator == null)
+		{
+			return;
+		}
+		Color liveGreen = (Color) cloudStatusIndicator.getClientProperty("cloudLiveGreen");
+		Color connectingYellow = (Color) cloudStatusIndicator.getClientProperty("cloudConnectingYellow");
+		Color errorRed = (Color) cloudStatusIndicator.getClientProperty("cloudErrorRed");
+		SidebarChrome.updateCloudStatusIndicator(cloudStatusIndicator, cloudSessionService, stateService);
+		Color color = (Color) cloudStatusIndicator.getClientProperty("cloudIndicatorColor");
+		String tooltip = cloudStatusIndicator.getToolTipText();
+		maybeDebugStatusIndicatorChange(color, liveGreen, connectingYellow, errorRed, tooltip);
+
+		Container parent = cloudStatusIndicator.getParent();
+		if (parent != null)
+		{
+			parent.revalidate();
+			parent.repaint();
+		}
+		Container titleRow = parent == null ? null : parent.getParent();
+		if (titleRow != null)
+		{
+			titleRow.revalidate();
+			titleRow.repaint();
+		}
+		cloudStatusIndicator.revalidate();
+		cloudStatusIndicator.repaint();
+		updateManageAccountButtonState();
+		updateFooterVisibility();
+	}
+
+	private void maybeDebugStatusIndicatorChange(
+		Color color, Color liveGreen, Color connectingYellow, Color errorRed, String reason)
+	{
+		if (!stateService.isDebugChatEnabled())
+		{
+			return;
+		}
+		String colorName;
+		if (color != null && color.equals(liveGreen))
+		{
+			colorName = "green";
+		}
+		else if (color != null && color.equals(connectingYellow))
+		{
+			colorName = "yellow";
+		}
+		else if (color != null && color.equals(errorRed))
+		{
+			colorName = "red";
+		}
+		else
+		{
+			colorName = "unknown";
+		}
+		String reasonText = reason == null || reason.isEmpty() ? "(no reason)" : reason;
+		String key = colorName + '|' + reasonText;
+		if (key.equals(lastDebugStatusKey))
+		{
+			return;
+		}
+		lastDebugStatusKey = key;
+		TcgPluginGameMessages.queueDebugGameMessage(
+			chatMessageManager,
+			"Status -> " + colorName + ": " + reasonText);
+	}
+
+	/** Usable footer column width - same strip the migrate/account buttons fill. */
+	private int footerContentWidth()
+	{
+		int footerW = footerPanel.getWidth();
+		if (footerW > 0)
+		{
+			return footerW;
+		}
+		int panelW = getWidth();
+		if (panelW > 0)
+		{
+			// mainPanel EmptyBorder(6,6,6,6)
+			return Math.max(80, panelW - 12);
+		}
+		return Math.max(80, PluginPanel.PANEL_WIDTH - 12);
+	}
+
+	private JButton configureTabButton(JButton button, Tab tab)
+	{
+		button.setText(tab.getLabel());
+		button.setFont(FontManager.getRunescapeSmallFont());
+		button.setFocusable(false);
+		button.setFocusPainted(false);
+		button.setBorderPainted(true);
+		button.setHorizontalAlignment(SwingConstants.CENTER);
+		button.addActionListener(e ->
+		{
+			if (!isTabAvailable(tab) || selectedTab == tab)
+			{
+				return;
+			}
+			selectedTab = tab;
+			updateTabStyles();
+			refresh();
+		});
+		return button;
+	}
+
+	private void updateTabStyles()
+	{
+		if (!isTabAvailable(selectedTab))
+		{
+			selectedTab = Tab.WELCOME;
+		}
+		applyTabStyle(welcomeTabButton, Tab.WELCOME);
+		applyTabStyle(overviewTabButton, Tab.OVERVIEW);
+		applyTabStyle(collectionTabButton, Tab.COLLECTION);
+		applyTabStyle(shopTabButton, Tab.SHOP);
+		if (titleTabWrapper != null)
+		{
+			titleTabWrapper.revalidate();
+			titleTabWrapper.repaint();
+		}
+		updateFooterVisibility();
+	}
+
+	/** Overview/Collection/Shop need an in-game world; Welcome stays available on the login screen. */
+	private boolean isTabAvailable(Tab tab)
+	{
+		if (tab == null)
+		{
+			return false;
+		}
+		if (tab == Tab.WELCOME)
+		{
+			return true;
+		}
+		return isClientInGameWorld()
+			&& !cloudSessionService.isRestrictedWorld()
+			&& !cloudSessionService.isAccountLocked();
+	}
+
+	private static String tabUnavailableTooltip(Tab tab)
+	{
+		if (tab == Tab.OVERVIEW || tab == Tab.COLLECTION || tab == Tab.SHOP)
+		{
+			return "Log in to RuneScape to use this tab";
+		}
+		return null;
+	}
+
+	private void updateFooterVisibility()
+	{
+		if (cloudSessionService.isAccountLocked() && isClientInGameWorld())
+		{
+			// Account button lives inside the full-sidebar notice; keep the normal footer hidden.
+			footerPanel.setVisible(false);
+			return;
+		}
+		if (cloudSessionService.isRestrictedWorld() && isClientInGameWorld())
+		{
+			footerPanel.setVisible(false);
+			return;
+		}
+		boolean inWorld = isClientInGameWorld();
+		boolean restrictedWorld = cloudSessionService.isRestrictedWorld();
+		boolean showMigrate = inWorld && !restrictedWorld
+			&& (cloudSessionService.isMigrationPending() || cloudSessionService.needsProfileCreate());
+
+		footerPanel.setVisible(true);
+		sidebarNoticeView.restoreOpenAccountPanelButtonToFooter();
+		migrateFooterWrap.setVisible(showMigrate);
+		updateMigrateCollectionButtonState();
+
+		boolean cloudConnected = cloudSessionService.isSessionActive()
+			&& !cloudSessionService.needsCloudConsent();
+		boolean showAccountPanel = inWorld && !restrictedWorld && cloudConnected;
+		albumFooterWrap.setVisible(showAccountPanel);
+		updateManageAccountButtonState();
+
+		boolean showTrade = inWorld
+			&& !restrictedWorld
+			&& cloudConnected
+			&& tradeCloudService.getPendingAccept() != null
+			&& selectedTab != Tab.WELCOME;
+		tradeFooterWrap.setVisible(showTrade);
+
+		// Spacers only between visible blocks - never trailing empty space under the footer.
+		migrateFooterSpacer.setVisible(showMigrate && (showAccountPanel || showTrade));
+		tradeFooterSpacer.setVisible(showTrade && showAccountPanel);
+
+		if (showMigrate)
+		{
+			updateMigratePromptLayout();
+		}
+		SidebarLayout.lockFooterBlockHeight(albumFooterWrap);
+		SidebarLayout.lockFooterBlockHeight(tradeFooterWrap);
+	}
+
+	private JButton createOpenTradesButton()
+	{
+		JButton button = new JButton(
+			"<html><center>Open trades<br>"
+				+ "<span style='font-family:SansSerif;font-size:8px;color:#aaaaaa'>You have pending trades waiting...</span>"
+				+ "</center></html>");
+		button.addActionListener(e -> openAccountPanel("/trades"));
+		return button;
+	}
+
+	private void applyTabStyle(JButton button, Tab tab)
+	{
+		boolean available = isTabAvailable(tab);
+		boolean active = available && selectedTab == tab;
+		button.setEnabled(available);
+		if (!available)
+		{
+			Color muted = new Color(0x666666);
+			button.setForeground(muted);
+			button.setOpaque(false);
+			button.setContentAreaFilled(false);
+			button.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+			button.setBorder(tabBorder(false, false));
+			button.setCursor(Cursor.getDefaultCursor());
+			button.setToolTipText(tabUnavailableTooltip(tab));
+			return;
+		}
+		button.setToolTipText(null);
+		button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		if (active)
+		{
+			button.setForeground(ColorScheme.BRAND_ORANGE);
+			button.setOpaque(true);
+			button.setContentAreaFilled(true);
+			button.setBackground(ColorScheme.DARK_GRAY_COLOR);
+			button.setBorder(tabBorder(true, true));
+		}
+		else
+		{
+			button.setForeground(Color.WHITE);
+			button.setOpaque(false);
+			button.setContentAreaFilled(false);
+			button.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+			button.setBorder(tabBorder(false, true));
+		}
+	}
+
+	private void renderSelectedTab()
+	{
+		if (packRevealService.isActive() && sidebarRevealSpoilerFreeze != null)
+		{
+			JPanel activePanel = panelForTab(selectedTab);
+			if (selectedTab == Tab.WELCOME)
+			{
+				if (!welcomeBuiltForActiveReveal)
+				{
+					activePanel.removeAll();
+					renderWelcomeTab(activePanel);
+					welcomeBuiltForActiveReveal = true;
+				}
+				contentLayout.show(content, selectedTab.name());
+				return;
+			}
+			if (selectedTab == Tab.OVERVIEW)
+			{
+				if (!overviewBuiltForActiveReveal)
+				{
+					activePanel.removeAll();
+					renderOverviewTab(activePanel);
+					overviewBuiltForActiveReveal = true;
+				}
+				contentLayout.show(content, selectedTab.name());
+				return;
+			}
+			if (selectedTab == Tab.COLLECTION)
+			{
+				if (!collectionBuiltForActiveReveal)
+				{
+					renderCollectionTab();
+					collectionBuiltForActiveReveal = true;
+				}
+				showTabContent(Tab.COLLECTION);
+				return;
+			}
+			if (selectedTab == Tab.SHOP)
+			{
+				if (!shopBuiltForActiveReveal)
+				{
+					renderPacksTab();
+					shopBuiltForActiveReveal = true;
+				}
+				showTabContent(Tab.SHOP);
+				return;
+			}
+			log.warn("Unsupported tab {}", selectedTab);
+			contentLayout.show(content, selectedTab.name());
+			return;
+		}
+
+		if (selectedTab == Tab.COLLECTION)
+		{
+			renderCollectionTab();
+			showTabContent(selectedTab);
+			return;
+		}
+
+		if (selectedTab == Tab.SHOP)
+		{
+			renderPacksTab();
+			showTabContent(selectedTab);
+			return;
+		}
+
+		JPanel activePanel = panelForTab(selectedTab);
+		activePanel.removeAll();
+		switch (selectedTab)
+		{
+			case WELCOME:
+				renderWelcomeTab(activePanel);
+				break;
+			case OVERVIEW:
+				renderOverviewTab(activePanel);
+				break;
+			default:
+				log.warn("Unsupported tab {}", selectedTab);
+		}
+		showTabContent(selectedTab);
+	}
+
+	private void showTabContent(Tab tab)
+	{
+		contentLayout.show(content, tab.name());
+		if (tab == Tab.WELCOME)
+		{
+			SidebarLayout.revalidateTabScrollPane(welcomeScrollPane);
+		}
+		else if (tab == Tab.OVERVIEW)
+		{
+			SidebarLayout.revalidateTabScrollPane(overviewScrollPane);
+		}
+		else if (tab == Tab.COLLECTION)
+		{
+			SidebarLayout.revalidateTabScrollPane(collectionListScrollPane);
+		}
+		else if (tab == Tab.SHOP)
+		{
+			SidebarLayout.revalidateTabScrollPane(shopPacksScrollPane);
+			shopHeaderPanel.revalidate();
+			shopContent.revalidate();
+		}
+	}
+
+	private JPanel panelForTab(Tab tab)
+	{
+		switch (tab)
+		{
+			case WELCOME:
+				return welcomeContent;
+			case OVERVIEW:
+				return overviewContent;
+			case COLLECTION:
+				return collectionContent;
+			case SHOP:
+				return packsContent;
+			default:
+				return overviewContent;
+		}
+	}
+
+	private PackCloseSnapshot capturePackCloseSnapshot()
+	{
+		synchronized (stateService)
+		{
+			TcgState s = stateService.getState();
+			// Beta (migrated) copies do not count toward shop pack progress or local overview.
+			CollectionState collection = s.getCollectionState();
+			return new PackCloseSnapshot(
+				new HashMap<>(collection.getOwnedCardsExcludingBeta()),
+				collection,
+				stateService.getCredits(),
+				s.getEconomyState().getOpenedPacks(),
+				stateService.getCloudCollectionStats());
+		}
+	}
+
+	/**
+	 * Snapshot used for sidebar stats: frozen pre-pull state while the pack overlay is open, otherwise live state.
+	 */
+	private PackCloseSnapshot capturePackCloseSnapshotForDisplay()
+	{
+		if (sidebarRevealSpoilerFreeze != null && packRevealService.isActive())
+		{
+			return sidebarRevealSpoilerFreeze;
+		}
+		return capturePackCloseSnapshot();
+	}
+
+	@Override
+	public void beginPackRevealSidebarFreeze()
+	{
+		sidebarRevealSpoilerFreeze = capturePackCloseSnapshot();
+		welcomeBuiltForActiveReveal = false;
+		overviewBuiltForActiveReveal = false;
+		collectionBuiltForActiveReveal = false;
+		shopBuiltForActiveReveal = false;
+	}
+
+	@Override
+	public void clearPackRevealSidebarFreeze()
+	{
+		sidebarRevealSpoilerFreeze = null;
+		welcomeBuiltForActiveReveal = false;
+		overviewBuiltForActiveReveal = false;
+		collectionBuiltForActiveReveal = false;
+		shopBuiltForActiveReveal = false;
+	}
+
+	private void persistDebugLogging(boolean enabled)
+	{
+		if (enabled == stateService.isDebugLogging())
+		{
+			refresh();
+			return;
+		}
+		if (enabled)
+		{
+			stateService.setDebugLogging(true);
+			// Pin in-memory cards immediately so ::tcg-* works even if an in-flight live fetch finishes later.
+			cloudSessionService.ensureDebugCardCatalog();
+			refresh();
+			scheduler.execute(() ->
+			{
+				try
+				{
+					cloudSessionService.enterDebugMode();
+				}
+				catch (Exception ex)
+				{
+					log.warn("Entering debug mode failed", ex);
+				}
+				finally
+				{
+					SwingUtilities.invokeLater(this::refresh);
+				}
+			});
+			return;
+		}
+
+		stateService.setDebugLogging(false);
+		refresh();
+		scheduler.execute(() ->
+		{
+			try
+			{
+				cloudSessionService.exitDebugModeAndResync();
+			}
+			catch (Exception ex)
+			{
+				log.warn("Cloud resync after leaving debug mode failed", ex);
+				TcgPluginGameMessages.queueGameMessage(chatMessageManager,
+					"[OSRS TCG] Could not re-sync from cloud after leaving debug mode");
+			}
+			finally
+			{
+				SwingUtilities.invokeLater(this::refresh);
+			}
+		});
+	}
+
+
+	/**
+	 * Horizontal space for tab content. Prefers the tab scroll panes' actual, already-laid-out viewport width
+	 * (guaranteed to match reality, however wide the real scrollbar ends up rendering) over estimating it from
+	 * {@link #getWidth()} minus a handful of assumed constants, which can drift from the real value and clip text.
+	 * Falls back to that estimate only before the panes have ever been shown.
+	 */
+	private int liveSidebarContentWidth()
+	{
+		int viewportWidth = Math.max(
+			Math.max(
+				Math.max(welcomeScrollPane.getViewport().getWidth(), overviewScrollPane.getViewport().getWidth()),
+				collectionListScrollPane.getViewport().getWidth()),
+			shopPacksScrollPane.getViewport().getWidth());
+		if (viewportWidth > 0)
+		{
+			// Viewport already excludes the vertical scrollbar when it is showing.
+			return Math.max(80, viewportWidth);
+		}
+
+		Insets pi = getInsets();
+		int raw = getWidth() - pi.left - pi.right;
+		if (raw <= 0)
+		{
+			return SidebarLayout.sidebarInnerWidth();
+		}
+		int mainPanelHorizontalPad = 12;
+		return Math.max(80, raw - mainPanelHorizontalPad - SidebarLayout.TAB_SCROLLBAR_RESERVED_WIDTH);
+	}
+
+	/** Width available to shop pack tiles - always the packs scroll viewport, not overview/welcome. */
+	private int liveShopPacksContentWidth()
+	{
+		int viewportWidth = shopPacksScrollPane.getViewport().getWidth();
+		if (viewportWidth > 0)
+		{
+			return Math.max(80, viewportWidth);
+		}
+		return liveSidebarContentWidth();
+	}
+
+
+
+
+	private javax.swing.border.Border tabBorder(boolean active, boolean enabled)
+	{
+		if (!enabled)
+		{
+			return new CompoundBorder(
+				new MatteBorder(1, 1, 1, 1, ColorScheme.DARKER_GRAY_COLOR.brighter()),
+				new EmptyBorder(5, 2, 5, 2)
+			);
+		}
+		if (active)
+		{
+			// Same left/top/right as inactive; no bottom border.
+			return new CompoundBorder(
+				new MatteBorder(1, 1, 0, 1, ColorScheme.MEDIUM_GRAY_COLOR),
+				new EmptyBorder(5, 2, 6, 2)
+			);
+		}
+		return new CompoundBorder(
+			new MatteBorder(1, 1, 1, 1, ColorScheme.MEDIUM_GRAY_COLOR),
+			new EmptyBorder(5, 2, 5, 2)
+		);
+	}
+
+	private void renderWelcomeTab(JPanel target)
+	{
+		welcomeTab.render(target, liveSidebarContentWidth());
+	}
+
+	private void renderOverviewTab(JPanel target)
+	{
+		PackCloseSnapshot snap = capturePackCloseSnapshotForDisplay();
+		List<CardDefinition> all = cardDatabase.getCards();
+		List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(all);
+		CloudSidebarCollectionStats metrics = TcgPublicStatsCalculator.resolveOverview(snap, all, rollPool);
+		renderOverviewTabFromMetrics(target, snap, metrics);
+	}
+
+	private void renderOverviewTabFromMetrics(JPanel target, PackCloseSnapshot snap, CloudSidebarCollectionStats metrics)
+	{
+		overviewTab.render(target, snap, metrics);
+	}
+
+	private void renderCollectionTab()
+	{
+		collectionTab.render();
+	}
+
+	private void onCollectionTabRendered()
+	{
+		showTabContent(Tab.COLLECTION);
+		mainPanel.revalidate();
+		mainPanel.repaint();
+	}
+
+	private void renderPacksTab()
+	{
+		shopTab.render();
+	}
+
+	private void renderPacksTabFromPackClose(PackCloseSnapshot snap, List<BoosterShopRow> shopRows)
+	{
+		shopTab.renderFromPackClose(snap, shopRows);
+	}
+
+	private void showAccountLockedNotice()
+	{
+		sidebarNoticeView.showAccountLockedNotice(() ->
+		{
+			titleTabWrapper.setVisible(false);
+			footerPanel.setVisible(false);
+		});
+		contentLayout.show(content, SidebarNoticeView.CARD);
+		if (titlePanel != null)
+		{
+			titlePanel.revalidate();
+			titlePanel.repaint();
+		}
+	}
+
+	private void showEventWorldUnavailable()
+	{
+		sidebarNoticeView.showEventWorldUnavailable(() ->
+		{
+			titleTabWrapper.setVisible(false);
+			footerPanel.setVisible(false);
+		});
+		contentLayout.show(content, SidebarNoticeView.CARD);
+		if (titlePanel != null)
+		{
+			titlePanel.revalidate();
+			titlePanel.repaint();
+		}
+	}
+
+	private void updateManageAccountButtonState()
+	{
+		accountLauncher.updateManageAccountButtonState(openAccountPanelButton, openTradesButton);
+	}
+
+	private void updateMigrateCollectionButtonState()
+	{
+		migrateController.updateButtonState(migrateCollectionButton);
+	}
+
+	private void updateMigratePromptLayout()
+	{
+		migrateController.updatePromptLayout(migratePromptPane, migrateFooterWrap, footerContentWidth());
+	}
+
+	private void selectOverviewAfterMigrate()
+	{
+		if (selectedTab != Tab.OVERVIEW)
+		{
+			selectedTab = Tab.OVERVIEW;
+			updateTabStyles();
+		}
+	}
+
+	private void afterMigrateUi()
+	{
+		updateMigrateCollectionButtonState();
+		updateFooterVisibility();
+		updateCloudStatusIndicator();
+	}
+
+	private void openAccountPanel(String next)
+	{
+		accountLauncher.open(next);
+	}
+}
