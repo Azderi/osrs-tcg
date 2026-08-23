@@ -62,26 +62,26 @@ public final class PullNotificationMessages
 
 	public static String dinkPackSummaryMessage(List<String> newCards, List<String> duplicates)
 	{
-		return "%USERNAME% opened a booster pack!\n\n"
-			+ "**New cards**\n" + markdownCardList(newCards) + "\n\n"
-			+ "**Duplicates**\n" + markdownCardList(duplicates);
+		StringBuilder message = new StringBuilder("%USERNAME% opened a booster pack!");
+		appendCardSection(message, "New cards", newCards);
+		appendCardSection(message, "Duplicates", duplicates);
+		return message.toString();
 	}
 
-	private static String markdownCardList(List<String> cards)
+	private static void appendCardSection(StringBuilder message, String heading, List<String> cards)
 	{
 		if (cards == null || cards.isEmpty())
 		{
-			return "- None";
+			return;
 		}
-		StringBuilder result = new StringBuilder();
+		message.append("\n\n**").append(heading).append("**");
 		for (String card : cards)
 		{
-			if (result.length() > 0)
+			if (card == null || card.trim().isEmpty())
 			{
-				result.append('\n');
+				continue;
 			}
-			result.append("- ").append(card);
+			message.append("\n- ").append(card);
 		}
-		return result.toString();
 	}
 }

@@ -3,6 +3,7 @@ package com.osrstcg.notify;
 import com.osrstcg.catalog.CardDatabase;
 import com.osrstcg.catalog.CardDefinition;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,7 @@ public class DinkNotificationService
 		private final boolean foil;
 		private final RarityMath.Tier tier;
 		private final String instanceId;
+		private final boolean notificationEligible;
 
 		PackPull(String cardName, boolean newForCollection, boolean foil, RarityMath.Tier tier)
 		{
@@ -39,11 +41,23 @@ public class DinkNotificationService
 
 		PackPull(String cardName, boolean newForCollection, boolean foil, RarityMath.Tier tier, String instanceId)
 		{
+			this(cardName, newForCollection, foil, tier, instanceId, false);
+		}
+
+		PackPull(
+			String cardName,
+			boolean newForCollection,
+			boolean foil,
+			RarityMath.Tier tier,
+			String instanceId,
+			boolean notificationEligible)
+		{
 			this.cardName = cardName;
 			this.newForCollection = newForCollection;
 			this.foil = foil;
 			this.tier = tier;
 			this.instanceId = instanceId;
+			this.notificationEligible = notificationEligible;
 		}
 	}
 
@@ -134,13 +148,19 @@ public class DinkNotificationService
 		List<String> newCards = new ArrayList<>();
 		List<String> duplicates = new ArrayList<>();
 		List<String> rarityTiers = new ArrayList<>();
-		for (PackPull pull : pulls)
+		List<PackPull> sortedPulls = new ArrayList<>(pulls);
+		sortedPulls.sort(Comparator.comparingInt(DinkNotificationService::tierRank).reversed());
+		for (PackPull pull : sortedPulls)
 		{
 			if (pull == null || pull.cardName == null || pull.cardName.trim().isEmpty())
 			{
 				continue;
 			}
 			String displayName = pull.cardName.trim() + (pull.foil ? " (foil)" : "");
+			if (pull.notificationEligible)
+			{
+				displayName = "**" + displayName + "**";
+			}
 			String inspectUrl = PullNotificationMessages.inspectUrl(pull.instanceId);
 			if (!inspectUrl.isEmpty())
 			{
@@ -180,6 +200,11 @@ public class DinkNotificationService
 		{
 			log.debug("Failed to post Dink pack summary", ex);
 		}
+	}
+
+	private static int tierRank(PackPull pull)
+	{
+		return pull == null || pull.tier == null ? -1 : pull.tier.ordinal();
 	}
 
 	private String messageWithStatsLine(String message)
