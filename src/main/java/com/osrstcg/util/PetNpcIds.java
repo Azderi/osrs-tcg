@@ -474,6 +474,7 @@ public final class PetNpcIds
 		ids.add(14537); // Techichi (Varlamore dog, beige, variant 2)
 		ids.add(13960); // Techichi (Varlamore dog, brown, variant 1)
 		ids.add(14536); // Techichi (Varlamore dog, brown, variant 2)
+		ids.add(330); // Swarm
 		return ids;
 	}
 }

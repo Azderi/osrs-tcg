@@ -5,6 +5,7 @@ import net.runelite.api.Client;
 import net.runelite.api.NPC;
 import net.runelite.api.Player;
 import net.runelite.api.WorldView;
+import net.runelite.client.game.FishingSpot;
 
 /**
  * Detects whether the local player is in active combat: attacking a player/NPC or being targeted by one.
@@ -38,7 +39,7 @@ public final class PlayerCombatUtil
 		{
 			for (NPC npc : worldView.npcs())
 			{
-				if (npc != null && !PetNpcIds.isPetNpc(npc) && npc.getInteracting() == local)
+				if (npc != null && !PetNpcIds.isPetNpc(npc) && FishingSpot.findSpot(npc.getId()) == null && npc.getInteracting() == local)
 				{
 					return true;
 				}
@@ -64,7 +65,8 @@ public final class PlayerCombatUtil
 		}
 		if (actor instanceof NPC)
 		{
-			return !PetNpcIds.isPetNpc((NPC) actor);
+			NPC npc = (NPC) actor;
+			return !PetNpcIds.isPetNpc(npc) && FishingSpot.findSpot(npc.getId()) == null;
 		}
 		return false;
 	}
