@@ -58,23 +58,35 @@ public interface OsrsTcgConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "shopNotifications",
-		name = "Shop notifications",
-		description = "Chat when you can afford a booster pack.",
+		keyName = "creditNotifications",
+		name = "Credit notifications",
+		description = "Chat when you have the amount of credits you set.",
 		section = generalSection,
 		position = 3
 	)
-	default boolean shopNotifications()
+	default boolean creditNotifications()
 	{
 		return true;
+	}
+
+	@ConfigItem(
+		keyName = "creditNotificationAmount",
+		name = "Notification amount",
+		description = "Credit threshold for notifications.",
+		section = generalSection,
+		position = 4
+	)
+	default int creditNotificationAmount()
+	{
+		return 2500;
+	}
 	
-	
-	}@ConfigItem(
+	@ConfigItem(
 		keyName = "runeliteNotifications",
 		name = "Runelite notifications",
 		description = "Enable certain notifications to be sent through Runelite's default notification service as well.",
 		section = generalSection,
-		position = 4
+		position = 5
 	)
 	default boolean runeliteNotifications()
 	{
@@ -86,7 +98,7 @@ public interface OsrsTcgConfig extends Config
 		name = "Compact shop",
 		description = "Hide pack thumbnails in the shop so more packs fit on the sidebar.",
 		section = generalSection,
-		position = 5
+		position = 6
 	)
 	default boolean compactShop()
 	{
@@ -98,7 +110,7 @@ public interface OsrsTcgConfig extends Config
 		name = "Enable pack opening sounds",
 		description = "Play sounds when opening packs.",
 		section = generalSection,
-		position = 6
+		position = 7
 	)
 	default boolean enableSounds()
 	{
@@ -110,7 +122,7 @@ public interface OsrsTcgConfig extends Config
 		name = "Show grade wear",
 		description = "Show condition wear effects on cards in the pack opening overlay.",
 		section = generalSection,
-		position = 7
+		position = 8
 	)
 	default boolean showGradeWear()
 	{
@@ -122,7 +134,7 @@ public interface OsrsTcgConfig extends Config
 		name = "Rarity Highlight",
 		description = "Show rarity when hovering unflipped pack cards.",
 		section = generalSection,
-		position = 8
+		position = 9
 	)
 	default boolean packRarityHighlight()
 	{
@@ -135,7 +147,7 @@ public interface OsrsTcgConfig extends Config
 		description = "Show the rarity name above unflipped pack cards on hover. Helps colour blind users "
 			+ "tell rarities apart without relying on the highlight colour.",
 		section = generalSection,
-		position = 9
+		position = 10
 	)
 	default boolean packRarityText()
 	{
@@ -147,7 +159,7 @@ public interface OsrsTcgConfig extends Config
 		name = "Safe-mode",
 		description = "Block opening packs while in combat.",
 		section = generalSection,
-		position = 10
+		position = 11
 	)
 	default boolean safeMode()
 	{
@@ -160,7 +172,7 @@ public interface OsrsTcgConfig extends Config
 		description = "Show your hiscores rank under overview stats after opening a pack "
 			+ "(updated at most once every 10 minutes).",
 		section = generalSection,
-		position = 11
+		position = 12
 	)
 	default boolean showSidebarRanks()
 	{
@@ -172,7 +184,7 @@ public interface OsrsTcgConfig extends Config
 		name = "Chat prefix colour",
 		description = "Colour of the [OSRS TCG] chat tag.",
 		section = generalSection,
-		position = 12
+		position = 13
 	)
 	default Color chatPrefixColor()
 	{
@@ -184,7 +196,7 @@ public interface OsrsTcgConfig extends Config
 		name = "Debug messages",
 		description = "Show extra plugin details in chat.",
 		section = generalSection,
-		position = 13
+		position = 14
 	)
 	default boolean debugMessages()
 	{
