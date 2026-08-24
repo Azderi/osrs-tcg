@@ -19,11 +19,17 @@ import com.osrstcg.cloud.api.CloudApiException;
 import com.osrstcg.cloud.api.CloudConnectionState;
 import com.osrstcg.cloud.catalog.CardCatalogService;
 import com.osrstcg.cloud.catalog.PackCatalogService;
+import net.runelite.client.config.ConfigManager;
 
 /** Upload, finish, and import-watch poll for local→cloud collection migrate. */
 @Slf4j
 final class CloudMigrationService
 {
+	private static final String CONFIG_GROUP = "osrstcg";
+	private static final String[] LEGACY_SAVE_CONFIG_KEYS = {
+		"state", "hash", "stateBackup", "hashBackup", "stateWrittenAt"
+	};
+
 	private final CloudSessionService session;
 	private final CloudCollectionSyncService collectionSync;
 	private final Client client;
@@ -40,6 +46,7 @@ final class CloudMigrationService
 	private final AtomicBoolean forceStatePullOnce;
 	private final AtomicBoolean migrateImportWatchScheduled;
 	private final AtomicBoolean deferCollectionPullForMigrateImport;
+	private final ConfigManager configManager;
 
 	CloudMigrationService(
 		CloudSessionService session,
@@ -57,7 +64,8 @@ final class CloudMigrationService
 		ScheduledExecutorService scheduler,
 		AtomicBoolean forceStatePullOnce,
 		AtomicBoolean migrateImportWatchScheduled,
-		AtomicBoolean deferCollectionPullForMigrateImport)
+		AtomicBoolean deferCollectionPullForMigrateImport,
+		ConfigManager configManager)
 	{
 		this.session = session;
 		this.collectionSync = collectionSync;
@@ -75,6 +83,7 @@ final class CloudMigrationService
 		this.forceStatePullOnce = forceStatePullOnce;
 		this.migrateImportWatchScheduled = migrateImportWatchScheduled;
 		this.deferCollectionPullForMigrateImport = deferCollectionPullForMigrateImport;
+		this.configManager = configManager;
 	}
 
 	void migrateLocalCollection(boolean requireCollectionUpload) throws Exception
@@ -253,7 +262,7 @@ final class CloudMigrationService
 	private void uploadLocalCollection(long accountHash) throws Exception
 	{
 		TcgState local = stateService.getState();
-		String profileBlob = TcgStateStorageEncoding.encode(stateCodec.toJson(local));
+		String profileBlob = TcgStateStorageEncoding.encodeLegacyV2(stateCodec.toJson(local));
 		if (profileBlob == null || profileBlob.isEmpty())
 		{
 			throw new IllegalStateException("Failed to encode local profile for cloud migrate");
@@ -267,6 +276,7 @@ final class CloudMigrationService
 		{
 			JsonObject result = api.migrate(body);
 			tokens.setMigrated(true);
+			unsetLegacySaveConfigKeys();
 			boolean queued = result != null
 				&& result.has("migrateStatus")
 				&& !result.get("migrateStatus").isJsonNull()
@@ -304,6 +314,19 @@ final class CloudMigrationService
 				return;
 			}
 			throw ex;
+		}
+	}
+
+	private void unsetLegacySaveConfigKeys()
+	{
+		if (configManager == null)
+		{
+			return;
+		}
+		for (String key : LEGACY_SAVE_CONFIG_KEYS)
+		{
+			configManager.unsetRSProfileConfiguration(CONFIG_GROUP, key);
+			configManager.unsetConfiguration(CONFIG_GROUP, key);
 		}
 	}
 

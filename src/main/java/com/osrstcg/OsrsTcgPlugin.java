@@ -170,6 +170,7 @@ public class OsrsTcgPlugin extends Plugin
 	private ConfigManager configManager;
 
 	private NavigationButton navigationButton;
+	private long loadedAccountHash = -1L;
 
 	@Override
 	protected void startUp()
@@ -186,9 +187,10 @@ public class OsrsTcgPlugin extends Plugin
 			cardCatalogService.prefetchAsync();
 			activityConfigService.prefetchAsync();
 		}
-		TcgStateLoadResult loadResult = stateService.load();
-		applyLoadedProfileState(loadResult);
-		announceLoadResult(loadResult);
+		if (client.getAccountHash() != -1L)
+		{
+			loadStateForLoggedInAccountIfNeeded();
+		}
 		log.info("OSRS TCG plugin started. Credits={}, ownedCards={}, cardDefinitions={}",
 			NumberFormatting.format(stateService.getState().getEconomyState().getCredits()),
 			NumberFormatting.format(stateService.getState().getCollectionState().getOwnedCards().size()),
@@ -358,6 +360,11 @@ public class OsrsTcgPlugin extends Plugin
 		if (gs == GameState.LOGIN_SCREEN)
 		{
 			stateService.saveFullCheckpoint(TcgSaveTrigger.LOGOUT);
+			loadedAccountHash = -1L;
+		}
+		else if (gs == GameState.LOGGED_IN)
+		{
+			loadStateForLoggedInAccountIfNeeded();
 		}
 		cloudSessionCoordinator.onGameStateChanged(event);
 		tcgPanel.refresh();
@@ -404,9 +411,6 @@ public class OsrsTcgPlugin extends Plugin
 	@Subscribe
 	public void onRuneScapeProfileChanged(RuneScapeProfileChanged event)
 	{
-		TcgStateLoadResult loadResult = stateService.load();
-		applyLoadedProfileState(loadResult);
-		announceLoadResult(loadResult);
 		cloudSessionCoordinator.connect();
 	}
 
@@ -422,7 +426,7 @@ public class OsrsTcgPlugin extends Plugin
 		tcgTradeMenuHandler.onMenuOptionClicked(event);
 	}
 
-	/** After {@link TcgStateService#load()} on login / profile switch; clears UI when debug-tainted saves are reset. */
+	/** After {@link TcgStateService#load()} on login / account switch; clears UI when debug-tainted saves are reset. */
 	private void applyLoadedProfileState(TcgStateLoadResult loadResult)
 	{
 		creditAwardService.resetExperienceCreditBaseline();
@@ -461,6 +465,23 @@ public class OsrsTcgPlugin extends Plugin
 		{
 			queueGameMessage("[OSRS TCG] Restored progress from a disk snapshot.");
 		}
+	}
+
+	private void loadStateForLoggedInAccountIfNeeded()
+	{
+		long accountHash = client.getAccountHash();
+		if (accountHash == -1L)
+		{
+			return;
+		}
+		if (loadedAccountHash == accountHash)
+		{
+			return;
+		}
+		TcgStateLoadResult loadResult = stateService.load();
+		applyLoadedProfileState(loadResult);
+		announceLoadResult(loadResult);
+		loadedAccountHash = accountHash;
 	}
 
 	private void queueGameMessage(String message)

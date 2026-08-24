@@ -67,7 +67,7 @@ public class TcgStateService
 	}
 
 	/**
-	 * Loads persisted state for the current RS profile.
+	 * Loads persisted state for the current OSRS account.
 	 */
 	public synchronized TcgStateLoadResult load()
 	{
@@ -170,47 +170,79 @@ public class TcgStateService
 		return stateStore.saveCheckpoint(state, trigger == null ? TcgSaveTrigger.MANUAL : trigger);
 	}
 
-	/** Lists disk saves for the current profile ({@code tcg.save} + snapshots). */
+	/** Lists account + legacy disk saves for the migrate upload picker. */
 	public synchronized List<TcgSaveMetadataEntry> listDiskSaves()
 	{
 		if (stateStore == null)
 		{
 			return List.of();
 		}
-		return stateStore.listSaveMetadata();
+		List<TcgSaveMetadataEntry> merged = new ArrayList<>(stateStore.listSaveMetadata());
+		merged.addAll(stateStore.listLegacySaveMetadata());
+		merged.sort((a, b) -> Long.compare(
+			parseSavedAtEpochMs(b == null ? null : b.getSavedAt()),
+			parseSavedAtEpochMs(a == null ? null : a.getSavedAt())));
+		return merged;
 	}
 
-	/** True when the current profile backups folder has save files on disk. */
+	private static long parseSavedAtEpochMs(String savedAt)
+	{
+		if (savedAt == null || savedAt.isEmpty())
+		{
+			return 0L;
+		}
+		try
+		{
+			return java.time.Instant.parse(savedAt).toEpochMilli();
+		}
+		catch (Exception ex)
+		{
+			return 0L;
+		}
+	}
+
+	/** True when the account or any legacy backup folder has save files on disk. */
 	public synchronized boolean hasDiskSaves()
 	{
-		return stateStore != null && stateStore.hasSaveFiles();
+		return stateStore != null
+			&& (stateStore.hasSaveFiles() || stateStore.hasLegacySaveFiles());
 	}
 
-	/** Peeks a save without applying it (for UI stats). */
 	public synchronized Optional<TcgState> peekDiskSave(String fileName)
+	{
+		return peekDiskSave(fileName, null);
+	}
+
+	/** Peeks a save without applying it (for migrate upload UI stats). */
+	public synchronized Optional<TcgState> peekDiskSave(String fileName, String sourceDir)
 	{
 		if (stateStore == null || fileName == null || fileName.isEmpty())
 		{
 			return Optional.empty();
 		}
-		return stateStore.loadByFileName(fileName.trim());
+		return stateStore.loadByFileName(fileName.trim(), sourceDir);
+	}
+
+	public synchronized boolean applyDiskSaveForMigrate(String fileName)
+	{
+		return applyDiskSaveForMigrate(fileName, null);
 	}
 
 	/**
-	 * Applies a current-profile disk save into memory before cloud migrate upload.
+	 * Applies a disk save into memory before cloud migrate upload (account or legacy dir).
 	 * Does not write a restore checkpoint - the migrate path uploads this state next.
 	 * <p>
 	 * Refuses debug-mode saves outside RuneLite developer mode (does not wipe memory).
 	 * The save picker peeks the raw file, so a silent reset here used to look like a
 	 * successful pick while {@code migrateLocalCollection} then skipped the upload.
 	 */
-	public synchronized boolean applyDiskSaveForMigrate(String fileName)
+	public synchronized boolean applyDiskSaveForMigrate(String fileName, String sourceDir)
 	{
 		if (stateStore == null || fileName == null || fileName.isEmpty())
 		{
 			return false;
 		}
-		Optional<TcgState> restored = stateStore.loadByFileName(fileName.trim());
+		Optional<TcgState> restored = stateStore.loadByFileName(fileName.trim(), sourceDir);
 		if (restored.isEmpty())
 		{
 			return false;
@@ -253,14 +285,6 @@ public class TcgStateService
 		}
 		state = state.withProfileSavedAtUnix(TcgState.currentUnixSeconds());
 		return stateStore.saveFullCheckpoint(state, trigger == null ? TcgSaveTrigger.LOGOUT : trigger);
-	}
-
-	/**
-	 * Non-collection persistence: keeps state in memory only until the next checkpoint.
-	 */
-	public synchronized void save()
-	{
-		// Intentionally no disk/config write (credits, UI prefs, etc.).
 	}
 
 	/**
@@ -336,7 +360,6 @@ public class TcgStateService
 				return;
 			}
 		}
-		save();
 	}
 
 	public synchronized void setPackRevealOverlayScale(double multiplier)
@@ -347,7 +370,6 @@ public class TcgStateService
 			return;
 		}
 		state = state.withPackRevealOverlayScale(clamped);
-		save();
 	}
 
 	public long getCredits()
@@ -375,7 +397,6 @@ public class TcgStateService
 	{
 		long pending = optimistic.get();
 		state = TcgCloudStateApplier.applyEconomy(state, credits, openedPacks, totalCreditsGained);
-		save();
 		log.debug("Cloud economy apply: serverCredits={} pendingOptimistic={} displayCredits={}",
 			credits, pending, getCredits());
 		notifyStateChangeListeners();
@@ -421,7 +442,6 @@ public class TcgStateService
 			return;
 		}
 		state = state.withCloudSyncMarkers(nextRevision, nextHash);
-		save();
 	}
 
 	/**
@@ -446,7 +466,6 @@ public class TcgStateService
 			return;
 		}
 		state = state.withSidebarRanks(next);
-		save();
 		notifyStateChangeListeners();
 	}
 
@@ -550,7 +569,6 @@ public class TcgStateService
 		long creditsAfter = creditsBefore + amount;
 		long gainedAfter = state.getTotalCreditsGained() + amount;
 		state = state.withCredits(creditsAfter).withTotalCreditsGained(gainedAfter);
-		save();
 
 		if (creditsRateTracker != null)
 		{
@@ -580,7 +598,6 @@ public class TcgStateService
 		if (fromAuth > 0)
 		{
 			state = state.withCredits(state.getEconomyState().getCredits() - fromAuth);
-			save();
 		}
 		return true;
 	}

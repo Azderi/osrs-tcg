@@ -36,6 +36,7 @@ public class CreditAttestSpillStoreTest
 
 		store.save(hash, List.of(event));
 		assertTrue(Files.isRegularFile(store.spillFile(hash)));
+		assertFalse(store.spillFile(hash).getFileName().toString().contains(String.valueOf(hash)));
 
 		List<JsonObject> loaded = store.load(hash);
 		assertEquals(1, loaded.size());
@@ -75,6 +76,28 @@ public class CreditAttestSpillStoreTest
 		Files.createDirectories(dir);
 		Files.writeString(store.spillFile(hash), "{not-an-array}", StandardCharsets.UTF_8);
 		assertTrue(store.load(hash).isEmpty());
+	}
+
+	@Test
+	public void loadMigratesLegacyRawFilename() throws Exception
+	{
+		Path dir = tmp.newFolder("attest").toPath();
+		CreditAttestSpillStore store = new CreditAttestSpillStore(dir);
+		long hash = 555L;
+
+		JsonObject event = new JsonObject();
+		event.addProperty("type", "xp_chunk");
+		event.add("evidence", new JsonObject());
+		event.addProperty("at", 3L);
+
+		Files.createDirectories(dir);
+		Files.writeString(store.legacySpillFile(hash), "[{\"type\":\"xp_chunk\",\"evidence\":{},\"at\":3}]",
+			StandardCharsets.UTF_8);
+
+		List<JsonObject> loaded = store.load(hash);
+		assertEquals(1, loaded.size());
+		assertTrue(Files.isRegularFile(store.spillFile(hash)));
+		assertFalse(Files.exists(store.legacySpillFile(hash)));
 	}
 
 	@Test

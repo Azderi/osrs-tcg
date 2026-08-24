@@ -20,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.client.chat.ChatMessageManager;
+import net.runelite.client.config.ConfigManager;
 import net.runelite.client.util.Text;
 import com.osrstcg.cloud.activity.ActivityConfigService;
 import com.osrstcg.cloud.api.CloudApiClient;
@@ -39,6 +40,7 @@ public final class CloudSessionService
 	private final CloudTokenStore tokens;
 	private final ProfileKeyHasher profileKeyHasher;
 	private final TcgStateService stateService;
+	private final ConfigManager configManager;
 	private final ChatMessageManager chatMessageManager;
 	private final PackCatalogService packCatalogService;
 	private final CardCatalogService cardCatalogService;
@@ -86,6 +88,7 @@ public final class CloudSessionService
 		ProfileKeyHasher profileKeyHasher,
 		TcgStateService stateService,
 		TcgStateCodec stateCodec,
+		ConfigManager configManager,
 		ChatMessageManager chatMessageManager,
 		PackCatalogService packCatalogService,
 		CardCatalogService cardCatalogService,
@@ -102,6 +105,7 @@ public final class CloudSessionService
 		this.tokens = tokens;
 		this.profileKeyHasher = profileKeyHasher;
 		this.stateService = stateService;
+		this.configManager = configManager;
 		this.chatMessageManager = chatMessageManager;
 		this.packCatalogService = packCatalogService;
 		this.cardCatalogService = cardCatalogService;
@@ -121,7 +125,8 @@ public final class CloudSessionService
 		this.migration = new CloudMigrationService(
 			this, collectionSync, client, api, tokens, profileKeyHasher, stateService, stateCodec,
 			chatMessageManager, packCatalogService, cardCatalogService, activityConfigService, scheduler,
-			forceStatePullOnce, migrateImportWatchScheduled, deferCollectionPullForMigrateImport);
+			forceStatePullOnce, migrateImportWatchScheduled, deferCollectionPullForMigrateImport,
+			configManager);
 		api.setStaleRefreshHandler(this::handleStaleRefresh);
 		api.setAccountLockHandler(this::noteLockFromApiException);
 	}

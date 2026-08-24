@@ -1,6 +1,7 @@
 package com.osrstcg.persist;
 
 import com.google.gson.Gson;
+import com.osrstcg.cloud.session.ProfileKeyHasher;
 import com.osrstcg.state.TcgState;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -21,8 +22,8 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.Client;
 import net.runelite.client.RuneLite;
-import net.runelite.client.config.ConfigManager;
 
 @Singleton
 @Slf4j
@@ -31,22 +32,24 @@ public class TcgStateFileBackupStore
 	public static final int MAX_SNAPSHOT_FILES = 50;
 	public static final String MASTER_FILENAME = "tcg.save";
 	public static final String SAVES_INDEX_FILENAME = "saves.json";
-	public static final String DEFAULT_PROFILE_DIR = "default";
+	/** Legacy RS-profile backup folder name (migrate upload scan only). */
+	static final String LEGACY_DEFAULT_DIR = "default";
 	private static final Pattern HASH_FILENAME = Pattern.compile("^[a-fA-F0-9]{64}$");
-	private static final Pattern PROFILE_DIR_NAME = Pattern.compile("^(?:default|[a-fA-F0-9]{64})$");
+	private static final Pattern ACCOUNT_DIR_NAME = Pattern.compile("^[a-fA-F0-9]{64}$");
 
-	private final ConfigManager configManager;
+	private final Client client;
 	private final TcgStateCodec stateCodec;
 	private final TcgSavesIndexIo indexIo;
 	private final TcgSnapshotPruner snapshotPruner;
+	private volatile long lastKnownAccountHash = -1L;
 
 	@Inject
 	public TcgStateFileBackupStore(
-		ConfigManager configManager,
+		Client client,
 		TcgStateCodec stateCodec,
 		Gson gson)
 	{
-		this.configManager = configManager;
+		this.client = client;
 		this.stateCodec = stateCodec;
 		this.indexIo = new TcgSavesIndexIo(this, gson);
 		this.snapshotPruner = new TcgSnapshotPruner(this);
@@ -90,8 +93,12 @@ public class TcgStateFileBackupStore
 		boolean wrote = writeValidatedNamedFile(hashHex, encodedBlob, hashHex, true);
 		if (!wrote)
 		{
-			// Duplicate valid snapshot still counts as success for metadata refresh.
-			Path existing = saveDirectory().resolve(hashHex);
+			Path dir = saveDirectory();
+			if (dir == null)
+			{
+				return false;
+			}
+			Path existing = dir.resolve(hashHex);
 			if (!Files.isRegularFile(existing) || !validateSnapshotFile(existing))
 			{
 				return false;
@@ -110,14 +117,18 @@ public class TcgStateFileBackupStore
 
 	public Optional<TcgState> loadMaster()
 	{
-		Path master = saveDirectory().resolve(MASTER_FILENAME);
-		return tryLoadEncodedFile(master, false);
+		Path dir = saveDirectory();
+		if (dir == null)
+		{
+			return Optional.empty();
+		}
+		return tryLoadEncodedFile(dir.resolve(MASTER_FILENAME), false);
 	}
 
 	public Optional<TcgState> loadMostRecentSnapshot()
 	{
 		Path dir = saveDirectory();
-		if (!Files.isDirectory(dir))
+		if (dir == null || !Files.isDirectory(dir))
 		{
 			return Optional.empty();
 		}
@@ -176,12 +187,22 @@ public class TcgStateFileBackupStore
 	 */
 	public Optional<TcgState> loadByFileName(String fileName)
 	{
+		return loadByFileName(fileName, null);
+	}
+
+	/** Loads from the current account dir, or {@code accountDirId} when set (legacy migrate dirs). */
+	public Optional<TcgState> loadByFileName(String fileName, String accountDirId)
+	{
 		if (fileName == null || fileName.isEmpty())
 		{
 			return Optional.empty();
 		}
 		String name = fileName.trim();
-		Path dir = saveDirectory();
+		Path dir = saveDirectory(accountDirId);
+		if (dir == null)
+		{
+			return Optional.empty();
+		}
 		if (MASTER_FILENAME.equalsIgnoreCase(name))
 		{
 			return tryLoadEncodedFile(dir.resolve(MASTER_FILENAME), false);
@@ -200,26 +221,102 @@ public class TcgStateFileBackupStore
 	public boolean hasSaveFiles()
 	{
 		Path dir = saveDirectory();
-		if (!Files.isDirectory(dir))
+		return dir != null && hasSaveFilesInDir(dir);
+	}
+
+	/** True when any legacy backup folder (not the current account dir) contains save files. */
+	public boolean hasLegacySaveFiles()
+	{
+		Path root = backupsRoot();
+		if (!Files.isDirectory(root))
 		{
 			return false;
 		}
-		if (Files.isRegularFile(dir.resolve(MASTER_FILENAME)))
+		String current = currentAccountDirName();
+		try (var stream = Files.list(root))
 		{
-			return true;
+			return stream.filter(Files::isDirectory)
+				.anyMatch(path -> isLegacyDirName(path.getFileName().toString(), current)
+					&& hasSaveFilesInDir(path));
 		}
-		return !listSnapshotFiles(dir).isEmpty();
+		catch (IOException ex)
+		{
+			return false;
+		}
 	}
 
-	/** Current backups folder id ({@code default} or 64-char hex of RSProfile key). */
-	public String currentProfileDirName()
+	/**
+	 * Save metadata from legacy profile-key dirs and {@code default} (migrate upload picker only).
+	 * Each entry has {@link TcgSaveMetadataEntry#getSourceDir()} set to the folder id.
+	 */
+	public List<TcgSaveMetadataEntry> listLegacySaveMetadata()
 	{
-		String profileKey = configManager == null ? null : configManager.getRSProfileKey();
-		if (profileKey == null || profileKey.isEmpty())
+		Path root = backupsRoot();
+		if (!Files.isDirectory(root))
 		{
-			return DEFAULT_PROFILE_DIR;
+			return List.of();
 		}
-		return TcgStateHash.hexOfUtf8(profileKey).toLowerCase(Locale.ROOT);
+		String current = currentAccountDirName();
+		List<TcgSaveMetadataEntry> out = new ArrayList<>();
+		try (var stream = Files.list(root))
+		{
+			stream.filter(Files::isDirectory).forEach(path ->
+			{
+				String dirName = path.getFileName().toString();
+				if (!isLegacyDirName(dirName, current))
+				{
+					return;
+				}
+				rewriteSavesIndexFromDisk(dirName);
+				TcgSavesIndex index = readSavesIndex(dirName);
+				if (index.getSaves() == null)
+				{
+					return;
+				}
+				for (TcgSaveMetadataEntry entry : index.getSaves())
+				{
+					if (entry == null || entry.getName() == null || entry.getName().isEmpty())
+					{
+						continue;
+					}
+					entry.setSourceDir(dirName);
+					out.add(new TcgSaveMetadataEntry(
+						entry.getName(),
+						entry.getCardCount(),
+						entry.getCredits(),
+						entry.getHash(),
+						entry.getSavedAt(),
+						entry.getTrigger(),
+						dirName));
+				}
+			});
+		}
+		catch (IOException ex)
+		{
+			log.debug("OSRS TCG failed to list legacy save directories", ex);
+		}
+		out.sort(Comparator.comparingLong((TcgSaveMetadataEntry e) -> parseSavedAtEpochMs(e.getSavedAt())).reversed());
+		return out;
+	}
+
+	long resolveAccountHashForIo()
+	{
+		if (client != null)
+		{
+			long hash = client.getAccountHash();
+			if (hash != -1L)
+			{
+				lastKnownAccountHash = hash;
+				return hash;
+			}
+		}
+		return lastKnownAccountHash;
+	}
+
+	/** Current account backups folder id (64-char hex), or null when no account hash is known. */
+	public String currentAccountDirName()
+	{
+		return ProfileKeyHasher.accountDirName(resolveAccountHashForIo());
 	}
 
 	Path backupsRoot()
@@ -232,37 +329,75 @@ public class TcgStateFileBackupStore
 		return saveDirectory(null);
 	}
 
-	Path saveDirectory(String profileDirId)
+	Path saveDirectory(String accountDirId)
 	{
-		String dirName = resolveProfileDirName(profileDirId);
+		String dirName = resolveAccountDirName(accountDirId);
 		if (dirName == null)
 		{
-			dirName = currentProfileDirName();
+			return null;
 		}
 		return backupsRoot().resolve(dirName);
 	}
 
-	String resolveProfileDirName(String profileDirId)
+	String resolveAccountDirName(String accountDirId)
 	{
-		if (profileDirId == null || profileDirId.isBlank())
+		if (accountDirId == null || accountDirId.isBlank())
 		{
-			return currentProfileDirName();
+			return currentAccountDirName();
 		}
-		String trimmed = profileDirId.trim();
-		if (DEFAULT_PROFILE_DIR.equalsIgnoreCase(trimmed))
+		String trimmed = accountDirId.trim();
+		if (LEGACY_DEFAULT_DIR.equalsIgnoreCase(trimmed))
 		{
-			return DEFAULT_PROFILE_DIR;
+			return LEGACY_DEFAULT_DIR;
 		}
-		if (!isSafeProfileDirName(trimmed))
+		if (!isSafeAccountDirName(trimmed))
 		{
 			return null;
 		}
 		return trimmed.toLowerCase(Locale.ROOT);
 	}
 
-	private boolean isSafeProfileDirName(String name)
+	private boolean isSafeAccountDirName(String name)
 	{
-		return name != null && PROFILE_DIR_NAME.matcher(name).matches();
+		return name != null && ACCOUNT_DIR_NAME.matcher(name).matches();
+	}
+
+	private static boolean isLegacyDirName(String dirName, String currentAccountDir)
+	{
+		if (dirName == null || dirName.isEmpty())
+		{
+			return false;
+		}
+		if (LEGACY_DEFAULT_DIR.equalsIgnoreCase(dirName))
+		{
+			return currentAccountDir == null || !LEGACY_DEFAULT_DIR.equalsIgnoreCase(currentAccountDir);
+		}
+		if (!ACCOUNT_DIR_NAME.matcher(dirName).matches())
+		{
+			return false;
+		}
+		return currentAccountDir == null || !dirName.equalsIgnoreCase(currentAccountDir);
+	}
+
+	private static boolean hasSaveFilesInDir(Path dir)
+	{
+		if (dir == null || !Files.isDirectory(dir))
+		{
+			return false;
+		}
+		if (Files.isRegularFile(dir.resolve(MASTER_FILENAME)))
+		{
+			return true;
+		}
+		try (var stream = Files.list(dir))
+		{
+			return stream.anyMatch(path -> Files.isRegularFile(path)
+				&& HASH_FILENAME.matcher(path.getFileName().toString()).matches());
+		}
+		catch (IOException ex)
+		{
+			return false;
+		}
 	}
 
 	private boolean writeValidatedNamedFile(String filename, String encodedBlob, String expectedHash, boolean requireHashName)
@@ -275,6 +410,10 @@ public class TcgStateFileBackupStore
 		try
 		{
 			Path dir = saveDirectory();
+			if (dir == null)
+			{
+				return false;
+			}
 			Files.createDirectories(dir);
 
 			Path target = dir.resolve(filename);
@@ -473,14 +612,18 @@ public class TcgStateFileBackupStore
 		rewriteSavesIndexFromDisk(null);
 	}
 
-	void rewriteSavesIndexFromDisk(String profileDirId)
+	void rewriteSavesIndexFromDisk(String accountDirId)
 	{
-		String resolved = resolveProfileDirName(profileDirId);
+		String resolved = resolveAccountDirName(accountDirId);
 		if (resolved == null)
 		{
 			return;
 		}
 		Path dir = saveDirectory(resolved);
+		if (dir == null)
+		{
+			return;
+		}
 		TcgSavesIndex existing = readSavesIndex(resolved);
 		List<TcgSaveMetadataEntry> previous = existing.getSaves() == null ? List.of() : existing.getSaves();
 
@@ -622,9 +765,9 @@ public class TcgStateFileBackupStore
 		return indexIo.read();
 	}
 
-	TcgSavesIndex readSavesIndex(String profileDirId)
+	TcgSavesIndex readSavesIndex(String accountDirId)
 	{
-		return indexIo.read(profileDirId);
+		return indexIo.read(accountDirId);
 	}
 
 	void writeSavesIndex(TcgSavesIndex index)
@@ -632,9 +775,9 @@ public class TcgStateFileBackupStore
 		indexIo.write(index);
 	}
 
-	void writeSavesIndex(String profileDirId, TcgSavesIndex index)
+	void writeSavesIndex(String accountDirId, TcgSavesIndex index)
 	{
-		indexIo.write(profileDirId, index);
+		indexIo.write(accountDirId, index);
 	}
 
 	long savedAtEpochMsForFile(String filename)
@@ -642,9 +785,9 @@ public class TcgStateFileBackupStore
 		return savedAtEpochMsForFile(null, filename);
 	}
 
-	private long savedAtEpochMsForFile(String profileDirId, String filename)
+	private long savedAtEpochMsForFile(String accountDirId, String filename)
 	{
-		TcgSavesIndex index = readSavesIndex(profileDirId);
+		TcgSavesIndex index = readSavesIndex(accountDirId);
 		if (index.getSaves() != null)
 		{
 			for (TcgSaveMetadataEntry entry : index.getSaves())
@@ -655,12 +798,17 @@ public class TcgStateFileBackupStore
 				}
 			}
 		}
-		String resolved = resolveProfileDirName(profileDirId);
+		String resolved = resolveAccountDirName(accountDirId);
 		if (resolved == null)
 		{
 			return 0L;
 		}
-		return lastModifiedSafe(saveDirectory(resolved).resolve(filename));
+		Path dir = saveDirectory(resolved);
+		if (dir == null)
+		{
+			return 0L;
+		}
+		return lastModifiedSafe(dir.resolve(filename));
 	}
 
 	private static long parseSavedAtEpochMs(String savedAt)

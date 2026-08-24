@@ -12,13 +12,15 @@ import java.util.zip.GZIPOutputStream;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Gzip-compresses JSON (fast deflate), XOR-obfuscates with a plugin salt, and Base64-encodes with an
- * {@code RLTCG_v2:} prefix. Wire format is unchanged - only compression speed / buffer sizing.
+ * Local saves: gzip-compress JSON (fast deflate) and Base64-encode with {@code RLTCG_v3:}.
+ * Legacy {@code RLTCG_v2:} blobs (gzip + XOR + Base64) are decoded for migrate upload reads only;
+ * {@link #encodeLegacyV2} emits v2 for cloud migrate {@code profileBlob} upload.
  */
 @Slf4j
 public final class TcgStateStorageEncoding
 {
-	static final String STORAGE_PREFIX = "RLTCG_v2:";
+	static final String STORAGE_PREFIX_V3 = "RLTCG_v3:";
+	static final String STORAGE_PREFIX_V2 = "RLTCG_v2:";
 
 	private static final byte[] XOR_SALT = {
 		(byte) 0x52, (byte) 0x4c, (byte) 0x54, (byte) 0x43, (byte) 0x47,
@@ -36,8 +38,24 @@ public final class TcgStateStorageEncoding
 		{
 			byte[] utf8 = Objects.requireNonNullElse(plainJson, "").getBytes(StandardCharsets.UTF_8);
 			byte[] compressed = gzipCompress(utf8);
+			return STORAGE_PREFIX_V3 + Base64.getEncoder().encodeToString(compressed);
+		}
+		catch (IOException ex)
+		{
+			log.warn("OSRS TCG state compression failed", ex);
+			return "";
+		}
+	}
+
+	/** Cloud migrate upload only — server still requires {@code RLTCG_v2:} with XOR. */
+	public static String encodeLegacyV2(String plainJson)
+	{
+		try
+		{
+			byte[] utf8 = Objects.requireNonNullElse(plainJson, "").getBytes(StandardCharsets.UTF_8);
+			byte[] compressed = gzipCompress(utf8);
 			xorWithSalt(compressed);
-			return STORAGE_PREFIX + Base64.getEncoder().encodeToString(compressed);
+			return STORAGE_PREFIX_V2 + Base64.getEncoder().encodeToString(compressed);
 		}
 		catch (IOException ex)
 		{
@@ -55,13 +73,18 @@ public final class TcgStateStorageEncoding
 		}
 		try
 		{
-			if (s.length() <= STORAGE_PREFIX.length() || !s.startsWith(STORAGE_PREFIX))
+			if (s.startsWith(STORAGE_PREFIX_V3))
 			{
-				throw new IllegalArgumentException("expected RLTCG_v2 blob");
+				byte[] compressed = Base64.getDecoder().decode(s.substring(STORAGE_PREFIX_V3.length()));
+				return gzipDecompress(compressed);
 			}
-			byte[] compressed = Base64.getDecoder().decode(s.substring(STORAGE_PREFIX.length()));
-			xorWithSalt(compressed);
-			return gzipDecompress(compressed);
+			if (s.startsWith(STORAGE_PREFIX_V2))
+			{
+				byte[] compressed = Base64.getDecoder().decode(s.substring(STORAGE_PREFIX_V2.length()));
+				xorWithSalt(compressed);
+				return gzipDecompress(compressed);
+			}
+			throw new IllegalArgumentException("expected RLTCG_v2 or RLTCG_v3 blob");
 		}
 		catch (IllegalArgumentException | IOException ex)
 		{
@@ -72,7 +95,6 @@ public final class TcgStateStorageEncoding
 
 	private static byte[] gzipCompress(byte[] input) throws IOException
 	{
-		// Prefer a roomy buffer: JSON gzip typically lands well under ~1/3 of UTF-8 size.
 		ByteArrayOutputStream baos = new ByteArrayOutputStream(Math.max(256, input.length / 3 + 64));
 		try (GZIPOutputStream gzos = new FastGzipOutputStream(baos))
 		{
@@ -97,7 +119,6 @@ public final class TcgStateStorageEncoding
 		}
 	}
 
-	/** Same gzip framing as {@link GZIPOutputStream}, but {@link Deflater#BEST_SPEED} for frequent saves. */
 	private static final class FastGzipOutputStream extends GZIPOutputStream
 	{
 		private FastGzipOutputStream(ByteArrayOutputStream out) throws IOException

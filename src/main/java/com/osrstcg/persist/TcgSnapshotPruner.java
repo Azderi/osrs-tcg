@@ -21,7 +21,7 @@ final class TcgSnapshotPruner
 	void pruneExcessSnapshots()
 	{
 		Path dir = store.saveDirectory();
-		if (!Files.isDirectory(dir))
+		if (dir == null || !Files.isDirectory(dir))
 		{
 			return;
 		}

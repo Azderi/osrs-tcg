@@ -29,6 +29,16 @@ public final class ProfileKeyHasher
 		return sha256Hex(key);
 	}
 
+	/** 64-char hex SHA-256 of decimal {@code accountHash}, or null when unavailable. */
+	public static String accountDirName(long accountHash)
+	{
+		if (accountHash == -1L)
+		{
+			return null;
+		}
+		return sha256Hex(Long.toString(accountHash));
+	}
+
 	public static String sha256Hex(String value)
 	{
 		try

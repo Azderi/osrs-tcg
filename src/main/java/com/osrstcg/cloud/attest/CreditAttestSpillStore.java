@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.osrstcg.cloud.session.ProfileKeyHasher;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,7 +19,7 @@ import net.runelite.client.RuneLite;
 
 /**
  * Durable spill of unacked credit-attest raw events under
- * {@code ~/.runelite/OSRS-TCG/attest/pending-&lt;accountHash&gt;.json}.
+ * {@code ~/.runelite/OSRS-TCG/attest/pending-<sha256(accountHash)>.json}.
  * Survives client crashes between enqueue and successful upload.
  */
 @Slf4j
@@ -41,7 +42,17 @@ public final class CreditAttestSpillStore
 
 	Path spillFile(long accountHash)
 	{
+		return attestDir.resolve("pending-" + spillFileName(accountHash) + ".json");
+	}
+
+	Path legacySpillFile(long accountHash)
+	{
 		return attestDir.resolve("pending-" + accountHash + ".json");
+	}
+
+	static String spillFileName(long accountHash)
+	{
+		return ProfileKeyHasher.sha256Hex(Long.toString(accountHash));
 	}
 
 	/**
@@ -53,7 +64,31 @@ public final class CreditAttestSpillStore
 		{
 			return List.of();
 		}
-		Path file = spillFile(accountHash);
+		List<JsonObject> fromHashed = readSpillFile(spillFile(accountHash));
+		if (!fromHashed.isEmpty())
+		{
+			return fromHashed;
+		}
+		Path legacy = legacySpillFile(accountHash);
+		List<JsonObject> fromLegacy = readSpillFile(legacy);
+		if (fromLegacy.isEmpty())
+		{
+			return fromLegacy;
+		}
+		save(accountHash, fromLegacy);
+		try
+		{
+			Files.deleteIfExists(legacy);
+		}
+		catch (Exception ex)
+		{
+			log.debug("Credit attest legacy spill delete failed for accountHash={}", accountHash, ex);
+		}
+		return fromLegacy;
+	}
+
+	private List<JsonObject> readSpillFile(Path file)
+	{
 		if (!Files.isRegularFile(file))
 		{
 			return List.of();
@@ -104,8 +139,9 @@ public final class CreditAttestSpillStore
 			return;
 		}
 		Path dir = attestDir;
-		Path target = spillFile(accountHash);
-		Path tmp = dir.resolve("pending-" + accountHash + ".json.tmp");
+		String name = spillFileName(accountHash);
+		Path target = dir.resolve("pending-" + name + ".json");
+		Path tmp = dir.resolve("pending-" + name + ".json.tmp");
 		try
 		{
 			Files.createDirectories(dir);
@@ -151,6 +187,7 @@ public final class CreditAttestSpillStore
 		try
 		{
 			Files.deleteIfExists(spillFile(accountHash));
+			Files.deleteIfExists(legacySpillFile(accountHash));
 		}
 		catch (Exception ex)
 		{

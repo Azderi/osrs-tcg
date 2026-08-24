@@ -94,7 +94,7 @@ public class CreditAwardService
 		stateService.replaceSkillCreditBaseline(SkillCreditBaseline.absent());
 
 		skills.snapshotSkillBaselinesIfLoggedIn(client);
-		persistSkillBaselineToState(false);
+		persistSkillBaselineToState();
 		debugAward("Set skill credit baselines to current stats after disk save restore");
 	}
 
@@ -106,7 +106,7 @@ public class CreditAwardService
 			return;
 		}
 		skills.snapshotSkillBaselinesIfLoggedIn(client);
-		persistSkillBaselineToState(false);
+		persistSkillBaselineToState();
 	}
 
 	/** Whether XP / level / kill credit tracking is active (false when banned or quarantined). */
@@ -264,7 +264,7 @@ public class CreditAwardService
 
 		if (next == GameState.LOGIN_SCREEN)
 		{
-			persistSkillBaselineToState(true);
+			persistSkillBaselineToState();
 			pendingStatsSettleAfterLoginOrHop = true;
 			restoreUncreditedXpFromPersistedBaseline = true;
 			suppressCreditAwardsUntilStatsSettle(true);
@@ -273,7 +273,7 @@ public class CreditAwardService
 
 		if (next == GameState.HOPPING)
 		{
-			persistSkillBaselineToState(true);
+			persistSkillBaselineToState();
 			pendingStatsSettleAfterLoginOrHop = true;
 			restoreUncreditedXpFromPersistedBaseline = false;
 			suppressCreditAwardsUntilStatsSettle(false);
@@ -322,7 +322,7 @@ public class CreditAwardService
 		if (!skills.skillXpInitialized || !skills.skillLevelsInitialized)
 		{
 			skills.snapshotSkillBaselinesIfLoggedIn(client);
-			persistSkillBaselineToState(false);
+			persistSkillBaselineToState();
 		}
 	}
 
@@ -343,7 +343,7 @@ public class CreditAwardService
 		{
 			skills.snapshotSkillBaselinesIfLoggedIn(client);
 		}
-		persistSkillBaselineToState(true);
+		persistSkillBaselineToState();
 		debugAward("Live skill baselines captured after settle");
 	}
 
@@ -372,7 +372,7 @@ public class CreditAwardService
 			return 0L;
 		}
 
-		persistSkillBaselineToState(false);
+		persistSkillBaselineToState();
 		JsonObject evidence = new JsonObject();
 		evidence.addProperty("skill", skill == null ? "" : skill.getName());
 		evidence.addProperty("fromLevel", previousLevel);
@@ -463,7 +463,7 @@ public class CreditAwardService
 			NumberFormatting.format(nextUncreditedXp), NumberFormatting.format(XpCreditMath.XP_PER_CREDIT_CHUNK)));
 
 		boolean awarded = awardCreditsFromUncreditedXp(skill);
-		persistSkillBaselineToState(false);
+		persistSkillBaselineToState();
 		return awarded;
 	}
 
@@ -513,7 +513,7 @@ public class CreditAwardService
 		{
 			debugAward(String.format("Cloud offline; +%s Slayer XP pending until reconnected",
 				NumberFormatting.format(xpGained)));
-			persistSkillBaselineToState(false);
+			persistSkillBaselineToState();
 			return false;
 		}
 
@@ -524,7 +524,7 @@ public class CreditAwardService
 		long credits = chunks * XpCreditMath.SLAYER_CREDITS_PER_CHUNK;
 		skills.slayerOptimisticRemainder -= chunks * XpCreditMath.SLAYER_XP_PER_CREDIT_CHUNK;
 
-		persistSkillBaselineToState(false);
+		persistSkillBaselineToState();
 		JsonObject evidence = new JsonObject();
 		evidence.addProperty("skill", source == null ? "" : source);
 		evidence.addProperty("xpDelta", toSend);
@@ -560,7 +560,7 @@ public class CreditAwardService
 			return false;
 		}
 
-		persistSkillBaselineToState(false);
+		persistSkillBaselineToState();
 		JsonObject evidence = new JsonObject();
 		evidence.addProperty("skill", skill.getName());
 		evidence.addProperty("xpDelta", xpCredited);
@@ -574,10 +574,8 @@ public class CreditAwardService
 
 	/**
 	 * Writes the current in-memory skill baselines into profile state.
-	 *
-	 * @param save whether to flush to disk immediately
 	 */
-	private void persistSkillBaselineToState(boolean save)
+	private void persistSkillBaselineToState()
 	{
 		if (!isCreditTrackingAllowed() || !skills.skillXpInitialized)
 		{
@@ -586,10 +584,6 @@ public class CreditAwardService
 
 		SkillCreditBaseline baseline = skills.toBaseline();
 		stateService.replaceSkillCreditBaseline(baseline);
-		if (save)
-		{
-			stateService.save();
-		}
 	}
 
 	private void suppressCreditAwardsUntilStatsSettle(boolean clearUncreditedXpPool)

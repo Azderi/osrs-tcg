@@ -27,14 +27,19 @@ final class TcgSavesIndexIo
 		return read(null);
 	}
 
-	TcgSavesIndex read(String profileDirId)
+	TcgSavesIndex read(String accountDirId)
 	{
-		String resolved = store.resolveProfileDirName(profileDirId);
+		String resolved = store.resolveAccountDirName(accountDirId);
 		if (resolved == null)
 		{
 			return new TcgSavesIndex();
 		}
-		Path path = store.saveDirectory(resolved).resolve(TcgStateFileBackupStore.SAVES_INDEX_FILENAME);
+		Path path = store.saveDirectory(resolved);
+		if (path == null)
+		{
+			return new TcgSavesIndex();
+		}
+		path = path.resolve(TcgStateFileBackupStore.SAVES_INDEX_FILENAME);
 		if (!Files.isRegularFile(path))
 		{
 			return new TcgSavesIndex();
@@ -59,9 +64,9 @@ final class TcgSavesIndexIo
 		write(null, index);
 	}
 
-	void write(String profileDirId, TcgSavesIndex index)
+	void write(String accountDirId, TcgSavesIndex index)
 	{
-		String resolved = store.resolveProfileDirName(profileDirId);
+		String resolved = store.resolveAccountDirName(accountDirId);
 		if (resolved == null)
 		{
 			return;
@@ -69,6 +74,10 @@ final class TcgSavesIndexIo
 		try
 		{
 			Path dir = store.saveDirectory(resolved);
+			if (dir == null)
+			{
+				return;
+			}
 			Files.createDirectories(dir);
 			Path target = dir.resolve(TcgStateFileBackupStore.SAVES_INDEX_FILENAME);
 			Path temp = Files.createTempFile(dir, "tcg-saves-", ".tmp");

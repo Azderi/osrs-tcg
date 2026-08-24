@@ -1,5 +1,6 @@
 package com.osrstcg.ui.save;
 
+import com.osrstcg.persist.TcgSaveMetadataEntry;
 import com.osrstcg.state.TcgStateService;
 import java.util.function.Consumer;
 import javax.inject.Inject;
@@ -28,7 +29,7 @@ public final class SaveRestoreManager
 	 * {@code onNoSaves} is unused when callers already gated on {@link TcgStateService#hasDiskSaves()};
 	 * kept for callers that want a fallback (may be {@code null}).
 	 */
-	public void showMigratePicker(Consumer<String> onUploadAccepted, Runnable onNoSaves)
+	public void showMigratePicker(Consumer<TcgSaveMetadataEntry> onUploadAccepted, Runnable onNoSaves)
 	{
 		Runnable open = () ->
 		{
@@ -47,12 +48,12 @@ public final class SaveRestoreManager
 				return;
 			}
 
-			dialog = new SaveRestoreDialog(stateService, fileName ->
+			dialog = new SaveRestoreDialog(stateService, entry ->
 			{
 				dialog = null;
 				if (onUploadAccepted != null)
 				{
-					onUploadAccepted.accept(fileName);
+					onUploadAccepted.accept(entry);
 				}
 			});
 			dialog.addWindowListener(new java.awt.event.WindowAdapter()

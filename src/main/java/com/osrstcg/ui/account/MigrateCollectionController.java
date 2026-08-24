@@ -111,9 +111,9 @@ public final class MigrateCollectionController
 		if (stateService.hasDiskSaves())
 		{
 			saveRestoreManager.showMigratePicker(
-				fileName ->
+				entry ->
 				{
-					if (!stateService.applyDiskSaveForMigrate(fileName))
+					if (!stateService.applyDiskSaveForMigrate(entry.getName(), entry.getSourceDir()))
 					{
 						TcgPluginGameMessages.queueGameMessage(chatMessageManager,
 							"[OSRS TCG] Failed to load the selected save for migrate "

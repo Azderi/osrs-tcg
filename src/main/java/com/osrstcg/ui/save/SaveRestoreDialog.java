@@ -46,7 +46,7 @@ public final class SaveRestoreDialog extends JDialog
 		DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
 	private final TcgStateService stateService;
-	private final Consumer<String> onUploadAccepted;
+	private final Consumer<TcgSaveMetadataEntry> onUploadAccepted;
 	private final DefaultListModel<TcgSaveMetadataEntry> listModel = new DefaultListModel<>();
 	private final JList<TcgSaveMetadataEntry> saveList = new JList<>(listModel);
 	private final JLabel fileValue = statValue();
@@ -59,7 +59,7 @@ public final class SaveRestoreDialog extends JDialog
 	private final JLabel distinctValue = statValue();
 	private final JButton uploadButton = new JButton("Upload");
 
-	public SaveRestoreDialog(TcgStateService stateService, Consumer<String> onUploadAccepted)
+	public SaveRestoreDialog(TcgStateService stateService, Consumer<TcgSaveMetadataEntry> onUploadAccepted)
 	{
 		super((java.awt.Frame) null, "OSRS TCG - Upload save", true);
 		this.stateService = stateService;
@@ -154,11 +154,10 @@ public final class SaveRestoreDialog extends JDialog
 		{
 			return;
 		}
-		String file = selected.getName();
 		dispose();
 		if (onUploadAccepted != null)
 		{
-			onUploadAccepted.accept(file);
+			onUploadAccepted.accept(selected);
 		}
 	}
 
@@ -184,7 +183,7 @@ public final class SaveRestoreDialog extends JDialog
 			? "UNKNOWN"
 			: entry.getTrigger());
 
-		Optional<TcgState> peeked = stateService.peekDiskSave(entry.getName());
+		Optional<TcgState> peeked = stateService.peekDiskSave(entry.getName(), entry.getSourceDir());
 		if (peeked.isEmpty())
 		{
 			creditsValue.setText(NumberFormatting.format(entry.getCredits()));
@@ -307,7 +306,11 @@ public final class SaveRestoreDialog extends JDialog
 	{
 		String when = formatListTime(entry.getSavedAt());
 		String hashPrefix = hashPrefix(entry);
-		return String.format(Locale.US, "%s - %s credits - %s cards (%s)",
+		String legacy = entry.getSourceDir() != null && !entry.getSourceDir().isEmpty()
+			? "legacy "
+			: "";
+		return String.format(Locale.US, "%s%s - %s credits - %s cards (%s)",
+			legacy,
 			when,
 			NumberFormatting.format(entry.getCredits()),
 			NumberFormatting.format(entry.getCardCount()),
