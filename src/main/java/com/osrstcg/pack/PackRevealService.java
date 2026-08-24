@@ -206,7 +206,6 @@ public class PackRevealService
 	private long[] flipStartedAtMs = new long[0];
 	/** Click-to-flip duration matching website {@code .card-inspect__flipper} (550ms). */
 	public static final int CARD_FLIP_MS = 550;
-	private boolean dinkEndNotificationsSent;
 	private long phaseStartedAt;
 	private String boosterPackId = "";
 	/** When true, sealed-pack overlay uses apex hover sound and Godly-tier glow. */
@@ -266,7 +265,6 @@ public class PackRevealService
 		this.batchOffset = 0;
 		this.collectionChatPostedByIndex = new boolean[placeholders.size()];
 		initCurrentBatchRevealFlags();
-		this.dinkEndNotificationsSent = false;
 		this.phaseStartedAt = 0L;
 		this.awaitingServerPulls = true;
 		this.pendingRevealStartedAtMs = System.currentTimeMillis();
@@ -338,7 +336,6 @@ public class PackRevealService
 			.collect(Collectors.toList()));
 		this.collectionChatPostedByIndex = new boolean[this.cards.size()];
 		initCurrentBatchRevealFlags();
-		this.dinkEndNotificationsSent = false;
 		this.awaitingServerPulls = false;
 		this.pendingRevealStartedAtMs = 0L;
 
@@ -524,9 +521,9 @@ public class PackRevealService
 		{
 			flipStartedAtMs[i] = 0L;
 		}
-		if (!hasMoreBatches())
+		if (fiveCardsRevealed())
 		{
-			notifyDinkAtEndOnce();
+			notifyDinkAtEnd();
 		}
 		phase = Phase.WAIT_CLOSE;
 		phaseStartedAt = System.currentTimeMillis();
@@ -807,7 +804,6 @@ public class PackRevealService
 		revealedByIndex = new boolean[0];
 		collectionChatPostedByIndex = new boolean[0];
 		flipStartedAtMs = new long[0];
-		dinkEndNotificationsSent = false;
 		phaseStartedAt = 0L;
 		boosterPackId = "";
 		apexPackOpen = false;
@@ -971,14 +967,9 @@ public class PackRevealService
 		return false;
 	}
 
-	private void notifyDinkAtEndOnce()
+	private void notifyDinkAtEnd()
 	{
-		if (dinkEndNotificationsSent)
-		{
-			return;
-		}
-		dinkEndNotificationsSent = true;
-		pullNotificationService.notifyDinkAtEnd(cards);
+		pullNotificationService.notifyDinkAtEnd(List.copyOf(visibleCards()));
 	}
 
 	/**
@@ -1048,6 +1039,11 @@ public class PackRevealService
 		return batchOffset + visibleCount() < cards.size();
 	}
 
+	private boolean fiveCardsRevealed()
+	{
+		return (batchOffset + visibleCount()) % 5 == 0;
+	}
+
 	private void initCurrentBatchRevealFlags()
 	{
 		int n = visibleCount();
@@ -1067,9 +1063,9 @@ public class PackRevealService
 
 	private void enterWaitCloseAfterBatchFullyRevealed()
 	{
-		if (!hasMoreBatches())
+		if (fiveCardsRevealed())
 		{
-			notifyDinkAtEndOnce();
+			notifyDinkAtEnd();
 		}
 		phase = Phase.WAIT_CLOSE;
 		phaseStartedAt = System.currentTimeMillis();
