@@ -8,7 +8,7 @@ import javax.inject.Singleton;
 import javax.swing.SwingUtilities;
 
 /**
- * Opens the migrate save picker (current profile only).
+ * Opens the cloud migrate upload save picker (legacy {@code backups/} structure only).
  */
 @Singleton
 public final class SaveRestoreManager

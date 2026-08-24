@@ -15,44 +15,36 @@ import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.client.RuneLite;
 
 /**
  * Durable spill of unacked credit-attest raw events under
- * {@code ~/.runelite/OSRS-TCG/attest/pending-<sha256(accountHash)>.json}.
+ * {@code ~/.runelite/OSRS-TCG/profiles/{sha256(accountHash)}/attest-pending.json}.
  * Survives client crashes between enqueue and successful upload.
  */
 @Slf4j
 @Singleton
 public final class CreditAttestSpillStore
 {
-	private final Path attestDir;
+	static final String SPILL_FILENAME = "attest-pending.json";
+
+	private final Path profilesRoot;
 
 	@Inject
 	CreditAttestSpillStore()
 	{
-		this(Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG", "attest"));
+		this(ProfileKeyHasher.profilesRoot());
 	}
 
-	/** Visible for tests. */
-	CreditAttestSpillStore(Path attestDir)
+	/** Visible for tests: {@code profilesRoot} is the parent of per-account profile dirs. */
+	CreditAttestSpillStore(Path profilesRoot)
 	{
-		this.attestDir = attestDir;
+		this.profilesRoot = profilesRoot;
 	}
 
 	Path spillFile(long accountHash)
 	{
-		return attestDir.resolve("pending-" + spillFileName(accountHash) + ".json");
-	}
-
-	Path legacySpillFile(long accountHash)
-	{
-		return attestDir.resolve("pending-" + accountHash + ".json");
-	}
-
-	static String spillFileName(long accountHash)
-	{
-		return ProfileKeyHasher.sha256Hex(Long.toString(accountHash));
+		String id = ProfileKeyHasher.accountDirName(accountHash);
+		return id == null ? null : profilesRoot.resolve(id).resolve(SPILL_FILENAME);
 	}
 
 	/**
@@ -64,32 +56,12 @@ public final class CreditAttestSpillStore
 		{
 			return List.of();
 		}
-		List<JsonObject> fromHashed = readSpillFile(spillFile(accountHash));
-		if (!fromHashed.isEmpty())
-		{
-			return fromHashed;
-		}
-		Path legacy = legacySpillFile(accountHash);
-		List<JsonObject> fromLegacy = readSpillFile(legacy);
-		if (fromLegacy.isEmpty())
-		{
-			return fromLegacy;
-		}
-		save(accountHash, fromLegacy);
-		try
-		{
-			Files.deleteIfExists(legacy);
-		}
-		catch (Exception ex)
-		{
-			log.debug("Credit attest legacy spill delete failed for accountHash={}", accountHash, ex);
-		}
-		return fromLegacy;
+		return readSpillFile(spillFile(accountHash));
 	}
 
 	private List<JsonObject> readSpillFile(Path file)
 	{
-		if (!Files.isRegularFile(file))
+		if (file == null || !Files.isRegularFile(file))
 		{
 			return List.of();
 		}
@@ -138,13 +110,17 @@ public final class CreditAttestSpillStore
 			delete(accountHash);
 			return;
 		}
-		Path dir = attestDir;
-		String name = spillFileName(accountHash);
-		Path target = dir.resolve("pending-" + name + ".json");
-		Path tmp = dir.resolve("pending-" + name + ".json.tmp");
+		String id = ProfileKeyHasher.accountDirName(accountHash);
+		if (id == null)
+		{
+			return;
+		}
+		Path profileDir = profilesRoot.resolve(id);
+		Path target = profileDir.resolve(SPILL_FILENAME);
+		Path tmp = profileDir.resolve(SPILL_FILENAME + ".tmp");
 		try
 		{
-			Files.createDirectories(dir);
+			Files.createDirectories(profileDir);
 			JsonArray arr = new JsonArray();
 			for (JsonObject event : events)
 			{
@@ -186,19 +162,16 @@ public final class CreditAttestSpillStore
 		}
 		try
 		{
-			Files.deleteIfExists(spillFile(accountHash));
-			Files.deleteIfExists(legacySpillFile(accountHash));
+			Path file = spillFile(accountHash);
+			if (file != null)
+			{
+				Files.deleteIfExists(file);
+			}
 		}
 		catch (Exception ex)
 		{
 			log.debug("Credit attest spill delete failed for accountHash={}", accountHash, ex);
 		}
-	}
-
-	/** Test helper: directory that holds spill files. */
-	Path getAttestDir()
-	{
-		return attestDir;
 	}
 
 	static List<JsonObject> copyEvents(List<JsonObject> events)

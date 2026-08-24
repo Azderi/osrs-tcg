@@ -5,6 +5,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.google.gson.JsonObject;
+import com.osrstcg.cloud.session.ProfileKeyHasher;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,8 +22,8 @@ public class CreditAttestSpillStoreTest
 	@Test
 	public void saveAndLoadRoundTrip() throws Exception
 	{
-		Path dir = tmp.newFolder("attest").toPath();
-		CreditAttestSpillStore store = new CreditAttestSpillStore(dir);
+		Path profilesRoot = tmp.newFolder("profiles").toPath();
+		CreditAttestSpillStore store = new CreditAttestSpillStore(profilesRoot);
 		long hash = 12345L;
 
 		JsonObject event = new JsonObject();
@@ -35,8 +36,12 @@ public class CreditAttestSpillStoreTest
 		event.addProperty("_optimisticCredits", 5L);
 
 		store.save(hash, List.of(event));
-		assertTrue(Files.isRegularFile(store.spillFile(hash)));
-		assertFalse(store.spillFile(hash).getFileName().toString().contains(String.valueOf(hash)));
+		Path spill = store.spillFile(hash);
+		assertTrue(Files.isRegularFile(spill));
+		assertEquals(CreditAttestSpillStore.SPILL_FILENAME, spill.getFileName().toString());
+		assertEquals(
+			profilesRoot.resolve(ProfileKeyHasher.accountDirName(hash)),
+			spill.getParent());
 
 		List<JsonObject> loaded = store.load(hash);
 		assertEquals(1, loaded.size());
@@ -48,8 +53,8 @@ public class CreditAttestSpillStoreTest
 	@Test
 	public void saveEmptyDeletesSpill() throws Exception
 	{
-		Path dir = tmp.newFolder("attest").toPath();
-		CreditAttestSpillStore store = new CreditAttestSpillStore(dir);
+		Path profilesRoot = tmp.newFolder("profiles").toPath();
+		CreditAttestSpillStore store = new CreditAttestSpillStore(profilesRoot);
 		long hash = 99L;
 
 		JsonObject event = new JsonObject();
@@ -66,45 +71,25 @@ public class CreditAttestSpillStoreTest
 	@Test
 	public void loadMissingOrCorruptReturnsEmpty() throws Exception
 	{
-		Path dir = tmp.newFolder("attest").toPath();
-		CreditAttestSpillStore store = new CreditAttestSpillStore(dir);
+		Path profilesRoot = tmp.newFolder("profiles").toPath();
+		CreditAttestSpillStore store = new CreditAttestSpillStore(profilesRoot);
 		long hash = 7L;
 
 		assertTrue(store.load(hash).isEmpty());
 		assertTrue(store.load(-1L).isEmpty());
 
-		Files.createDirectories(dir);
-		Files.writeString(store.spillFile(hash), "{not-an-array}", StandardCharsets.UTF_8);
-		assertTrue(store.load(hash).isEmpty());
-	}
-
-	@Test
-	public void loadMigratesLegacyRawFilename() throws Exception
-	{
-		Path dir = tmp.newFolder("attest").toPath();
-		CreditAttestSpillStore store = new CreditAttestSpillStore(dir);
-		long hash = 555L;
-
-		JsonObject event = new JsonObject();
-		event.addProperty("type", "xp_chunk");
-		event.add("evidence", new JsonObject());
-		event.addProperty("at", 3L);
-
-		Files.createDirectories(dir);
-		Files.writeString(store.legacySpillFile(hash), "[{\"type\":\"xp_chunk\",\"evidence\":{},\"at\":3}]",
+		Path profileDir = profilesRoot.resolve(ProfileKeyHasher.accountDirName(hash));
+		Files.createDirectories(profileDir);
+		Files.writeString(profileDir.resolve(CreditAttestSpillStore.SPILL_FILENAME), "{not-an-array}",
 			StandardCharsets.UTF_8);
-
-		List<JsonObject> loaded = store.load(hash);
-		assertEquals(1, loaded.size());
-		assertTrue(Files.isRegularFile(store.spillFile(hash)));
-		assertFalse(Files.exists(store.legacySpillFile(hash)));
+		assertTrue(store.load(hash).isEmpty());
 	}
 
 	@Test
 	public void deleteRemovesFile() throws Exception
 	{
-		Path dir = tmp.newFolder("attest").toPath();
-		CreditAttestSpillStore store = new CreditAttestSpillStore(dir);
+		Path profilesRoot = tmp.newFolder("profiles").toPath();
+		CreditAttestSpillStore store = new CreditAttestSpillStore(profilesRoot);
 		long hash = 42L;
 
 		JsonObject event = new JsonObject();

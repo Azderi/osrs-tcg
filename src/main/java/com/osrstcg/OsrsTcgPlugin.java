@@ -451,12 +451,6 @@ public class OsrsTcgPlugin extends Plugin
 			return;
 		}
 
-		if (loadResult.isAllBackupsFailed())
-		{
-			queueGameMessage("[OSRS TCG] Could not restore progress from any save.");
-			return;
-		}
-
 		if (loadResult.getSource() == TcgStateLoadSource.DISK)
 		{
 			queueDebugMessage("Restored progress from tcg.save.");

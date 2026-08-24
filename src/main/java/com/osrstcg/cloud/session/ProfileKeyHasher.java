@@ -1,10 +1,12 @@
 package com.osrstcg.cloud.session;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import net.runelite.client.RuneLite;
 import net.runelite.client.config.ConfigManager;
 
 @Singleton
@@ -37,6 +39,25 @@ public final class ProfileKeyHasher
 			return null;
 		}
 		return sha256Hex(Long.toString(accountHash));
+	}
+
+	/** {@code ~/.runelite/OSRS-TCG}. */
+	public static Path tcgRoot()
+	{
+		return Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG");
+	}
+
+	/** {@code ~/.runelite/OSRS-TCG/profiles}. */
+	public static Path profilesRoot()
+	{
+		return tcgRoot().resolve("profiles");
+	}
+
+	/** Per-account profile dir {@code profiles/{sha256(accountHash)}}, or null when unavailable. */
+	public static Path profileDir(long accountHash)
+	{
+		String id = accountDirName(accountHash);
+		return id == null ? null : profilesRoot().resolve(id);
 	}
 
 	public static String sha256Hex(String value)

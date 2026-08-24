@@ -21,6 +21,10 @@ Card images and data are sourced from the [OSRS Wiki](https://oldschool.runescap
 OSRS TCG is a fan-made game for fun. Cards have no real-world or in-game value.
 Do not buy or sell cards for money, bonds, gold, or items. Trade at your own risk.
 
+## Local data
+
+Per-account gameplay data (saves, attest spills) lives under `~/.runelite/OSRS-TCG/profiles/{sha256(accountHash)}/`. Legacy saves under `backups/` are used only for cloud migration upload.
+
 ## Supporting
 
 My projects can be supported on [Patreon](https://www.patreon.com/Azderi).

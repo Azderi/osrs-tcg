@@ -23,7 +23,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
-import net.runelite.client.RuneLite;
 
 @Singleton
 @Slf4j
@@ -215,7 +214,7 @@ public class TcgStateFileBackupStore
 	}
 
 	/**
-	 * True when the current profile backups folder contains {@code tcg.save} or any hash snapshot file.
+	 * True when the current profile folder contains {@code tcg.save} or any hash snapshot file.
 	 * Uses the filesystem directly so a stale/empty {@code saves.json} cannot hide real saves.
 	 */
 	public boolean hasSaveFiles()
@@ -224,19 +223,18 @@ public class TcgStateFileBackupStore
 		return dir != null && hasSaveFilesInDir(dir);
 	}
 
-	/** True when any legacy backup folder (not the current account dir) contains save files. */
+	/** True when any folder under {@code backups/} contains save files (migrate upload scan). */
 	public boolean hasLegacySaveFiles()
 	{
-		Path root = backupsRoot();
+		Path root = legacyBackupsRoot();
 		if (!Files.isDirectory(root))
 		{
 			return false;
 		}
-		String current = currentAccountDirName();
 		try (var stream = Files.list(root))
 		{
 			return stream.filter(Files::isDirectory)
-				.anyMatch(path -> isLegacyDirName(path.getFileName().toString(), current)
+				.anyMatch(path -> isMigratableBackupDirName(path.getFileName().toString())
 					&& hasSaveFilesInDir(path));
 		}
 		catch (IOException ex)
@@ -246,24 +244,23 @@ public class TcgStateFileBackupStore
 	}
 
 	/**
-	 * Save metadata from legacy profile-key dirs and {@code default} (migrate upload picker only).
+	 * Save metadata from all legacy dirs under {@code backups/} (migrate upload picker only).
 	 * Each entry has {@link TcgSaveMetadataEntry#getSourceDir()} set to the folder id.
 	 */
 	public List<TcgSaveMetadataEntry> listLegacySaveMetadata()
 	{
-		Path root = backupsRoot();
+		Path root = legacyBackupsRoot();
 		if (!Files.isDirectory(root))
 		{
 			return List.of();
 		}
-		String current = currentAccountDirName();
 		List<TcgSaveMetadataEntry> out = new ArrayList<>();
 		try (var stream = Files.list(root))
 		{
 			stream.filter(Files::isDirectory).forEach(path ->
 			{
 				String dirName = path.getFileName().toString();
-				if (!isLegacyDirName(dirName, current))
+				if (!isMigratableBackupDirName(dirName))
 				{
 					return;
 				}
@@ -313,15 +310,20 @@ public class TcgStateFileBackupStore
 		return lastKnownAccountHash;
 	}
 
-	/** Current account backups folder id (64-char hex), or null when no account hash is known. */
+	/** Current account profile folder id (64-char hex), or null when no account hash is known. */
 	public String currentAccountDirName()
 	{
 		return ProfileKeyHasher.accountDirName(resolveAccountHashForIo());
 	}
 
-	Path backupsRoot()
+	Path profilesRoot()
 	{
-		return Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG", "backups");
+		return ProfileKeyHasher.profilesRoot();
+	}
+
+	Path legacyBackupsRoot()
+	{
+		return ProfileKeyHasher.tcgRoot().resolve("backups");
 	}
 
 	Path saveDirectory()
@@ -336,7 +338,10 @@ public class TcgStateFileBackupStore
 		{
 			return null;
 		}
-		return backupsRoot().resolve(dirName);
+		Path root = accountDirId == null || accountDirId.isBlank()
+			? profilesRoot()
+			: legacyBackupsRoot();
+		return root.resolve(dirName);
 	}
 
 	String resolveAccountDirName(String accountDirId)
@@ -362,7 +367,7 @@ public class TcgStateFileBackupStore
 		return name != null && ACCOUNT_DIR_NAME.matcher(name).matches();
 	}
 
-	private static boolean isLegacyDirName(String dirName, String currentAccountDir)
+	private static boolean isMigratableBackupDirName(String dirName)
 	{
 		if (dirName == null || dirName.isEmpty())
 		{
@@ -370,13 +375,9 @@ public class TcgStateFileBackupStore
 		}
 		if (LEGACY_DEFAULT_DIR.equalsIgnoreCase(dirName))
 		{
-			return currentAccountDir == null || !LEGACY_DEFAULT_DIR.equalsIgnoreCase(currentAccountDir);
+			return true;
 		}
-		if (!ACCOUNT_DIR_NAME.matcher(dirName).matches())
-		{
-			return false;
-		}
-		return currentAccountDir == null || !dirName.equalsIgnoreCase(currentAccountDir);
+		return ACCOUNT_DIR_NAME.matcher(dirName).matches();
 	}
 
 	private static boolean hasSaveFilesInDir(Path dir)

@@ -86,7 +86,6 @@ public class TcgStateService
 			return new TcgStateLoadResult(
 				state,
 				result.getSource(),
-				result.isConfigLoadFailed(),
 				result.isDiskLoadFailed(),
 				true);
 		}
@@ -170,42 +169,20 @@ public class TcgStateService
 		return stateStore.saveCheckpoint(state, trigger == null ? TcgSaveTrigger.MANUAL : trigger);
 	}
 
-	/** Lists account + legacy disk saves for the migrate upload picker. */
+	/** Lists legacy disk saves under {@code backups/} for the migrate upload picker. */
 	public synchronized List<TcgSaveMetadataEntry> listDiskSaves()
 	{
 		if (stateStore == null)
 		{
 			return List.of();
 		}
-		List<TcgSaveMetadataEntry> merged = new ArrayList<>(stateStore.listSaveMetadata());
-		merged.addAll(stateStore.listLegacySaveMetadata());
-		merged.sort((a, b) -> Long.compare(
-			parseSavedAtEpochMs(b == null ? null : b.getSavedAt()),
-			parseSavedAtEpochMs(a == null ? null : a.getSavedAt())));
-		return merged;
+		return stateStore.listLegacySaveMetadata();
 	}
 
-	private static long parseSavedAtEpochMs(String savedAt)
-	{
-		if (savedAt == null || savedAt.isEmpty())
-		{
-			return 0L;
-		}
-		try
-		{
-			return java.time.Instant.parse(savedAt).toEpochMilli();
-		}
-		catch (Exception ex)
-		{
-			return 0L;
-		}
-	}
-
-	/** True when the account or any legacy backup folder has save files on disk. */
+	/** True when any legacy dir under {@code backups/} has save files (migrate upload gate). */
 	public synchronized boolean hasDiskSaves()
 	{
-		return stateStore != null
-			&& (stateStore.hasSaveFiles() || stateStore.hasLegacySaveFiles());
+		return stateStore != null && stateStore.hasLegacySaveFiles();
 	}
 
 	public synchronized Optional<TcgState> peekDiskSave(String fileName)
@@ -229,7 +206,7 @@ public class TcgStateService
 	}
 
 	/**
-	 * Applies a disk save into memory before cloud migrate upload (account or legacy dir).
+	 * Applies a legacy {@code backups/} save into memory before cloud migrate upload.
 	 * Does not write a restore checkpoint - the migrate path uploads this state next.
 	 * <p>
 	 * Refuses debug-mode saves outside RuneLite developer mode (does not wipe memory).

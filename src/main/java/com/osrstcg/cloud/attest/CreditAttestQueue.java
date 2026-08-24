@@ -27,7 +27,7 @@ import com.osrstcg.cloud.trade.TradeCloudService;
 
 /**
  * Queues raw credit events and coalesces them immediately before {@code POST /credits/attest}.
- * Unacked raw events are spilled under {@code ~/.runelite/OSRS-TCG/attest/} for crash recovery.
+ * Unacked raw events are spilled under the current account's profile dir for crash recovery.
  * Flush triggers: server {@code attestAfterMs} (default ~60s); logout / shutdown / sell drain;
  * pack open when authoritative credits are below that pack's price; early flush near ~80 coalesced
  * events; large XP spikes.
