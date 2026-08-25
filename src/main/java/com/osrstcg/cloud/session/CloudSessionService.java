@@ -40,7 +40,6 @@ public final class CloudSessionService
 	private final CloudTokenStore tokens;
 	private final ProfileKeyHasher profileKeyHasher;
 	private final TcgStateService stateService;
-	private final ConfigManager configManager;
 	private final ChatMessageManager chatMessageManager;
 	private final PackCatalogService packCatalogService;
 	private final CardCatalogService cardCatalogService;
@@ -105,7 +104,6 @@ public final class CloudSessionService
 		this.tokens = tokens;
 		this.profileKeyHasher = profileKeyHasher;
 		this.stateService = stateService;
-		this.configManager = configManager;
 		this.chatMessageManager = chatMessageManager;
 		this.packCatalogService = packCatalogService;
 		this.cardCatalogService = cardCatalogService;

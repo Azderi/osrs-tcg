@@ -182,7 +182,6 @@ public class PackRevealService
 	public static final String PENDING_PULLS_TIMEOUT_MESSAGE =
 		"There was a problem opening the pack at this time. Try again later.";
 
-	private final CardDatabase cardDatabase;
 	private final CardImageCacheService imageCacheService;
 	private final PackCatalogService packCatalogService;
 	private final PackRevealSoundService packRevealSoundService;
@@ -227,7 +226,6 @@ public class PackRevealService
 		PackCatalogService packCatalogService, PackRevealSoundService packRevealSoundService,
 		PullNotificationService pullNotificationService, CloudApiClient cloudApiClient)
 	{
-		this.cardDatabase = cardDatabase;
 		this.imageCacheService = imageCacheService;
 		this.packCatalogService = packCatalogService;
 		this.packRevealSoundService = packRevealSoundService;
