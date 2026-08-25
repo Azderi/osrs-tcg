@@ -37,6 +37,8 @@ public class TcgStateService
 	 * / inbox stats; not persisted locally.
 	 */
 	private volatile CloudSidebarCollectionStats cloudCollectionStats;
+	/** Shared group join code from {@code GET /me/state}; memory-only (not RSProfile config). */
+	private volatile String cloudGroupKey;
 	private final OptimisticCreditBuffer optimistic = new OptimisticCreditBuffer();
 	private final TcgStateNotifier notifier = new TcgStateNotifier();
 
@@ -466,6 +468,32 @@ public class TcgStateService
 		this.cloudCollectionStats = null;
 	}
 
+	/**
+	 * Apply shared group join code from {@code GET /me/state}. Pass {@code null} when not in a group.
+	 * Notifies owned-names PluginMessage listeners when the value changes.
+	 */
+	public synchronized void replaceCloudGroupKey(String groupKey)
+	{
+		String next = groupKey == null || groupKey.isBlank() ? null : groupKey.trim();
+		if (Objects.equals(cloudGroupKey, next))
+		{
+			return;
+		}
+		cloudGroupKey = next;
+		notifier.notifyOwnedCollectionListeners();
+	}
+
+	/** @return shared group join code if known this session; else {@code null} */
+	public String getCloudGroupKey()
+	{
+		return cloudGroupKey;
+	}
+
+	public synchronized void clearCloudGroupKey()
+	{
+		replaceCloudGroupKey(null);
+	}
+
 	/** Drop unacked optimistic credit display. */
 	public synchronized void clearOptimisticCredits()
 	{
@@ -480,6 +508,7 @@ public class TcgStateService
 	{
 		optimistic.clear();
 		cloudCollectionStats = null;
+		cloudGroupKey = null;
 		TcgState s = state;
 		state = new TcgState(
 			TcgState.CURRENT_SCHEMA_VERSION,

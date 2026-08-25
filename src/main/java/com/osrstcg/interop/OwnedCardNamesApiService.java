@@ -28,10 +28,10 @@ import com.osrstcg.state.TcgStateService;
  * Push: {@link #CHANGED} with the same payload after collection mutations.
  * <p>
  * Payload keys: {@link #KEY_OWNED_NAMES}, {@link #KEY_OWNED_FOIL_NAMES}, {@link #KEY_OWNED_ITEM_IDS},
- * {@link #KEY_OWNED_NPC_IDS}.
+ * {@link #KEY_OWNED_NPC_IDS}, {@link #KEY_GROUP_KEY}.
  * Item/NPC id lists are flat distinct catalog ids (parent + {@code tcg.variants}) matched by owned
  * card name, including beta copies. {@link #KEY_OWNED_FOIL_NAMES} lists distinct names with at least
- * one foil copy.
+ * one foil copy. {@link #KEY_GROUP_KEY} is the shared group join code (or null when not in a group).
  */
 @Slf4j
 @Singleton
@@ -45,6 +45,7 @@ public class OwnedCardNamesApiService
 	public static final String KEY_OWNED_FOIL_NAMES = "ownedFoilNames";
 	public static final String KEY_OWNED_ITEM_IDS = "ownedItemIds";
 	public static final String KEY_OWNED_NPC_IDS = "ownedNpcIds";
+	public static final String KEY_GROUP_KEY = "groupKey";
 
 	private final EventBus eventBus;
 	private final TcgStateService stateService;
@@ -124,6 +125,7 @@ public class OwnedCardNamesApiService
 		data.put(KEY_OWNED_FOIL_NAMES, ownedFoilNames);
 		data.put(KEY_OWNED_ITEM_IDS, List.copyOf(itemIds));
 		data.put(KEY_OWNED_NPC_IDS, List.copyOf(npcIds));
+		data.put(KEY_GROUP_KEY, stateService.getCloudGroupKey());
 		return data;
 	}
 

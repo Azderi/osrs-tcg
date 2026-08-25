@@ -66,6 +66,16 @@ public final class CloudPlayerStateParser
 		boolean cardsPaged = root.has("cardsPaged") && !root.get("cardsPaged").isJsonNull()
 			&& root.get("cardsPaged").getAsBoolean();
 
+		String groupKey = null;
+		if (root.has("group") && root.get("group").isJsonObject())
+		{
+			groupKey = nullableString(root.getAsJsonObject("group"), "groupKey");
+			if (groupKey != null && groupKey.isBlank())
+			{
+				groupKey = null;
+			}
+		}
+
 		return new ParsedCloudPlayerState(
 			migrated,
 			migratedAt,
@@ -76,7 +86,8 @@ public final class CloudPlayerStateParser
 			stateHash,
 			sidebarStats,
 			cards,
-			cardsPaged);
+			cardsPaged,
+			groupKey);
 	}
 
 	/** Parses a {@code cards} array from {@code GET /me/state} or a {@code GET /me/cards} page. */
@@ -208,6 +219,8 @@ public final class CloudPlayerStateParser
 		 * must be loaded via chunked {@code GET /me/cards}.
 		 */
 		public final boolean cardsPaged;
+		/** Shared group join code from {@code group.groupKey}, or null when not in a group. */
+		public final String groupKey;
 
 		ParsedCloudPlayerState(
 			boolean migrated,
@@ -219,7 +232,8 @@ public final class CloudPlayerStateParser
 			String stateHash,
 			CloudSidebarCollectionStats sidebarStats,
 			List<OwnedCardInstance> cards,
-			boolean cardsPaged)
+			boolean cardsPaged,
+			String groupKey)
 		{
 			this.migrated = migrated;
 			this.migratedAt = migratedAt;
@@ -231,6 +245,7 @@ public final class CloudPlayerStateParser
 			this.sidebarStats = sidebarStats;
 			this.cards = cards == null ? List.of() : List.copyOf(cards);
 			this.cardsPaged = cardsPaged;
+			this.groupKey = groupKey == null || groupKey.isBlank() ? null : groupKey.trim();
 		}
 
 		public ParsedCloudPlayerState withCards(List<OwnedCardInstance> nextCards)
@@ -245,13 +260,14 @@ public final class CloudPlayerStateParser
 				stateHash,
 				sidebarStats,
 				nextCards,
-				false);
+				false,
+				groupKey);
 		}
 
 		static ParsedCloudPlayerState empty()
 		{
 			return new ParsedCloudPlayerState(false, null, null, EconomyState.empty(), 0L, 0L, "",
-				null, List.of(), false);
+				null, List.of(), false, null);
 		}
 	}
 }

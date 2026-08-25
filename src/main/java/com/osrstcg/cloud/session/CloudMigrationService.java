@@ -248,6 +248,7 @@ final class CloudMigrationService
 		{
 			session.applyAccountStatus(parsed.accountStatus);
 		}
+		stateService.replaceCloudGroupKey(parsed.groupKey);
 		stateService.replaceFromCloudState(
 			com.osrstcg.state.CollectionState.copyOf(parsed.cards),
 			parsed.economy,

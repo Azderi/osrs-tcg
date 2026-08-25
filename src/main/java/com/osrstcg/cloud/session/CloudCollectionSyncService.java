@@ -221,6 +221,7 @@ final class CloudCollectionSyncService
 			tokens.setMigrated(true);
 			deferCollectionPullForMigrateImport.set(false);
 		}
+		stateService.replaceCloudGroupKey(parsed.groupKey);
 		stateService.replaceFromCloudState(
 			com.osrstcg.state.CollectionState.copyOf(parsed.cards),
 			parsed.economy,

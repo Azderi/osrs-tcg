@@ -441,6 +441,7 @@ public final class CloudSessionService
 		// Public catalog fetch is still allowed; pin whatever we have for ::tcg-* tools.
 		cardCatalogService.ensureCachedCatalogForDebug();
 		stateService.clearCloudCollectionStatsCache();
+		stateService.clearCloudGroupKey();
 		if (resetLocalProgress)
 		{
 			// Clean local sandbox (credits, opened packs, collection) when toggling debug on.
@@ -691,6 +692,7 @@ public final class CloudSessionService
 		activityConfigService.stopQuietPoll();
 		hiscoresSettle.clearGate();
 		stateService.clearCloudCollectionStatsCache();
+		stateService.clearCloudGroupKey();
 		setState(CloudConnectionState.DISCONNECTED, "Disconnected");
 	}
 
