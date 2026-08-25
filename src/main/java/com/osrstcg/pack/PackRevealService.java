@@ -253,7 +253,6 @@ public class PackRevealService
 		boolean showScrollWheelOverlayHint, boolean apexPackOpen, int expectedCardCount)
 	{
 		packRevealSoundService.hardStop();
-		cardDatabase.load();
 		this.scrollWheelHintUntilMs = showScrollWheelOverlayHint
 			? System.currentTimeMillis() + SCROLL_WHEEL_HINT_DURATION_MS
 			: 0L;

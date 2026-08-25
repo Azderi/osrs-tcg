@@ -375,7 +375,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 
 	public void start()
 	{
-		cardDatabase.load();
 		welcomeContentCatalog.load();
 		if (!runeliteDeveloperMode && stateService.isDebugLogging())
 		{

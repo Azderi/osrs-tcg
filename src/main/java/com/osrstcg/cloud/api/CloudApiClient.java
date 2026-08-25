@@ -210,102 +210,6 @@ public final class CloudApiClient
 		return request("GET", "/api/v1/players/" + encoded + "/stats", null, false);
 	}
 
-	/**
-	 * Accepted card-art overlays ({@code foilImagePath}). Pass cached version for
-	 * {@code If-None-Match}; {@code 304} → {@link CardArtResponse#notModified()}.
-	 */
-	public CardArtResponse getCardArt(String cachedVersion) throws CloudApiException, IOException
-	{
-		requireCloudConsentAllowed();
-		HttpUrl url = HttpUrl.parse(CloudEndpoints.apiUrl("/api/v1/catalog/card-art"));
-		if (url == null)
-		{
-			throw new CloudApiException(0, "invalid_base_url", "Invalid API base URL: " + CloudEndpoints.API_BASE_URL);
-		}
-
-		Request.Builder b = new Request.Builder().url(url).get();
-		if (cachedVersion != null && !cachedVersion.isBlank())
-		{
-			String etag = cachedVersion.trim();
-			if (!etag.startsWith("\""))
-			{
-				etag = "\"" + etag + "\"";
-			}
-			b.header("If-None-Match", etag);
-		}
-
-		try (Response response = http.newCall(b.build()).execute())
-		{
-			notifyActivitiesVersion(response.header("X-Activities-Version"));
-			if (response.code() == 304)
-			{
-				return CardArtResponse.notModified(cachedVersion);
-			}
-			String text = readBody(response);
-			if (!response.isSuccessful())
-			{
-				throw httpError(response.code(), text);
-			}
-			JsonObject body = parseObject(text);
-			String version = text(body, "version");
-			if (version == null || version.isBlank())
-			{
-				String etag = response.header("ETag");
-				if (etag != null)
-				{
-					version = etag.replace("\"", "").trim();
-				}
-			}
-			return CardArtResponse.ok(body, text, version);
-		}
-	}
-
-	public static final class CardArtResponse
-	{
-		private final boolean notModified;
-		private final JsonObject body;
-		private final String rawJson;
-		private final String version;
-
-		private CardArtResponse(boolean notModified, JsonObject body, String rawJson, String version)
-		{
-			this.notModified = notModified;
-			this.body = body;
-			this.rawJson = rawJson;
-			this.version = version == null ? "" : version;
-		}
-
-		public static CardArtResponse notModified(String version)
-		{
-			return new CardArtResponse(true, null, null, version);
-		}
-
-		public static CardArtResponse ok(JsonObject body, String rawJson, String version)
-		{
-			return new CardArtResponse(false, body, rawJson, version);
-		}
-
-		public boolean isNotModified()
-		{
-			return notModified;
-		}
-
-		public JsonObject getBody()
-		{
-			return body;
-		}
-
-		public String getRawJson()
-		{
-			return rawJson;
-		}
-
-		public String getVersion()
-		{
-			return version;
-		}
-	}
-
 	public void setCachedCatalogVersion(String catalogVersion)
 	{
 		if (catalogVersion != null && !catalogVersion.isBlank())
@@ -559,29 +463,6 @@ public final class CloudApiClient
 		JsonObject body = withPluginAccountHash(new JsonObject(), accountHash);
 		body.addProperty("partnerDisplayName", partnerDisplayName);
 		return requestAuthed("POST", "/api/v1/trades", body);
-	}
-
-	/**
-	 * Set the caller's offer on a pending trade. Plugin sessions must include {@code accountHash}.
-	 */
-	public JsonObject setTradeOffer(String tradeId, List<String> instanceIds, long credits, long accountHash)
-		throws CloudApiException, IOException
-	{
-		JsonObject body = withPluginAccountHash(new JsonObject(), accountHash);
-		JsonArray ids = new JsonArray();
-		if (instanceIds != null)
-		{
-			for (String id : instanceIds)
-			{
-				if (id != null && !id.isBlank())
-				{
-					ids.add(id.trim());
-				}
-			}
-		}
-		body.add("instanceIds", ids);
-		body.addProperty("credits", Math.max(0L, credits));
-		return requestAuthed("POST", "/api/v1/trades/" + tradeId + "/offer", body);
 	}
 
 	/**

@@ -151,7 +151,6 @@ public final class LiveCardsCatalogParser
 		{
 			card.setImageUrl(imagePath);
 		}
-		// Custom foil art is merged from GET /catalog/card-art.
 		JsonObject wiki = raw.has("wiki") && raw.get("wiki").isJsonObject()
 			? raw.getAsJsonObject("wiki")
 			: null;

@@ -3,8 +3,6 @@ package com.osrstcg.catalog;
 import com.osrstcg.util.HtmlEntities;
 import com.osrstcg.util.TcgPluginGameMessages;
 import java.awt.Color;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -28,22 +26,12 @@ import lombok.extern.slf4j.Slf4j;
 public class CardDatabase
 {
 	private List<CardDefinition> cards = Collections.emptyList();
-	private boolean loaded;
 	private Map<String, Color> chatRarityColorByLowerCaseName = Map.of();
 	private Map<String, CardDefinition> byLowerCaseName = Map.of();
 
 	@Inject
 	public CardDatabase()
 	{
-	}
-
-	/**
-	 * No-op placeholder for older call sites. Catalog is applied via {@link #replaceCards}
-	 * after disk cache load or network fetch.
-	 */
-	public synchronized void load()
-	{
-		// Catalog comes from CardCatalogService (disk / network), not classpath.
 	}
 
 	public synchronized List<CardDefinition> getCards()
@@ -66,11 +54,6 @@ public class CardDatabase
 		return cards.size();
 	}
 
-	public synchronized boolean isLoaded()
-	{
-		return loaded && !cards.isEmpty();
-	}
-
 	public synchronized Optional<CardDefinition> findByName(String cardName)
 	{
 		if (isBlank(cardName))
@@ -88,7 +71,6 @@ public class CardDatabase
 	{
 		List<CardDefinition> normalized = normalize(incoming == null ? List.of() : incoming);
 		cards = Collections.unmodifiableList(normalized);
-		loaded = true;
 		rebuildIndexes();
 		log.info("Loaded {} cards from {}", cards.size(),
 			sourceLabel == null || sourceLabel.isBlank() ? "catalog" : sourceLabel);
@@ -155,7 +137,7 @@ public class CardDatabase
 			{
 				card.setExamine(HtmlEntities.decode(card.getExamine().trim()));
 			}
-			card.setImageUrl(normalizeImageUrl(card.getImageUrl(), isMonsterCard(card)));
+			card.setImageUrl(normalizeImageUrl(card.getImageUrl()));
 			if (card.getFoilImagePath() != null)
 			{
 				card.setFoilImagePath(normalizeFoilImagePath(card.getFoilImagePath()));
@@ -175,84 +157,22 @@ public class CardDatabase
 	}
 
 	/**
-	 * Prefer web-relative CDN paths. Converts legacy wiki thumb URLs when a remote catalog
-	 * still ships them.
+	 * Trims blank image paths to {@code null}. Artwork is always CDN/API hosted on osrs-tcg.net.
 	 */
-	static String normalizeImageUrl(String raw, boolean monster)
+	static String normalizeImageUrl(String raw)
 	{
 		if (raw == null)
 		{
 			return null;
 		}
 		String url = raw.trim();
-		if (url.isEmpty())
-		{
-			return null;
-		}
-		if (url.startsWith("/images/"))
-		{
-			return url;
-		}
-		String filename = extractWikiThumbFilename(url);
-		if (filename.isEmpty() && (url.startsWith("http://") || url.startsWith("https://")))
-		{
-			// Absolute non-wiki CDN URL - keep as-is.
-			return url;
-		}
-		if (!filename.isEmpty())
-		{
-			String folder = monster ? "/images/npcs/detail/" : "/images/items/detail/";
-			return folder + filename;
-		}
-		return url;
+		return url.isEmpty() ? null : url;
 	}
 
-	/** Keep foil art as relative API/CDN paths; never rewrite to wiki thumbs. */
+	/** Same trim rules as {@link #normalizeImageUrl(String)}. */
 	static String normalizeFoilImagePath(String raw)
 	{
-		if (raw == null)
-		{
-			return null;
-		}
-		String url = raw.trim();
-		if (url.isEmpty())
-		{
-			return null;
-		}
-		return url;
-	}
-
-	private static String extractWikiThumbFilename(String url)
-	{
-		String marker = "/images/thumb/";
-		int i = url.indexOf(marker);
-		if (i < 0)
-		{
-			return "";
-		}
-		String tail = url.substring(i + marker.length());
-		int slash = tail.indexOf('/');
-		String encoded = slash > 0 ? tail.substring(0, slash) : tail;
-		try
-		{
-			return URLDecoder.decode(encoded, StandardCharsets.UTF_8);
-		}
-		catch (Exception ex)
-		{
-			return encoded;
-		}
-	}
-
-	private static boolean isMonsterCard(CardDefinition card)
-	{
-		for (String t : card.getCategoryTags())
-		{
-			if (t != null && "monster".equalsIgnoreCase(t.trim()))
-			{
-				return true;
-			}
-		}
-		return false;
+		return normalizeImageUrl(raw);
 	}
 
 	private static void normalizeCategoryTags(CardDefinition card)

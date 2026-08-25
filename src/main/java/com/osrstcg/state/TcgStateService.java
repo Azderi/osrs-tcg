@@ -564,50 +564,6 @@ public class TcgStateService
 		optimistic.clearAmount(amount);
 	}
 
-	public synchronized void addCredits(long amount)
-	{
-		if (amount <= 0)
-		{
-			return;
-		}
-
-		long creditsBefore = state.getEconomyState().getCredits();
-		long creditsAfter = creditsBefore + amount;
-		long gainedAfter = state.getTotalCreditsGained() + amount;
-		state = state.withCredits(creditsAfter).withTotalCreditsGained(gainedAfter);
-
-		if (creditsRateTracker != null)
-		{
-			creditsRateTracker.recordCreditGain(amount);
-		}
-
-		if (creditNotificationService != null)
-		{
-			creditNotificationService.get().onCreditsIncreased(creditsBefore, creditsAfter);
-		}
-	}
-
-	public synchronized boolean spendCredits(long amount)
-	{
-		if (amount <= 0)
-		{
-			return true;
-		}
-
-		if (getCredits() < amount)
-		{
-			return false;
-		}
-
-		long fromPending = optimistic.consumeForSpend(amount);
-		long fromAuth = amount - fromPending;
-		if (fromAuth > 0)
-		{
-			state = state.withCredits(state.getEconomyState().getCredits() - fromAuth);
-		}
-		return true;
-	}
-
 	public synchronized void addCard(String cardName, boolean foil, int quantity, String pulledByUsername, long pulledAtEpochMs)
 	{
 		if (cardName == null || cardName.isEmpty() || quantity <= 0)

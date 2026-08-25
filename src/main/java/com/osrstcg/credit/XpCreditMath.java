@@ -16,9 +16,4 @@ final class XpCreditMath
 	{
 		return chunks * CREDITS_PER_CHUNK;
 	}
-
-	static long slayerCreditsFromXpChunks(long chunks)
-	{
-		return chunks * SLAYER_CREDITS_PER_CHUNK;
-	}
 }

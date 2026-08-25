@@ -148,21 +148,6 @@ public class PullNotificationService
 	}
 
 	/**
-	 * Always posts collection-add chat for every resolved reveal card.
-	 */
-	public void announceAllCollectionAdds(List<RevealCard> cards)
-	{
-		if (cards == null || cards.isEmpty())
-		{
-			return;
-		}
-		for (RevealCard card : cards)
-		{
-			announceCollectionAddAlways(card);
-		}
-	}
-
-	/**
 	 * Always posts collection-add chat for every pack-open pull (e.g. overlay already closed
 	 * before pulls were bound into the reveal).
 	 */
