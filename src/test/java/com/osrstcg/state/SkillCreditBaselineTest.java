@@ -6,7 +6,6 @@ import static org.junit.Assert.assertTrue;
 
 import com.google.gson.Gson;
 import com.osrstcg.persist.TcgStateCodec;
-import com.osrstcg.state.TcgState;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import net.runelite.api.Skill;
@@ -28,7 +27,7 @@ public class SkillCreditBaselineTest
 		assertTrue(baseline.isPresent());
 		assertEquals(450L, baseline.uncreditedXpFor(Skill.WOODCUTTING).orElse(-1L));
 		assertFalse(baseline.uncreditedXpFor(Skill.MINING).isPresent());
-		assertEquals(450L, baseline.getUncreditedXp());
+		assertEquals(1, baseline.getUncreditedXpBySkill().size());
 	}
 
 	@Test
@@ -49,7 +48,6 @@ public class SkillCreditBaselineTest
 
 		assertTrue(baseline.isPresent());
 		assertTrue(baseline.getUncreditedXpBySkill().isEmpty());
-		assertEquals(0L, baseline.getUncreditedXp());
 	}
 
 	@Test
