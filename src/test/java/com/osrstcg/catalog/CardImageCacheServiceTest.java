@@ -66,6 +66,19 @@ public class CardImageCacheServiceTest
 			"Pack_Clue_thumbnail.png",
 			CardImageCacheService.packDiskFileName(
 				"https://osrs-tcg.net/images/packs/Pack_Clue_thumbnail.png"));
+		assertEquals(
+			"cardback.png",
+			CardImageCacheService.packDiskFileName(
+				"https://osrs-tcg.net/images/Cardback_new.png"));
+	}
+
+	@Test
+	public void cardBackUsesFullArtMemoryEdge()
+	{
+		assertEquals(
+			520,
+			CardImageCacheService.maxMemoryEdgeForUrl(
+				"https://osrs-tcg.net/images/Cardback_new.png"));
 	}
 
 	@Test

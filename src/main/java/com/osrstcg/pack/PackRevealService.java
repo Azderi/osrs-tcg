@@ -12,6 +12,7 @@ import com.osrstcg.util.CardDisplayNames;
 import java.awt.Color;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -25,6 +26,7 @@ import lombok.Value;
 import com.osrstcg.catalog.CardImageCacheService;
 import com.osrstcg.catalog.RarityMath;
 import com.osrstcg.notify.PullNotificationService;
+import com.osrstcg.ui.SharedCardRenderer;
 
 @Singleton
 public class PackRevealService
@@ -270,19 +272,25 @@ public class PackRevealService
 		this.phase = Phase.PACK_READY;
 	}
 
-	/** Kick off a background load of the pack catalog {@code image} (not shop {@code thumbnail}). */
+	/** Kick off background loads for pack sleeve and card-back art. */
 	private void preloadRevealSleeve(String packId)
 	{
-		if (imageCacheService == null || packCatalogService == null || packId == null || packId.isBlank())
+		if (imageCacheService == null)
 		{
 			return;
 		}
-		BoosterPackDefinition pack = packCatalogService.getCache().get(packId).orElse(null);
-		String sleeve = PackImageUrls.revealSleevePath(pack);
-		if (sleeve != null)
+		ArrayList<String> urls = new ArrayList<>(2);
+		urls.add(SharedCardRenderer.CARD_BACK_PATH);
+		if (packCatalogService != null && packId != null && !packId.isBlank())
 		{
-			imageCacheService.preload(List.of(sleeve));
+			BoosterPackDefinition pack = packCatalogService.getCache().get(packId).orElse(null);
+			String sleeve = PackImageUrls.revealSleevePath(pack);
+			if (sleeve != null)
+			{
+				urls.add(sleeve);
+			}
 		}
+		imageCacheService.preload(urls);
 	}
 
 	/**

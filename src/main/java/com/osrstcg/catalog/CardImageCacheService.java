@@ -47,7 +47,8 @@ import okhttp3.Response;
  * Disk layout under {@code ~/.runelite/OSRS-TCG/}:
  * <ul>
  *   <li>{@code images-v4/} - card detail / foil / artwork (SHA-256 of stable URL identity)</li>
- *   <li>{@code packs/} - pack {@code image} and {@code thumbnail} assets by basename</li>
+ *   <li>{@code packs/} - pack {@code image}/{@code thumbnail} assets by basename, plus
+ *       pack-reveal {@code cardback.png}</li>
  * </ul>
  * Memory holds a downscaled decode; disk keeps the original download bytes.
  * <p>
@@ -257,7 +258,9 @@ public class CardImageCacheService
 		{
 			return false;
 		}
-		long cooldown = isPackAssetUrl(fetchUrl) ? PACK_FAIL_COOLDOWN_MS : FAIL_COOLDOWN_MS;
+		long cooldown = isPackAssetUrl(fetchUrl) || isCardBackUrl(fetchUrl)
+			? PACK_FAIL_COOLDOWN_MS
+			: FAIL_COOLDOWN_MS;
 		if (System.currentTimeMillis() - failedAt >= cooldown)
 		{
 			failedAtMs.remove(cacheKey, failedAt);
@@ -372,6 +375,10 @@ public class CardImageCacheService
 			return MAX_MEMORY_IMAGE_EDGE_PX;
 		}
 		String lower = url.toLowerCase(java.util.Locale.ROOT);
+		if (lower.contains("/images/cardback"))
+		{
+			return MAX_MEMORY_FULL_ART_EDGE_PX;
+		}
 		if (lower.contains("/images/packs/"))
 		{
 			// Shop icons stay small; reveal sleeves use the full pack {@code image} asset.
@@ -456,11 +463,23 @@ public class CardImageCacheService
 			&& normalizedUrl.toLowerCase(java.util.Locale.ROOT).contains("/images/packs/");
 	}
 
+	/** Website card-back PNG used during pack reveal. */
+	static boolean isCardBackUrl(String normalizedUrl)
+	{
+		return normalizedUrl != null
+			&& normalizedUrl.toLowerCase(java.util.Locale.ROOT).contains("/images/cardback");
+	}
+
 	/**
-	 * Safe basename for {@code OSRS-TCG/packs/}, or {@code null} when {@code url} is not a pack asset.
+	 * Safe basename for {@code OSRS-TCG/packs/}, or {@code null} when {@code url} is not a pack
+	 * sleeve/thumbnail or the pack-reveal card back.
 	 */
 	static String packDiskFileName(String normalizedUrl)
 	{
+		if (isCardBackUrl(normalizedUrl))
+		{
+			return "cardback.png";
+		}
 		if (!isPackAssetUrl(normalizedUrl))
 		{
 			return null;

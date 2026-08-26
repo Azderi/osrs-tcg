@@ -22,7 +22,6 @@ import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.util.List;
 import net.runelite.client.ui.ColorScheme;
-import net.runelite.client.util.ImageUtil;
 
 /**
  * Draws a card face matching the website album/inspect view (banded layout or foil bleed).
@@ -58,7 +57,11 @@ public final class SharedCardRenderer
 	private static final float BANDED_TITLE_EM_MIN = 0.80f;
 	private static final int BANDED_TITLE_FIT_STEPS = 10;
 
-	private static final BufferedImage CARD_BACK_IMAGE = ImageUtil.loadImageResource(SharedCardRenderer.class, "/com/osrstcg/images/Cardback.png");
+	/**
+	 * Website card-back asset. Resolved against {@code CloudEndpoints.WEB_BASE_URL} by
+	 * {@link com.osrstcg.catalog.CardImageCacheService}.
+	 */
+	public static final String CARD_BACK_PATH = "/images/Cardback_new.png";
 
 	private SharedCardRenderer()
 	{
@@ -122,7 +125,18 @@ public final class SharedCardRenderer
 		}
 	}
 
+	/** Draws the card back using a cached remote image when provided, else solid fill. */
 	public static void drawCardBack(Graphics2D g, Rectangle bounds, boolean foil, Color rarityColor)
+	{
+		drawCardBack(g, bounds, foil, rarityColor, null);
+	}
+
+	/**
+	 * @param cardBack remote/cached back from {@code CardImageCacheService}; may be {@code null}
+	 *                 (solid-color fallback — never throws)
+	 */
+	public static void drawCardBack(Graphics2D g, Rectangle bounds, boolean foil, Color rarityColor,
+		BufferedImage cardBack)
 	{
 		if (g == null || bounds == null || bounds.width < 2 || bounds.height < 2)
 		{
@@ -137,9 +151,9 @@ public final class SharedCardRenderer
 			Shape card = new RoundRectangle2D.Double(bounds.x, bounds.y, bounds.width, bounds.height, radius * 2.0d, radius * 2.0d);
 			g2.clip(card);
 
-			if (CARD_BACK_IMAGE != null)
+			if (cardBack != null)
 			{
-				drawCoverCentered(g2, CARD_BACK_IMAGE, bounds);
+				drawCoverCentered(g2, cardBack, bounds);
 				return;
 			}
 

@@ -709,21 +709,24 @@ public class PackRevealOverlay extends Overlay
 				BufferedImage linked = expectsArt ? imageCacheService.getCached(artPath) : null;
 				if (expectsArt && linked == null)
 				{
-					SharedCardRenderer.drawCardBack(g2, r, card.getPull().isFoil(), card.getRarityColor());
+					SharedCardRenderer.drawCardBack(g2, r, card.getPull().isFoil(), card.getRarityColor(),
+						cardBackImage());
 				}
 				else
 				{
 					CardFaceDrawRequest req = cachedFaceRequest(index, card, linked, r.width, r.height);
 					if (!SharedCardRenderer.drawCardFaceIfCached(g2, r, req))
 					{
-						SharedCardRenderer.drawCardBack(g2, r, card.getPull().isFoil(), card.getRarityColor());
+						SharedCardRenderer.drawCardBack(g2, r, card.getPull().isFoil(), card.getRarityColor(),
+							cardBackImage());
 						scheduleFacePrewarm(index, r.width, r.height, req);
 					}
 				}
 			}
 			else
 			{
-				SharedCardRenderer.drawCardBack(g2, r, card.getPull().isFoil(), card.getRarityColor());
+				SharedCardRenderer.drawCardBack(g2, r, card.getPull().isFoil(), card.getRarityColor(),
+					cardBackImage());
 			}
 		}
 		finally
@@ -1428,7 +1431,8 @@ public class PackRevealOverlay extends Overlay
 			PackRevealService.RevealCard card = cards.get(i);
 			Rectangle r = rects.get(i);
 			PackRevealDrawUtil.drawGlow(graphics, r, card.getRarityColor(), 0f);
-			SharedCardRenderer.drawCardBack(graphics, r, card.getPull().isFoil(), card.getRarityColor());
+			SharedCardRenderer.drawCardBack(graphics, r, card.getPull().isFoil(), card.getRarityColor(),
+				cardBackImage());
 		}
 	}
 
@@ -1452,8 +1456,13 @@ public class PackRevealOverlay extends Overlay
 		}
 
 		g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0f, Math.min(1f, alpha))));
-		SharedCardRenderer.drawCardBack(g, bounds, false, Color.WHITE);
+		SharedCardRenderer.drawCardBack(g, bounds, false, Color.WHITE, cardBackImage());
 		g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
+	}
+
+	private BufferedImage cardBackImage()
+	{
+		return imageCacheService.getCached(SharedCardRenderer.CARD_BACK_PATH);
 	}
 
 	private BufferedImage packArtForPackId(String boosterPackId)
