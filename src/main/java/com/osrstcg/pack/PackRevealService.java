@@ -16,6 +16,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
@@ -222,6 +224,8 @@ public class PackRevealService
 	 * so chat + sidebar cleanup run once.
 	 */
 	private boolean pendingPullsTimedOut;
+	/** Card names (lowercase) with foil owned before the current pack open (overlay NEW badge only). */
+	private Set<String> preOwnedFoilNames = Set.of();
 
 	@Inject
 	public PackRevealService(CardDatabase cardDatabase, CardImageCacheService imageCacheService,
@@ -318,6 +322,7 @@ public class PackRevealService
 			return false;
 		}
 
+		preOwnedFoilNames = buildPreOwnedFoilNames(preOwnedCards);
 		Collections.shuffle(resolved, ThreadLocalRandom.current());
 		this.cards = List.copyOf(resolved);
 		this.batchOffset = 0;
@@ -815,6 +820,28 @@ public class PackRevealService
 		scrollWheelHintUntilMs = 0L;
 		awaitingServerPulls = false;
 		pendingRevealStartedAtMs = 0L;
+		preOwnedFoilNames = Set.of();
+	}
+
+	/** Foil card names owned before the current reveal (for overlay NEW badge suppression). */
+	public synchronized Set<String> getPreOwnedFoilNames()
+	{
+		return Set.copyOf(preOwnedFoilNames);
+	}
+
+	private static Set<String> buildPreOwnedFoilNames(Set<CardCollectionKey> preOwnedCards)
+	{
+		if (preOwnedCards == null || preOwnedCards.isEmpty())
+		{
+			return Set.of();
+		}
+		return preOwnedCards.stream()
+			.filter(Objects::nonNull)
+			.filter(CardCollectionKey::isFoil)
+			.map(CardCollectionKey::getCardName)
+			.filter(name -> name != null && !name.isBlank())
+			.map(name -> name.trim().toLowerCase(Locale.ROOT))
+			.collect(Collectors.toUnmodifiableSet());
 	}
 
 	/**

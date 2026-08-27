@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -346,7 +347,7 @@ public class PackRevealOverlay extends Overlay
 			double lift = visual.lift;
 			if (faceUp && visual.flipProgress >= 1f)
 			{
-				if (card.isNew())
+				if (card.isNew() && shouldShowNewBadge(card, revealService.getPreOwnedFoilNames()))
 				{
 					PackRevealDrawUtil.drawNewBadge(graphics, r);
 				}
@@ -426,6 +427,21 @@ public class PackRevealOverlay extends Overlay
 		slot.wearWanted = wearWanted;
 		slot.artPath = artPath;
 		return req;
+	}
+
+	private static boolean shouldShowNewBadge(PackRevealService.RevealCard card, Set<String> preOwnedFoilNames)
+	{
+		PackCardResult pull = card.getPull();
+		if (pull == null || pull.isFoil())
+		{
+			return true;
+		}
+		String name = pull.getCardName();
+		if (name == null || name.isBlank())
+		{
+			return true;
+		}
+		return !preOwnedFoilNames.contains(name.trim().toLowerCase(Locale.ROOT));
 	}
 
 	/** Banded detail URL, or foil art path when this pull should render foil bleed. */
