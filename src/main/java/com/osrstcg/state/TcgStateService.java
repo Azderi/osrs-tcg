@@ -37,6 +37,8 @@ public class TcgStateService
 	 * / inbox stats; not persisted locally.
 	 */
 	private volatile CloudSidebarCollectionStats cloudCollectionStats;
+	/** Last applied server {@code collectionHash}; memory-only (not persisted). */
+	private volatile String cloudCollectionHash = "";
 	/** Shared group join code from {@code GET /me/state}; memory-only (not RSProfile config). */
 	private volatile String cloudGroupKey;
 	private final OptimisticCreditBuffer optimistic = new OptimisticCreditBuffer();
@@ -391,6 +393,7 @@ public class TcgStateService
 		long totalCreditsGained,
 		long cloudRevision,
 		String cloudStateHash,
+		String cloudCollectionHash,
 		CloudSidebarCollectionStats sidebarStats)
 	{
 		EconomyState nextEconomy = economy == null ? EconomyState.empty() : economy;
@@ -401,6 +404,7 @@ public class TcgStateService
 		{
 			this.cloudCollectionStats = sidebarStats;
 		}
+		this.cloudCollectionHash = cloudCollectionHash == null ? "" : cloudCollectionHash.trim();
 		// Memory-only - disk backup waits for logout / unload / client close.
 		log.debug("Cloud state apply: serverCredits={} pendingOptimistic={} displayCredits={}",
 			nextEconomy.getCredits(), pending, getCredits());
@@ -458,6 +462,12 @@ public class TcgStateService
 	}
 
 	/** @return cloud collection overview if a stats payload has been applied this session; else {@code null} */
+	public String getCloudCollectionHash()
+	{
+		String hash = cloudCollectionHash;
+		return hash == null ? "" : hash;
+	}
+
 	public CloudSidebarCollectionStats getCloudCollectionStats()
 	{
 		return cloudCollectionStats;

@@ -255,6 +255,7 @@ final class CloudMigrationService
 			parsed.totalCreditsGained,
 			parsed.revision,
 			parsed.stateHash,
+			parsed.collectionHash,
 			parsed.sidebarStats);
 		session.deleteObsoleteLocalCaches();
 		cardCatalogService.refreshNow();

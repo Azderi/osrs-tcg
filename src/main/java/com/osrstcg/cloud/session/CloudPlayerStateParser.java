@@ -55,6 +55,11 @@ public final class CloudPlayerStateParser
 		{
 			stateHash = "";
 		}
+		String collectionHash = nullableString(economy, "collectionHash");
+		if (collectionHash == null)
+		{
+			collectionHash = "";
+		}
 
 		CloudSidebarCollectionStats sidebarStats = null;
 		if (CloudSidebarCollectionStats.hasCollectionFields(stats) || stats.has("credits") || stats.has("openedPacks"))
@@ -84,6 +89,7 @@ public final class CloudPlayerStateParser
 			totalCreditsGained,
 			revision,
 			stateHash,
+			collectionHash,
 			sidebarStats,
 			cards,
 			cardsPaged,
@@ -137,12 +143,12 @@ public final class CloudPlayerStateParser
 		return out;
 	}
 
-	/** Lightweight compare fields from {@code GET /me/stats} (revision / optional stateHash). */
+	/** Lightweight compare fields from {@code GET /me/stats} (revision / optional hashes). */
 	public static SyncMarkers readSyncMarkers(JsonObject statsOrEconomy)
 	{
 		if (statsOrEconomy == null)
 		{
-			return new SyncMarkers(0L, "");
+			return new SyncMarkers(0L, "", "");
 		}
 		JsonObject economy = statsOrEconomy.has("economy") && statsOrEconomy.get("economy").isJsonObject()
 			? statsOrEconomy.getAsJsonObject("economy")
@@ -153,7 +159,12 @@ public final class CloudPlayerStateParser
 		{
 			hash = nullableString(statsOrEconomy, "stateHash");
 		}
-		return new SyncMarkers(revision, hash == null ? "" : hash);
+		String collectionHash = nullableString(economy, "collectionHash");
+		if (collectionHash == null)
+		{
+			collectionHash = nullableString(statsOrEconomy, "collectionHash");
+		}
+		return new SyncMarkers(revision, hash == null ? "" : hash, collectionHash == null ? "" : collectionHash);
 	}
 
 	private static JsonObject objectOrEmpty(JsonObject root, String key)
@@ -195,11 +206,13 @@ public final class CloudPlayerStateParser
 	{
 		public final long revision;
 		public final String stateHash;
+		public final String collectionHash;
 
-		public SyncMarkers(long revision, String stateHash)
+		public SyncMarkers(long revision, String stateHash, String collectionHash)
 		{
 			this.revision = Math.max(0L, revision);
 			this.stateHash = stateHash == null ? "" : stateHash.trim();
+			this.collectionHash = collectionHash == null ? "" : collectionHash.trim();
 		}
 	}
 
@@ -212,6 +225,7 @@ public final class CloudPlayerStateParser
 		public final long totalCreditsGained;
 		public final long revision;
 		public final String stateHash;
+		public final String collectionHash;
 		public final CloudSidebarCollectionStats sidebarStats;
 		public final List<OwnedCardInstance> cards;
 		/**
@@ -230,6 +244,7 @@ public final class CloudPlayerStateParser
 			long totalCreditsGained,
 			long revision,
 			String stateHash,
+			String collectionHash,
 			CloudSidebarCollectionStats sidebarStats,
 			List<OwnedCardInstance> cards,
 			boolean cardsPaged,
@@ -242,6 +257,7 @@ public final class CloudPlayerStateParser
 			this.totalCreditsGained = Math.max(0L, totalCreditsGained);
 			this.revision = Math.max(0L, revision);
 			this.stateHash = stateHash == null ? "" : stateHash.trim();
+			this.collectionHash = collectionHash == null ? "" : collectionHash.trim();
 			this.sidebarStats = sidebarStats;
 			this.cards = cards == null ? List.of() : List.copyOf(cards);
 			this.cardsPaged = cardsPaged;
@@ -258,6 +274,7 @@ public final class CloudPlayerStateParser
 				totalCreditsGained,
 				revision,
 				stateHash,
+				collectionHash,
 				sidebarStats,
 				nextCards,
 				false,
@@ -266,7 +283,7 @@ public final class CloudPlayerStateParser
 
 		static ParsedCloudPlayerState empty()
 		{
-			return new ParsedCloudPlayerState(false, null, null, EconomyState.empty(), 0L, 0L, "",
+			return new ParsedCloudPlayerState(false, null, null, EconomyState.empty(), 0L, 0L, "", "",
 				null, List.of(), false, null);
 		}
 	}

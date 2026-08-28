@@ -100,16 +100,22 @@ final class CloudCollectionSyncService
 				CloudSidebarCollectionStats local = publicStatsCalculator.computeLocalSidebarStats();
 				if (!CloudSidebarCollectionStats.countsAgree(server, local))
 				{
-					if (localRevision < serverMarkers.revision)
+					String localCollHash = stateService.getCloudCollectionHash();
+					String serverCollHash = serverMarkers.collectionHash;
+					boolean collectionChanged = (!serverCollHash.isEmpty()
+							&& !serverCollHash.equalsIgnoreCase(localCollHash))
+						|| (localCollHash.isEmpty() && !serverCollHash.isEmpty())
+						|| (serverCollHash.isEmpty() && localRevision < serverMarkers.revision);
+					if (collectionChanged)
 					{
-						log.info("Collection overview mismatch (server unique={} local unique={}) - pulling /me/state",
+						log.info("Collection overview mismatch (server unique={} local unique={}) - pulling /me/cards",
 							server.getUniqueOwned(), local.getUniqueOwned());
 						forceStatePullOnce.set(true);
 					}
 					else
 					{
-						log.debug("Collection overview mismatch at matching revision "
-							+ "(server unique={} local unique={}) - skipping forced /me/state",
+						log.debug("Collection overview mismatch with unchanged collection hash "
+							+ "(server unique={} local unique={}) - skipping forced /me/cards",
 							server.getUniqueOwned(), local.getUniqueOwned());
 					}
 				}
@@ -180,24 +186,30 @@ final class CloudCollectionSyncService
 		TcgState local = stateService.getState();
 		long localRevision = local.getCloudRevision();
 		String localHash = local.getCloudStateHash() == null ? "" : local.getCloudStateHash();
-		boolean missingMarkers = localRevision <= 0L && localHash.isEmpty();
-		boolean serverHasMarkers = server.revision > 0L || !server.stateHash.isEmpty();
-		boolean behind = server.revision > localRevision;
-		boolean hashMismatch = !server.stateHash.isEmpty() && !server.stateHash.equalsIgnoreCase(localHash);
+		String localCollHash = stateService.getCloudCollectionHash();
+		String serverCollHash = server.collectionHash;
 		boolean force = forceStatePullOnce.compareAndSet(true, false);
-		boolean needPull = force || behind || hashMismatch || (missingMarkers && serverHasMarkers);
+		boolean collectionChanged = force
+			|| (!serverCollHash.isEmpty() && !serverCollHash.equalsIgnoreCase(localCollHash))
+			|| (localCollHash.isEmpty() && !serverCollHash.isEmpty())
+			|| (serverCollHash.isEmpty() && server.revision > localRevision);
 
-		if (!needPull)
+		if (!collectionChanged)
 		{
+			if (server.revision > localRevision
+				|| (!server.stateHash.isEmpty() && !server.stateHash.equalsIgnoreCase(localHash)))
+			{
+				stateService.applyCloudSyncMarkers(server.revision, server.stateHash);
+			}
 			return;
 		}
 
 		String reason = force ? "forced"
-			: behind ? "revision behind"
-			: hashMismatch ? "state hash mismatch"
-			: "missing local sync markers";
+			: (localCollHash.isEmpty() && !serverCollHash.isEmpty()) ? "missing local collection hash"
+			: (serverCollHash.isEmpty() && server.revision > localRevision) ? "legacy revision behind"
+			: "collection hash mismatch";
 		debugCollectionSync("Requesting collection sync from server (" + reason
-			+ "; local rev=" + localRevision + ", server rev=" + server.revision + ")");
+			+ "; local collHash=" + localCollHash + ", server collHash=" + serverCollHash + ")");
 
 		JsonObject stateJson = api.getState();
 		CloudPlayerStateParser.ParsedCloudPlayerState parsed = pager.loadCloudPlayerStateWithCards(stateJson);
@@ -228,6 +240,7 @@ final class CloudCollectionSyncService
 			parsed.totalCreditsGained,
 			parsed.revision,
 			parsed.stateHash,
+			parsed.collectionHash,
 			parsed.sidebarStats);
 		if (parsed.accountStatus != null && !parsed.accountStatus.isBlank())
 		{
