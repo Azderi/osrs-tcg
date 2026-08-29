@@ -182,9 +182,6 @@ public final class CloudPackService
 			long creditsAfter = response.has("credits")
 				? response.get("credits").getAsLong()
 				: stateService.getAuthoritativeCredits();
-			int openedPacks = response.has("openedPacks")
-				? response.get("openedPacks").getAsInt()
-				: (int) stateService.getState().getEconomyState().getOpenedPacks();
 			long totalGained = response.has("totalCreditsGained")
 				? response.get("totalCreditsGained").getAsLong()
 				: stateService.getState().getTotalCreditsGained();
@@ -234,6 +231,11 @@ public final class CloudPackService
 			}
 			// One master write for the whole pack - avoid N× encode/save hitch mid-reveal.
 			stateService.addOwnedCardInstances(newInstances);
+
+			// Large packs return many cards but response openedPacks often only +1; derive from cards ÷ pack size.
+			int cardsPerPack = Math.max(1, packCatalog.getCache().getPackSize());
+			int previousOpenedPacks = (int) stateService.getState().getEconomyState().getOpenedPacks();
+			int openedPacks = previousOpenedPacks + (pulls.size() / cardsPerPack);
 
 			debugPackOpen("Pack open reply received ("
 				+ pulls.size() + " cards, credits=" + NumberFormatting.format(creditsAfter) + ")");
