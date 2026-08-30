@@ -24,4 +24,3 @@ Do not buy or sell cards for money, bonds, gold, or items. Trade at your own ris
 ## Supporting
 
 My projects can be supported on [Patreon](https://www.patreon.com/Azderi).
-

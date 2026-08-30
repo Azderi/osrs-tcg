@@ -745,8 +745,8 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		leftLinks.setLayout(new BoxLayout(leftLinks, BoxLayout.X_AXIS));
 		leftLinks.setOpaque(false);
 		leftLinks.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-		JComponent discordLink = SidebarLayout.createTitleSvgLinkButton("/com/osrstcg/images/discord.svg", "Join our Discord", SidebarLayout.DISCORD_URL);
-		JComponent patreonLink = SidebarLayout.createTitleSvgLinkButton("/com/osrstcg/images/patreon.svg", "Support on Patreon", SidebarLayout.PATREON_URL);
+		JComponent discordLink = SidebarLayout.createTitleLinkButton("/com/osrstcg/images/discord.png", "Join our Discord", SidebarLayout.DISCORD_URL);
+		JComponent patreonLink = SidebarLayout.createTitleLinkButton("/com/osrstcg/images/patreon.png", "Support on Patreon", SidebarLayout.PATREON_URL);
 		if (discordLink != null)
 		{
 			leftLinks.add(discordLink);

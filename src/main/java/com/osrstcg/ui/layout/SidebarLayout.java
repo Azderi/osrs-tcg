@@ -2,7 +2,6 @@ package com.osrstcg.ui.layout;
 
 import com.formdev.flatlaf.FlatClientProperties;
 import com.osrstcg.util.NumberFormatting;
-import com.osrstcg.util.SvgIcons;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
@@ -26,6 +25,7 @@ import javax.swing.border.MatteBorder;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
+import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
 
 /**
@@ -38,7 +38,6 @@ public final class SidebarLayout
 	public static final int TAB_SCROLLBAR_WIDTH = 6;
 	public static final int TAB_SCROLLBAR_GAP = 10;
 	public static final int TAB_SCROLLBAR_RESERVED_WIDTH = TAB_SCROLLBAR_WIDTH + TAB_SCROLLBAR_GAP;
-	public static final int TITLE_LINK_ICON_SIZE = 14;
 	public static final String PATREON_URL = "https://www.patreon.com/Azderi";
 	public static final String DISCORD_URL = "https://discord.gg/P4pPu6RnCj";
 	public static final String CREDITS_IMAGE_PATH = "/com/osrstcg/images/credits.png";
@@ -126,9 +125,9 @@ public final class SidebarLayout
 		block.setMaximumSize(new Dimension(Integer.MAX_VALUE, Math.max(1, preferred.height)));
 	}
 
-	public static JComponent createTitleSvgLinkButton(String svgClasspath, String tooltip, String url)
+	public static JComponent createTitleLinkButton(String imageClasspath, String tooltip, String url)
 	{
-		BufferedImage image = SvgIcons.rasterizeFit(svgClasspath, TITLE_LINK_ICON_SIZE * 2, TITLE_LINK_ICON_SIZE);
+		BufferedImage image = ImageUtil.loadImageResource(SidebarLayout.class, imageClasspath);
 		if (image == null)
 		{
 			return null;

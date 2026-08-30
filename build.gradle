@@ -18,19 +18,11 @@ repositories {
 def runeLiteVersion = 'latest.release'
 def pluginMainClass = 'com.osrstcg.OsrsTcgPluginTest'
 
-configurations {
-	bundle
-}
-
 dependencies {
 	compileOnly group: 'net.runelite', name: 'client', version: runeLiteVersion
 
 	compileOnly 'org.projectlombok:lombok:1.18.30'
 	annotationProcessor 'org.projectlombok:lombok:1.18.30'
-
-	// Bundled into the plugin jar for SVG title icons (not provided by RuneLite).
-	bundle 'com.github.weisj:jsvg:1.6.1'
-	implementation 'com.github.weisj:jsvg:1.6.1'
 
 	testImplementation group: 'net.runelite', name: 'client', version: runeLiteVersion
 	testImplementation group: 'net.runelite', name: 'jshell', version: runeLiteVersion
@@ -43,15 +35,6 @@ version = '1.0'
 tasks.withType(JavaCompile).configureEach {
 	options.encoding = 'UTF-8'
 	options.release.set(11)
-}
-
-jar {
-	from {
-		configurations.bundle.collect { file ->
-			file.isDirectory() ? file : zipTree(file)
-		}
-	}
-	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 tasks.register('run', JavaExec) {
