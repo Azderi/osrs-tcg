@@ -2,8 +2,6 @@ package com.osrstcg.cloud.trade;
 
 import com.google.gson.JsonObject;
 import com.osrstcg.util.TcgPluginGameMessages;
-import java.awt.Desktop;
-import java.net.URI;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -514,23 +512,6 @@ public final class TradeCloudService
 		{
 			return;
 		}
-		try
-		{
-			LinkBrowser.browse(url);
-		}
-		catch (Exception e)
-		{
-			try
-			{
-				if (Desktop.isDesktopSupported())
-				{
-					Desktop.getDesktop().browse(URI.create(url));
-				}
-			}
-			catch (Exception ignored)
-			{
-				// ignore
-			}
-		}
+		LinkBrowser.browse(url);
 	}
 }
