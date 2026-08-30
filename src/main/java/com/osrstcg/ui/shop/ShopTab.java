@@ -287,9 +287,8 @@ public final class ShopTab
 
 	private void applyBuyButtonEnabledState(long credits)
 	{
-		boolean migrationPending = cloudSessionService.isMigrationPending();
 		boolean needsProfileCreate = cloudSessionService.needsProfileCreate();
-		boolean consentPending = migrationPending || needsProfileCreate;
+		boolean consentPending = needsProfileCreate;
 		boolean revealBusy = packRevealService.isActive();
 		boolean packOpeningBlocked = packSafeModeService.isPackOpeningBlocked();
 		String blockMessage = packOpeningBlocked ? packSafeModeService.packOpeningBlockMessage() : null;
@@ -299,11 +298,7 @@ public final class ShopTab
 			JButton buy = buyButtons.get(i);
 			int price = buyPrices.get(i);
 			buy.setEnabled(!revealBusy && !packOpeningBlocked && !consentPending && credits >= price);
-			if (migrationPending)
-			{
-				buy.setToolTipText("Migrate your collection before opening packs.");
-			}
-			else if (needsProfileCreate)
+			if (needsProfileCreate)
 			{
 				buy.setToolTipText("Create a profile before opening packs.");
 			}
@@ -398,11 +393,9 @@ public final class ShopTab
 		}
 		else if (!cloudReady)
 		{
-			sellDuplicatesButton.setToolTipText(cloudSessionService.isMigrationPending()
-				? "Migrate your collection before selling"
-				: cloudSessionService.needsProfileCreate()
-					? "Create a profile before selling"
-					: "Cloud offline - cannot sell");
+			sellDuplicatesButton.setToolTipText(cloudSessionService.needsProfileCreate()
+				? "Create a profile before selling"
+				: "Cloud offline - cannot sell");
 		}
 		else if (!hasDuplicates)
 		{
@@ -422,11 +415,9 @@ public final class ShopTab
 		}
 		if (!cloudSessionService.isReady())
 		{
-			String reason = cloudSessionService.isMigrationPending()
-				? "Migrate your collection before selling cards."
-				: cloudSessionService.needsProfileCreate()
-					? "Create a profile before selling cards."
-					: "Cloud offline - cannot sell cards.";
+			String reason = cloudSessionService.needsProfileCreate()
+				? "Create a profile before selling cards."
+				: "Cloud offline - cannot sell cards.";
 			TcgPluginGameMessages.queueGameMessage(chatMessageManager, "[OSRS TCG] " + reason);
 			refreshUi.run();
 			return;

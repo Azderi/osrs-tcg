@@ -25,7 +25,6 @@ final class CloudCollectionSyncService
 	private final TcgPublicStatsCalculator publicStatsCalculator;
 	private final CloudCollectionPager pager;
 	private final AtomicBoolean forceStatePullOnce;
-	private final AtomicBoolean deferCollectionPullForMigrateImport;
 
 	CloudCollectionSyncService(
 		CloudSessionService session,
@@ -35,8 +34,7 @@ final class CloudCollectionSyncService
 		Provider<CreditAttestQueue> creditAttestQueueProvider,
 		TcgPublicStatsCalculator publicStatsCalculator,
 		CloudCollectionPager pager,
-		AtomicBoolean forceStatePullOnce,
-		AtomicBoolean deferCollectionPullForMigrateImport)
+		AtomicBoolean forceStatePullOnce)
 	{
 		this.session = session;
 		this.api = api;
@@ -46,7 +44,6 @@ final class CloudCollectionSyncService
 		this.publicStatsCalculator = publicStatsCalculator;
 		this.pager = pager;
 		this.forceStatePullOnce = forceStatePullOnce;
-		this.deferCollectionPullForMigrateImport = deferCollectionPullForMigrateImport;
 	}
 
 	void applySidebarStats(JsonObject stats)
@@ -206,11 +203,6 @@ final class CloudCollectionSyncService
 		CloudPlayerStateParser.ParsedCloudPlayerState parsed = pager.loadCloudPlayerStateWithCards(stateJson);
 		if (!parsed.migrated)
 		{
-			if (deferCollectionPullForMigrateImport.get())
-			{
-				log.info("Cloud migrate import still pending; skipping collection pull");
-				return;
-			}
 			if (!tokens.isMigrated())
 			{
 				log.info("Cloud /me/state reports account not migrated yet; skipping collection pull");
@@ -220,7 +212,6 @@ final class CloudCollectionSyncService
 		else
 		{
 			tokens.setMigrated(true);
-			deferCollectionPullForMigrateImport.set(false);
 		}
 		stateService.replaceCloudGroupKey(parsed.groupKey);
 		stateService.replaceFromCloudState(

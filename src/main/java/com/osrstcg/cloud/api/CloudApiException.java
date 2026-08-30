@@ -68,7 +68,7 @@ public final class CloudApiException extends Exception
 
 	/**
 	 * Refresh token can never succeed again (revoked, deleted account, or wrong profile binding).
-	 * Local credentials should be cleared so the migrate / re-pair UI can take over.
+	 * Local credentials should be cleared so the create-profile / re-pair UI can take over.
 	 */
 	public boolean isStaleRefreshToken()
 	{

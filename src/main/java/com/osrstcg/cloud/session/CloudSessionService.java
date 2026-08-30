@@ -1,7 +1,6 @@
 package com.osrstcg.cloud.session;
 
 import com.osrstcg.state.TcgState;
-import com.osrstcg.persist.TcgStateCodec;
 import com.osrstcg.catalog.CardImageCacheService;
 import com.osrstcg.interop.TcgPublicStatsCalculator;
 import com.osrstcg.state.TcgStateService;
@@ -20,7 +19,6 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.client.chat.ChatMessageManager;
-import net.runelite.client.config.ConfigManager;
 import net.runelite.client.util.Text;
 import com.osrstcg.cloud.activity.ActivityConfigService;
 import com.osrstcg.cloud.api.CloudApiClient;
@@ -51,7 +49,7 @@ public final class CloudSessionService
 	private final CloudCollectionPager collectionPager;
 	private final CloudCollectionSyncService collectionSync;
 	private final HiscoresSettleService hiscoresSettle;
-	private final CloudMigrationService migration;
+	private final CloudProfileConsentService profileConsent;
 
 	private final AtomicReference<CloudConnectionState> connectionState =
 		new AtomicReference<>(CloudConnectionState.DISCONNECTED);
@@ -62,10 +60,6 @@ public final class CloudSessionService
 	private final AtomicBoolean hiscoresSettleRetryScheduled = new AtomicBoolean(false);
 	/** When true, next collection reconcile always pulls {@code /me/state}. */
 	private final AtomicBoolean forceStatePullOnce = new AtomicBoolean(false);
-	/** Background poll after async migrate upload until server import finishes. */
-	private final AtomicBoolean migrateImportWatchScheduled = new AtomicBoolean(false);
-	/** Skip replacing local collection with empty cloud while a migrate job is queued. */
-	private final AtomicBoolean deferCollectionPullForMigrateImport = new AtomicBoolean(false);
 	/** Server banned this account for the current login; cleared on logout. */
 	private final AtomicBoolean accountBanned = new AtomicBoolean(false);
 	/** Server quarantined this account for the current login; cleared on logout. */
@@ -85,8 +79,6 @@ public final class CloudSessionService
 		CloudTokenStore tokens,
 		ProfileKeyHasher profileKeyHasher,
 		TcgStateService stateService,
-		TcgStateCodec stateCodec,
-		ConfigManager configManager,
 		ChatMessageManager chatMessageManager,
 		PackCatalogService packCatalogService,
 		CardCatalogService cardCatalogService,
@@ -114,16 +106,14 @@ public final class CloudSessionService
 		this.collectionPager = new CloudCollectionPager(api);
 		this.collectionSync = new CloudCollectionSyncService(
 			this, api, tokens, stateService, creditAttestQueueProvider,
-			publicStatsCalculator, collectionPager, forceStatePullOnce, deferCollectionPullForMigrateImport);
+			publicStatsCalculator, collectionPager, forceStatePullOnce);
 		this.hiscoresSettle = new HiscoresSettleService(
 			client, api, tokens, restrictedWorldGuard, scheduler, chatMessageManager, tradeCloudProvider,
 			collectionSync::applySidebarStats, hiscoresSettledThisLogin, hiscoresSettleRetryScheduled,
 			this::needsCloudConsent, this::isAccountLocked);
-		this.migration = new CloudMigrationService(
-			this, collectionSync, client, api, tokens, profileKeyHasher, stateService, stateCodec,
-			chatMessageManager, packCatalogService, cardCatalogService, activityConfigService, scheduler,
-			forceStatePullOnce, migrateImportWatchScheduled, deferCollectionPullForMigrateImport,
-			configManager);
+		this.profileConsent = new CloudProfileConsentService(
+			this, collectionSync, client, api, tokens, profileKeyHasher, stateService,
+			chatMessageManager, packCatalogService, cardCatalogService, activityConfigService);
 		api.setStaleRefreshHandler(this::handleStaleRefresh);
 		api.setAccountLockHandler(this::noteLockFromApiException);
 	}
@@ -155,7 +145,7 @@ public final class CloudSessionService
 		return statusMessage.get();
 	}
 
-	/** Paired/refreshed with a usable access token (migration may still be pending). */
+	/** Paired/refreshed with a usable access token (consent may still be pending). */
 	public boolean isSessionActive()
 	{
 		return connectionState.get() == CloudConnectionState.CONNECTED && tokens.getAccessToken() != null;
@@ -397,7 +387,7 @@ public final class CloudSessionService
 	}
 
 	/**
-	 * True until the user accepts Migrate collection / Create profile.
+	 * True until the user accepts Create profile.
 	 * While true, no cloud API traffic should run (except the consent action itself).
 	 */
 	public boolean needsCloudConsent()
@@ -405,27 +395,15 @@ public final class CloudSessionService
 		return !tokens.isMigrated();
 	}
 
-	/**
-	 * Local pre-cloud collection still needs an explicit migrate upload.
-	 * Local-only - no session required (cloud stays offline until the user accepts).
-	 * True when in-memory progress exists or the current profile has disk save files.
-	 */
-	public boolean isMigrationPending()
-	{
-		return needsCloudConsent() && hasLocalProgressToMigrate();
-	}
-
-	/**
-	 * No local progress and no disk saves - show Create profile instead of migrate.
-	 */
+	/** Show Create profile until cloud consent is accepted. */
 	public boolean needsProfileCreate()
 	{
-		return needsCloudConsent() && !hasLocalProgressToMigrate();
+		return needsCloudConsent();
 	}
 
 	private String consentWaitingMessage()
 	{
-		return isMigrationPending() ? "Migrate your collection" : "Create a profile";
+		return "Create a profile";
 	}
 
 	public void setStatusListener(Runnable listener)
@@ -472,7 +450,7 @@ public final class CloudSessionService
 			setState(CloudConnectionState.DISCONNECTED, "Waiting for account");
 			return;
 		}
-		// No cloud API until the user accepts Migrate collection / Create profile.
+		// No cloud API until the user accepts Create profile.
 		if (needsCloudConsent())
 		{
 			setState(CloudConnectionState.DISCONNECTED, consentWaitingMessage());
@@ -524,7 +502,7 @@ public final class CloudSessionService
 				pairSession(displayName, profileHash, accountHash);
 			}
 
-			migration.adoptServerMigrationIfNeeded();
+			profileConsent.adoptServerMigrationIfNeeded();
 			collectionSync.refreshLocalCacheFromCloud();
 			if (isAccountLocked())
 			{
@@ -572,23 +550,10 @@ public final class CloudSessionService
 		return name == null || name.isEmpty() ? null : name;
 	}
 
-	/**
-	 * Uploads the local pre-cloud profile to the server. Call off the EDT.
-	 * Pairs/logs in first when credentials were cleared or never established.
-	 */
-	public synchronized void migrateLocalCollection() throws Exception
+	/** Pair/refresh if needed and accept cloud consent. Call off the EDT. */
+	public synchronized void createProfile() throws Exception
 	{
-		migrateLocalCollection(false);
-	}
-
-	/**
-	 * @param requireCollectionUpload when true (user picked a save / Migrate collection),
-	 *     refuse the empty create-profile shortcut so we never mark local migrated without
-	 *     {@code POST /me/migrate}.
-	 */
-	public synchronized void migrateLocalCollection(boolean requireCollectionUpload) throws Exception
-	{
-		migration.migrateLocalCollection(requireCollectionUpload);
+		profileConsent.createProfile();
 	}
 
 	void deleteObsoleteLocalCaches()
@@ -660,11 +625,6 @@ public final class CloudSessionService
 		return local.getEconomyState().getCredits() > 0
 			|| local.getEconomyState().getOpenedPacks() > 0
 			|| !local.getCollectionState().getOwnedInstances().isEmpty();
-	}
-
-	private boolean hasLocalProgressToMigrate()
-	{
-		return hasLocalProgress() || stateService.hasDiskSaves();
 	}
 
 	void setState(CloudConnectionState state, String message)

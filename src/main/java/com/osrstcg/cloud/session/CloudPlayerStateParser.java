@@ -40,7 +40,8 @@ public final class CloudPlayerStateParser
 			&& account.get("migrated").getAsBoolean();
 		long revisionEarly = readLong(economy, "revision", 0L);
 		// Fresh accounts are created with revision=1 and empty cards. Do NOT treat revision alone
-		// as migrated - that skipped POST /me/migrate after pair (adoptServerMigrationIfNeeded).
+		// Prefer migratedAt / migrated / non-empty cards so reconnect adopts server state
+		// (adoptServerMigrationIfNeeded) without a client upload.
 		// Cloud-native recovery: migratedAt, explicit migrated flag, or non-empty card list.
 		boolean migrated = (migratedAt != null && !migratedAt.isBlank())
 			|| migratedFlag

@@ -20,7 +20,7 @@ import com.osrstcg.state.CollectionState;
 import com.osrstcg.state.TcgState;
 import com.osrstcg.state.TcgStateService;
 import com.osrstcg.ui.account.AccountPanelLauncher;
-import com.osrstcg.ui.account.MigrateCollectionController;
+import com.osrstcg.ui.account.CreateProfileController;
 import com.osrstcg.ui.account.SidebarNoticeView;
 import com.osrstcg.ui.collection.CollectionListModel;
 import com.osrstcg.ui.collection.CollectionTab;
@@ -32,7 +32,6 @@ import com.osrstcg.ui.shop.BoosterShopRow;
 import com.osrstcg.ui.shop.ShopTab;
 import com.osrstcg.ui.welcome.WelcomeContent;
 import com.osrstcg.ui.welcome.WelcomeTab;
-import com.osrstcg.ui.save.MigrateSavePicker;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
@@ -106,12 +105,11 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	private final Client client;
 	private final CloudSessionService cloudSessionService;
 	private final TradeCloudService tradeCloudService;
-	private final MigrateSavePicker migrateSavePicker;
 	private final ScheduledExecutorService scheduler;
 	private final ChatMessageManager chatMessageManager;
 	private final JButton openAccountPanelButton;
-	private final JButton migrateCollectionButton;
-	private final JTextPane migratePromptPane;
+	private final JButton createProfileButton;
+	private final JTextPane createProfilePromptPane;
 
 	private final JPanel mainPanel = new JPanel();
 	private final JPanel content = new JPanel();
@@ -131,8 +129,8 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	private final JScrollPane overviewScrollPane = new JScrollPane(overviewContent);
 	private final JScrollPane shopPacksScrollPane = new JScrollPane(packsContent);
 	private final JPanel footerPanel = new JPanel();
-	private final JPanel migrateFooterWrap = new JPanel(new BorderLayout(0, 0));
-	private final Component migrateFooterSpacer = Box.createRigidArea(new Dimension(0, 10));
+	private final JPanel createProfileFooterWrap = new JPanel(new BorderLayout(0, 0));
+	private final Component createProfileFooterSpacer = Box.createRigidArea(new Dimension(0, 10));
 	private final JPanel albumFooterWrap = new JPanel(new BorderLayout(0, 0));
 	private final JPanel tradeFooterWrap = new JPanel(new BorderLayout(0, 0));
 	private final Component tradeFooterSpacer = Box.createRigidArea(new Dimension(0, 10));
@@ -168,7 +166,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	private final OverviewTab overviewTab;
 	private final CollectionTab collectionTab;
 	private final ShopTab shopTab;
-	private final MigrateCollectionController migrateController;
+	private final CreateProfileController createProfileController;
 	private final AccountPanelLauncher accountLauncher;
 	private final SidebarNoticeView sidebarNoticeView;
 
@@ -189,7 +187,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		TradeCloudService tradeCloudService,
 		CloudApiClient cloudApiClient,
 		CloudSellService cloudSellService,
-		MigrateSavePicker migrateSavePicker,
 		ScheduledExecutorService scheduler,
 		ChatMessageManager chatMessageManager)
 	{
@@ -201,12 +198,11 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		this.client = client;
 		this.cloudSessionService = cloudSessionService;
 		this.tradeCloudService = tradeCloudService;
-		this.migrateSavePicker = migrateSavePicker;
 		this.scheduler = scheduler;
 		this.chatMessageManager = chatMessageManager;
 		this.openAccountPanelButton = new JButton("Open web album");
-		this.migrateCollectionButton = new JButton("Migrate collection");
-		this.migratePromptPane = MigrateCollectionController.createMigratePromptPane();
+		this.createProfileButton = new JButton("Create profile");
+		this.createProfilePromptPane = CreateProfileController.createPromptPane();
 		this.cloudStatusIndicator = SidebarChrome.createCloudStatusIndicator();
 		this.openTradesButton = createOpenTradesButton();
 		this.welcomeTab = new WelcomeTab(welcomeContentCatalog);
@@ -216,10 +212,11 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			cloudSessionService, cloudApiClient, scheduler, chatMessageManager,
 			this::updateManageAccountButtonState);
 		this.openAccountPanelButton.addActionListener(e -> accountLauncher.open());
-		this.migrateController = new MigrateCollectionController(
-			cloudSessionService, stateService, migrateSavePicker, scheduler, chatMessageManager,
-			this, this::refresh, this::selectOverviewAfterMigrate, this::afterMigrateUi);
-		this.migrateCollectionButton.addActionListener(e -> migrateController.migrate());
+		this.createProfileController = new CreateProfileController(
+			cloudSessionService, scheduler, chatMessageManager,
+			this, this::refresh, this::selectOverviewAfterCreateProfile,
+			accountLauncher::open, this::afterCreateProfileUi);
+		this.createProfileButton.addActionListener(e -> createProfileController.createProfile());
 		this.sidebarNoticeView = new SidebarNoticeView(
 			openAccountPanelButton, albumFooterWrap, cloudSessionService, this::updateManageAccountButtonState);
 		this.collectionTab = new CollectionTab(
@@ -375,7 +372,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 
 	public void stop()
 	{
-		migrateSavePicker.dispose();
 		stateService.removeCollectionChangeListener(onCollectionChanged);
 		collectionTab.cancelPendingRebuilds();
 		welcomeContent.removeAll();
@@ -643,17 +639,17 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			new EmptyBorder(8, 0, 0, 0)
 		));
 
-		JPanel migrateWrap = migrateFooterWrap;
-		migrateWrap.setOpaque(false);
-		migrateWrap.setLayout(new BorderLayout(0, 8));
-		migrateWrap.setAlignmentX(JComponent.LEFT_ALIGNMENT);
+		JPanel createWrap = createProfileFooterWrap;
+		createWrap.setOpaque(false);
+		createWrap.setLayout(new BorderLayout(0, 8));
+		createWrap.setAlignmentX(JComponent.LEFT_ALIGNMENT);
 
-		SidebarLayout.stylePrimaryFooterButton(migrateCollectionButton);
-		migrateWrap.add(migratePromptPane, BorderLayout.NORTH);
-		migrateWrap.add(migrateCollectionButton, BorderLayout.SOUTH);
-		footerPanel.add(migrateWrap);
+		SidebarLayout.stylePrimaryFooterButton(createProfileButton);
+		createWrap.add(createProfilePromptPane, BorderLayout.NORTH);
+		createWrap.add(createProfileButton, BorderLayout.SOUTH);
+		footerPanel.add(createWrap);
 
-		footerPanel.add(migrateFooterSpacer);
+		footerPanel.add(createProfileFooterSpacer);
 
 		JPanel tradeWrap = tradeFooterWrap;
 		tradeWrap.setOpaque(false);
@@ -874,7 +870,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		updateFooterVisibility();
 	}
 
-	/** Usable footer column width - same strip the migrate/account buttons fill. */
+	/** Usable footer column width - same strip the create-profile/account buttons fill. */
 	private int footerContentWidth()
 	{
 		int footerW = footerPanel.getWidth();
@@ -970,13 +966,13 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		}
 		boolean inWorld = isClientInGameWorld();
 		boolean restrictedWorld = cloudSessionService.isRestrictedWorld();
-		boolean showMigrate = inWorld && !restrictedWorld
-			&& (cloudSessionService.isMigrationPending() || cloudSessionService.needsProfileCreate());
+		boolean showCreateProfile = inWorld && !restrictedWorld
+			&& cloudSessionService.needsProfileCreate();
 
 		footerPanel.setVisible(true);
 		sidebarNoticeView.restoreOpenAccountPanelButtonToFooter();
-		migrateFooterWrap.setVisible(showMigrate);
-		updateMigrateCollectionButtonState();
+		createProfileFooterWrap.setVisible(showCreateProfile);
+		updateCreateProfileButtonState();
 
 		boolean cloudConnected = cloudSessionService.isSessionActive()
 			&& !cloudSessionService.needsCloudConsent();
@@ -992,12 +988,12 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		tradeFooterWrap.setVisible(showTrade);
 
 		// Spacers only between visible blocks - never trailing empty space under the footer.
-		migrateFooterSpacer.setVisible(showMigrate && (showAccountPanel || showTrade));
+		createProfileFooterSpacer.setVisible(showCreateProfile && (showAccountPanel || showTrade));
 		tradeFooterSpacer.setVisible(showTrade && showAccountPanel);
 
-		if (showMigrate)
+		if (showCreateProfile)
 		{
-			updateMigratePromptLayout();
+			updateCreateProfilePromptLayout();
 		}
 		SidebarLayout.lockFooterBlockHeight(albumFooterWrap);
 		SidebarLayout.lockFooterBlockHeight(tradeFooterWrap);
@@ -1362,17 +1358,18 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		accountLauncher.updateManageAccountButtonState(openAccountPanelButton, openTradesButton);
 	}
 
-	private void updateMigrateCollectionButtonState()
+	private void updateCreateProfileButtonState()
 	{
-		migrateController.updateButtonState(migrateCollectionButton);
+		createProfileController.updateButtonState(createProfileButton);
 	}
 
-	private void updateMigratePromptLayout()
+	private void updateCreateProfilePromptLayout()
 	{
-		migrateController.updatePromptLayout(migratePromptPane, migrateFooterWrap, footerContentWidth());
+		createProfileController.updatePromptLayout(
+			createProfilePromptPane, createProfileFooterWrap, footerContentWidth());
 	}
 
-	private void selectOverviewAfterMigrate()
+	private void selectOverviewAfterCreateProfile()
 	{
 		if (selectedTab != Tab.OVERVIEW)
 		{
@@ -1381,9 +1378,9 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		}
 	}
 
-	private void afterMigrateUi()
+	private void afterCreateProfileUi()
 	{
-		updateMigrateCollectionButtonState();
+		updateCreateProfileButtonState();
 		updateFooterVisibility();
 		updateCloudStatusIndicator();
 	}

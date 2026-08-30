@@ -67,11 +67,9 @@ public final class CloudSellService
 		}
 		if (!session.isReady())
 		{
-			String reason = session.isMigrationPending()
-				? "Migrate your collection before selling cards."
-				: session.needsProfileCreate()
-					? "Create a profile before selling cards."
-					: "Cloud offline - cannot sell cards.";
+			String reason = session.needsProfileCreate()
+				? "Create a profile before selling cards."
+				: "Cloud offline - cannot sell cards.";
 			return CardSellResult.failed(reason, creditsBefore);
 		}
 

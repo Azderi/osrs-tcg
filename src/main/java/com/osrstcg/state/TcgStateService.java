@@ -1,6 +1,5 @@
 package com.osrstcg.state;
 
-import com.osrstcg.persist.TcgSaveMetadataEntry;
 import com.osrstcg.persist.TcgSaveTrigger;
 import com.osrstcg.persist.TcgStateLoadResult;
 import com.osrstcg.persist.TcgStateLoadSource;
@@ -10,7 +9,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
@@ -159,64 +157,6 @@ public class TcgStateService
 		}
 		state = state.withProfileSavedAtUnix(TcgState.currentUnixSeconds());
 		return stateStore.saveCheckpoint(state, trigger == null ? TcgSaveTrigger.MANUAL : trigger);
-	}
-
-	/** Lists legacy disk saves under {@code backups/} for the migrate upload picker. */
-	public synchronized List<TcgSaveMetadataEntry> listDiskSaves()
-	{
-		if (stateStore == null)
-		{
-			return List.of();
-		}
-		return stateStore.listLegacySaveMetadata();
-	}
-
-	/** True when any legacy dir under {@code backups/} has save files (migrate upload gate). */
-	public synchronized boolean hasDiskSaves()
-	{
-		return stateStore != null && stateStore.hasLegacySaveFiles();
-	}
-
-	public synchronized boolean applyDiskSaveForMigrate(String fileName)
-	{
-		return applyDiskSaveForMigrate(fileName, null);
-	}
-
-	/**
-	 * Applies a legacy {@code backups/} save into memory before cloud migrate upload.
-	 * Does not write a restore checkpoint - the migrate path uploads this state next.
-	 * <p>
-	 * Refuses debug-mode saves (does not wipe memory).
-	 */
-	public synchronized boolean applyDiskSaveForMigrate(String fileName, String sourceDir)
-	{
-		if (stateStore == null || fileName == null || fileName.isEmpty())
-		{
-			return false;
-		}
-		Optional<TcgState> restored = stateStore.loadByFileName(fileName.trim(), sourceDir);
-		if (restored.isEmpty())
-		{
-			return false;
-		}
-
-		TcgState candidate = restored.get();
-		if (candidate.isDebugLogging())
-		{
-			log.warn("OSRS TCG: refusing migrate of debug-mode save ({})", fileName.trim());
-			return false;
-		}
-
-		state = candidate;
-		optimistic.clear();
-
-		stripDebugProvenanceRowsIfDebugDisabled();
-		// Keep collection/economy from the save, but clear skill XP baselines -
-		// CreditAwardService rebases those to live stats for the current profile.
-		state = state.withSkillCreditBaseline(SkillCreditBaseline.absent());
-		ensureProfileMetaSchemaFields();
-		notifyCollectionMutated();
-		return true;
 	}
 
 	/**

@@ -87,11 +87,9 @@ public final class CloudPackService
 		}
 		if (!session.isReady())
 		{
-			String reason = session.isMigrationPending()
-				? "Migrate your collection before opening packs."
-				: session.needsProfileCreate()
-					? "Create a profile before opening packs."
-					: "Cloud offline - cannot open packs.";
+			String reason = session.needsProfileCreate()
+				? "Create a profile before opening packs."
+				: "Cloud offline - cannot open packs.";
 			return PackOpenResult.failed(reason, creditsBefore, booster.getPrice());
 		}
 		if (packSafeModeService != null && packSafeModeService.isPackOpeningBlocked())

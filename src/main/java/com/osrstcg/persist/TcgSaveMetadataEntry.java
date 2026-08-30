@@ -14,8 +14,6 @@ public final class TcgSaveMetadataEntry
 	private String hash;
 	private String savedAt;
 	private String trigger;
-	/** Backup folder id when listed from a legacy profile dir (migrate upload only). */
-	private String sourceDir;
 
 	public TcgSaveMetadataEntry()
 	{
@@ -23,7 +21,7 @@ public final class TcgSaveMetadataEntry
 
 	public TcgSaveMetadataEntry(String name, int cardCount, String savedAt, String trigger)
 	{
-		this(name, cardCount, 0L, null, savedAt, trigger, null);
+		this(name, cardCount, 0L, null, savedAt, trigger);
 	}
 
 	public TcgSaveMetadataEntry(
@@ -34,18 +32,6 @@ public final class TcgSaveMetadataEntry
 		String savedAt,
 		String trigger)
 	{
-		this(name, cardCount, credits, hash, savedAt, trigger, null);
-	}
-
-	public TcgSaveMetadataEntry(
-		String name,
-		int cardCount,
-		long credits,
-		String hash,
-		String savedAt,
-		String trigger,
-		String sourceDir)
-	{
 		this.name = name;
 		this.file = null;
 		this.cardCount = cardCount;
@@ -53,7 +39,6 @@ public final class TcgSaveMetadataEntry
 		this.hash = hash;
 		this.savedAt = savedAt;
 		this.trigger = trigger;
-		this.sourceDir = sourceDir;
 	}
 
 	public String getName()
@@ -119,15 +104,5 @@ public final class TcgSaveMetadataEntry
 	public void setTrigger(String trigger)
 	{
 		this.trigger = trigger;
-	}
-
-	public String getSourceDir()
-	{
-		return sourceDir;
-	}
-
-	public void setSourceDir(String sourceDir)
-	{
-		this.sourceDir = sourceDir;
 	}
 }

@@ -30,7 +30,7 @@ public class TcgStateFileBackupStore
 	public static final int MAX_SNAPSHOT_FILES = 50;
 	public static final String MASTER_FILENAME = "tcg.save";
 	public static final String SAVES_INDEX_FILENAME = "saves.json";
-	/** Legacy RS-profile backup folder name (migrate upload scan only). */
+	/** Legacy RS-profile backup folder name under {@code backups/}. */
 	static final String LEGACY_DEFAULT_DIR = "default";
 	private static final Pattern HASH_FILENAME = Pattern.compile("^[a-fA-F0-9]{64}$");
 	private static final Pattern ACCOUNT_DIR_NAME = Pattern.compile("^[a-fA-F0-9]{64}$");
@@ -153,18 +153,12 @@ public class TcgStateFileBackupStore
 	 */
 	public Optional<TcgState> loadByFileName(String fileName)
 	{
-		return loadByFileName(fileName, null);
-	}
-
-	/** Loads from the current account dir, or {@code accountDirId} when set (legacy migrate dirs). */
-	public Optional<TcgState> loadByFileName(String fileName, String accountDirId)
-	{
 		if (fileName == null || fileName.isEmpty())
 		{
 			return Optional.empty();
 		}
 		String name = fileName.trim();
-		Path dir = saveDirectory(accountDirId);
+		Path dir = saveDirectory();
 		if (dir == null)
 		{
 			return Optional.empty();
@@ -178,79 +172,6 @@ public class TcgStateFileBackupStore
 			return Optional.empty();
 		}
 		return tryLoadEncodedFile(dir.resolve(name.toLowerCase(Locale.ROOT)), true);
-	}
-
-	/** True when any folder under {@code backups/} contains save files (migrate upload scan). */
-	public boolean hasLegacySaveFiles()
-	{
-		Path root = legacyBackupsRoot();
-		if (!Files.isDirectory(root))
-		{
-			return false;
-		}
-		try (var stream = Files.list(root))
-		{
-			return stream.filter(Files::isDirectory)
-				.anyMatch(path -> isMigratableBackupDirName(path.getFileName().toString())
-					&& hasSaveFilesInDir(path));
-		}
-		catch (IOException ex)
-		{
-			return false;
-		}
-	}
-
-	/**
-	 * Save metadata from all legacy dirs under {@code backups/} (migrate upload picker only).
-	 * Each entry has {@link TcgSaveMetadataEntry#getSourceDir()} set to the folder id.
-	 */
-	public List<TcgSaveMetadataEntry> listLegacySaveMetadata()
-	{
-		Path root = legacyBackupsRoot();
-		if (!Files.isDirectory(root))
-		{
-			return List.of();
-		}
-		List<TcgSaveMetadataEntry> out = new ArrayList<>();
-		try (var stream = Files.list(root))
-		{
-			stream.filter(Files::isDirectory).forEach(path ->
-			{
-				String dirName = path.getFileName().toString();
-				if (!isMigratableBackupDirName(dirName))
-				{
-					return;
-				}
-				rewriteSavesIndexFromDisk(dirName);
-				TcgSavesIndex index = readSavesIndex(dirName);
-				if (index.getSaves() == null)
-				{
-					return;
-				}
-				for (TcgSaveMetadataEntry entry : index.getSaves())
-				{
-					if (entry == null || entry.getName() == null || entry.getName().isEmpty())
-					{
-						continue;
-					}
-					entry.setSourceDir(dirName);
-					out.add(new TcgSaveMetadataEntry(
-						entry.getName(),
-						entry.getCardCount(),
-						entry.getCredits(),
-						entry.getHash(),
-						entry.getSavedAt(),
-						entry.getTrigger(),
-						dirName));
-				}
-			});
-		}
-		catch (IOException ex)
-		{
-			log.debug("OSRS TCG failed to list legacy save directories", ex);
-		}
-		out.sort(Comparator.comparingLong((TcgSaveMetadataEntry e) -> parseSavedAtEpochMs(e.getSavedAt())).reversed());
-		return out;
 	}
 
 	long resolveAccountHashForIo()
@@ -322,40 +243,6 @@ public class TcgStateFileBackupStore
 	private boolean isSafeAccountDirName(String name)
 	{
 		return name != null && ACCOUNT_DIR_NAME.matcher(name).matches();
-	}
-
-	private static boolean isMigratableBackupDirName(String dirName)
-	{
-		if (dirName == null || dirName.isEmpty())
-		{
-			return false;
-		}
-		if (LEGACY_DEFAULT_DIR.equalsIgnoreCase(dirName))
-		{
-			return true;
-		}
-		return ACCOUNT_DIR_NAME.matcher(dirName).matches();
-	}
-
-	private static boolean hasSaveFilesInDir(Path dir)
-	{
-		if (dir == null || !Files.isDirectory(dir))
-		{
-			return false;
-		}
-		if (Files.isRegularFile(dir.resolve(MASTER_FILENAME)))
-		{
-			return true;
-		}
-		try (var stream = Files.list(dir))
-		{
-			return stream.anyMatch(path -> Files.isRegularFile(path)
-				&& HASH_FILENAME.matcher(path.getFileName().toString()).matches());
-		}
-		catch (IOException ex)
-		{
-			return false;
-		}
 	}
 
 	private boolean writeValidatedNamedFile(String filename, String encodedBlob, String expectedHash, boolean requireHashName)

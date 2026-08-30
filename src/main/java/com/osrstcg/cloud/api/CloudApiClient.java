@@ -43,7 +43,7 @@ public final class CloudApiClient
 	private volatile Runnable staleRefreshHandler;
 	private volatile java.util.function.Consumer<CloudApiException> accountLockHandler;
 	private volatile java.util.function.Consumer<String> activitiesVersionListener;
-	/** Nesting depth for {@link #openConsentTraffic()} (migrate / create-profile after Yes). */
+	/** Nesting depth for {@link #openConsentTraffic()} (create-profile after Yes). */
 	private final ThreadLocal<Integer> consentTrafficDepth = ThreadLocal.withInitial(() -> 0);
 
 	@Inject
@@ -65,7 +65,7 @@ public final class CloudApiClient
 
 	/**
 	 * Allows API calls while {@code cloudMigrated} is still false - only for the consent
-	 * action itself (pair / migrate / create profile after the user clicks Yes).
+	 * action itself (pair / create profile after the user clicks Yes).
 	 */
 	public AutoCloseable openConsentTraffic()
 	{
@@ -85,7 +85,7 @@ public final class CloudApiClient
 	}
 
 	/**
-	 * Blocks all cloud HTTP until the user has accepted migrate/create consent, except
+	 * Blocks all cloud HTTP until the user has accepted create-profile consent, except
 	 * while {@link #openConsentTraffic()} is open on this thread.
 	 */
 	private void requireCloudConsentAllowed() throws CloudApiException
@@ -264,17 +264,6 @@ public final class CloudApiClient
 			path.append("&cursor=").append(URLEncoder.encode(cursor.trim(), StandardCharsets.UTF_8));
 		}
 		return requestAuthed("GET", path.toString(), null);
-	}
-
-	public JsonObject migrate(JsonObject body) throws CloudApiException, IOException
-	{
-		return requestAuthed("POST", "/api/v1/me/migrate", body);
-	}
-
-	/** Async migrate queue status ({@code GET /me/migrate}). */
-	public JsonObject getMigrateStatus() throws CloudApiException, IOException
-	{
-		return requestAuthed("GET", "/api/v1/me/migrate", null);
 	}
 
 	public JsonObject attest(JsonObject body) throws CloudApiException, IOException

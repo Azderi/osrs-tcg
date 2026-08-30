@@ -120,7 +120,6 @@ public final class SidebarChrome
 		}
 		CloudConnectionState state = cloudSessionService.getConnectionState();
 		String message = cloudSessionService.getStatusMessage();
-		boolean migrationPending = cloudSessionService.isMigrationPending();
 		boolean needsProfileCreate = cloudSessionService.needsProfileCreate();
 		boolean restrictedWorld = cloudSessionService.isRestrictedWorld();
 		boolean accountLocked = cloudSessionService.isAccountLocked();
@@ -152,12 +151,10 @@ public final class SidebarChrome
 				? "Credits disabled on this world type"
 				: message;
 		}
-		else if ((migrationPending || needsProfileCreate) && state != CloudConnectionState.CONNECTING)
+		else if (needsProfileCreate && state != CloudConnectionState.CONNECTING)
 		{
 			color = connectingYellow;
-			tooltip = migrationPending
-				? "Migrate your local collection to reconnect to cloud"
-				: "Create an OSRS TCG profile to connect to cloud";
+			tooltip = "Create an OSRS TCG profile to connect to cloud";
 		}
 		else
 		{

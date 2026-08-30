@@ -1,7 +1,6 @@
 package com.osrstcg.persist;
 
 import com.osrstcg.state.TcgState;
-import java.util.List;
 import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -63,35 +62,6 @@ public class TcgStateStore
 			return Optional.empty();
 		}
 		return fileBackupStore.loadMostRecentSnapshot();
-	}
-
-	/** Legacy profile-key dirs (migrate upload picker only). */
-	public List<TcgSaveMetadataEntry> listLegacySaveMetadata()
-	{
-		if (fileBackupStore == null)
-		{
-			return List.of();
-		}
-		return fileBackupStore.listLegacySaveMetadata();
-	}
-
-	public Optional<TcgState> loadByFileName(String fileName)
-	{
-		return loadByFileName(fileName, null);
-	}
-
-	public Optional<TcgState> loadByFileName(String fileName, String accountDirId)
-	{
-		if (fileBackupStore == null)
-		{
-			return Optional.empty();
-		}
-		return fileBackupStore.loadByFileName(fileName, accountDirId);
-	}
-
-	public boolean hasLegacySaveFiles()
-	{
-		return fileBackupStore != null && fileBackupStore.hasLegacySaveFiles();
 	}
 
 	public boolean saveFullCheckpoint(TcgState state, TcgSaveTrigger trigger)
