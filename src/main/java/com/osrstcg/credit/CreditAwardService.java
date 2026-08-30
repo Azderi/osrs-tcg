@@ -650,18 +650,12 @@ public class CreditAwardService
 
 	private void debugAward(String message)
 	{
-		boolean chat = stateService.isDebugChatEnabled();
-		boolean trace = stateService.isDebugTracingActive();
-		if (!chat && !trace)
+		if (!stateService.isDebugChatEnabled())
 		{
 			return;
 		}
-
 		log.info("[TCG DEBUG] {}", message);
-		if (chat)
-		{
-			TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, message);
-		}
+		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, message);
 	}
 
 	static boolean isOverallSkill(Skill skill)

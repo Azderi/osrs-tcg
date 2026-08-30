@@ -30,14 +30,11 @@ import com.osrstcg.cloud.session.CloudSessionService;
 @Singleton
 public final class TradeCloudService
 {
-	/** Default when the server omits pollAfterMs (matches low-load floor). */
-	private static final long DEFAULT_POLL_MS = 15_000L;
 	/**
-	 * Floor only for missing/invalid success values; server {@code pollAfterMs} is otherwise
-	 * authoritative (no client max). Error backoff still uses this as a lower bound.
+	 * Default when the server omits pollAfterMs, and lower bound for error backoff.
+	 * Server {@code pollAfterMs} is otherwise authoritative (no client max).
 	 */
-	private static final long MIN_POLL_MS = 15_000L;
-	private static final long BACKOFF_INITIAL_MS = 15_000L;
+	private static final long DEFAULT_POLL_MS = 15_000L;
 	private static final long BACKOFF_MAX_MS = 180_000L;
 	private static final long AUTH_RETRY_MS = 60_000L;
 
@@ -466,16 +463,16 @@ public final class TradeCloudService
 			long next = backoffMs.get();
 			if (next <= 0L)
 			{
-				next = BACKOFF_INITIAL_MS;
+				next = DEFAULT_POLL_MS;
 			}
 			else
 			{
 				next = Math.min(BACKOFF_MAX_MS, next * 2L);
 			}
 			backoffMs.set(next);
-			return Math.max(MIN_POLL_MS, next);
+			return Math.max(DEFAULT_POLL_MS, next);
 		}
-		return Math.max(MIN_POLL_MS, lastGoodPollAfterMs.get());
+		return Math.max(DEFAULT_POLL_MS, lastGoodPollAfterMs.get());
 	}
 
 	private long delayForTransientError()
@@ -483,14 +480,14 @@ public final class TradeCloudService
 		long next = backoffMs.get();
 		if (next <= 0L)
 		{
-			next = BACKOFF_INITIAL_MS;
+			next = DEFAULT_POLL_MS;
 		}
 		else
 		{
 			next = Math.min(BACKOFF_MAX_MS, next * 2L);
 		}
 		backoffMs.set(next);
-		return Math.max(MIN_POLL_MS, next);
+		return Math.max(DEFAULT_POLL_MS, next);
 	}
 
 	/**

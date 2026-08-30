@@ -11,6 +11,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import static com.osrstcg.cloud.attest.CreditAttestQueue.evidenceInt;
+import static com.osrstcg.cloud.attest.CreditAttestQueue.evidenceLong;
+import static com.osrstcg.cloud.attest.CreditAttestQueue.evidenceObject;
+import static com.osrstcg.cloud.attest.CreditAttestQueue.evidenceString;
 
 /**
  * Coalesces raw credit-attest events into domain events immediately before
@@ -443,43 +447,6 @@ public final class CreditAttestCoalescer
 			set.add(name);
 		}
 		return Set.copyOf(set);
-	}
-
-	private static JsonObject evidenceObject(JsonObject event)
-	{
-		if (event != null && event.has("evidence") && event.get("evidence").isJsonObject())
-		{
-			return event.getAsJsonObject("evidence");
-		}
-		return new JsonObject();
-	}
-
-	private static String evidenceString(JsonObject evidence, String key, String defaultValue)
-	{
-		if (evidence == null || !evidence.has(key) || evidence.get(key).isJsonNull())
-		{
-			return defaultValue;
-		}
-		String value = evidence.get(key).getAsString();
-		return value == null ? defaultValue : value;
-	}
-
-	private static int evidenceInt(JsonObject evidence, String key, int defaultValue)
-	{
-		if (evidence == null || !evidence.has(key) || evidence.get(key).isJsonNull())
-		{
-			return defaultValue;
-		}
-		return evidence.get(key).getAsInt();
-	}
-
-	private static long evidenceLong(JsonObject evidence, String key, long defaultValue)
-	{
-		if (evidence == null || !evidence.has(key) || evidence.get(key).isJsonNull())
-		{
-			return defaultValue;
-		}
-		return evidence.get(key).getAsLong();
 	}
 
 	private static long atOf(JsonObject event)

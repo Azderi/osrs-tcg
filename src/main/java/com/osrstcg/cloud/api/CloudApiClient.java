@@ -145,25 +145,7 @@ public final class CloudApiClient
 	 */
 	public LiveCardsResponse getLiveCards(String cachedCatalogVersion) throws CloudApiException, IOException
 	{
-		requireCloudConsentAllowed();
-		HttpUrl url = HttpUrl.parse(CloudEndpoints.apiUrl("/api/v1/catalog/cards/live"));
-		if (url == null)
-		{
-			throw new CloudApiException(0, "invalid_base_url", "Invalid API base URL: " + CloudEndpoints.API_BASE_URL);
-		}
-
-		Request.Builder b = new Request.Builder().url(url).get();
-		if (cachedCatalogVersion != null && !cachedCatalogVersion.isBlank())
-		{
-			String etag = cachedCatalogVersion.trim();
-			if (!etag.startsWith("\""))
-			{
-				etag = "\"" + etag + "\"";
-			}
-			b.header("If-None-Match", etag);
-		}
-
-		try (Response response = http.newCall(b.build()).execute())
+		try (Response response = getWithOptionalEtag("/api/v1/catalog/cards/live", cachedCatalogVersion))
 		{
 			String versionHeader = response.header("X-Catalog-Version");
 			if (versionHeader != null && !versionHeader.isBlank())
@@ -342,25 +324,7 @@ public final class CloudApiClient
 	 */
 	public ActivitiesConfigResponse getActivities(String cachedVersion) throws CloudApiException, IOException
 	{
-		requireCloudConsentAllowed();
-		HttpUrl url = HttpUrl.parse(CloudEndpoints.apiUrl("/api/v1/config/activities"));
-		if (url == null)
-		{
-			throw new CloudApiException(0, "invalid_base_url", "Invalid API base URL: " + CloudEndpoints.API_BASE_URL);
-		}
-
-		Request.Builder b = new Request.Builder().url(url).get();
-		if (cachedVersion != null && !cachedVersion.isBlank())
-		{
-			String etag = cachedVersion.trim();
-			if (!etag.startsWith("\""))
-			{
-				etag = "\"" + etag + "\"";
-			}
-			b.header("If-None-Match", etag);
-		}
-
-		try (Response response = http.newCall(b.build()).execute())
+		try (Response response = getWithOptionalEtag("/api/v1/config/activities", cachedVersion))
 		{
 			notifyActivitiesVersion(response.header("X-Activities-Version"));
 			if (response.code() == 304)
@@ -742,6 +706,28 @@ public final class CloudApiClient
 			return t.substring(1, t.length() - 1);
 		}
 		return t;
+	}
+
+	/** Caller must close the returned response. */
+	private Response getWithOptionalEtag(String path, String cachedVersion) throws CloudApiException, IOException
+	{
+		requireCloudConsentAllowed();
+		HttpUrl url = HttpUrl.parse(CloudEndpoints.apiUrl(path));
+		if (url == null)
+		{
+			throw new CloudApiException(0, "invalid_base_url", "Invalid API base URL: " + CloudEndpoints.API_BASE_URL);
+		}
+		Request.Builder b = new Request.Builder().url(url).get();
+		if (cachedVersion != null && !cachedVersion.isBlank())
+		{
+			String etag = cachedVersion.trim();
+			if (!etag.startsWith("\""))
+			{
+				etag = "\"" + etag + "\"";
+			}
+			b.header("If-None-Match", etag);
+		}
+		return http.newCall(b.build()).execute();
 	}
 
 	private static String readBody(Response response) throws IOException

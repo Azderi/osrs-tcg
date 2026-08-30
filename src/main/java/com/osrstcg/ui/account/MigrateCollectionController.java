@@ -3,7 +3,7 @@ package com.osrstcg.ui.account;
 import com.osrstcg.cloud.api.CloudApiException;
 import com.osrstcg.cloud.session.CloudSessionService;
 import com.osrstcg.state.TcgStateService;
-import com.osrstcg.ui.save.SaveRestoreManager;
+import com.osrstcg.ui.save.MigrateSavePicker;
 import com.osrstcg.util.TcgPluginGameMessages;
 import java.awt.Color;
 import java.awt.Component;
@@ -58,7 +58,7 @@ public final class MigrateCollectionController
 
 	private final CloudSessionService cloudSessionService;
 	private final TcgStateService stateService;
-	private final SaveRestoreManager saveRestoreManager;
+	private final MigrateSavePicker migrateSavePicker;
 	private final ScheduledExecutorService scheduler;
 	private final ChatMessageManager chatMessageManager;
 	private final Component dialogParent;
@@ -70,7 +70,7 @@ public final class MigrateCollectionController
 	public MigrateCollectionController(
 		CloudSessionService cloudSessionService,
 		TcgStateService stateService,
-		SaveRestoreManager saveRestoreManager,
+		MigrateSavePicker migrateSavePicker,
 		ScheduledExecutorService scheduler,
 		ChatMessageManager chatMessageManager,
 		Component dialogParent,
@@ -80,7 +80,7 @@ public final class MigrateCollectionController
 	{
 		this.cloudSessionService = cloudSessionService;
 		this.stateService = stateService;
-		this.saveRestoreManager = saveRestoreManager;
+		this.migrateSavePicker = migrateSavePicker;
 		this.scheduler = scheduler;
 		this.chatMessageManager = chatMessageManager;
 		this.dialogParent = dialogParent;
@@ -110,14 +110,14 @@ public final class MigrateCollectionController
 
 		if (stateService.hasDiskSaves())
 		{
-			saveRestoreManager.showMigratePicker(
+			migrateSavePicker.showMigratePicker(
 				entry ->
 				{
 					if (!stateService.applyDiskSaveForMigrate(entry.getName(), entry.getSourceDir()))
 					{
 						TcgPluginGameMessages.queueGameMessage(chatMessageManager,
 							"[OSRS TCG] Failed to load the selected save for migrate "
-								+ "(debug-mode saves cannot be uploaded outside developer mode).");
+								+ "(debug-mode saves cannot be uploaded).");
 						return;
 					}
 					refreshUi.run();

@@ -2,6 +2,7 @@ package com.osrstcg.persist;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
+import com.osrstcg.util.AtomicFiles;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -88,7 +89,7 @@ final class TcgSavesIndexIo
 				String json = gson.toJson(toWrite);
 				Files.writeString(temp, json, StandardCharsets.UTF_8,
 					StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
-				TcgStateFileBackupStore.moveAtomically(temp, target);
+				AtomicFiles.moveReplace(temp, target);
 			}
 			finally
 			{

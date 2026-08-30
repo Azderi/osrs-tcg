@@ -65,16 +65,6 @@ public class TcgStateStore
 		return fileBackupStore.loadMostRecentSnapshot();
 	}
 
-	/** Disk save metadata for the current account ({@code tcg.save} + snapshots). */
-	public List<TcgSaveMetadataEntry> listSaveMetadata()
-	{
-		if (fileBackupStore == null)
-		{
-			return List.of();
-		}
-		return fileBackupStore.listSaveMetadata();
-	}
-
 	/** Legacy profile-key dirs (migrate upload picker only). */
 	public List<TcgSaveMetadataEntry> listLegacySaveMetadata()
 	{
@@ -97,11 +87,6 @@ public class TcgStateStore
 			return Optional.empty();
 		}
 		return fileBackupStore.loadByFileName(fileName, accountDirId);
-	}
-
-	public boolean hasSaveFiles()
-	{
-		return fileBackupStore != null && fileBackupStore.hasSaveFiles();
 	}
 
 	public boolean hasLegacySaveFiles()

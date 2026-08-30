@@ -2,17 +2,14 @@ package com.osrstcg.catalog;
 
 import com.osrstcg.cloud.api.CloudEndpoints;
 import com.osrstcg.cloud.session.CloudTokenStore;
+import com.osrstcg.persist.TcgStateHash;
+import com.osrstcg.util.AtomicFiles;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -453,7 +450,7 @@ public class CardImageCacheService
 		{
 			return packDiskCacheDir().resolve(packName);
 		}
-		return diskCacheDir().resolve(sha256Hex(cacheKey) + ".png");
+		return diskCacheDir().resolve(TcgStateHash.hexOfUtf8(cacheKey) + ".png");
 	}
 
 	/** {@code true} when the absolute URL is a pack catalog sleeve or thumbnail. */
@@ -494,7 +491,7 @@ public class CardImageCacheService
 		String raw = slash >= 0 ? path.substring(slash + 1) : path;
 		if (raw.isBlank())
 		{
-			return sha256Hex(normalizedUrl) + ".bin";
+			return TcgStateHash.hexOfUtf8(normalizedUrl) + ".bin";
 		}
 		StringBuilder sb = new StringBuilder(raw.length());
 		for (int i = 0; i < raw.length(); i++)
@@ -515,7 +512,7 @@ public class CardImageCacheService
 		String cleaned = sb.toString();
 		if (cleaned.isBlank() || cleaned.equals(".") || cleaned.equals(".."))
 		{
-			return sha256Hex(normalizedUrl) + ".bin";
+			return TcgStateHash.hexOfUtf8(normalizedUrl) + ".bin";
 		}
 		return cleaned;
 	}
@@ -586,56 +583,13 @@ public class CardImageCacheService
 			return;
 		}
 		Path target = diskCacheFile(cacheKey);
-		Path dir = target.getParent();
-		if (dir == null)
-		{
-			return;
-		}
-		Path tmp = dir.resolve(target.getFileName().toString() + ".tmp");
 		try
 		{
-			Files.createDirectories(dir);
-			Files.write(tmp, bytes);
-			try
-			{
-				Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-			}
-			catch (AtomicMoveNotSupportedException ex)
-			{
-				Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
-			}
+			AtomicFiles.writeBytes(target, bytes);
 		}
 		catch (Exception ex)
 		{
 			log.debug("Disk cache write failed for {}", target, ex);
-			try
-			{
-				Files.deleteIfExists(tmp);
-			}
-			catch (Exception ignore)
-			{
-				// ignore
-			}
-		}
-	}
-
-	private static String sha256Hex(String value)
-	{
-		try
-		{
-			MessageDigest md = MessageDigest.getInstance("SHA-256");
-			byte[] digest = md.digest(value.getBytes(StandardCharsets.UTF_8));
-			char[] hex = "0123456789abcdef".toCharArray();
-			StringBuilder sb = new StringBuilder(digest.length * 2);
-			for (byte b : digest)
-			{
-				sb.append(hex[(b >> 4) & 0xF]).append(hex[b & 0xF]);
-			}
-			return sb.toString();
-		}
-		catch (NoSuchAlgorithmException ex)
-		{
-			throw new IllegalStateException(ex);
 		}
 	}
 

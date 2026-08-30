@@ -15,8 +15,6 @@ import com.osrstcg.pack.PackSafeModeService;
 import com.osrstcg.catalog.RollPoolFilter;
 import com.osrstcg.party.TcgPartyAnnouncer;
 import com.osrstcg.state.TcgStateService;
-import com.osrstcg.util.NumberFormatting;
-import com.osrstcg.util.TcgPluginGameMessages;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -26,7 +24,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
-import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.util.Text;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
@@ -50,7 +47,6 @@ public final class CloudPackService
 	private final Client client;
 	private final PackSafeModeService packSafeModeService;
 	private final TcgPartyAnnouncer partyAnnouncer;
-	private final ChatMessageManager chatMessageManager;
 
 	@Inject
 	CloudPackService(
@@ -63,8 +59,7 @@ public final class CloudPackService
 		CardDatabase cardDatabase,
 		Client client,
 		PackSafeModeService packSafeModeService,
-		TcgPartyAnnouncer partyAnnouncer,
-		ChatMessageManager chatMessageManager)
+		TcgPartyAnnouncer partyAnnouncer)
 	{
 		this.api = api;
 		this.session = session;
@@ -76,7 +71,6 @@ public final class CloudPackService
 		this.client = client;
 		this.packSafeModeService = packSafeModeService;
 		this.partyAnnouncer = partyAnnouncer;
-		this.chatMessageManager = chatMessageManager;
 	}
 
 	public PackOpenResult buyAndOpenPack(BoosterPackDefinition booster)
@@ -160,25 +154,7 @@ public final class CloudPackService
 				ownedBefore = new HashMap<>(stateService.getState().getCollectionState().getOwnedCards());
 			}
 
-			String packLabel = priced.getName() == null || priced.getName().isBlank() ? packId : priced.getName().trim();
-			debugPackOpen("Sending pack open request (" + packLabel + ", id=" + packId + ")");
-			JsonObject response;
-			try
-			{
-				response = api.openPack(body);
-			}
-			catch (CloudApiException ex)
-			{
-				debugPackOpen("Pack open reply failed: HTTP " + ex.getStatus()
-					+ " (" + ex.getCode() + ") - " + ex.getMessage());
-				throw ex;
-			}
-			catch (Exception ex)
-			{
-				String detail = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
-				debugPackOpen("Pack open reply failed: " + detail);
-				throw ex;
-			}
+			JsonObject response = api.openPack(body);
 			long creditsAfter = response.has("credits")
 				? response.get("credits").getAsLong()
 				: stateService.getAuthoritativeCredits();
@@ -236,9 +212,6 @@ public final class CloudPackService
 			int cardsPerPack = Math.max(1, packCatalog.getCache().getPackSize());
 			int previousOpenedPacks = (int) stateService.getState().getEconomyState().getOpenedPacks();
 			int openedPacks = previousOpenedPacks + (pulls.size() / cardsPerPack);
-
-			debugPackOpen("Pack open reply received ("
-				+ pulls.size() + " cards, credits=" + NumberFormatting.format(creditsAfter) + ")");
 
 			stateService.replaceCloudEconomyCache(creditsAfter, openedPacks, totalGained);
 			absorbRanksFromPackOpen(response);
@@ -417,15 +390,5 @@ public final class CloudPackService
 			ranks[i] = n;
 		}
 		stateService.replaceSidebarRanks(ranks);
-	}
-
-	private void debugPackOpen(String message)
-	{
-		if (!stateService.isDebugChatEnabled() || message == null || message.isBlank())
-		{
-			return;
-		}
-		log.info("[TCG DEBUG] {}", message);
-		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, message);
 	}
 }

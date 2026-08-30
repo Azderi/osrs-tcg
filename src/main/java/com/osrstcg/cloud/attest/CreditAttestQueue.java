@@ -4,11 +4,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.osrstcg.state.TcgStateService;
-import com.osrstcg.util.TcgPluginGameMessages;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -24,6 +21,9 @@ import com.osrstcg.cloud.api.CloudApiException;
 import com.osrstcg.cloud.api.JsonObjects;
 import com.osrstcg.cloud.session.CloudSessionService;
 import com.osrstcg.cloud.trade.TradeCloudService;
+import com.osrstcg.util.TcgPluginGameMessages;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Queues raw credit events and coalesces them immediately before {@code POST /credits/attest}.
@@ -39,18 +39,17 @@ import com.osrstcg.cloud.trade.TradeCloudService;
 @Singleton
 public final class CreditAttestQueue
 {
+	/** Default / floor when the server omits attestAfterMs; positive server values are authoritative. */
 	private static final long DEFAULT_ATTEST_AFTER_MS = 60_000L;
-	/** Floor only for missing/invalid values; server {@code attestAfterMs} is otherwise authoritative. */
-	private static final long MIN_ATTEST_AFTER_MS = 60_000L;
 	/** Optional early flush when a single xp_chunk is this large (still coalesced first). */
 	private static final long LARGE_XP_SPIKE_DELTA = 50_000L;
 	private final CloudSessionService session;
 	private final TradeCloudService tradeCloud;
 	private final TcgStateService stateService;
 	private final Client client;
+	private final ChatMessageManager chatMessageManager;
 	private final ScheduledExecutorService scheduler;
 	private final AttestRateCapNotifier rateCapNotifier;
-	private final ChatMessageManager chatMessageManager;
 	private final CreditAttestSpillStore spillStore;
 
 	private final Object lock = new Object();
@@ -79,18 +78,18 @@ public final class CreditAttestQueue
 		TradeCloudService tradeCloud,
 		TcgStateService stateService,
 		Client client,
+		ChatMessageManager chatMessageManager,
 		ScheduledExecutorService scheduler,
 		AttestRateCapNotifier rateCapNotifier,
-		ChatMessageManager chatMessageManager,
 		CreditAttestSpillStore spillStore)
 	{
 		this.session = session;
 		this.tradeCloud = tradeCloud;
 		this.stateService = stateService;
 		this.client = client;
+		this.chatMessageManager = chatMessageManager;
 		this.scheduler = scheduler;
 		this.rateCapNotifier = rateCapNotifier;
-		this.chatMessageManager = chatMessageManager;
 		this.spillStore = spillStore;
 		this.rejectRequeuer = new AttestRejectRequeuer(this);
 		this.poster = new CreditAttestPoster(this, api, rejectRequeuer);
@@ -150,7 +149,7 @@ public final class CreditAttestQueue
 		if (ms <= 0L)
 		{
 			long fb = fallbackMs > 0L ? fallbackMs : DEFAULT_ATTEST_AFTER_MS;
-			return Math.max(MIN_ATTEST_AFTER_MS, fb);
+			return Math.max(DEFAULT_ATTEST_AFTER_MS, fb);
 		}
 		return ms;
 	}
@@ -631,6 +630,67 @@ public final class CreditAttestQueue
 		return null;
 	}
 
+	void debugCreditAttestSend(List<JsonObject> batch, long optimisticEstimate)
+	{
+		if (!stateService.isDebugChatEnabled() || batch == null || batch.isEmpty())
+		{
+			return;
+		}
+		Map<String, Integer> counts = new LinkedHashMap<>();
+		for (JsonObject event : batch)
+		{
+			String type = "?";
+			if (event != null && event.has("type") && !event.get("type").isJsonNull())
+			{
+				type = event.get("type").getAsString();
+			}
+			counts.merge(type, 1, Integer::sum);
+		}
+		StringBuilder summary = new StringBuilder();
+		for (Map.Entry<String, Integer> entry : counts.entrySet())
+		{
+			if (summary.length() > 0)
+			{
+				summary.append(", ");
+			}
+			summary.append(entry.getKey()).append(" x").append(entry.getValue());
+		}
+		String message = "Sending " + batch.size() + " credit events to server: " + summary;
+		if (optimisticEstimate > 0L)
+		{
+			message += " (" + optimisticEstimate + " credits)";
+		}
+		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, message);
+	}
+
+	void debugCreditAttestResponse(JsonObject response, long clearOptimistic, long pendingBefore)
+	{
+		if (!stateService.isDebugChatEnabled() || response == null)
+		{
+			return;
+		}
+		StringBuilder message = new StringBuilder("Server attest response");
+		if (response.has("credits") && !response.get("credits").isJsonNull())
+		{
+			message.append(": credits=").append(response.get("credits").getAsLong());
+		}
+		if (clearOptimistic > 0L)
+		{
+			message.append(", cleared optimistic=").append(clearOptimistic);
+		}
+		long pendingAfter = stateService.getPendingOptimisticCredits();
+		if (pendingBefore != pendingAfter)
+		{
+			message.append(", pending ").append(pendingBefore).append(" -> ").append(pendingAfter);
+		}
+		String rejected = formatRejectedReasons(response);
+		if (rejected != null && !"[]".equals(rejected))
+		{
+			message.append(", rejected=").append(rejected);
+		}
+		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, message.toString());
+	}
+
 	static String formatRejectedReasons(JsonObject response)
 	{
 		if (response == null || !response.has("rejected") || !response.get("rejected").isJsonArray())
@@ -670,39 +730,6 @@ public final class CreditAttestQueue
 		}
 	}
 
-	void debugCreditAttestSend(List<JsonObject> batch, long optimisticEstimate)
-	{
-		if (!stateService.isDebugChatEnabled() || batch == null || batch.isEmpty())
-		{
-			return;
-		}
-		Map<String, Integer> counts = new LinkedHashMap<>();
-		for (JsonObject event : batch)
-		{
-			String type = "?";
-			if (event != null && event.has("type") && !event.get("type").isJsonNull())
-			{
-				type = event.get("type").getAsString();
-			}
-			counts.merge(type, 1, Integer::sum);
-		}
-		StringBuilder summary = new StringBuilder();
-		for (Map.Entry<String, Integer> entry : counts.entrySet())
-		{
-			if (summary.length() > 0)
-			{
-				summary.append(", ");
-			}
-			summary.append(entry.getKey()).append(" x").append(entry.getValue());
-		}
-		String message = "Sending " + batch.size() + " credit events to server: " + summary;
-		if (optimisticEstimate > 0L)
-		{
-			message += " (" + optimisticEstimate + " credits)";
-		}
-		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, message);
-	}
-
 	static JsonObject evidenceObject(JsonObject event)
 	{
 		if (event != null && event.has("evidence") && event.get("evidence").isJsonObject())
@@ -731,7 +758,7 @@ public final class CreditAttestQueue
 		return evidence.get(key).getAsInt();
 	}
 
-	private static long evidenceLong(JsonObject evidence, String key, long defaultValue)
+	static long evidenceLong(JsonObject evidence, String key, long defaultValue)
 	{
 		if (evidence == null || !evidence.has(key) || evidence.get(key).isJsonNull())
 		{

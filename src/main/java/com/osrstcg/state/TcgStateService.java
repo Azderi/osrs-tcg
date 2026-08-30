@@ -1,36 +1,32 @@
 package com.osrstcg.state;
 
-import com.osrstcg.OsrsTcgConfig;
 import com.osrstcg.persist.TcgSaveMetadataEntry;
 import com.osrstcg.persist.TcgSaveTrigger;
 import com.osrstcg.persist.TcgStateLoadResult;
 import com.osrstcg.persist.TcgStateLoadSource;
 import com.osrstcg.persist.TcgStateStore;
 import com.osrstcg.util.PackRevealZoomUtil;
-import com.google.inject.name.Named;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import com.osrstcg.credit.CreditsRateTracker;
 import com.osrstcg.notify.CreditNotificationService;
+import com.osrstcg.OsrsTcgConfig;
 
 @Singleton
 @Slf4j
 public class TcgStateService
 {
 	private final TcgStateStore stateStore;
-	private final boolean runeliteDeveloperMode;
-	private final Provider<OsrsTcgConfig> config;
 	private final Provider<CreditNotificationService> creditNotificationService;
 	private final CreditsRateTracker creditsRateTracker;
+	private final Provider<OsrsTcgConfig> config;
 	private volatile TcgState state = TcgState.empty();
 	/**
 	 * In-memory cache of cloud collection overview (beta-excluded). Filled from {@code /me/stats}
@@ -47,26 +43,23 @@ public class TcgStateService
 	@Inject
 	public TcgStateService(
 		TcgStateStore stateStore,
-		@Named("developerMode") boolean runeliteDeveloperMode,
-		Provider<OsrsTcgConfig> config,
 		Provider<CreditNotificationService> creditNotificationService,
-		CreditsRateTracker creditsRateTracker)
+		CreditsRateTracker creditsRateTracker,
+		Provider<OsrsTcgConfig> config)
 	{
 		this.stateStore = stateStore;
-		this.runeliteDeveloperMode = runeliteDeveloperMode;
-		this.config = config;
 		this.creditNotificationService = creditNotificationService;
 		this.creditsRateTracker = creditsRateTracker;
+		this.config = config;
 	}
 
 	/** Test / local harness constructor (no disk store). */
 	public TcgStateService(TcgState initialState)
 	{
 		this.stateStore = null;
-		this.runeliteDeveloperMode = false;
-		this.config = null;
 		this.creditNotificationService = null;
 		this.creditsRateTracker = null;
+		this.config = null;
 		this.state = initialState == null ? TcgState.empty() : initialState;
 	}
 
@@ -92,11 +85,6 @@ public class TcgStateService
 				result.getSource(),
 				result.isDiskLoadFailed(),
 				true);
-		}
-
-		if (state.isDebugLogging() && runeliteDeveloperMode)
-		{
-			log.info("OSRS TCG: loaded profile had debug mode enabled; keeping collection (developer mode active).");
 		}
 
 		boolean strippedDebug = stripDebugProvenanceRowsIfDebugDisabled();
@@ -189,21 +177,6 @@ public class TcgStateService
 		return stateStore != null && stateStore.hasLegacySaveFiles();
 	}
 
-	public synchronized Optional<TcgState> peekDiskSave(String fileName)
-	{
-		return peekDiskSave(fileName, null);
-	}
-
-	/** Peeks a save without applying it (for migrate upload UI stats). */
-	public synchronized Optional<TcgState> peekDiskSave(String fileName, String sourceDir)
-	{
-		if (stateStore == null || fileName == null || fileName.isEmpty())
-		{
-			return Optional.empty();
-		}
-		return stateStore.loadByFileName(fileName.trim(), sourceDir);
-	}
-
 	public synchronized boolean applyDiskSaveForMigrate(String fileName)
 	{
 		return applyDiskSaveForMigrate(fileName, null);
@@ -213,9 +186,7 @@ public class TcgStateService
 	 * Applies a legacy {@code backups/} save into memory before cloud migrate upload.
 	 * Does not write a restore checkpoint - the migrate path uploads this state next.
 	 * <p>
-	 * Refuses debug-mode saves outside RuneLite developer mode (does not wipe memory).
-	 * The save picker peeks the raw file, so a silent reset here used to look like a
-	 * successful pick while {@code migrateLocalCollection} then skipped the upload.
+	 * Refuses debug-mode saves (does not wipe memory).
 	 */
 	public synchronized boolean applyDiskSaveForMigrate(String fileName, String sourceDir)
 	{
@@ -230,20 +201,14 @@ public class TcgStateService
 		}
 
 		TcgState candidate = restored.get();
-		if (candidate.isDebugLogging() && !runeliteDeveloperMode)
+		if (candidate.isDebugLogging())
 		{
-			log.warn("OSRS TCG: refusing migrate of debug-mode save outside developer mode ({})",
-				fileName.trim());
+			log.warn("OSRS TCG: refusing migrate of debug-mode save ({})", fileName.trim());
 			return false;
 		}
 
 		state = candidate;
 		optimistic.clear();
-
-		if (state.isDebugLogging() && runeliteDeveloperMode)
-		{
-			log.info("OSRS TCG: migrate save had debug mode enabled; keeping collection (developer mode active).");
-		}
 
 		stripDebugProvenanceRowsIfDebugDisabled();
 		// Keep collection/economy from the save, but clear skill XP baselines -
@@ -314,18 +279,6 @@ public class TcgStateService
 		return state.isDebugLogging();
 	}
 
-	/** Whether Overview debug mode is active (console tracing for credit awards). */
-	public boolean isDebugTracingActive()
-	{
-		return state.isDebugLogging();
-	}
-
-	/** In-game debug chat: controlled only by the plugin settings debug-messages toggle. */
-	public boolean isDebugChatEnabled()
-	{
-		return config != null && config.get().debugMessages();
-	}
-
 	public synchronized void setDebugLogging(boolean enabled)
 	{
 		if (state.isDebugLogging() == enabled)
@@ -368,6 +321,12 @@ public class TcgStateService
 	public synchronized long getPendingOptimisticCredits()
 	{
 		return optimistic.get();
+	}
+
+	/** Whether Settings → Debug messages is enabled (optimistic credit / attest chat). */
+	public boolean isDebugChatEnabled()
+	{
+		return config != null && config.get().debugMessages();
 	}
 
 	/**
@@ -420,7 +379,7 @@ public class TcgStateService
 		long nextRevision = Math.max(0L, revision);
 		String nextHash = stateHash == null ? "" : stateHash.trim();
 		if (state.getCloudRevision() == nextRevision
-			&& (state.getCloudStateHash() == null ? "" : state.getCloudStateHash()).equalsIgnoreCase(nextHash))
+			&& state.getCloudStateHash().equalsIgnoreCase(nextHash))
 		{
 			return;
 		}
@@ -604,49 +563,6 @@ public class TcgStateService
 		notifyCollectionMutated();
 	}
 
-	/**
-	 * Adds one non-foil copy of each distinct catalog card name (including duplicates already owned).
-	 *
-	 * @return number of instances added
-	 */
-	public synchronized int addOneOfEachCatalogCard(List<String> catalogCardNames, String pulledByUsername,
-		long pulledAtEpochMs)
-	{
-		if (catalogCardNames == null || catalogCardNames.isEmpty())
-		{
-			return 0;
-		}
-
-
-		String by = pulledByUsername == null ? "" : pulledByUsername.trim();
-		long at = Math.max(0L, pulledAtEpochMs);
-		List<OwnedCardInstance> toAdd = new ArrayList<>();
-		Set<String> scheduled = new HashSet<>();
-
-		for (String raw : catalogCardNames)
-		{
-			if (raw == null)
-			{
-				continue;
-			}
-			String name = raw.trim();
-			if (name.isEmpty() || !scheduled.add(name))
-			{
-				continue;
-			}
-			toAdd.add(OwnedCardInstance.createNew(name, false, by, at));
-		}
-
-		if (toAdd.isEmpty())
-		{
-			return 0;
-		}
-
-		state = state.withCollection(state.getCollectionState().withInstancesAdded(toAdd));
-		notifyCollectionMutated();
-		return toAdd.size();
-	}
-
 	/** Snapshot of owned quantities before a bulk collection change. */
 	public synchronized Map<CardCollectionKey, Integer> copyOwnedCardsSnapshot()
 	{
@@ -669,7 +585,7 @@ public class TcgStateService
 
 	private boolean shouldResetDebugTaintedSave()
 	{
-		return state.isDebugLogging() && !runeliteDeveloperMode;
+		return state.isDebugLogging();
 	}
 
 	/**

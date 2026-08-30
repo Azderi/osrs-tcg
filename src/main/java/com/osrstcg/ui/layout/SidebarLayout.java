@@ -231,22 +231,4 @@ public final class SidebarLayout
 		}
 		return FontManager.getRunescapeSmallFont();
 	}
-
-	public static String trimTrailingSlash(String url)
-	{
-		if (url == null)
-		{
-			return null;
-		}
-		String t = url.trim();
-		if (t.isEmpty())
-		{
-			return null;
-		}
-		while (t.endsWith("/"))
-		{
-			t = t.substring(0, t.length() - 1);
-		}
-		return t.isEmpty() ? null : t;
-	}
 }

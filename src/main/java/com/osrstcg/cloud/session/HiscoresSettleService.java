@@ -37,7 +37,6 @@ final class HiscoresSettleService
 	private final AtomicBoolean hiscoresSettleRetryScheduled;
 	private final java.util.function.BooleanSupplier needsCloudConsent;
 	private final java.util.function.BooleanSupplier isAccountLocked;
-	private final java.util.function.BooleanSupplier isDebugModePaused;
 
 	HiscoresSettleService(
 		Client client,
@@ -51,8 +50,7 @@ final class HiscoresSettleService
 		AtomicBoolean hiscoresSettledThisLogin,
 		AtomicBoolean hiscoresSettleRetryScheduled,
 		java.util.function.BooleanSupplier needsCloudConsent,
-		java.util.function.BooleanSupplier isAccountLocked,
-		java.util.function.BooleanSupplier isDebugModePaused)
+		java.util.function.BooleanSupplier isAccountLocked)
 	{
 		this.client = client;
 		this.api = api;
@@ -66,12 +64,11 @@ final class HiscoresSettleService
 		this.hiscoresSettleRetryScheduled = hiscoresSettleRetryScheduled;
 		this.needsCloudConsent = needsCloudConsent;
 		this.isAccountLocked = isAccountLocked;
-		this.isDebugModePaused = isDebugModePaused;
 	}
 
 	void snapshotOnLogout()
 	{
-		if (isDebugModePaused.getAsBoolean() || isAccountLocked.getAsBoolean()
+		if (isAccountLocked.getAsBoolean()
 			|| tokens.getAccessToken() == null || needsCloudConsent.getAsBoolean())
 		{
 			return;

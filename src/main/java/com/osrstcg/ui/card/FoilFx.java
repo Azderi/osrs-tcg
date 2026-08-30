@@ -165,9 +165,7 @@ public final class FoilFx
 	public static FoilFx foilFxFromPulledAt(
 		Long pulledAt, int count, String cardName, String tierLabel, Color tierColor)
 	{
-		long at = pulledAt == null ? 0L : pulledAt;
-		int fallback = at == 0L ? 1 : (int) at;
-		int seed = WearFx.wearSeedFromPull(cardName, "", pulledAt, fallback);
+		int seed = WearFx.wearSeedFromPull(cardName, "", pulledAt, 1);
 		WearFx.Mulberry32 rand = new WearFx.Mulberry32(seed);
 
 		RarityMath.Tier tier = resolveTier(tierLabel, tierColor);

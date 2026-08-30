@@ -194,7 +194,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "debugMessages",
 		name = "Debug messages",
-		description = "Show extra plugin details in chat.",
+		description = "Chat debug messages",
 		section = generalSection,
 		position = 14
 	)

@@ -3,12 +3,11 @@ package com.osrstcg.persist;
 import com.google.gson.Gson;
 import com.osrstcg.cloud.session.ProfileKeyHasher;
 import com.osrstcg.state.TcgState;
+import com.osrstcg.util.AtomicFiles;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -150,38 +149,6 @@ public class TcgStateFileBackupStore
 	}
 
 	/**
-	 * Returns metadata for {@code tcg.save} and retained snapshots (syncs {@code saves.json} first),
-	 * ordered newest {@code savedAt} first (current profile only).
-	 */
-	public List<TcgSaveMetadataEntry> listSaveMetadata()
-	{
-		rewriteSavesIndexFromDisk();
-		TcgSavesIndex index = readSavesIndex();
-		List<TcgSaveMetadataEntry> saves = index.getSaves();
-		if (saves == null || saves.isEmpty())
-		{
-			return List.of();
-		}
-		List<TcgSaveMetadataEntry> copy = new ArrayList<>(saves.size());
-		for (TcgSaveMetadataEntry entry : saves)
-		{
-			if (entry == null || entry.getName() == null || entry.getName().isEmpty())
-			{
-				continue;
-			}
-			copy.add(new TcgSaveMetadataEntry(
-				entry.getName(),
-				entry.getCardCount(),
-				entry.getCredits(),
-				entry.getHash(),
-				entry.getSavedAt(),
-				entry.getTrigger()));
-		}
-		copy.sort(Comparator.comparingLong((TcgSaveMetadataEntry e) -> parseSavedAtEpochMs(e.getSavedAt())).reversed());
-		return copy;
-	}
-
-	/**
 	 * Loads {@code tcg.save} or a hash-named snapshot by exact filename from the current profile.
 	 */
 	public Optional<TcgState> loadByFileName(String fileName)
@@ -211,16 +178,6 @@ public class TcgStateFileBackupStore
 			return Optional.empty();
 		}
 		return tryLoadEncodedFile(dir.resolve(name.toLowerCase(Locale.ROOT)), true);
-	}
-
-	/**
-	 * True when the current profile folder contains {@code tcg.save} or any hash snapshot file.
-	 * Uses the filesystem directly so a stale/empty {@code saves.json} cannot hide real saves.
-	 */
-	public boolean hasSaveFiles()
-	{
-		Path dir = saveDirectory();
-		return dir != null && hasSaveFilesInDir(dir);
 	}
 
 	/** True when any folder under {@code backups/} contains save files (migrate upload scan). */
@@ -439,7 +396,7 @@ public class TcgStateFileBackupStore
 					return false;
 				}
 
-				moveAtomically(temp, target);
+				AtomicFiles.moveReplace(temp, target);
 
 				log.debug("OSRS TCG wrote save file {}", target.getFileName());
 				return true;
@@ -859,17 +816,5 @@ public class TcgStateFileBackupStore
 	private static String nullToEmpty(String value)
 	{
 		return value == null ? "" : value;
-	}
-
-	static void moveAtomically(Path source, Path target) throws IOException
-	{
-		try
-		{
-			Files.move(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-		}
-		catch (AtomicMoveNotSupportedException ex)
-		{
-			Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
-		}
 	}
 }

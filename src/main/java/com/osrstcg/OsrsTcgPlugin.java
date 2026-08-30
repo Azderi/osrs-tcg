@@ -11,9 +11,10 @@ import com.osrstcg.cloud.attest.CreditAttestQueue;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.cloud.trade.TcgTradeMenuHandler;
 import com.osrstcg.cloud.trade.TradeCloudService;
-import com.osrstcg.command.TcgDebugCommands;
+import com.osrstcg.command.TcgResetCommand;
 import com.osrstcg.catalog.CardDatabase;
 import com.osrstcg.state.TcgPublicStats;
+import com.osrstcg.overlay.CreditsInfoboxMenuHandler;
 import com.osrstcg.overlay.CreditsInfoboxOverlay;
 import com.osrstcg.overlay.PackRevealInputListener;
 import com.osrstcg.overlay.PackRevealOverlay;
@@ -112,7 +113,9 @@ public class OsrsTcgPlugin extends Plugin
 	@Inject
 	private CloudSessionCoordinator cloudSessionCoordinator;
 	@Inject
-	private TcgDebugCommands tcgDebugCommands;
+	private TcgResetCommand tcgResetCommand;
+	@Inject
+	private CreditsInfoboxMenuHandler creditsInfoboxMenuHandler;
 	@Inject
 	private TcgTradeMenuHandler tcgTradeMenuHandler;
 	@Inject
@@ -353,8 +356,6 @@ public class OsrsTcgPlugin extends Plugin
 	{
 		creditAwardService.onGameStateChanged(event);
 		GameState gs = event.getGameState();
-		queueDebugMessage(String.format("GameStateChanged: %s",
-			gs == null ? "null" : gs.name()));
 
 		if (gs == GameState.LOGIN_SCREEN)
 		{
@@ -372,9 +373,6 @@ public class OsrsTcgPlugin extends Plugin
 	@Subscribe
 	public void onWorldChanged(WorldChanged event)
 	{
-		queueDebugMessage(String.format("WorldChanged: world=%d types=%s",
-			client.getWorld(),
-			client.getWorldType() == null ? "[]" : client.getWorldType().toString()));
 		cloudSessionCoordinator.onWorldChanged(event);
 	}
 
@@ -450,11 +448,7 @@ public class OsrsTcgPlugin extends Plugin
 			return;
 		}
 
-		if (loadResult.getSource() == TcgStateLoadSource.DISK)
-		{
-			queueDebugMessage("Restored progress from tcg.save.");
-		}
-		else if (loadResult.getSource() == TcgStateLoadSource.DISK_SNAPSHOT)
+		if (loadResult.getSource() == TcgStateLoadSource.DISK_SNAPSHOT)
 		{
 			queueGameMessage("[OSRS TCG] Restored progress from a disk snapshot.");
 		}
@@ -488,31 +482,16 @@ public class OsrsTcgPlugin extends Plugin
 			TcgPluginGameMessages.queueGameMessage(chatMessageManager, message));
 	}
 
-	private void queueDebugMessage(String message)
-	{
-		if (client == null || clientThread == null || message == null || message.isEmpty())
-		{
-			return;
-		}
-		if (config == null || !config.debugMessages())
-		{
-			return;
-		}
-
-		clientThread.invokeLater(() ->
-			TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, message));
-	}
-
 	@Subscribe
 	public void onCommandExecuted(CommandExecuted event)
 	{
-		tcgDebugCommands.onCommandExecuted(event);
+		tcgResetCommand.onCommandExecuted(event);
 	}
 
 	@Subscribe
 	public void onOverlayMenuClicked(OverlayMenuClicked event)
 	{
-		tcgDebugCommands.onOverlayMenuClicked(event);
+		creditsInfoboxMenuHandler.onOverlayMenuClicked(event);
 	}
 
 	private void lookupTcgPublicStatsChatCommand(ChatMessage chatMessage, String message)

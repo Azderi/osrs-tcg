@@ -5,10 +5,10 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.osrstcg.cloud.session.ProfileKeyHasher;
+import com.osrstcg.util.AtomicFiles;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -117,10 +117,8 @@ public final class CreditAttestSpillStore
 		}
 		Path profileDir = profilesRoot.resolve(id);
 		Path target = profileDir.resolve(SPILL_FILENAME);
-		Path tmp = profileDir.resolve(SPILL_FILENAME + ".tmp");
 		try
 		{
-			Files.createDirectories(profileDir);
 			JsonArray arr = new JsonArray();
 			for (JsonObject event : events)
 			{
@@ -129,27 +127,11 @@ public final class CreditAttestSpillStore
 					arr.add(event);
 				}
 			}
-			Files.writeString(tmp, arr.toString(), StandardCharsets.UTF_8);
-			try
-			{
-				Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-			}
-			catch (java.nio.file.AtomicMoveNotSupportedException ex)
-			{
-				Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
-			}
+			AtomicFiles.writeString(target, arr.toString(), StandardCharsets.UTF_8);
 		}
 		catch (Exception ex)
 		{
 			log.debug("Credit attest spill write failed for accountHash={}", accountHash, ex);
-			try
-			{
-				Files.deleteIfExists(tmp);
-			}
-			catch (Exception ignored)
-			{
-				// ignore
-			}
 		}
 	}
 

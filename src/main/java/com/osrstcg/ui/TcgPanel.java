@@ -32,8 +32,7 @@ import com.osrstcg.ui.shop.BoosterShopRow;
 import com.osrstcg.ui.shop.ShopTab;
 import com.osrstcg.ui.welcome.WelcomeContent;
 import com.osrstcg.ui.welcome.WelcomeTab;
-import com.osrstcg.ui.save.SaveRestoreManager;
-import com.osrstcg.util.TcgPluginGameMessages;
+import com.osrstcg.ui.save.MigrateSavePicker;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
@@ -52,7 +51,6 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.inject.Inject;
-import javax.inject.Named;
 import javax.inject.Singleton;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -108,7 +106,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	private final Client client;
 	private final CloudSessionService cloudSessionService;
 	private final TradeCloudService tradeCloudService;
-	private final SaveRestoreManager saveRestoreManager;
+	private final MigrateSavePicker migrateSavePicker;
 	private final ScheduledExecutorService scheduler;
 	private final ChatMessageManager chatMessageManager;
 	private final JButton openAccountPanelButton;
@@ -164,8 +162,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	private boolean overviewBuiltForActiveReveal;
 	private boolean collectionBuiltForActiveReveal;
 	private boolean shopBuiltForActiveReveal;
-	/** Last debug status line key ({@code color|tooltip}). */
-	private String lastDebugStatusKey;
 
 
 	private final WelcomeTab welcomeTab;
@@ -175,8 +171,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	private final MigrateCollectionController migrateController;
 	private final AccountPanelLauncher accountLauncher;
 	private final SidebarNoticeView sidebarNoticeView;
-
-	private final boolean runeliteDeveloperMode;
 
 	@Inject
 	public TcgPanel(
@@ -195,13 +189,11 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		TradeCloudService tradeCloudService,
 		CloudApiClient cloudApiClient,
 		CloudSellService cloudSellService,
-		SaveRestoreManager saveRestoreManager,
+		MigrateSavePicker migrateSavePicker,
 		ScheduledExecutorService scheduler,
-		ChatMessageManager chatMessageManager,
-		@Named("developerMode") boolean runeliteDeveloperMode)
+		ChatMessageManager chatMessageManager)
 	{
 		super(false);
-		this.runeliteDeveloperMode = runeliteDeveloperMode;
 		this.stateService = stateService;
 		this.cardDatabase = cardDatabase;
 		this.welcomeContentCatalog = welcomeContentCatalog;
@@ -209,7 +201,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		this.client = client;
 		this.cloudSessionService = cloudSessionService;
 		this.tradeCloudService = tradeCloudService;
-		this.saveRestoreManager = saveRestoreManager;
+		this.migrateSavePicker = migrateSavePicker;
 		this.scheduler = scheduler;
 		this.chatMessageManager = chatMessageManager;
 		this.openAccountPanelButton = new JButton("Open web album");
@@ -219,14 +211,13 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		this.openTradesButton = createOpenTradesButton();
 		this.welcomeTab = new WelcomeTab(welcomeContentCatalog);
 		this.overviewTab = new OverviewTab(
-			config, cloudPackService, stateService, runeliteDeveloperMode,
-			this::persistDebugLogging, this::liveSidebarContentWidth, TcgPanel.class);
+			config, cloudPackService, this::liveSidebarContentWidth, TcgPanel.class);
 		this.accountLauncher = new AccountPanelLauncher(
 			cloudSessionService, cloudApiClient, scheduler, chatMessageManager,
 			this::updateManageAccountButtonState);
 		this.openAccountPanelButton.addActionListener(e -> accountLauncher.open());
 		this.migrateController = new MigrateCollectionController(
-			cloudSessionService, stateService, saveRestoreManager, scheduler, chatMessageManager,
+			cloudSessionService, stateService, migrateSavePicker, scheduler, chatMessageManager,
 			this, this::refresh, this::selectOverviewAfterMigrate, this::afterMigrateUi);
 		this.migrateCollectionButton.addActionListener(e -> migrateController.migrate());
 		this.sidebarNoticeView = new SidebarNoticeView(
@@ -376,14 +367,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	public void start()
 	{
 		welcomeContentCatalog.load();
-		if (!runeliteDeveloperMode && stateService.isDebugLogging())
-		{
-			stateService.setDebugLogging(false);
-		}
-		else if (stateService.isDebugLogging())
-		{
-			cloudSessionService.pauseForDebugMode();
-		}
 		stateService.addCollectionChangeListener(onCollectionChanged);
 		ensureRootAttached();
 		updateCloudStatusIndicator();
@@ -392,7 +375,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 
 	public void stop()
 	{
-		saveRestoreManager.dispose();
+		migrateSavePicker.dispose();
 		stateService.removeCollectionChangeListener(onCollectionChanged);
 		collectionTab.cancelPendingRebuilds();
 		welcomeContent.removeAll();
@@ -871,13 +854,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		{
 			return;
 		}
-		Color liveGreen = (Color) cloudStatusIndicator.getClientProperty("cloudLiveGreen");
-		Color connectingYellow = (Color) cloudStatusIndicator.getClientProperty("cloudConnectingYellow");
-		Color errorRed = (Color) cloudStatusIndicator.getClientProperty("cloudErrorRed");
 		SidebarChrome.updateCloudStatusIndicator(cloudStatusIndicator, cloudSessionService, stateService);
-		Color color = (Color) cloudStatusIndicator.getClientProperty("cloudIndicatorColor");
-		String tooltip = cloudStatusIndicator.getToolTipText();
-		maybeDebugStatusIndicatorChange(color, liveGreen, connectingYellow, errorRed, tooltip);
 
 		Container parent = cloudStatusIndicator.getParent();
 		if (parent != null)
@@ -895,42 +872,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		cloudStatusIndicator.repaint();
 		updateManageAccountButtonState();
 		updateFooterVisibility();
-	}
-
-	private void maybeDebugStatusIndicatorChange(
-		Color color, Color liveGreen, Color connectingYellow, Color errorRed, String reason)
-	{
-		if (!stateService.isDebugChatEnabled())
-		{
-			return;
-		}
-		String colorName;
-		if (color != null && color.equals(liveGreen))
-		{
-			colorName = "green";
-		}
-		else if (color != null && color.equals(connectingYellow))
-		{
-			colorName = "yellow";
-		}
-		else if (color != null && color.equals(errorRed))
-		{
-			colorName = "red";
-		}
-		else
-		{
-			colorName = "unknown";
-		}
-		String reasonText = reason == null || reason.isEmpty() ? "(no reason)" : reason;
-		String key = colorName + '|' + reasonText;
-		if (key.equals(lastDebugStatusKey))
-		{
-			return;
-		}
-		lastDebugStatusKey = key;
-		TcgPluginGameMessages.queueDebugGameMessage(
-			chatMessageManager,
-			"Status -> " + colorName + ": " + reasonText);
 	}
 
 	/** Usable footer column width - same strip the migrate/account buttons fill. */
@@ -1278,59 +1219,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		collectionBuiltForActiveReveal = false;
 		shopBuiltForActiveReveal = false;
 	}
-
-	private void persistDebugLogging(boolean enabled)
-	{
-		if (enabled == stateService.isDebugLogging())
-		{
-			refresh();
-			return;
-		}
-		if (enabled)
-		{
-			stateService.setDebugLogging(true);
-			// Pin in-memory cards immediately so ::tcg-* works even if an in-flight live fetch finishes later.
-			cloudSessionService.ensureDebugCardCatalog();
-			refresh();
-			scheduler.execute(() ->
-			{
-				try
-				{
-					cloudSessionService.enterDebugMode();
-				}
-				catch (Exception ex)
-				{
-					log.warn("Entering debug mode failed", ex);
-				}
-				finally
-				{
-					SwingUtilities.invokeLater(this::refresh);
-				}
-			});
-			return;
-		}
-
-		stateService.setDebugLogging(false);
-		refresh();
-		scheduler.execute(() ->
-		{
-			try
-			{
-				cloudSessionService.exitDebugModeAndResync();
-			}
-			catch (Exception ex)
-			{
-				log.warn("Cloud resync after leaving debug mode failed", ex);
-				TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-					"[OSRS TCG] Could not re-sync from cloud after leaving debug mode");
-			}
-			finally
-			{
-				SwingUtilities.invokeLater(this::refresh);
-			}
-		});
-	}
-
 
 	/**
 	 * Horizontal space for tab content. Prefers the tab scroll panes' actual, already-laid-out viewport width

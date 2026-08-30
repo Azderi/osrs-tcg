@@ -28,6 +28,7 @@ import lombok.Value;
 import com.osrstcg.catalog.CardImageCacheService;
 import com.osrstcg.catalog.RarityMath;
 import com.osrstcg.notify.PullNotificationService;
+import com.osrstcg.ui.tip.CardInfoTipModel;
 import com.osrstcg.ui.SharedCardRenderer;
 
 @Singleton
@@ -390,16 +391,6 @@ public class PackRevealService
 			card == null ? null : card.getPull());
 	}
 
-	private static String instanceIdFor(RevealCard card)
-	{
-		if (card == null || card.getPull() == null)
-		{
-			return null;
-		}
-		String id = card.getPull().getInstanceId();
-		return id == null || id.isBlank() ? null : id.trim();
-	}
-
 	public synchronized void handleClick(Point click, Rectangle packBounds, List<Rectangle> cardBounds)
 	{
 		if (phase == Phase.IDLE)
@@ -453,7 +444,7 @@ public class PackRevealService
 					clicked.isNew(),
 					isFoilPull(clicked),
 					clicked.getTier(),
-					instanceIdFor(clicked))
+					CardInfoTipModel.instanceIdFor(clicked))
 					&& absIndex < collectionChatPostedByIndex.length)
 				{
 					collectionChatPostedByIndex[absIndex] = true;
@@ -951,7 +942,7 @@ public class PackRevealService
 				card.isNew(),
 				isFoilPull(card),
 				card.getTier(),
-				instanceIdFor(card))
+				CardInfoTipModel.instanceIdFor(card))
 				&& absIndex < collectionChatPostedByIndex.length)
 			{
 				collectionChatPostedByIndex[absIndex] = true;
@@ -977,7 +968,7 @@ public class PackRevealService
 				card.isNew(),
 				isFoilPull(card),
 				card.getTier(),
-				instanceIdFor(card))
+				CardInfoTipModel.instanceIdFor(card))
 				&& absIndex < collectionChatPostedByIndex.length)
 			{
 				collectionChatPostedByIndex[absIndex] = true;

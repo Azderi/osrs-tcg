@@ -263,7 +263,7 @@ public final class CardInfoTipModel
 		return null;
 	}
 
-	static String wikiPageFor(PackRevealService.RevealCard card)
+	public static String wikiPageFor(PackRevealService.RevealCard card)
 	{
 		if (card == null)
 		{

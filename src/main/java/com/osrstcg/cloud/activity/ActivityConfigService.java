@@ -2,12 +2,14 @@ package com.osrstcg.cloud.activity;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
+import com.osrstcg.cloud.api.CloudApiClient;
+import com.osrstcg.cloud.api.CloudApiException;
+import com.osrstcg.util.AtomicFiles;
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -24,8 +26,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.RuneLite;
-import com.osrstcg.cloud.api.CloudApiClient;
-import com.osrstcg.cloud.api.CloudApiException;
 
 /**
  * Loads chat activity rules and NPC kill exclusions from {@code GET /api/v1/config/activities}.
@@ -43,7 +43,6 @@ public final class ActivityConfigService
 
 	private final AtomicReference<CompiledActivityConfig> compiled =
 		new AtomicReference<>(CompiledActivityConfig.EMPTY);
-	private final AtomicReference<ActivityConfigDto> rawCache = new AtomicReference<>(null);
 	private final AtomicBoolean ensureInFlight = new AtomicBoolean(false);
 	private final AtomicBoolean softRefreshScheduled = new AtomicBoolean(false);
 	private final Object pollLock = new Object();
@@ -254,7 +253,6 @@ public final class ActivityConfigService
 	{
 		CompiledActivityConfig next = compile(dto);
 		compiled.set(next);
-		rawCache.set(dto);
 		if (persistDisk)
 		{
 			persistDiskCache(dto);
@@ -346,33 +344,14 @@ public final class ActivityConfigService
 
 	private void persistDiskCache(ActivityConfigDto dto)
 	{
-		Path dir = diskCacheDir();
 		Path target = diskCacheFile();
-		Path tmp = dir.resolve("activities.json.tmp");
 		try
 		{
-			Files.createDirectories(dir);
-			Files.writeString(tmp, gson.toJson(dto), StandardCharsets.UTF_8);
-			try
-			{
-				Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-			}
-			catch (java.nio.file.AtomicMoveNotSupportedException ex)
-			{
-				Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
-			}
+			AtomicFiles.writeString(target, gson.toJson(dto), StandardCharsets.UTF_8);
 		}
 		catch (Exception ex)
 		{
 			log.debug("Activity config disk cache write failed", ex);
-			try
-			{
-				Files.deleteIfExists(tmp);
-			}
-			catch (Exception ignored)
-			{
-				// ignore
-			}
 		}
 	}
 

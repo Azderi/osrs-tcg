@@ -101,13 +101,6 @@ public class CloudSessionCoordinator
 			SwingUtilities.invokeLater(sidebarRefresh::refresh);
 			return;
 		}
-		if (stateService.isDebugLogging())
-		{
-			cancelReconnect();
-			cloudSessionService.pauseForDebugMode();
-			SwingUtilities.invokeLater(sidebarRefresh::refresh);
-			return;
-		}
 		if (cloudSessionService.isRestrictedWorld())
 		{
 			pauseForRestrictedWorld();
@@ -124,13 +117,6 @@ public class CloudSessionCoordinator
 				if (cloudSessionService.isAccountLocked())
 				{
 					cancelReconnect();
-					SwingUtilities.invokeLater(sidebarRefresh::refresh);
-					return;
-				}
-				if (stateService.isDebugLogging())
-				{
-					cancelReconnect();
-					cloudSessionService.pauseForDebugMode();
 					SwingUtilities.invokeLater(sidebarRefresh::refresh);
 					return;
 				}

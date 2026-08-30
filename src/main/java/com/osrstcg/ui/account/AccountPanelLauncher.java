@@ -5,7 +5,6 @@ import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
 import com.osrstcg.cloud.api.CloudEndpoints;
 import com.osrstcg.cloud.session.CloudSessionService;
-import com.osrstcg.ui.layout.SidebarLayout;
 import com.osrstcg.util.TcgPluginGameMessages;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -148,8 +147,8 @@ public final class AccountPanelLauncher
 		{
 			return null;
 		}
-		String root = SidebarLayout.trimTrailingSlash(webBaseUrl);
-		if (root == null || root.isEmpty())
+		String root = CloudEndpoints.trimTrailingSlash(webBaseUrl);
+		if (root.isEmpty())
 		{
 			return null;
 		}
@@ -157,35 +156,6 @@ public final class AccountPanelLauncher
 		String encodedCode = URLEncoder.encode(code.trim(), StandardCharsets.UTF_8);
 		String encodedNext = URLEncoder.encode(nextPath, StandardCharsets.UTF_8);
 		return root + "/login?code=" + encodedCode + "&next=" + encodedNext;
-	}
-
-	public static String rewriteToWebBase(String webBaseUrl, String serverUrl)
-	{
-		if (serverUrl == null || serverUrl.isBlank())
-		{
-			return null;
-		}
-		String root = SidebarLayout.trimTrailingSlash(webBaseUrl);
-		if (root == null || root.isEmpty())
-		{
-			return serverUrl.trim();
-		}
-		String raw = serverUrl.trim();
-		try
-		{
-			java.net.URI uri = java.net.URI.create(raw);
-			if (uri.isAbsolute())
-			{
-				String path = uri.getRawPath() == null || uri.getRawPath().isEmpty() ? "/" : uri.getRawPath();
-				String query = uri.getRawQuery();
-				return root + path + (query == null || query.isEmpty() ? "" : "?" + query);
-			}
-		}
-		catch (IllegalArgumentException ignored)
-		{
-			// fall through to relative join
-		}
-		return root + (raw.startsWith("/") ? raw : "/" + raw);
 	}
 
 	private String fallbackWebLoginUrl(String code, String next)
@@ -206,7 +176,7 @@ public final class AccountPanelLauncher
 		String url = resolveWebLoginUrl(response);
 		if (url != null)
 		{
-			return rewriteToWebBase(CloudEndpoints.WEB_BASE_URL, url);
+			return CloudEndpoints.rewriteToWebBase(url);
 		}
 		return null;
 	}

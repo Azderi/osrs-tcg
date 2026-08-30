@@ -73,7 +73,6 @@ public final class CloudSessionService
 	/** Run after ban/quarantine lock; registered by plugin startup to avoid Guice cycles. */
 	private final List<Runnable> accountLockCleanups = new CopyOnWriteArrayList<>();
 
-	public static final String DEBUG_MODE_STATUS = "Debug mode";
 	public static final String ACCOUNT_BANNED_STATUS =
 		"Your account has been banned. Check the account panel for more information.";
 	public static final String ACCOUNT_QUARANTINED_STATUS =
@@ -114,12 +113,12 @@ public final class CloudSessionService
 		this.creditAttestQueueProvider = creditAttestQueueProvider;
 		this.collectionPager = new CloudCollectionPager(api);
 		this.collectionSync = new CloudCollectionSyncService(
-			this, api, tokens, stateService, chatMessageManager, creditAttestQueueProvider,
+			this, api, tokens, stateService, creditAttestQueueProvider,
 			publicStatsCalculator, collectionPager, forceStatePullOnce, deferCollectionPullForMigrateImport);
 		this.hiscoresSettle = new HiscoresSettleService(
 			client, api, tokens, restrictedWorldGuard, scheduler, chatMessageManager, tradeCloudProvider,
 			collectionSync::applySidebarStats, hiscoresSettledThisLogin, hiscoresSettleRetryScheduled,
-			this::needsCloudConsent, this::isAccountLocked, this::isDebugModePaused);
+			this::needsCloudConsent, this::isAccountLocked);
 		this.migration = new CloudMigrationService(
 			this, collectionSync, client, api, tokens, profileKeyHasher, stateService, stateCodec,
 			chatMessageManager, packCatalogService, cardCatalogService, activityConfigService, scheduler,
@@ -164,7 +163,7 @@ public final class CloudSessionService
 
 	/**
 	 * Cloud gameplay ready: session active, migrated (consent accepted), not on a blocked world type,
-	 * not account-banned/quarantined, and not paused for Overview debug mode.
+	 * and not account-banned/quarantined.
 	 */
 	public boolean isReady()
 	{
@@ -172,20 +171,20 @@ public final class CloudSessionService
 			&& !needsCloudConsent()
 			&& !isRestrictedWorld()
 			&& !isAccountLocked()
-			&& !isDebugModePaused();
+			&& !stateService.isDebugLogging();
 	}
 
 	/**
 	 * True when credit events may be buffered with optimistic local credits even if the
 	 * session is offline ({@link #isReady()} false). Requires consent; excluded when
-	 * banned/quarantined, on a restricted world, or in Overview debug pause.
+	 * banned/quarantined, on a restricted world, or while a debug-tainted save is still loaded.
 	 */
 	public boolean canCollectAttests()
 	{
 		return !needsCloudConsent()
 			&& !isAccountLocked()
 			&& !isRestrictedWorld()
-			&& !isDebugModePaused();
+			&& !stateService.isDebugLogging();
 	}
 
 	/**
@@ -245,18 +244,6 @@ public final class CloudSessionService
 			return false;
 		}
 		return isSessionActive() || isAccountLocked();
-	}
-
-	/** Overview debug mode: cloud fully paused (yellow status). */
-	public boolean isDebugModePaused()
-	{
-		return stateService.isDebugLogging();
-	}
-
-	/** Pin / restore card catalog for debug tools (memory, disk, or live public fetch). */
-	public void ensureDebugCardCatalog()
-	{
-		cardCatalogService.ensureCachedCatalogForDebug();
 	}
 
 	/**
@@ -399,77 +386,6 @@ public final class CloudSessionService
 	}
 
 	/**
-	 * Pause all cloud traffic for Overview debug mode (yellow). Flushes any pending attests first,
-	 * then discards leftovers. Tokens are kept so leaving debug can reconnect without re-pairing.
-	 * Call after {@link TcgStateService#setDebugLogging(true)}, off the EDT / client thread.
-	 */
-	public void enterDebugMode()
-	{
-		CreditAttestQueue attestQueue = creditAttestQueueProvider.get();
-		try
-		{
-			attestQueue.flushBlocking();
-		}
-		catch (Exception ex)
-		{
-			log.warn("Credit attest flush before debug mode failed", ex);
-		}
-		pauseForDebugMode(true);
-	}
-
-	/**
-	 * Apply debug-mode cloud pause without a network flush (plugin start / already-paused).
-	 * Call after {@link TcgStateService#setDebugLogging(true)}.
-	 */
-	public void pauseForDebugMode()
-	{
-		pauseForDebugMode(false);
-	}
-
-	private void pauseForDebugMode(boolean resetLocalProgress)
-	{
-		CreditAttestQueue attestQueue = creditAttestQueueProvider.get();
-		attestQueue.stop();
-		attestQueue.discardPending();
-		stateService.clearOptimisticCredits();
-		tradeCloudProvider.get().stop();
-		activityConfigService.stopQuietPoll();
-		hiscoresSettle.clearGate();
-		packCatalogService.clear();
-		// Public catalog fetch is still allowed; pin whatever we have for ::tcg-* tools.
-		cardCatalogService.ensureCachedCatalogForDebug();
-		stateService.clearCloudCollectionStatsCache();
-		stateService.clearCloudGroupKey();
-		if (resetLocalProgress)
-		{
-			// Clean local sandbox (credits, opened packs, collection) when toggling debug on.
-			stateService.resetProgressForCloudResync();
-		}
-		setState(CloudConnectionState.DISCONNECTED, DEBUG_MODE_STATUS);
-	}
-
-	/**
-	 * Leave debug mode: wipe local progress, reconnect, and force-pull cloud state.
-	 * Call after {@link TcgStateService#setDebugLogging(false)}. Runs network work on the caller thread.
-	 */
-	public synchronized void exitDebugModeAndResync()
-	{
-		CreditAttestQueue attestQueue = creditAttestQueueProvider.get();
-		attestQueue.stop();
-		attestQueue.discardPending();
-		tradeCloudProvider.get().stop();
-		cardCatalogService.clearDebugCatalogPin();
-		stateService.resetProgressForCloudResync();
-		forceStatePullOnce.set(true);
-		ensureSession();
-		if (isReady())
-		{
-			attestQueue.start();
-			tradeCloudProvider.get().start();
-		}
-	}
-
-	/**
 	 * True when an access token is still available for a teardown attest flush
 	 * (logout / shutdown / unload). Unlike {@link #isReady()}, does not require
 	 * {@link CloudConnectionState#CONNECTED} so a final flush can run even if the
@@ -531,7 +447,7 @@ public final class CloudSessionService
 	{
 		if (stateService.isDebugLogging())
 		{
-			setState(CloudConnectionState.DISCONNECTED, DEBUG_MODE_STATUS);
+			setState(CloudConnectionState.DISCONNECTED, "Debug mode");
 			return;
 		}
 		if (isAccountLocked())

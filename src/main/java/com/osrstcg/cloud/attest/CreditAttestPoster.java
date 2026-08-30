@@ -71,6 +71,8 @@ final class CreditAttestPoster
 			queue.stateService().clearOptimisticCredits(clearOptimistic);
 		}
 
+		queue.debugCreditAttestResponse(response, clearOptimistic, pendingBefore);
+
 		boolean changed = false;
 		boolean appliedEconomy = false;
 

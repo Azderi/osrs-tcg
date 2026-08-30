@@ -54,8 +54,7 @@ public final class PackCatalogService
 	/** Never null - server snapshot after login fetch, otherwise empty. */
 	public PackCatalogCache getCache()
 	{
-		PackCatalogCache current = cache.get();
-		return current == null ? emptyCache() : current;
+		return cache.get();
 	}
 
 	/**

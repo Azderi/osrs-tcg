@@ -21,7 +21,6 @@ import com.osrstcg.ui.tip.CardInfoTipModel;
 import com.osrstcg.ui.tip.CardInfoTipPainter;
 import com.osrstcg.util.OsrsWiki;
 import com.osrstcg.util.PackRevealZoomUtil;
-import com.osrstcg.util.TcgPluginGameMessages;
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -42,7 +41,6 @@ import java.util.concurrent.ForkJoinPool;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
-import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
@@ -74,7 +72,6 @@ public class PackRevealOverlay extends Overlay
 	private final PackRevealSoundService packRevealSoundService;
 	private final TcgStateService tcgStateService;
 	private final OsrsTcgConfig config;
-	private final ChatMessageManager chatMessageManager;
 
 	private static final boolean[] EMPTY_BOOL = new boolean[0];
 	private static final SlotFaceCache[] EMPTY_SLOT_CACHE = new SlotFaceCache[0];
@@ -149,8 +146,7 @@ public class PackRevealOverlay extends Overlay
 	@Inject
 	public PackRevealOverlay(Client client, PackRevealService revealService, CardImageCacheService imageCacheService,
 		PackCatalogService packCatalogService, PackRevealSoundService packRevealSoundService,
-		TcgStateService tcgStateService, OsrsTcgConfig config,
-		ChatMessageManager chatMessageManager)
+		TcgStateService tcgStateService, OsrsTcgConfig config)
 	{
 		this.client = client;
 		this.revealService = revealService;
@@ -159,7 +155,6 @@ public class PackRevealOverlay extends Overlay
 		this.packRevealSoundService = packRevealSoundService;
 		this.tcgStateService = tcgStateService;
 		this.config = config;
-		this.chatMessageManager = chatMessageManager;
 		setPosition(OverlayPosition.DYNAMIC);
 		// Above other plugin overlays (infoboxes, XP drops, etc.) while the reveal is active.
 		setLayer(OverlayLayer.ALWAYS_ON_TOP);
@@ -830,26 +825,6 @@ public class PackRevealOverlay extends Overlay
 		}
 	}
 
-	/** Wiki article title for a reveal card (pull {@code wikiPage}, else catalog definition). */
-	public static String wikiPageFor(PackRevealService.RevealCard card)
-	{
-		if (card == null)
-		{
-			return null;
-		}
-		PackCardResult pull = card.getPull();
-		if (pull != null && pull.getWikiPage() != null && !pull.getWikiPage().isBlank())
-		{
-			return pull.getWikiPage().trim();
-		}
-		if (card.getDefinition() != null && card.getDefinition().getWikiPage() != null
-			&& !card.getDefinition().getWikiPage().isBlank())
-		{
-			return card.getDefinition().getWikiPage().trim();
-		}
-		return null;
-	}
-
 	private void paintScrollHintOnTop(Graphics2D g, Rectangle canvas, PackRevealService.RevealPaintSnapshot snap)
 	{
 		if (!snap.isShowScrollWheelOverlayHint())
@@ -981,7 +956,7 @@ public class PackRevealOverlay extends Overlay
 	public boolean pinCardInfoTipAt(Point canvasPoint)
 	{
 		PackRevealService.RevealCard card = faceUpCardAt(canvasPoint);
-		String wikiPage = wikiPageFor(card);
+		String wikiPage = CardInfoTipModel.wikiPageFor(card);
 		String instanceId = CardInfoTipModel.instanceIdFor(card);
 		if (card == null || canvasPoint == null || (wikiPage == null && instanceId == null))
 		{
@@ -1361,25 +1336,6 @@ public class PackRevealOverlay extends Overlay
 		sessionPackZoomMultiplier = PackRevealZoomUtil.nudge(base, wheelRotation);
 		persistPackRevealScale(sessionPackZoomMultiplier);
 		invalidateFaceSizes();
-		debugPackZoomChange();
-	}
-
-	private void debugPackZoomChange()
-	{
-		if (!tcgStateService.isDebugChatEnabled())
-		{
-			return;
-		}
-		Rectangle canvas = new Rectangle(0, 0, client.getCanvasWidth(), client.getCanvasHeight());
-		int cardCount = Math.max(1, revealService.getCards().size());
-		PackRevealService.Phase phase = revealService.getPhase();
-		PackRevealLayout.ZoomMetrics m = PackRevealLayout.measureZoom(canvas, cardCount, phase, preferredZoomMultiplier(), this::noteAppliedZoom);
-		String message = String.format(Locale.US,
-			"Pack zoom mul=%.3f applied=%.3f fit=%.3f contain=%.3f cover=%.3f scaleW=%.3f scaleH=%.3f "
-				+ "canvas=%dx%d cards=%dx%d phase=%s",
-			m.zoomMul, m.appliedS, m.fitS, m.containS, m.coverS, m.scaleW, m.scaleH,
-			canvas.width, canvas.height, m.cardW, m.cardH, phase);
-		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, message);
 	}
 
 	private void ensureCardHoverLength(int n)

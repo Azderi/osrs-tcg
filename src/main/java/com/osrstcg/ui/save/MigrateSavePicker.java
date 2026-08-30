@@ -11,23 +11,21 @@ import javax.swing.SwingUtilities;
  * Opens the cloud migrate upload save picker (legacy {@code backups/} structure only).
  */
 @Singleton
-public final class SaveRestoreManager
+public final class MigrateSavePicker
 {
 	private final TcgStateService stateService;
-	private volatile SaveRestoreDialog dialog;
+	private volatile MigrateSavePickerDialog dialog;
 
 	@Inject
-	public SaveRestoreManager(TcgStateService stateService)
+	public MigrateSavePicker(TcgStateService stateService)
 	{
 		this.stateService = stateService;
 	}
 
 	/**
 	 * Opens the migrate upload picker on the EDT when disk save files exist.
-	 * {@code onUploadAccepted} receives the selected file name.
+	 * {@code onUploadAccepted} receives the selected entry.
 	 * Cancel closes without calling {@code onUploadAccepted}.
-	 * {@code onNoSaves} is unused when callers already gated on {@link TcgStateService#hasDiskSaves()};
-	 * kept for callers that want a fallback (may be {@code null}).
 	 */
 	public void showMigratePicker(Consumer<TcgSaveMetadataEntry> onUploadAccepted, Runnable onNoSaves)
 	{
@@ -48,7 +46,7 @@ public final class SaveRestoreManager
 				return;
 			}
 
-			dialog = new SaveRestoreDialog(stateService, entry ->
+			dialog = new MigrateSavePickerDialog(stateService, entry ->
 			{
 				dialog = null;
 				if (onUploadAccepted != null)
