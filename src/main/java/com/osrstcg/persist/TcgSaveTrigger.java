@@ -1,8 +1,6 @@
 package com.osrstcg.persist;
 
-/**
- * Reason recorded in {@code saves.json} for a disk write.
- */
+/** Reason for a local {@code tcg.save} write. */
 public enum TcgSaveTrigger
 {
 	COLLECTION_CHANGE,
@@ -11,8 +9,6 @@ public enum TcgSaveTrigger
 	CLIENT_SHUTDOWN,
 	PLUGIN_UNLOAD,
 	MANUAL,
-	MIGRATION,
-	LOAD,
 	CLOUD_SYNC,
 	UNKNOWN
 }

@@ -48,7 +48,7 @@ public class TcgStateFileBackupStoreTest
 
 		TestFileStore(Path profilesRoot, Path legacyRoot, long accountHash)
 		{
-			super(null, new TcgStateCodec(new Gson()), new Gson());
+			super(null, new TcgStateCodec(new Gson()));
 			this.profilesRoot = profilesRoot;
 			this.legacyRoot = legacyRoot;
 			this.accountHash = accountHash;

@@ -6,7 +6,7 @@ import java.util.List;
 
 /**
  * Deterministic wear layers for the card inspect view. Literal port of
- * {@code osrs-tcg-front/src/album/wearFx.js} - the FNV-1a seed and the mulberry32 draw order are
+ * {@code FNV-1a seed and the mulberry32 draw order are
  * byte-identical to the website, so the same {@code (name, pulledBy, pulledAt, condition)} yields
  * the same scratches and stains in the plugin and in the browser.
  *

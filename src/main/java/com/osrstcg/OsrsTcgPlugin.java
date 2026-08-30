@@ -30,7 +30,6 @@ import com.osrstcg.party.TcgPartyInboundHandler;
 import com.osrstcg.party.TcgPullPartyMessage;
 import com.osrstcg.persist.TcgSaveTrigger;
 import com.osrstcg.persist.TcgStateLoadResult;
-import com.osrstcg.persist.TcgStateLoadSource;
 import com.osrstcg.pack.PackRevealSoundService;
 import com.osrstcg.pack.PackRevealService;
 import com.osrstcg.interop.TcgChatStatsShareService;
@@ -441,19 +440,6 @@ public class OsrsTcgPlugin extends Plugin
 		}
 	}
 
-	private void announceLoadResult(TcgStateLoadResult loadResult)
-	{
-		if (loadResult == null)
-		{
-			return;
-		}
-
-		if (loadResult.getSource() == TcgStateLoadSource.DISK_SNAPSHOT)
-		{
-			queueGameMessage("[OSRS TCG] Restored progress from a disk snapshot.");
-		}
-	}
-
 	private void loadStateForLoggedInAccountIfNeeded()
 	{
 		long accountHash = client.getAccountHash();
@@ -467,7 +453,6 @@ public class OsrsTcgPlugin extends Plugin
 		}
 		TcgStateLoadResult loadResult = stateService.load();
 		applyLoadedProfileState(loadResult);
-		announceLoadResult(loadResult);
 		loadedAccountHash = accountHash;
 	}
 
