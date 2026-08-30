@@ -14,7 +14,7 @@ Parts of this plugin were inspired by other RuneLite plugins:
 - [Monster Monitor](https://runelite.net/plugin-hub/show/monster-monitor) NPC kill credit tracking
 - [Customizable XP Drops](https://runelite.net/plugin-hub/show/customizable-xp-drops) XP drop value tracking
 
-Card artwork is hosted on [osrs-tcg.net](https://osrs-tcg.net). Catalog entries may link to [OSRS Wiki](https://oldschool.runescape.wiki/) article pages.
+Default card artwork is sourced from [OSRS Wiki](https://oldschool.runescape.wiki/) and on [osrs-tcg.net](https://osrs-tcg.net).
 
 ## Disclaimer
 
