@@ -37,8 +37,6 @@ import com.osrstcg.state.TcgStateService;
 import com.osrstcg.ui.TcgPanel;
 import com.osrstcg.util.NumberFormatting;
 import com.osrstcg.util.TcgPluginGameMessages;
-import java.awt.Color;
-import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -75,6 +73,7 @@ import net.runelite.client.input.MouseManager;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.Text;
 
 @Slf4j
@@ -581,16 +580,7 @@ public class OsrsTcgPlugin extends Plugin
 
 	private BufferedImage buildPanelIcon()
 	{
-		BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
-		Graphics2D g = image.createGraphics();
-		g.setColor(new Color(0x2B2B2B));
-		g.fillRect(0, 0, 16, 16);
-		g.setColor(new Color(0xF2C94C));
-		g.fillRoundRect(2, 2, 12, 12, 3, 3);
-		g.setColor(Color.BLACK);
-		g.drawString("T", 5, 12);
-		g.dispose();
-		return image;
+		return ImageUtil.loadImageResource(OsrsTcgPlugin.class, "/com/osrstcg/images/sidebar.png");
 	}
 
 	@Provides
