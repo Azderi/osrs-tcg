@@ -1,7 +1,6 @@
 package com.osrstcg;
 
 import com.osrstcg.config.CreditsPerHourWindow;
-import com.osrstcg.config.DinkNotificationTrigger;
 import com.osrstcg.config.PullNotifyTier;
 import java.awt.Color;
 import net.runelite.client.config.Config;
@@ -268,96 +267,5 @@ public interface OsrsTcgConfig extends Config
 	default boolean partyAnnounceMythicPulls()
 	{
 		return true;
-	}
-
-	@ConfigItem(
-		keyName = "pullWebhookUrl",
-		name = "Webhook URL",
-		description = "Discord webhook for pull alerts. Leave empty to disable.",
-		section = pullNotificationsSection,
-		position = 5
-	)
-	default String pullWebhookUrl()
-	{
-		return "";
-	}
-
-	@ConfigSection(
-		name = "Dink",
-		description = "Send OSRS TCG notifications through Dink.",
-		position = 20
-	)
-	String dinkSection = "dink";
-
-	@ConfigItem(
-		keyName = "dinkNotifications",
-		name = "Enable Dink Notifications",
-		description = "Send notable pull alerts to Discord via Dink.",
-		section = dinkSection,
-		position = 0
-	)
-	default boolean dinkNotifications()
-	{
-		return false;
-	}
-
-	@ConfigItem(
-		keyName = "dinkNotificationTrigger",
-		name = "Trigger notification",
-		description = "Send Dink notifications as each card is revealed or after the whole pack is revealed.",
-		section = dinkSection,
-		position = 1
-	)
-	default DinkNotificationTrigger dinkNotificationTrigger()
-	{
-		return DinkNotificationTrigger.EVERY_CARD;
-	}
-
-	@ConfigItem(
-		keyName = "dinkNewCardNotifyTier",
-		name = "Notify tier",
-		description = "Notify for this rarity and higher.",
-		section = dinkSection,
-		position = 2
-	)
-	default PullNotifyTier dinkNewCardNotifyTier()
-	{
-		return PullNotifyTier.MYTHIC;
-	}
-
-	@ConfigItem(
-		keyName = "dinkAlwaysNotifyFoils",
-		name = "Notify all foils",
-		description = "Notify for foils regardless of rank. When disabled, foils must meet the relevant rank threshold.",
-		section = dinkSection,
-		position = 3
-	)
-	default boolean dinkAlwaysNotifyFoils()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "dinkOnlyNotifyNew",
-		name = "Only notify new cards",
-		description = "Only send Dink notifications for new cards at or above the selected rank threshold.",
-		section = dinkSection,
-		position = 4
-	)
-	default boolean dinkOnlyNotifyNew()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "dinkDuplicateNotifyTier",
-		name = "Duplicate notify tier",
-		description = "Minimum card rank for duplicate Dink notifications if only notify new cards is turned off.",
-		section = dinkSection,
-		position = 5
-	)
-	default PullNotifyTier dinkDuplicateNotifyTier()
-	{
-		return PullNotifyTier.MYTHIC;
 	}
 }

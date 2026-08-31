@@ -4,16 +4,13 @@ import com.osrstcg.OsrsTcgConfig;
 import com.osrstcg.catalog.CardDatabase;
 import com.osrstcg.catalog.CardDefinition;
 import com.osrstcg.state.CardCollectionKey;
-import com.osrstcg.config.DinkNotificationTrigger;
 import com.osrstcg.state.PackCardResult;
 import com.osrstcg.config.PullNotifyTier;
 import com.osrstcg.party.TcgPullPartyMessage;
-import com.osrstcg.pack.PackRevealService;
 import com.osrstcg.pack.PackRevealService.RevealCard;
 import com.osrstcg.util.CardDisplayNames;
 import com.osrstcg.util.TcgPluginGameMessages;
 import java.awt.Color;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -26,7 +23,7 @@ import net.runelite.client.party.PartyService;
 import com.osrstcg.catalog.RarityMath;
 
 /**
- * In-game chat (and optional Dink / party) notifications for notable pack pulls.
+ * In-game chat (and optional party) notifications for notable pack pulls.
  */
 @Slf4j
 @Singleton
@@ -36,24 +33,18 @@ public class PullNotificationService
 	private final ChatMessageManager chatMessageManager;
 	private final CardDatabase cardDatabase;
 	private final PartyService partyService;
-	private final DinkNotificationService dinkNotificationService;
-	private final PullWebhookNotificationService pullWebhookNotificationService;
 
 	@Inject
 	PullNotificationService(
 		OsrsTcgConfig config,
 		ChatMessageManager chatMessageManager,
 		CardDatabase cardDatabase,
-		PartyService partyService,
-		DinkNotificationService dinkNotificationService,
-		PullWebhookNotificationService pullWebhookNotificationService)
+		PartyService partyService)
 	{
 		this.config = config;
 		this.chatMessageManager = chatMessageManager;
 		this.cardDatabase = cardDatabase;
 		this.partyService = partyService;
-		this.dinkNotificationService = dinkNotificationService;
-		this.pullWebhookNotificationService = pullWebhookNotificationService;
 	}
 
 	public boolean shouldNotify(RarityMath.Tier tier, boolean foil, boolean newForCollection)
@@ -91,7 +82,7 @@ public class PullNotificationService
 	}
 
 	/**
-	 * @param instanceId pack-open card UUID for inspect links; may be null
+	 * @param instanceId pack-open card UUID for inspect links; may be null (unused for desktop chat)
 	 * @return {@code true} when a collection-add line was queued to game chat
 	 */
 	public boolean notifyPull(
@@ -108,27 +99,14 @@ public class PullNotificationService
 		{
 			queueCollectionAddChat(trimmed, newForCollection, foil, cardDatabase.chatRarityColorForCardName(trimmed));
 			chatPosted = true;
-		}
-
-		if (config.dinkNotifications() && dinkTrigger() == DinkNotificationTrigger.EVERY_CARD
-			&& shouldNotifyDink(tier, foil, newForCollection))
-		{
-			dinkNotificationService.notifyPackPull(trimmed, newForCollection, foil, tier, instanceId);
-		}
-
-		if (standardNotification)
-		{
-			pullWebhookNotificationService.notifyPackPull(trimmed, newForCollection, foil, tier, instanceId);
 			notifyParty(trimmed, newForCollection, foil);
 		}
 		log.debug(
-			"Pull notification dispatched for '{}' (foil={}, new={}, tier={}, dink={}, webhookConfigured={})",
+			"Pull notification dispatched for '{}' (foil={}, new={}, tier={})",
 			trimmed,
 			foil,
 			newForCollection,
-			tier == null ? "unknown" : tier.getLabel(),
-			config.dinkNotifications(),
-			isWebhookConfigured());
+			tier == null ? "unknown" : tier.getLabel());
 		return chatPosted;
 	}
 
@@ -240,63 +218,5 @@ public class PullNotificationService
 				log.debug("Could not send party pull message", ex);
 			}
 		}
-	}
-
-	public void notifyDinkAtEnd(List<PackRevealService.RevealCard> cards)
-	{
-		if (!config.dinkNotifications() || dinkTrigger() != DinkNotificationTrigger.AT_END
-			|| cards == null || cards.isEmpty())
-		{
-			return;
-		}
-		List<DinkNotificationService.PackPull> pulls = new ArrayList<>();
-		for (PackRevealService.RevealCard card : cards)
-		{
-			if (card == null || card.getPull() == null || card.getPull().getCardName() == null)
-			{
-				continue;
-			}
-			pulls.add(new DinkNotificationService.PackPull(
-				card.getPull().getCardName().trim(),
-				card.isNew(),
-				card.getPull().isFoil(),
-				card.getTier(),
-				card.getPull().getInstanceId(),
-				shouldNotifyDink(card.getTier(), card.getPull().isFoil(), card.isNew())));
-		}
-		dinkNotificationService.notifyPackSummary(pulls);
-	}
-
-	private boolean shouldNotifyDink(RarityMath.Tier tier, boolean foil, boolean newForCollection)
-	{
-		if (!newForCollection && config.dinkOnlyNotifyNew())
-		{
-			return false;
-		}
-		if (foil && config.dinkAlwaysNotifyFoils())
-		{
-			return true;
-		}
-		if (tier == null)
-		{
-			return false;
-		}
-		PullNotifyTier minimum = newForCollection
-			? config.dinkNewCardNotifyTier()
-			: config.dinkDuplicateNotifyTier();
-		RarityMath.Tier floor = minimum == null ? RarityMath.Tier.MYTHIC : minimum.toRarityTier();
-		return tier.ordinal() >= floor.ordinal();
-	}
-
-	private DinkNotificationTrigger dinkTrigger()
-	{
-		DinkNotificationTrigger trigger = config.dinkNotificationTrigger();
-		return trigger == null ? DinkNotificationTrigger.EVERY_CARD : trigger;
-	}
-
-	private boolean isWebhookConfigured()
-	{
-		String url = config.pullWebhookUrl();
-		return url != null && !url.trim().isEmpty();
 	}
 }

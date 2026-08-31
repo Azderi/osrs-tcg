@@ -522,10 +522,6 @@ public class PackRevealService
 		{
 			flipStartedAtMs[i] = 0L;
 		}
-		if (fiveCardsRevealed())
-		{
-			notifyDinkAtEnd();
-		}
 		phase = Phase.WAIT_CLOSE;
 		phaseStartedAt = System.currentTimeMillis();
 	}
@@ -990,11 +986,6 @@ public class PackRevealService
 		return false;
 	}
 
-	private void notifyDinkAtEnd()
-	{
-		pullNotificationService.notifyDinkAtEnd(List.copyOf(visibleCards()));
-	}
-
 	/**
 	 * Hum loop + {@code reveal.wav}: any Godly-tier card, or a foil whose display tier is one of the three highest
 	 * ({@link RarityMath.Tier#LEGENDARY}, {@link RarityMath.Tier#MYTHIC}, {@link RarityMath.Tier#GODLY}).
@@ -1086,10 +1077,6 @@ public class PackRevealService
 
 	private void enterWaitCloseAfterBatchFullyRevealed()
 	{
-		if (fiveCardsRevealed())
-		{
-			notifyDinkAtEnd();
-		}
 		phase = Phase.WAIT_CLOSE;
 		phaseStartedAt = System.currentTimeMillis();
 	}

@@ -2,7 +2,7 @@ package com.osrstcg.config;
 
 import com.osrstcg.catalog.RarityMath;
 
-/** Minimum display tier for pack-pull chat / Dink notifications (this tier and higher). */
+/** Minimum display tier for pack-pull chat notifications (this tier and higher). */
 public enum PullNotifyTier
 {
 	COMMON(RarityMath.Tier.COMMON),
