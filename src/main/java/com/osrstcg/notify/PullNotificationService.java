@@ -4,13 +4,15 @@ import com.osrstcg.OsrsTcgConfig;
 import com.osrstcg.catalog.CardDatabase;
 import com.osrstcg.catalog.CardDefinition;
 import com.osrstcg.state.CardCollectionKey;
+import com.osrstcg.config.DinkNotificationTrigger;
 import com.osrstcg.state.PackCardResult;
 import com.osrstcg.config.PullNotifyTier;
-import com.osrstcg.party.TcgPullPartyMessage;
+import com.osrstcg.pack.PackRevealService;
 import com.osrstcg.pack.PackRevealService.RevealCard;
 import com.osrstcg.util.CardDisplayNames;
 import com.osrstcg.util.TcgPluginGameMessages;
 import java.awt.Color;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -19,12 +21,8 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.chat.ChatMessageManager;
-import net.runelite.client.party.PartyService;
 import com.osrstcg.catalog.RarityMath;
 
-/**
- * In-game chat (and optional party) notifications for notable pack pulls.
- */
 @Slf4j
 @Singleton
 public class PullNotificationService
@@ -32,22 +30,37 @@ public class PullNotificationService
 	private final OsrsTcgConfig config;
 	private final ChatMessageManager chatMessageManager;
 	private final CardDatabase cardDatabase;
-	private final PartyService partyService;
+	private final DinkNotificationService dinkNotificationService;
+	private final PullExternalNotificationService pullExternalNotificationService;
 
 	@Inject
 	PullNotificationService(
 		OsrsTcgConfig config,
 		ChatMessageManager chatMessageManager,
 		CardDatabase cardDatabase,
-		PartyService partyService)
+		DinkNotificationService dinkNotificationService,
+		PullExternalNotificationService pullExternalNotificationService)
 	{
 		this.config = config;
 		this.chatMessageManager = chatMessageManager;
 		this.cardDatabase = cardDatabase;
-		this.partyService = partyService;
+		this.dinkNotificationService = dinkNotificationService;
+		this.pullExternalNotificationService = pullExternalNotificationService;
 	}
 
 	public boolean shouldNotify(RarityMath.Tier tier, boolean foil, boolean newForCollection)
+	{
+		return meetsNotifyRules(tier, foil, newForCollection, config.notifyTier());
+	}
+
+	private boolean shouldNotifyExternal(RarityMath.Tier tier, boolean foil, boolean newForCollection)
+	{
+		PullNotifyTier floor = newForCollection ? config.notifyTier() : config.duplicateNotifyTier();
+		return meetsNotifyRules(tier, foil, newForCollection, floor);
+	}
+
+	private boolean meetsNotifyRules(
+		RarityMath.Tier tier, boolean foil, boolean newForCollection, PullNotifyTier floor)
 	{
 		if (config.notifyNewCardsOnly() && !newForCollection && !(foil && config.notifyFoils()))
 		{
@@ -59,32 +72,15 @@ public class PullNotificationService
 			{
 				return config.notifyFoils();
 			}
-			PullNotifyTier minimum = config.notifyTier();
-			RarityMath.Tier floor = minimum == null ? RarityMath.Tier.MYTHIC : minimum.toRarityTier();
-			boolean tierOk = tier.ordinal() >= floor.ordinal();
-			return tierOk || config.notifyFoils();
+			return PullNotifySupport.meetsTier(tier, floor) || config.notifyFoils();
 		}
 		if (tier == null || !config.notifyNonFoils())
 		{
 			return false;
 		}
-		PullNotifyTier minimum = config.notifyTier();
-		RarityMath.Tier floor = minimum == null ? RarityMath.Tier.MYTHIC : minimum.toRarityTier();
-		return tier.ordinal() >= floor.ordinal();
+		return PullNotifySupport.meetsTier(tier, floor);
 	}
 
-	/**
-	 * @return {@code true} when a collection-add line was queued to game chat
-	 */
-	public boolean notifyPull(String cardName, boolean newForCollection, boolean foil, RarityMath.Tier tier)
-	{
-		return notifyPull(cardName, newForCollection, foil, tier, null);
-	}
-
-	/**
-	 * @param instanceId pack-open card UUID for inspect links; may be null (unused for desktop chat)
-	 * @return {@code true} when a collection-add line was queued to game chat
-	 */
 	public boolean notifyPull(
 		String cardName, boolean newForCollection, boolean foil, RarityMath.Tier tier, String instanceId)
 	{
@@ -93,27 +89,26 @@ public class PullNotificationService
 			return false;
 		}
 		String trimmed = cardName.trim();
-		boolean standardNotification = shouldNotify(tier, foil, newForCollection);
+		boolean chatNotify = shouldNotify(tier, foil, newForCollection);
+		boolean externalNotify = shouldNotifyExternal(tier, foil, newForCollection);
 		boolean chatPosted = false;
-		if (standardNotification)
+		if (chatNotify)
 		{
 			queueCollectionAddChat(trimmed, newForCollection, foil, cardDatabase.chatRarityColorForCardName(trimmed));
 			chatPosted = true;
-			notifyParty(trimmed, newForCollection, foil);
 		}
-		log.debug(
-			"Pull notification dispatched for '{}' (foil={}, new={}, tier={})",
-			trimmed,
-			foil,
-			newForCollection,
-			tier == null ? "unknown" : tier.getLabel());
+		if (externalNotify)
+		{
+			pullExternalNotificationService.notifyPackPull(trimmed, newForCollection, foil, tier, instanceId);
+		}
+		if (config.dinkNotifications() && dinkTrigger() == DinkNotificationTrigger.EVERY_CARD
+			&& shouldNotifyDink(tier, foil, newForCollection))
+		{
+			dinkNotificationService.notifyPackPull(trimmed, newForCollection, foil, tier, instanceId);
+		}
 		return chatPosted;
 	}
 
-	/**
-	 * Always posts a collection-add chat line (ignores notify tier / new-only filters).
-	 * Used when a pack reveal is quick-closed so every pulled card is listed.
-	 */
 	public void announceCollectionAddAlways(String cardName, boolean newForCollection, boolean foil, Color rarityColor)
 	{
 		if (cardName == null || cardName.trim().isEmpty())
@@ -125,10 +120,6 @@ public class PullNotificationService
 		queueCollectionAddChat(trimmed, newForCollection, foil, rarity);
 	}
 
-	/**
-	 * Always posts collection-add chat for every pack-open pull (e.g. overlay already closed
-	 * before pulls were bound into the reveal).
-	 */
 	public void announceAllCollectionAdds(List<PackCardResult> pulls, Set<CardCollectionKey> preOwnedCards)
 	{
 		if (pulls == null || pulls.isEmpty())
@@ -187,6 +178,31 @@ public class PullNotificationService
 		announceCollectionAddAlways(name, card.isNew(), pull.isFoil(), rarity);
 	}
 
+	public void notifyDinkAtEnd(List<PackRevealService.RevealCard> cards)
+	{
+		if (!config.dinkNotifications() || dinkTrigger() != DinkNotificationTrigger.AT_END
+			|| cards == null || cards.isEmpty())
+		{
+			return;
+		}
+		List<DinkNotificationService.PackPull> pulls = new ArrayList<>();
+		for (PackRevealService.RevealCard card : cards)
+		{
+			if (card == null || card.getPull() == null || card.getPull().getCardName() == null)
+			{
+				continue;
+			}
+			pulls.add(new DinkNotificationService.PackPull(
+				card.getPull().getCardName().trim(),
+				card.isNew(),
+				card.getPull().isFoil(),
+				card.getTier(),
+				card.getPull().getInstanceId(),
+				shouldNotifyDink(card.getTier(), card.getPull().isFoil(), card.isNew())));
+		}
+		dinkNotificationService.notifyPackSummary(pulls);
+	}
+
 	private void queueCollectionAddChat(String cardName, boolean newForCollection, boolean foil, Color rarityColor)
 	{
 		String formatted = TcgPluginGameMessages.formatPrefixedYouAddedCollection(
@@ -201,22 +217,25 @@ public class PullNotificationService
 		return name + "|" + (foil ? "1" : "0");
 	}
 
-	private void notifyParty(String cardName, boolean newForCollection, boolean foil)
+	private boolean shouldNotifyDink(RarityMath.Tier tier, boolean foil, boolean newForCollection)
 	{
-		if (config.partyAnnounceMythicPulls() && partyService.isInParty())
+		if (!newForCollection && config.dinkOnlyNotifyNew())
 		{
-			try
-			{
-				TcgPullPartyMessage message = new TcgPullPartyMessage();
-				message.setCardName(cardName);
-				message.setNewForCollection(newForCollection);
-				message.setFoil(foil);
-				partyService.send(message);
-			}
-			catch (Exception ex)
-			{
-				log.debug("Could not send party pull message", ex);
-			}
+			return false;
 		}
+		if (foil && config.dinkAlwaysNotifyFoils())
+		{
+			return true;
+		}
+		PullNotifyTier minimum = newForCollection
+			? config.dinkNewCardNotifyTier()
+			: config.dinkDuplicateNotifyTier();
+		return PullNotifySupport.meetsTier(tier, minimum);
+	}
+
+	private DinkNotificationTrigger dinkTrigger()
+	{
+		DinkNotificationTrigger trigger = config.dinkNotificationTrigger();
+		return trigger == null ? DinkNotificationTrigger.EVERY_CARD : trigger;
 	}
 }

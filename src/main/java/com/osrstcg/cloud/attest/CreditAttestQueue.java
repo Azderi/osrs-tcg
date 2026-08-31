@@ -116,10 +116,7 @@ public final class CreditAttestQueue
 	{
 		attestScheduler.stop();
 		spillLoadedForAccountHash = -1L;
-		if (rateCapNotifier != null)
-		{
-			rateCapNotifier.reset();
-		}
+		rateCapNotifier.reset();
 	}
 
 	private static long resolveAttestAfterMs(long ms, long fallbackMs)
@@ -135,30 +132,9 @@ public final class CreditAttestQueue
 	void noteAttestAfterMs(JsonObject response)
 	{
 		long fallback = lastGoodAttestAfterMs.get();
-		Long parsed = null;
-		if (response != null && response.has("attestAfterMs") && !response.get("attestAfterMs").isJsonNull())
-		{
-			try
-			{
-				parsed = response.get("attestAfterMs").getAsLong();
-			}
-			catch (RuntimeException ignored)
-			{
-				// keep last-good
-			}
-		}
-		else if (response != null && response.has("pollAfterMs") && !response.get("pollAfterMs").isJsonNull())
-		{
-			try
-			{
-				parsed = response.get("pollAfterMs").getAsLong();
-			}
-			catch (RuntimeException ignored)
-			{
-				// keep last-good
-			}
-		}
-		lastGoodAttestAfterMs.set(resolveAttestAfterMs(parsed != null ? parsed : 0L, fallback));
+		Double parsed = JsonObjects.readNumber(response, "attestAfterMs", "pollAfterMs");
+		long ms = parsed == null ? 0L : Math.round(parsed);
+		lastGoodAttestAfterMs.set(resolveAttestAfterMs(ms, fallback));
 	}
 
 	public void discardPending()
@@ -186,14 +162,16 @@ public final class CreditAttestQueue
 			return;
 		}
 		resolveDisplayName();
+		String skill = "";
+		long xpDelta = 0L;
 		if (CreditAttestCoalescer.TYPE_XP_CHUNK.equals(type))
 		{
-			String skill = evidenceString(evidence, "skill", "");
+			skill = evidenceString(evidence, "skill", "");
 			if (CreditAttestCoalescer.isCombatSkillName(skill))
 			{
 				return;
 			}
-			long xpDelta = evidenceLong(evidence, "xpDelta", 0L);
+			xpDelta = evidenceLong(evidence, "xpDelta", 0L);
 			if (xpDelta <= 0L)
 			{
 				return;
@@ -227,7 +205,7 @@ public final class CreditAttestQueue
 		boolean spikeFlush = false;
 		synchronized (lock)
 		{
-			rememberAccountHashLocked();
+			resolveAccountHash();
 			pendingRaw.add(event);
 			int coalescedEstimate = CreditAttestCoalescer.estimateCoalescedCount(pendingRaw);
 			if (coalescedEstimate >= CreditAttestCoalescer.EARLY_FLUSH_COALESCED)
@@ -235,8 +213,8 @@ public final class CreditAttestQueue
 				spikeFlush = true;
 			}
 			else if (CreditAttestCoalescer.TYPE_XP_CHUNK.equals(type)
-				&& !CreditAttestCoalescer.isHitpointsSkillName(evidenceString(evidence, "skill", ""))
-				&& evidenceLong(evidence, "xpDelta", 0L) >= LARGE_XP_SPIKE_DELTA)
+				&& !CreditAttestCoalescer.isHitpointsSkillName(skill)
+				&& xpDelta >= LARGE_XP_SPIKE_DELTA)
 			{
 				spikeFlush = true;
 			}
@@ -257,19 +235,6 @@ public final class CreditAttestQueue
 	public boolean flushBlocking()
 	{
 		return flushSafe(true);
-	}
-
-	private void rememberAccountHashLocked()
-	{
-		long hash = client.getAccountHash();
-		if (hash != -1L)
-		{
-			if (lastAccountHash != -1L && lastAccountHash != hash)
-			{
-				spillLoadedForAccountHash = -1L;
-			}
-			lastAccountHash = hash;
-		}
 	}
 
 	long resolveAccountHash()
@@ -323,7 +288,7 @@ public final class CreditAttestQueue
 			{
 				return;
 			}
-			rememberAccountHashLocked();
+			resolveAccountHash();
 			if (lastAccountHash != hash)
 			{
 				return;
@@ -427,23 +392,14 @@ public final class CreditAttestQueue
 					{
 						break;
 					}
-					rememberAccountHashLocked();
+					resolveAccountHash();
 					raw = new ArrayList<>(pendingRaw);
 					pendingRaw.clear();
 				}
 
 				int rawCount = raw.size();
 				List<JsonObject> coalesced = new ArrayList<>(CreditAttestCoalescer.coalesce(raw));
-				CoalesceBreakdown breakdown = CoalesceBreakdown.of(coalesced);
-				log.debug(
-					"Credit attest coalesce: raw={} → coalesced={} (xpSkills={}, levelUps={}, killEvents={}, activities={}, other={})",
-					rawCount,
-					coalesced.size(),
-					breakdown.xpSkills,
-					breakdown.levelUps,
-					breakdown.killEvents,
-					breakdown.activities,
-					breakdown.other);
+				log.debug("Credit attest coalesce: raw={} → coalesced={}", rawCount, coalesced.size());
 
 				if (coalesced.isEmpty())
 				{
@@ -452,10 +408,7 @@ public final class CreditAttestQueue
 
 				if (CreditAttestCoalescer.isHitpointsXpOnly(coalesced))
 				{
-					synchronized (lock)
-					{
-						pendingRaw.addAll(0, coalesced);
-					}
+					prependPending(coalesced);
 					break;
 				}
 
@@ -469,11 +422,8 @@ public final class CreditAttestQueue
 					}
 					if (CreditAttestCoalescer.isHitpointsXpOnly(batch))
 					{
-						synchronized (lock)
-						{
-							pendingRaw.addAll(0, coalesced);
-							pendingRaw.addAll(0, batch);
-						}
+						prependPending(coalesced);
+						prependPending(batch);
 						coalesced.clear();
 						break;
 					}
@@ -488,11 +438,8 @@ public final class CreditAttestQueue
 					}
 					catch (Exception ex)
 					{
-						synchronized (lock)
-						{
-							pendingRaw.addAll(0, coalesced);
-							pendingRaw.addAll(0, batch);
-						}
+						prependPending(coalesced);
+						prependPending(batch);
 						persistSpillFromPending();
 						throw ex;
 					}
@@ -548,37 +495,14 @@ public final class CreditAttestQueue
 				continue;
 			}
 			JsonObject row = el.getAsJsonObject();
-			Long amount = firstLong(row, "credits", "amount", "awarded", "creditDelta");
+			Double amount = JsonObjects.readNumber(row, "credits", "amount", "awarded", "creditDelta");
 			if (amount != null)
 			{
 				sawAmount = true;
-				sum += Math.max(0L, amount);
+				sum += Math.max(0L, Math.round(amount));
 			}
 		}
 		return sawAmount ? sum : -1L;
-	}
-
-	private static Long firstLong(JsonObject row, String... keys)
-	{
-		if (row == null || keys == null)
-		{
-			return null;
-		}
-		for (String key : keys)
-		{
-			if (row.has(key) && !row.get(key).isJsonNull())
-			{
-				try
-				{
-					return row.get(key).getAsLong();
-				}
-				catch (RuntimeException ignored)
-				{
-					// try next alias
-				}
-			}
-		}
-		return null;
 	}
 
 	void debugCreditAttestSend(List<JsonObject> batch, long optimisticEstimate)
@@ -716,57 +640,5 @@ public final class CreditAttestQueue
 			return defaultValue;
 		}
 		return evidence.get(key).getAsLong();
-	}
-
-	private static final class CoalesceBreakdown
-	{
-		private final int xpSkills;
-		private final int levelUps;
-		private final int killEvents;
-		private final int activities;
-		private final int other;
-
-		private CoalesceBreakdown(int xpSkills, int levelUps, int killEvents, int activities, int other)
-		{
-			this.xpSkills = xpSkills;
-			this.levelUps = levelUps;
-			this.killEvents = killEvents;
-			this.activities = activities;
-			this.other = other;
-		}
-
-		private static CoalesceBreakdown of(List<JsonObject> events)
-		{
-			int xp = 0;
-			int levels = 0;
-			int kills = 0;
-			int acts = 0;
-			int other = 0;
-			for (JsonObject e : events)
-			{
-				String type = JsonObjects.text(e, "type");
-				if (CreditAttestCoalescer.TYPE_XP_CHUNK.equals(type))
-				{
-					xp++;
-				}
-				else if (CreditAttestCoalescer.TYPE_LEVEL_UP.equals(type))
-				{
-					levels++;
-				}
-				else if (CreditAttestCoalescer.TYPE_NPC_KILL.equals(type))
-				{
-					kills++;
-				}
-				else if (CreditAttestCoalescer.TYPE_ACTIVITY.equals(type))
-				{
-					acts++;
-				}
-				else
-				{
-					other++;
-				}
-			}
-			return new CoalesceBreakdown(xp, levels, kills, acts, other);
-		}
 	}
 }

@@ -4,6 +4,8 @@ import com.osrstcg.catalog.CardDatabase;
 import com.osrstcg.catalog.CardDefinition;
 import com.osrstcg.state.CardCollectionKey;
 import com.osrstcg.state.CloudSidebarCollectionStats;
+import com.osrstcg.state.TcgPublicStats;
+import com.osrstcg.state.TcgState;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -28,6 +30,47 @@ public class TcgPublicStatsCalculator
 	{
 		this.stateService = stateService;
 		this.cardDatabase = cardDatabase;
+	}
+
+	public TcgPublicStats computeLive()
+	{
+		CloudSidebarCollectionStats cloud = stateService.getCloudCollectionStats();
+		Map<CardCollectionKey, Integer> owned;
+		long openedPacks;
+		synchronized (stateService)
+		{
+			TcgState s = stateService.getState();
+			owned = new HashMap<>(s.getCollectionState().getOwnedCards());
+			openedPacks = s.getEconomyState().getOpenedPacks();
+		}
+		if (cloud != null)
+		{
+			return new TcgPublicStats(
+				cloud.getCollectionScore(),
+				cloud.getCompletionPct(),
+				cloud.getUniqueOwned(),
+				cloud.getUniqueFoilOwned(),
+				cloud.getFoilCompletionPct(),
+				cloud.getTotalCardPool(),
+				openedPacks,
+				cloud.getTotalCardsOwned(),
+				cloud.getFoilOwned(),
+				false);
+		}
+		List<CardDefinition> all = cardDatabase.getCards();
+		List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(all);
+		CloudSidebarCollectionStats overview = computeLocalOverview(owned, all, rollPool);
+		return new TcgPublicStats(
+			overview.getCollectionScore(),
+			overview.getCompletionPct(),
+			overview.getUniqueOwned(),
+			overview.getUniqueFoilOwned(),
+			overview.getFoilCompletionPct(),
+			overview.getTotalCardPool(),
+			openedPacks,
+			overview.getTotalCardsOwned(),
+			overview.getFoilOwned(),
+			false);
 	}
 
 	public CloudSidebarCollectionStats computeLocalSidebarStats()

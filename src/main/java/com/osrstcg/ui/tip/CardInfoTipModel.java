@@ -19,6 +19,7 @@ public final class CardInfoTipModel
 	public static final int CLAMP_PAD_PX = 8;
 	public static final int FADE_IN_MS = 160;
 
+	public static final String ACTION_INSPECT = "inspect";
 	public static final String ACTION_OPEN_WIKI = "open-wiki";
 
 	@Value
@@ -128,6 +129,11 @@ public final class CardInfoTipModel
 		appendArtistRow(rows, def);
 		if (includeContextMenuActions)
 		{
+			String instanceId = instanceIdFor(card);
+			if (instanceId != null)
+			{
+				rows.add(Row.action("Inspect", ACTION_INSPECT));
+			}
 			String wiki = wikiPageFor(card);
 			if (wiki != null)
 			{

@@ -1,6 +1,7 @@
 package com.osrstcg;
 
 import com.osrstcg.config.CreditsPerHourWindow;
+import com.osrstcg.config.DinkNotificationTrigger;
 import com.osrstcg.config.PullNotifyTier;
 import java.awt.Color;
 import net.runelite.client.config.Config;
@@ -246,14 +247,117 @@ public interface OsrsTcgConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "duplicateNotifyTier",
+		name = "Duplicate notify tier",
+		description = "Minimum rarity for webhook/party duplicates.",
+		section = pullNotificationsSection,
+		position = 4
+	)
+	default PullNotifyTier duplicateNotifyTier()
+	{
+		return PullNotifyTier.MYTHIC;
+	}
+
+	@ConfigItem(
 		keyName = "partyAnnounceMythicPulls",
 		name = "Party collection announcements",
 		description = "Share pull alerts with your party.",
 		section = pullNotificationsSection,
-		position = 4
+		position = 5
 	)
 	default boolean partyAnnounceMythicPulls()
 	{
 		return true;
+	}
+
+	@ConfigItem(
+		keyName = "pullWebhookUrl",
+		name = "Webhook URL",
+		description = "Discord webhook URL for pull alerts.",
+		section = pullNotificationsSection,
+		position = 6
+	)
+	default String pullWebhookUrl()
+	{
+		return "";
+	}
+
+	@ConfigSection(
+		name = "Dink",
+		description = "Dink plugin notifications.",
+		position = 20
+	)
+	String dinkSection = "dink";
+
+	@ConfigItem(
+		keyName = "dinkNotifications",
+		name = "Enable Dink Notifications",
+		description = "Send pull alerts via Dink.",
+		section = dinkSection,
+		position = 0
+	)
+	default boolean dinkNotifications()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "dinkNotificationTrigger",
+		name = "Trigger notification",
+		description = "Notify per card or at pack end.",
+		section = dinkSection,
+		position = 1
+	)
+	default DinkNotificationTrigger dinkNotificationTrigger()
+	{
+		return DinkNotificationTrigger.EVERY_CARD;
+	}
+
+	@ConfigItem(
+		keyName = "dinkNewCardNotifyTier",
+		name = "Notify tier",
+		description = "Minimum rarity for new cards.",
+		section = dinkSection,
+		position = 2
+	)
+	default PullNotifyTier dinkNewCardNotifyTier()
+	{
+		return PullNotifyTier.MYTHIC;
+	}
+
+	@ConfigItem(
+		keyName = "dinkAlwaysNotifyFoils",
+		name = "Notify all foils",
+		description = "Notify all foils regardless of tier.",
+		section = dinkSection,
+		position = 3
+	)
+	default boolean dinkAlwaysNotifyFoils()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "dinkOnlyNotifyNew",
+		name = "Only notify new cards",
+		description = "Skip duplicate cards.",
+		section = dinkSection,
+		position = 4
+	)
+	default boolean dinkOnlyNotifyNew()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "dinkDuplicateNotifyTier",
+		name = "Duplicate notify tier",
+		description = "Minimum rarity for duplicates.",
+		section = dinkSection,
+		position = 5
+	)
+	default PullNotifyTier dinkDuplicateNotifyTier()
+	{
+		return PullNotifyTier.MYTHIC;
 	}
 }

@@ -21,6 +21,11 @@ public final class TcgPluginGameMessages
 	{
 	}
 
+	public static String plainPrefix()
+	{
+		return PLAIN_PREFIX;
+	}
+
 	public static ChatMessageBuilder prefixBuilder()
 	{
 		return new ChatMessageBuilder()

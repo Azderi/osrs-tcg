@@ -2,7 +2,6 @@ package com.osrstcg.config;
 
 import com.osrstcg.catalog.RarityMath;
 
-/** Minimum display tier for pack-pull chat notifications (this tier and higher). */
 public enum PullNotifyTier
 {
 	COMMON(RarityMath.Tier.COMMON),
@@ -23,6 +22,11 @@ public enum PullNotifyTier
 	public RarityMath.Tier toRarityTier()
 	{
 		return tier;
+	}
+
+	public boolean meetsOrExceeds(RarityMath.Tier value)
+	{
+		return value != null && value.ordinal() >= tier.ordinal();
 	}
 
 	public String displayLabel()

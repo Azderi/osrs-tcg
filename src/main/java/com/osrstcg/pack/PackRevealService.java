@@ -367,6 +367,10 @@ public class PackRevealService
 		{
 			flipStartedAtMs[i] = 0L;
 		}
+		if ((batchOffset + visibleCount()) % 5 == 0)
+		{
+			pullNotificationService.notifyDinkAtEnd(List.copyOf(visibleCards()));
+		}
 		phase = Phase.WAIT_CLOSE;
 		phaseStartedAt = System.currentTimeMillis();
 	}
@@ -840,6 +844,10 @@ public class PackRevealService
 
 	private void enterWaitCloseAfterBatchFullyRevealed()
 	{
+		if ((batchOffset + visibleCount()) % 5 == 0)
+		{
+			pullNotificationService.notifyDinkAtEnd(List.copyOf(visibleCards()));
+		}
 		phase = Phase.WAIT_CLOSE;
 		phaseStartedAt = System.currentTimeMillis();
 	}
