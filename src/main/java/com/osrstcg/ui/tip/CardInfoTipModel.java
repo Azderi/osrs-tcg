@@ -24,7 +24,6 @@ public final class CardInfoTipModel
 	public static final int DEFAULT_TIP_H = 220;
 	public static final int FADE_IN_MS = 160;
 
-	public static final String ACTION_INSPECT = "inspect";
 	public static final String ACTION_OPEN_WIKI = "open-wiki";
 
 	public static final class Row
@@ -156,9 +155,8 @@ public final class CardInfoTipModel
 	}
 
 	/**
-	 * Face-up pack tip. When {@code includeContextMenuActions}, appends pinned context-menu rows
-	 * under Grade: {@link #ACTION_INSPECT} when the pull has an {@code instanceId}, then
-	 * {@link #ACTION_OPEN_WIKI} when a wiki page exists.
+	 * Face-up pack tip. When {@code includeContextMenuActions}, appends
+	 * {@link #ACTION_OPEN_WIKI} under Grade when a wiki page exists.
 	 */
 	public static Content forPackRevealCard(PackRevealService.RevealCard card, boolean includeContextMenuActions)
 	{
@@ -174,11 +172,6 @@ public final class CardInfoTipModel
 		appendArtistRow(rows, def);
 		if (includeContextMenuActions)
 		{
-			String instanceId = instanceIdFor(card);
-			if (instanceId != null)
-			{
-				rows.add(Row.action("Inspect", ACTION_INSPECT));
-			}
 			String wiki = wikiPageFor(card);
 			if (wiki != null)
 			{

@@ -1,7 +1,6 @@
 package com.osrstcg.overlay;
 
 import com.osrstcg.OsrsTcgConfig;
-import com.osrstcg.cloud.api.CloudEndpoints;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.cloud.catalog.PackImageUrls;
 import com.osrstcg.catalog.BoosterPackDefinition;
@@ -136,7 +135,6 @@ public class PackRevealOverlay extends Overlay
 	private int tipPinAnchorX;
 	private int tipPinAnchorY;
 	private String tipPinnedWikiPage;
-	private String tipPinnedInstanceId;
 	private final Rectangle tipPanelBounds = new Rectangle();
 	private final Rectangle closeButtonBounds = new Rectangle();
 	private final Map<String, Rectangle> tipActionBounds = new HashMap<>();
@@ -942,14 +940,12 @@ public class PackRevealOverlay extends Overlay
 		tipPinned = false;
 		tipPinBoundsReady = false;
 		tipPinnedWikiPage = null;
-		tipPinnedInstanceId = null;
 		tipPanelBounds.setBounds(0, 0, 0, 0);
 		tipActionBounds.clear();
 	}
 
 	/**
-	 * Right-click on a face-up card: freeze the card tip and append context-menu actions
-	 * (Inspect / Open wiki page) when available.
+	 * Right-click on a face-up card: freeze the card tip and append Open wiki when available.
 	 *
 	 * @return true when the tip was pinned
 	 */
@@ -957,8 +953,7 @@ public class PackRevealOverlay extends Overlay
 	{
 		PackRevealService.RevealCard card = faceUpCardAt(canvasPoint);
 		String wikiPage = CardInfoTipModel.wikiPageFor(card);
-		String instanceId = CardInfoTipModel.instanceIdFor(card);
-		if (card == null || canvasPoint == null || (wikiPage == null && instanceId == null))
+		if (card == null || canvasPoint == null || wikiPage == null)
 		{
 			return false;
 		}
@@ -984,7 +979,6 @@ public class PackRevealOverlay extends Overlay
 		tipPinned = true;
 		tipPinBoundsReady = false;
 		tipPinnedWikiPage = wikiPage;
-		tipPinnedInstanceId = instanceId;
 		tipPinAnchorX = canvasPoint.x;
 		tipPinAnchorY = canvasPoint.y;
 		tipCursorX = canvasPoint.x;
@@ -1002,7 +996,7 @@ public class PackRevealOverlay extends Overlay
 	}
 
 	/**
-	 * Left-click while the tip is pinned. Opens inspect/wiki when an action row is hit; otherwise dismisses.
+	 * Left-click while the tip is pinned. Opens wiki when that action row is hit; otherwise dismisses.
 	 *
 	 * @return true when the click was fully consumed (do not advance the reveal)
 	 */
@@ -1012,19 +1006,11 @@ public class PackRevealOverlay extends Overlay
 		{
 			return false;
 		}
-		Rectangle inspectHit = tipActionBounds.get(CardInfoTipModel.ACTION_INSPECT);
-		boolean onInspect = inspectHit != null && inspectHit.contains(canvasPoint);
 		Rectangle wikiHit = tipActionBounds.get(CardInfoTipModel.ACTION_OPEN_WIKI);
 		boolean onWiki = wikiHit != null && wikiHit.contains(canvasPoint);
 		boolean onTip = tipPinBoundsReady && tipPanelBounds.contains(canvasPoint);
-		String instanceId = tipPinnedInstanceId;
 		String wikiPage = tipPinnedWikiPage;
 		clearCardInfoTip();
-		if (onInspect && instanceId != null)
-		{
-			LinkBrowser.browse(CloudEndpoints.webUrl("/inspect/" + instanceId));
-			return true;
-		}
 		if (onWiki && wikiPage != null)
 		{
 			String url = OsrsWiki.url(wikiPage);
