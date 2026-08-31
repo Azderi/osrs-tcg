@@ -22,6 +22,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.AccessLevel;
@@ -101,20 +102,7 @@ public class PackRevealService
 
 		public boolean hasUnrevealedMythic()
 		{
-			for (int i = 0; i < cards.size(); i++)
-			{
-				boolean revealed = i < revealedByIndex.length && revealedByIndex[i];
-				if (revealed)
-				{
-					continue;
-				}
-				RevealCard card = cards.get(i);
-				if (isPremiumRevealAudioPull(card))
-				{
-					return true;
-				}
-			}
-			return false;
+			return hasUnrevealedPremiumAudio(cards, revealedByIndex);
 		}
 	}
 
@@ -161,13 +149,7 @@ public class PackRevealService
 		this.revealCardResolver = new RevealCardResolver(cardDatabase, cloudApiClient);
 	}
 
-	public synchronized void beginPendingReveal(String boosterTitle, String boosterPackId,
-		boolean apexPackOpen)
-	{
-		beginPendingReveal(boosterTitle, boosterPackId, apexPackOpen, 0);
-	}
-
-	public synchronized void beginPendingReveal(String boosterTitle, String boosterPackId,
+	public synchronized void beginPendingReveal(String boosterPackId,
 		boolean apexPackOpen, int expectedCardCount)
 	{
 		packRevealSoundService.hardStop();
@@ -189,13 +171,9 @@ public class PackRevealService
 
 	private void preloadRevealSleeve(String packId)
 	{
-		if (imageCacheService == null)
-		{
-			return;
-		}
 		ArrayList<String> urls = new ArrayList<>(2);
 		urls.add(SharedCardRenderer.CARD_BACK_PATH);
-		if (packCatalogService != null && packId != null && !packId.isBlank())
+		if (packId != null && !packId.isBlank())
 		{
 			BoosterPackDefinition pack = packCatalogService.getCache().get(packId).orElse(null);
 			String sleeve = pack == null ? null : pack.revealSleevePath();
@@ -205,11 +183,6 @@ public class PackRevealService
 			}
 		}
 		imageCacheService.preload(urls);
-	}
-
-	public synchronized boolean supplyRevealPulls(List<PackCardResult> pulls, Set<CardCollectionKey> preOwnedCards)
-	{
-		return supplyRevealPulls(pulls, preOwnedCards, apexPackOpen);
 	}
 
 	public synchronized boolean supplyRevealPulls(List<PackCardResult> pulls, Set<CardCollectionKey> preOwnedCards,
@@ -236,15 +209,15 @@ public class PackRevealService
 				CardDefinition def = c.getDefinition();
 				if (def == null)
 				{
-					return java.util.stream.Stream.empty();
+					return Stream.empty();
 				}
 				boolean foil = c.getPull() != null && c.getPull().isFoil();
 				String foilPath = def.getFoilImagePath();
 				if (foil && foilPath != null && !foilPath.isBlank())
 				{
-					return java.util.stream.Stream.of(foilPath);
+					return Stream.of(foilPath);
 				}
-				return java.util.stream.Stream.of(def.getImageUrl());
+				return Stream.of(def.getImageUrl());
 			})
 			.collect(Collectors.toList()));
 		this.collectionChatPostedByIndex = new boolean[this.cards.size()];
@@ -272,11 +245,6 @@ public class PackRevealService
 	{
 		packRevealSoundService.hardStop();
 		reset();
-	}
-
-	public RarityMath.Tier tierForPackPull(PackCardResult pull, String catalogCardName)
-	{
-		return revealCardResolver.tierForPackPull(pull, catalogCardName);
 	}
 
 	private static String cardNameForParty(RevealCard card)
@@ -333,16 +301,7 @@ public class PackRevealService
 				{
 					packRevealSoundService.playMythicReveal();
 				}
-				if (pullNotificationService.notifyPull(
-					cardNameForParty(clicked),
-					clicked.isNew(),
-					isFoilPull(clicked),
-					clicked.getTier(),
-					CardInfoTipModel.instanceIdFor(clicked))
-					&& absIndex < collectionChatPostedByIndex.length)
-				{
-					collectionChatPostedByIndex[absIndex] = true;
-				}
+				notifyPullAndMarkPosted(clicked, absIndex);
 			}
 		}
 	}
@@ -395,7 +354,10 @@ public class PackRevealService
 			packRevealSoundService.playCardFlip();
 		}
 		announcePartyMythicPullsForCurrentBatchUnrevealed();
-		playMythicRevealIfAnyUnrevealedMythic();
+		if (hasUnrevealedPremiumAudio(visibleCards(), revealedByIndex))
+		{
+			packRevealSoundService.playMythicReveal();
+		}
 		revealedCount = batchSize;
 		for (int i = 0; i < revealedByIndex.length; i++)
 		{
@@ -458,12 +420,7 @@ public class PackRevealService
 		}
 		for (RevealCard card : cards)
 		{
-			if (card == null || card.getPull() == null)
-			{
-				return false;
-			}
-			String name = card.getPull().getCardName();
-			if (name == null || name.trim().isEmpty())
+			if (!hasRealPullIdentity(card))
 			{
 				return false;
 			}
@@ -574,11 +531,6 @@ public class PackRevealService
 		return out;
 	}
 
-	static float flipEase(float t)
-	{
-		return CardFlipEasing.flipEase(t);
-	}
-
 	private long computePhaseElapsedMsLocked()
 	{
 		if (phaseStartedAt <= 0L)
@@ -618,25 +570,6 @@ public class PackRevealService
 	public synchronized boolean isCardRevealed(int index)
 	{
 		return index >= 0 && index < revealedByIndex.length && revealedByIndex[index];
-	}
-
-	public synchronized boolean hasUnrevealedMythic()
-	{
-		List<RevealCard> visible = visibleCards();
-		for (int i = 0; i < visible.size(); i++)
-		{
-			boolean revealed = i < revealedByIndex.length && revealedByIndex[i];
-			if (revealed)
-			{
-				continue;
-			}
-			RevealCard card = visible.get(i);
-			if (isPremiumRevealAudioPull(card))
-			{
-				return true;
-			}
-		}
-		return false;
 	}
 
 	public synchronized boolean isAwaitingServerPulls()
@@ -734,6 +667,37 @@ public class PackRevealService
 			&& !card.getPull().getCardName().isBlank();
 	}
 
+	private void notifyPullAndMarkPosted(RevealCard card, int absIndex)
+	{
+		if (pullNotificationService.notifyPull(
+			cardNameForParty(card),
+			card.isNew(),
+			isFoilPull(card),
+			card.getTier(),
+			CardInfoTipModel.instanceIdFor(card))
+			&& absIndex < collectionChatPostedByIndex.length)
+		{
+			collectionChatPostedByIndex[absIndex] = true;
+		}
+	}
+
+	private static boolean hasUnrevealedPremiumAudio(List<RevealCard> cards, boolean[] revealedByIndex)
+	{
+		for (int i = 0; i < cards.size(); i++)
+		{
+			boolean revealed = i < revealedByIndex.length && revealedByIndex[i];
+			if (revealed)
+			{
+				continue;
+			}
+			if (isPremiumRevealAudioPull(cards.get(i)))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private int clickedCardIndex(List<Rectangle> bounds, Point click)
 	{
 		if (bounds == null || click == null)
@@ -751,14 +715,6 @@ public class PackRevealService
 		return -1;
 	}
 
-	private void playMythicRevealIfAnyUnrevealedMythic()
-	{
-		if (hasUnrevealedMythic())
-		{
-			packRevealSoundService.playMythicReveal();
-		}
-	}
-
 	private void announcePartyMythicPullsForCurrentBatchUnrevealed()
 	{
 		for (int i = 0; i < revealedByIndex.length; i++)
@@ -772,17 +728,7 @@ public class PackRevealService
 			{
 				continue;
 			}
-			RevealCard card = cards.get(absIndex);
-			if (pullNotificationService.notifyPull(
-				cardNameForParty(card),
-				card.isNew(),
-				isFoilPull(card),
-				card.getTier(),
-				CardInfoTipModel.instanceIdFor(card))
-				&& absIndex < collectionChatPostedByIndex.length)
-			{
-				collectionChatPostedByIndex[absIndex] = true;
-			}
+			notifyPullAndMarkPosted(cards.get(absIndex), absIndex);
 		}
 	}
 
@@ -794,17 +740,7 @@ public class PackRevealService
 			{
 				continue;
 			}
-			RevealCard card = cards.get(absIndex);
-			if (pullNotificationService.notifyPull(
-				cardNameForParty(card),
-				card.isNew(),
-				isFoilPull(card),
-				card.getTier(),
-				CardInfoTipModel.instanceIdFor(card))
-				&& absIndex < collectionChatPostedByIndex.length)
-			{
-				collectionChatPostedByIndex[absIndex] = true;
-			}
+			notifyPullAndMarkPosted(cards.get(absIndex), absIndex);
 		}
 	}
 
