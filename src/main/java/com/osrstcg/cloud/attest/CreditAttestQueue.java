@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
@@ -31,6 +32,8 @@ public final class CreditAttestQueue
 {
 	private static final long DEFAULT_ATTEST_AFTER_MS = 60_000L;
 	private static final long LARGE_XP_SPIKE_DELTA = 50_000L;
+	private static final int ATTEST_RETRY_ATTEMPTS = 3;
+	private static final long ATTEST_RETRY_BACKOFF_MS = 750L;
 	final CloudSessionService session;
 	final TradeCloudService tradeCloud;
 	final TcgStateService stateService;
@@ -47,6 +50,7 @@ public final class CreditAttestQueue
 	private final AtomicBoolean earlyFlushScheduled = new AtomicBoolean(false);
 	private final AtomicBoolean running = new AtomicBoolean(false);
 	private final AtomicLong lastGoodAttestAfterMs = new AtomicLong(DEFAULT_ATTEST_AFTER_MS);
+	private final AtomicInteger consecutiveRetryFailures = new AtomicInteger(0);
 	private final AttestRejectRequeuer rejectRequeuer;
 	private final CreditAttestPoster poster;
 	private final CreditAttestScheduler attestScheduler;
@@ -95,6 +99,7 @@ public final class CreditAttestQueue
 	public void stop()
 	{
 		attestScheduler.stop();
+		consecutiveRetryFailures.set(0);
 		spillLoadedAccountHash = -1L;
 		rateCapNotifier.reset();
 	}
@@ -320,6 +325,25 @@ public final class CreditAttestQueue
 		attestScheduler.scheduleEarlyFlush();
 	}
 
+	private void maybeScheduleRetryFlush(boolean teardown, Exception ex)
+	{
+		if (teardown || !CreditAttestPoster.isRetryableAttestFailure(ex))
+		{
+			consecutiveRetryFailures.set(0);
+			return;
+		}
+		int attempt = consecutiveRetryFailures.incrementAndGet();
+		if (attempt >= ATTEST_RETRY_ATTEMPTS)
+		{
+			log.debug("Credit attest retry exhausted after {} failure(s)", attempt);
+			return;
+		}
+		long delayMs = ATTEST_RETRY_BACKOFF_MS * attempt;
+		log.debug("Credit attest scheduling retry {}/{} in {}ms after {}",
+			attempt, ATTEST_RETRY_ATTEMPTS, delayMs, ex.toString());
+		attestScheduler.scheduleRetryFlush(delayMs);
+	}
+
 	void prependPending(List<JsonObject> events)
 	{
 		synchronized (lock)
@@ -411,6 +435,7 @@ public final class CreditAttestQueue
 					try
 					{
 						boolean batchChanged = poster.postAttestBatch(batch);
+						consecutiveRetryFailures.set(0);
 						changed |= batchChanged;
 						persistSpillFromPending();
 						log.debug("Credit attest OK: events={} durationMs={}",
@@ -421,6 +446,7 @@ public final class CreditAttestQueue
 						prependPending(coalesced);
 						prependPending(batch);
 						persistSpillFromPending();
+						maybeScheduleRetryFlush(teardown, ex);
 						throw ex;
 					}
 				}

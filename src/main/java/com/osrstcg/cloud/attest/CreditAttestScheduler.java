@@ -14,11 +14,13 @@ final class CreditAttestScheduler
 	private final AtomicBoolean running;
 	private final AtomicLong lastGoodAttestAfterMs;
 	private final AtomicBoolean earlyFlushScheduled;
+	private final AtomicBoolean retryFlushScheduled = new AtomicBoolean(false);
 	private final long defaultAttestAfterMs;
 	private final Runnable flushSafeFalse;
 	private final BooleanSupplier stillRunning;
 	private final Object scheduleLock = new Object();
 	private ScheduledFuture<?> flushFuture;
+	private ScheduledFuture<?> retryFlushFuture;
 
 	CreditAttestScheduler(
 		ScheduledExecutorService scheduler,
@@ -58,6 +60,7 @@ final class CreditAttestScheduler
 		{
 			running.set(false);
 			cancelScheduledLocked();
+			cancelRetryFlushLocked();
 		}
 	}
 
@@ -78,6 +81,41 @@ final class CreditAttestScheduler
 				earlyFlushScheduled.set(false);
 			}
 		});
+	}
+
+	void scheduleRetryFlush(long delayMs)
+	{
+		if (!running.get())
+		{
+			return;
+		}
+		if (!retryFlushScheduled.compareAndSet(false, true))
+		{
+			return;
+		}
+		synchronized (scheduleLock)
+		{
+			if (!running.get())
+			{
+				retryFlushScheduled.set(false);
+				return;
+			}
+			retryFlushFuture = scheduler.schedule(() ->
+			{
+				try
+				{
+					flushSafeFalse.run();
+				}
+				finally
+				{
+					retryFlushScheduled.set(false);
+					synchronized (scheduleLock)
+					{
+						retryFlushFuture = null;
+					}
+				}
+			}, Math.max(0L, delayMs), TimeUnit.MILLISECONDS);
+		}
 	}
 
 	void flushTick()
@@ -114,5 +152,15 @@ final class CreditAttestScheduler
 			flushFuture.cancel(false);
 			flushFuture = null;
 		}
+	}
+
+	private void cancelRetryFlushLocked()
+	{
+		if (retryFlushFuture != null)
+		{
+			retryFlushFuture.cancel(false);
+			retryFlushFuture = null;
+		}
+		retryFlushScheduled.set(false);
 	}
 }

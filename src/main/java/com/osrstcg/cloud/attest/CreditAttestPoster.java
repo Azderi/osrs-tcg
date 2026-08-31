@@ -12,9 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 final class CreditAttestPoster
 {
-	private static final int ATTEST_RETRY_ATTEMPTS = 3;
-	private static final long ATTEST_RETRY_BACKOFF_MS = 750L;
-
 	private final CreditAttestQueue queue;
 	private final CloudApiClient api;
 	private final AttestRejectRequeuer requeuer;
@@ -57,7 +54,7 @@ final class CreditAttestPoster
 		long pendingBefore = queue.stateService.getPendingOptimisticCredits();
 		long revisionBefore = queue.tradeCloud.getLastRevision();
 
-		JsonObject response = attestWithRetry(body);
+		JsonObject response = api.attest(body);
 		queue.noteAttestAfterMs(response);
 		AttestRejectRequeuer.RequeueResult requeueResult = requeuer.requeueRejectedEvents(response, batch);
 		queue.rateCapNotifier.onAttestResponse(response);
@@ -120,49 +117,17 @@ final class CreditAttestPoster
 		return changed;
 	}
 
-	private JsonObject attestWithRetry(JsonObject body) throws Exception
+	static boolean isRetryableAttestFailure(Throwable ex)
 	{
-		Exception last = null;
-		for (int attempt = 1; attempt <= ATTEST_RETRY_ATTEMPTS; attempt++)
+		if (ex instanceof IOException && !(ex instanceof CloudApiException))
 		{
-			try
-			{
-				return api.attest(body);
-			}
-			catch (CloudApiException ex)
-			{
-				last = ex;
-				if (!isRetryableAttestFailure(ex) || attempt >= ATTEST_RETRY_ATTEMPTS)
-				{
-					throw ex;
-				}
-				log.debug("Credit attest retry {}/{} after {} {}", attempt, ATTEST_RETRY_ATTEMPTS,
-					ex.getStatus(), ex.getCode());
-			}
-			catch (IOException ex)
-			{
-				last = ex;
-				if (attempt >= ATTEST_RETRY_ATTEMPTS)
-				{
-					throw ex;
-				}
-				log.debug("Credit attest retry {}/{} after IO error", attempt, ATTEST_RETRY_ATTEMPTS);
-			}
-			try
-			{
-				Thread.sleep(ATTEST_RETRY_BACKOFF_MS * attempt);
-			}
-			catch (InterruptedException ie)
-			{
-				Thread.currentThread().interrupt();
-				throw last;
-			}
+			return true;
 		}
-		throw last == null ? new IOException("attest failed") : last;
-	}
-
-	private static boolean isRetryableAttestFailure(CloudApiException ex)
-	{
-		return ex != null && (ex.isServerError() || ex.isRateLimited());
+		if (ex instanceof CloudApiException)
+		{
+			CloudApiException apiEx = (CloudApiException) ex;
+			return apiEx.isServerError() || apiEx.isRateLimited();
+		}
+		return false;
 	}
 }
