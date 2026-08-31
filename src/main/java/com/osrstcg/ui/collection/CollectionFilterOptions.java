@@ -2,11 +2,76 @@ package com.osrstcg.ui.collection;
 
 import com.osrstcg.catalog.BoosterPackDefinition;
 import com.osrstcg.catalog.RarityMath;
+import java.util.List;
+import javax.swing.DefaultComboBoxModel;
 
 public final class CollectionFilterOptions
 {
 	private CollectionFilterOptions()
 	{
+	}
+
+	public static final class PackComboModel
+	{
+		public final DefaultComboBoxModel<PackFilterOption> model;
+		public final PackFilterOption selected;
+
+		PackComboModel(DefaultComboBoxModel<PackFilterOption> model, PackFilterOption selected)
+		{
+			this.model = model;
+			this.selected = selected;
+		}
+	}
+
+	public static final class RarityComboModel
+	{
+		public final DefaultComboBoxModel<RarityFilterOption> model;
+		public final RarityFilterOption selected;
+
+		RarityComboModel(DefaultComboBoxModel<RarityFilterOption> model, RarityFilterOption selected)
+		{
+			this.model = model;
+			this.selected = selected;
+		}
+	}
+
+	public static PackComboModel packComboModel(List<BoosterPackDefinition> packs, BoosterPackDefinition selectedPack)
+	{
+		DefaultComboBoxModel<PackFilterOption> model = new DefaultComboBoxModel<>();
+		PackFilterOption selected = PackFilterOption.all();
+		model.addElement(selected);
+		for (BoosterPackDefinition pack : packs)
+		{
+			if (pack == null)
+			{
+				continue;
+			}
+			PackFilterOption option = PackFilterOption.of(pack);
+			model.addElement(option);
+			if (selectedPack != null && selectedPack.getId() != null
+				&& selectedPack.getId().equals(pack.getId()))
+			{
+				selected = option;
+			}
+		}
+		return new PackComboModel(model, selected);
+	}
+
+	public static RarityComboModel rarityComboModel(RarityMath.Tier selectedTier)
+	{
+		DefaultComboBoxModel<RarityFilterOption> model = new DefaultComboBoxModel<>();
+		RarityFilterOption selected = RarityFilterOption.all();
+		model.addElement(selected);
+		for (RarityMath.Tier tier : RarityMath.Tier.values())
+		{
+			RarityFilterOption option = RarityFilterOption.of(tier);
+			model.addElement(option);
+			if (selectedTier == tier)
+			{
+				selected = option;
+			}
+		}
+		return new RarityComboModel(model, selected);
 	}
 
 	public static final class PackFilterOption

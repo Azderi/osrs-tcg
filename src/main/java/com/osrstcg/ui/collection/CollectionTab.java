@@ -41,6 +41,8 @@ import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
@@ -161,15 +163,10 @@ public final class CollectionTab
 		PackCloseSnapshot snap = snapshotSupplier.get();
 		List<CardDefinition> allCards = cardDatabase.getCards();
 		List<BoosterPackDefinition> packs = collectionFilterPacks();
-		BoosterPackDefinition selectedPack = PackCatalogService.findById(packs, collectionPackFilterId);
-		if (collectionPackFilterId != null && selectedPack == null)
-		{
-			collectionPackFilterId = null;
-			selectedPack = null;
-		}
+		BoosterPackDefinition selectedPack = resolveSelectedPack(packs);
 
 		collectionContent.removeAll();
-		JPanel toolbar = buildCollectionToolbar(packs, selectedPack);
+		JPanel toolbar = buildCollectionToolbar(packs, selectedPack, snap, allCards);
 		collectionContent.add(toolbar, BorderLayout.NORTH);
 		collectionContent.add(collectionListHost, BorderLayout.CENTER);
 		collectionContent.revalidate();
@@ -180,16 +177,22 @@ public final class CollectionTab
 
 	private void scheduleCollectionListRebuildFromCurrentFilters()
 	{
-		PackCloseSnapshot snap = snapshotSupplier.get();
-		List<CardDefinition> allCards = cardDatabase.getCards();
 		List<BoosterPackDefinition> packs = collectionFilterPacks();
-		BoosterPackDefinition selectedPack = PackCatalogService.findById(packs, collectionPackFilterId);
-		if (collectionPackFilterId != null && selectedPack == null)
+		scheduleCollectionListRebuild(
+			snapshotSupplier.get(),
+			cardDatabase.getCards(),
+			resolveSelectedPack(packs));
+	}
+
+	private BoosterPackDefinition resolveSelectedPack(List<BoosterPackDefinition> packs)
+	{
+		BoosterPackDefinition selected = PackCatalogService.findById(packs, collectionPackFilterId);
+		if (collectionPackFilterId != null && selected == null)
 		{
 			collectionPackFilterId = null;
-			selectedPack = null;
+			return null;
 		}
-		scheduleCollectionListRebuild(snap, allCards, selectedPack);
+		return selected;
 	}
 
 	private void scheduleCollectionListRebuild(
@@ -257,7 +260,11 @@ public final class CollectionTab
 		collectionListHost.repaint();
 	}
 
-	private JPanel buildCollectionToolbar(List<BoosterPackDefinition> packs, BoosterPackDefinition selectedPack)
+	private JPanel buildCollectionToolbar(
+		List<BoosterPackDefinition> packs,
+		BoosterPackDefinition selectedPack,
+		PackCloseSnapshot snap,
+		List<CardDefinition> allCards)
 	{
 		JPanel toolbar = new JPanel();
 		toolbar.setLayout(new BoxLayout(toolbar, BoxLayout.Y_AXIS));
@@ -273,25 +280,11 @@ public final class CollectionTab
 		}
 		filters.add(labeledCollectionFilter("Search", collectionSearchField));
 
-		DefaultComboBoxModel<CollectionFilterOptions.PackFilterOption> packModel = new DefaultComboBoxModel<>();
-		packModel.addElement(CollectionFilterOptions.PackFilterOption.all());
-		CollectionFilterOptions.PackFilterOption selectedPackOption = CollectionFilterOptions.PackFilterOption.all();
-		for (BoosterPackDefinition pack : packs)
-		{
-			if (pack == null)
-			{
-				continue;
-			}
-			CollectionFilterOptions.PackFilterOption option = CollectionFilterOptions.PackFilterOption.of(pack);
-			packModel.addElement(option);
-			if (selectedPack != null && selectedPack.getId() != null
-				&& selectedPack.getId().equals(pack.getId()))
-			{
-				selectedPackOption = option;
-			}
-		}
-		JComboBox<CollectionFilterOptions.PackFilterOption> packCombo = styleCollectionCombo(new JComboBox<>(packModel));
-		packCombo.setSelectedItem(selectedPackOption);
+		CollectionFilterOptions.PackComboModel packComboModel =
+			CollectionFilterOptions.packComboModel(packs, selectedPack);
+		JComboBox<CollectionFilterOptions.PackFilterOption> packCombo =
+			styleCollectionCombo(new JComboBox<>(packComboModel.model));
+		packCombo.setSelectedItem(packComboModel.selected);
 		packCombo.addActionListener(e ->
 		{
 			CollectionFilterOptions.PackFilterOption opt =
@@ -307,20 +300,11 @@ public final class CollectionTab
 		});
 		filters.add(labeledCollectionFilter("Collection", packCombo));
 
-		DefaultComboBoxModel<CollectionFilterOptions.RarityFilterOption> rarityModel = new DefaultComboBoxModel<>();
-		rarityModel.addElement(CollectionFilterOptions.RarityFilterOption.all());
-		CollectionFilterOptions.RarityFilterOption selectedRarity = CollectionFilterOptions.RarityFilterOption.all();
-		for (RarityMath.Tier tier : RarityMath.Tier.values())
-		{
-			CollectionFilterOptions.RarityFilterOption option = CollectionFilterOptions.RarityFilterOption.of(tier);
-			rarityModel.addElement(option);
-			if (collectionRarityFilter == tier)
-			{
-				selectedRarity = option;
-			}
-		}
-		JComboBox<CollectionFilterOptions.RarityFilterOption> rarityCombo = styleCollectionCombo(new JComboBox<>(rarityModel));
-		rarityCombo.setSelectedItem(selectedRarity);
+		CollectionFilterOptions.RarityComboModel rarityComboModel =
+			CollectionFilterOptions.rarityComboModel(collectionRarityFilter);
+		JComboBox<CollectionFilterOptions.RarityFilterOption> rarityCombo =
+			styleCollectionCombo(new JComboBox<>(rarityComboModel.model));
+		rarityCombo.setSelectedItem(rarityComboModel.selected);
 		rarityCombo.addActionListener(e ->
 		{
 			CollectionFilterOptions.RarityFilterOption opt =
@@ -339,20 +323,6 @@ public final class CollectionTab
 			new DefaultComboBoxModel<>(CollectionListModel.SortMode.values());
 		JComboBox<CollectionListModel.SortMode> sortCombo = styleCollectionCombo(new JComboBox<>(sortModel));
 		sortCombo.setSelectedItem(collectionSortMode);
-		sortCombo.setRenderer(new javax.swing.DefaultListCellRenderer()
-		{
-			@Override
-			public Component getListCellRendererComponent(
-				javax.swing.JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus)
-			{
-				Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-				if (value instanceof CollectionListModel.SortMode)
-				{
-					setText(((CollectionListModel.SortMode) value).getLabel());
-				}
-				return c;
-			}
-		});
 		sortCombo.addActionListener(e ->
 		{
 			CollectionListModel.SortMode next = (CollectionListModel.SortMode) sortCombo.getSelectedItem();
@@ -366,15 +336,16 @@ public final class CollectionTab
 		filters.add(labeledCollectionFilter("Sort by", sortCombo));
 
 		toolbar.add(filters);
-		toolbar.add(buildCollectionProgressLabel(selectedPack));
+		toolbar.add(buildCollectionProgressLabel(selectedPack, snap, allCards));
 
 		return toolbar;
 	}
 
-	private JLabel buildCollectionProgressLabel(BoosterPackDefinition selectedPack)
+	private JLabel buildCollectionProgressLabel(
+		BoosterPackDefinition selectedPack,
+		PackCloseSnapshot snap,
+		List<CardDefinition> allCards)
 	{
-		PackCloseSnapshot snap = snapshotSupplier.get();
-		List<CardDefinition> allCards = cardDatabase.getCards();
 		List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(allCards);
 		final String label;
 		final int owned;
@@ -454,27 +425,26 @@ public final class CollectionTab
 		field.setForeground(Color.WHITE);
 		field.setCaretColor(Color.WHITE);
 		SidebarLayout.styleOutlinedButton(field, ColorScheme.MEDIUM_GRAY_COLOR, 2, 4, 2, 4);
-		javax.swing.event.DocumentListener listener = new javax.swing.event.DocumentListener()
+		field.getDocument().addDocumentListener(new DocumentListener()
 		{
 			@Override
-			public void insertUpdate(javax.swing.event.DocumentEvent e)
+			public void insertUpdate(DocumentEvent e)
 			{
 				onCollectionSearchEdited();
 			}
 
 			@Override
-			public void removeUpdate(javax.swing.event.DocumentEvent e)
+			public void removeUpdate(DocumentEvent e)
 			{
 				onCollectionSearchEdited();
 			}
 
 			@Override
-			public void changedUpdate(javax.swing.event.DocumentEvent e)
+			public void changedUpdate(DocumentEvent e)
 			{
 				onCollectionSearchEdited();
 			}
-		};
-		field.getDocument().addDocumentListener(listener);
+		});
 		return field;
 	}
 

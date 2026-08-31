@@ -37,6 +37,12 @@ public final class CollectionListModel
 		{
 			return label;
 		}
+
+		@Override
+		public String toString()
+		{
+			return label;
+		}
 	}
 
 	public static final class Row
@@ -84,16 +90,6 @@ public final class CollectionListModel
 
 	private CollectionListModel()
 	{
-	}
-
-	public static List<Row> buildRows(
-		CollectionState collection,
-		Map<String, CardDefinition> cardsByLowerName,
-		Set<String> packEligibleNamesOrNull,
-		RarityMath.Tier rarityFilterOrNull,
-		SortMode sortMode)
-	{
-		return buildRows(collection, cardsByLowerName, packEligibleNamesOrNull, rarityFilterOrNull, null, sortMode);
 	}
 
 	public static List<Row> buildRows(

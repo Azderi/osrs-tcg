@@ -26,7 +26,6 @@ public final class CollectionRowRenderer extends JPanel
 	{
 		this.contentWidth = contentWidth;
 		setLayout(new BorderLayout(6, 0));
-		// Right inset from commit 3ae86d9 - keeps scores clear of the collection scrollbar.
 		setBorder(new EmptyBorder(3, 6, 3, 12));
 		setOpaque(true);
 		name.setFont(FontManager.getRunescapeSmallFont());
