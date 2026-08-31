@@ -13,7 +13,6 @@ import com.osrstcg.cloud.shop.CloudSellService;
 import com.osrstcg.cloud.trade.TradeCloudService;
 import com.osrstcg.pack.PackOpenCoordinator;
 import com.osrstcg.pack.PackRevealService;
-import com.osrstcg.pack.PackSafeModeService;
 import com.osrstcg.interop.TcgPublicStatsCalculator;
 import com.osrstcg.state.CloudSidebarCollectionStats;
 import com.osrstcg.state.CollectionState;
@@ -177,7 +176,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		WelcomeContent welcomeContentCatalog,
 		CloudPackService cloudPackService,
 		PackRevealService packRevealService,
-		PackSafeModeService packSafeModeService,
 		PackOpenCoordinator packOpenCoordinator,
 		PackCatalogService packCatalogService,
 		CardImageCacheService imageCacheService,
@@ -225,7 +223,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			this::onCollectionTabRendered, () -> selectedTab == Tab.COLLECTION,
 			collectionContent, collectionListHost, collectionList, collectionListScrollPane, collectionEmptyLabel);
 		this.shopTab = new ShopTab(
-			stateService, cardDatabase, packRevealService, packSafeModeService,
+			stateService, cardDatabase, packRevealService,
 			packOpenCoordinator, packCatalogService, imageCacheService, config, cloudSessionService,
 			cloudSellService, scheduler, chatMessageManager, overviewTab,
 			this::liveShopPacksContentWidth, this::capturePackCloseSnapshotForDisplay,

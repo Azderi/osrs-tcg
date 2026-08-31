@@ -13,7 +13,6 @@ import com.osrstcg.cloud.shop.CloudSellService;
 import com.osrstcg.credit.DuplicateSellPlanner;
 import com.osrstcg.pack.PackOpenCoordinator;
 import com.osrstcg.pack.PackRevealService;
-import com.osrstcg.pack.PackSafeModeService;
 import com.osrstcg.state.OwnedCardInstance;
 import com.osrstcg.state.TcgStateService;
 import com.osrstcg.ui.layout.PackCloseSnapshot;
@@ -54,7 +53,6 @@ public final class ShopTab
 	private final TcgStateService stateService;
 	private final CardDatabase cardDatabase;
 	private final PackRevealService packRevealService;
-	private final PackSafeModeService packSafeModeService;
 	private final PackOpenCoordinator packOpenCoordinator;
 	private final PackCatalogService packCatalogService;
 	private final CardImageCacheService imageCacheService;
@@ -84,7 +82,6 @@ public final class ShopTab
 		TcgStateService stateService,
 		CardDatabase cardDatabase,
 		PackRevealService packRevealService,
-		PackSafeModeService packSafeModeService,
 		PackOpenCoordinator packOpenCoordinator,
 		PackCatalogService packCatalogService,
 		CardImageCacheService imageCacheService,
@@ -106,7 +103,6 @@ public final class ShopTab
 		this.stateService = stateService;
 		this.cardDatabase = cardDatabase;
 		this.packRevealService = packRevealService;
-		this.packSafeModeService = packSafeModeService;
 		this.packOpenCoordinator = packOpenCoordinator;
 		this.packCatalogService = packCatalogService;
 		this.imageCacheService = imageCacheService;
@@ -290,21 +286,15 @@ public final class ShopTab
 		boolean needsProfileCreate = cloudSessionService.needsProfileCreate();
 		boolean consentPending = needsProfileCreate;
 		boolean revealBusy = packRevealService.isActive();
-		boolean packOpeningBlocked = packSafeModeService.isPackOpeningBlocked();
-		String blockMessage = packOpeningBlocked ? packSafeModeService.packOpeningBlockMessage() : null;
 		int n = Math.min(buyButtons.size(), buyPrices.size());
 		for (int i = 0; i < n; i++)
 		{
 			JButton buy = buyButtons.get(i);
 			int price = buyPrices.get(i);
-			buy.setEnabled(!revealBusy && !packOpeningBlocked && !consentPending && credits >= price);
+			buy.setEnabled(!revealBusy && !consentPending && credits >= price);
 			if (needsProfileCreate)
 			{
 				buy.setToolTipText("Create a profile before opening packs.");
-			}
-			else if (packOpeningBlocked)
-			{
-				buy.setToolTipText(blockMessage);
 			}
 			else
 			{

@@ -11,7 +11,6 @@ import com.osrstcg.state.CloudSidebarCollectionStats;
 import com.osrstcg.state.PackCardResult;
 import com.osrstcg.state.PackOpenResult;
 import com.osrstcg.catalog.CollectionSetCompletionUtil;
-import com.osrstcg.pack.PackSafeModeService;
 import com.osrstcg.catalog.RollPoolFilter;
 import com.osrstcg.party.TcgPartyAnnouncer;
 import com.osrstcg.state.TcgStateService;
@@ -45,7 +44,6 @@ public final class CloudPackService
 	private final TcgStateService stateService;
 	private final CardDatabase cardDatabase;
 	private final Client client;
-	private final PackSafeModeService packSafeModeService;
 	private final TcgPartyAnnouncer partyAnnouncer;
 
 	@Inject
@@ -58,7 +56,6 @@ public final class CloudPackService
 		TcgStateService stateService,
 		CardDatabase cardDatabase,
 		Client client,
-		PackSafeModeService packSafeModeService,
 		TcgPartyAnnouncer partyAnnouncer)
 	{
 		this.api = api;
@@ -69,7 +66,6 @@ public final class CloudPackService
 		this.stateService = stateService;
 		this.cardDatabase = cardDatabase;
 		this.client = client;
-		this.packSafeModeService = packSafeModeService;
 		this.partyAnnouncer = partyAnnouncer;
 	}
 
@@ -91,14 +87,6 @@ public final class CloudPackService
 				? "Create a profile before opening packs."
 				: "Cloud offline - cannot open packs.";
 			return PackOpenResult.failed(reason, creditsBefore, booster.getPrice());
-		}
-		if (packSafeModeService != null && packSafeModeService.isPackOpeningBlocked())
-		{
-			String blockMessage = packSafeModeService.packOpeningBlockMessage();
-			return PackOpenResult.failed(
-				blockMessage == null ? "Cannot open packs right now." : blockMessage,
-				creditsBefore,
-				booster.getPrice());
 		}
 
 		try

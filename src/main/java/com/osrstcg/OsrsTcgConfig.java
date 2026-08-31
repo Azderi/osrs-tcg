@@ -154,18 +154,6 @@ public interface OsrsTcgConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "safeMode",
-		name = "Safe-mode",
-		description = "Block opening packs while in combat.",
-		section = generalSection,
-		position = 11
-	)
-	default boolean safeMode()
-	{
-		return false;
-	}
-
-	@ConfigItem(
 		keyName = "showSidebarRanks",
 		name = "Sidebar hiscores ranks",
 		description = "Show your hiscores rank under overview stats after opening a pack "

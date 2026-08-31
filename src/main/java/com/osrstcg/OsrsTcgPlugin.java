@@ -23,15 +23,14 @@ import com.osrstcg.credit.CreditAwardService;
 import com.osrstcg.credit.CreditsRateTracker;
 import com.osrstcg.credit.GameMessageCreditTracker;
 import com.osrstcg.credit.NpcKillCreditTracker;
-import com.osrstcg.pack.PackSafeModeService;
-import com.osrstcg.credit.PlayerCombatMonitor;
+import com.osrstcg.pack.PackOpenCoordinator;
+import com.osrstcg.pack.PackRevealService;
 import com.osrstcg.party.TcgCollectionSetCompletePartyMessage;
 import com.osrstcg.party.TcgPartyInboundHandler;
 import com.osrstcg.party.TcgPullPartyMessage;
 import com.osrstcg.persist.TcgSaveTrigger;
 import com.osrstcg.persist.TcgStateLoadResult;
 import com.osrstcg.pack.PackRevealSoundService;
-import com.osrstcg.pack.PackRevealService;
 import com.osrstcg.interop.TcgChatStatsShareService;
 import com.osrstcg.state.TcgStateService;
 import com.osrstcg.ui.TcgPanel;
@@ -154,10 +153,6 @@ public class OsrsTcgPlugin extends Plugin
 	@Inject
 	private TcgChatStatsShareService tcgChatStatsShareService;
 	@Inject
-	private PlayerCombatMonitor playerCombatMonitor;
-	@Inject
-	private PackSafeModeService packSafeModeService;
-	@Inject
 	private OwnedCardNamesApiService ownedCardNamesApiService;
 	@Inject
 	private CloudSessionService cloudSessionService;
@@ -223,8 +218,6 @@ public class OsrsTcgPlugin extends Plugin
 		cloudSessionService.registerAccountLockCleanup(npcKillCreditTracker::shutdown);
 		eventBus.register(npcKillCreditTracker);
 		eventBus.register(gameMessageCreditTracker);
-		eventBus.register(playerCombatMonitor);
-		eventBus.register(packSafeModeService);
 		wsClient.registerMessage(TcgPullPartyMessage.class);
 		wsClient.registerMessage(TcgCollectionSetCompletePartyMessage.class);
 		chatCommandManager.registerCommandAsync(
@@ -272,9 +265,6 @@ public class OsrsTcgPlugin extends Plugin
 		eventBus.unregister(creditsRateTracker);
 		eventBus.unregister(npcKillCreditTracker);
 		eventBus.unregister(gameMessageCreditTracker);
-		eventBus.unregister(playerCombatMonitor);
-		eventBus.unregister(packSafeModeService);
-		playerCombatMonitor.reset();
 		wsClient.unregisterMessage(TcgPullPartyMessage.class);
 		wsClient.unregisterMessage(TcgCollectionSetCompletePartyMessage.class);
 		chatCommandManager.unregisterCommand(TCG_PUBLIC_CHAT_COMMAND);

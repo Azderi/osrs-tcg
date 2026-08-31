@@ -856,7 +856,7 @@ public class PackRevealOverlay extends Overlay
 	}
 
 	/**
-	 * @return true when the click should close the reveal (same path as Esc / Safe-mode dismiss)
+	 * @return true when the click should close the reveal (same path as Esc dismiss)
 	 */
 	public boolean handleCloseButtonClick(Point canvasPoint)
 	{
