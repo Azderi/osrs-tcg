@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import javax.swing.Box;
@@ -78,7 +79,6 @@ import net.runelite.client.ui.PluginPanel;
 public class TcgPanel extends PluginPanel implements SidebarRefresh
 {
 	private static final int MAIN_PANEL_INSET = SidebarLayout.MAIN_PANEL_INSET;
-	private static final int TAB_BUTTON_GAP = SidebarLayout.TAB_BUTTON_GAP;
 
 	private enum Tab
 	{
@@ -99,13 +99,10 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 
 	private final TcgStateService stateService;
 	private final CardDatabase cardDatabase;
-	private final WelcomeContent welcomeContentCatalog;
 	private final PackRevealService packRevealService;
 	private final Client client;
 	private final CloudSessionService cloudSessionService;
 	private final TradeCloudService tradeCloudService;
-	private final ScheduledExecutorService scheduler;
-	private final ChatMessageManager chatMessageManager;
 	private final JButton openAccountPanelButton;
 	private final JButton createProfileButton;
 	private final JTextPane createProfilePromptPane;
@@ -120,7 +117,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	private final JList<CollectionListModel.Row> collectionList = new JList<>();
 	private final JScrollPane collectionListScrollPane = new JScrollPane(collectionList);
 	private final JLabel collectionEmptyLabel = new JLabel("No owned cards match these filters.");
-	/** Shop root: fixed header (credits + sell) + scrollable pack grid only. */
 	private final JPanel shopContent = new JPanel(new BorderLayout(0, 8));
 	private final JPanel shopHeaderPanel = new JPanel();
 	private final JPanel packsContent = new JPanel();
@@ -143,23 +139,18 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	private final JButton shopTabButton = new JButton(Tab.SHOP.getLabel());
 	private Tab selectedTab = Tab.OVERVIEW;
 	private final Runnable onCollectionChanged = () -> SwingUtilities.invokeLater(this::refresh);
-	/** After first in-world refresh, {@link #selectedTab} is only user-driven. */
 	private boolean defaultTabSelectionInitialized;
 	private boolean refreshQueued;
 	private boolean creditsRefreshQueued;
 	private volatile boolean panelVisible;
 	private int lastPanelWidthForLayout = -1;
 	private int lastPanelHeightForLayout = -1;
-	/** Bumps when a new pack-close refresh is scheduled so stale async results are ignored. */
 	private final AtomicLong packCloseRefreshGen = new AtomicLong();
-	/** While a pack is opening, sidebar stats use this pre-transaction snapshot so pulls are not spoiled. */
 	private PackCloseSnapshot sidebarRevealSpoilerFreeze;
-	/** During an active reveal, each tab is built at most once from {@link #sidebarRevealSpoilerFreeze}. */
 	private boolean welcomeBuiltForActiveReveal;
 	private boolean overviewBuiltForActiveReveal;
 	private boolean collectionBuiltForActiveReveal;
 	private boolean shopBuiltForActiveReveal;
-
 
 	private final WelcomeTab welcomeTab;
 	private final OverviewTab overviewTab;
@@ -191,13 +182,10 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		super(false);
 		this.stateService = stateService;
 		this.cardDatabase = cardDatabase;
-		this.welcomeContentCatalog = welcomeContentCatalog;
 		this.packRevealService = packRevealService;
 		this.client = client;
 		this.cloudSessionService = cloudSessionService;
 		this.tradeCloudService = tradeCloudService;
-		this.scheduler = scheduler;
-		this.chatMessageManager = chatMessageManager;
 		this.openAccountPanelButton = new JButton("Open web album");
 		this.createProfileButton = new JButton("Create profile");
 		this.createProfilePromptPane = CreateProfileController.createPromptPane();
@@ -268,8 +256,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		SidebarLayout.configureTabScrollPane(welcomeScrollPane);
 		SidebarLayout.configureTabScrollPane(overviewScrollPane);
 		SidebarLayout.configureTabScrollPane(shopPacksScrollPane);
-		// Always reserve the bar so pack tiles size to the final viewport (AS_NEEDED would
-		// first layout full-width, then clip the right column when the bar appears).
 		shopPacksScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
 
 		populateFooterPanel();
@@ -328,10 +314,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		panelVisible = isShowing();
 	}
 
-	/**
-	 * Fill the sidebar tab height so {@code BorderLayout.SOUTH} keeps the footer pinned
-	 * to the bottom when tab content is shorter than the client.
-	 */
 	@Override
 	public Dimension getPreferredSize()
 	{
@@ -362,7 +344,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	public void start()
 	{
 		stateService.addCollectionChangeListener(onCollectionChanged);
-		ensureRootAttached();
 		updateCloudStatusIndicator();
 		refresh();
 	}
@@ -378,11 +359,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		shopTab.clear();
 		mainPanel.revalidate();
 		mainPanel.repaint();
-	}
-
-	public void resetSessionUi()
-	{
-		refresh();
 	}
 
 	@Override
@@ -432,10 +408,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		shopTab.updateCredits(credits);
 	}
 
-	/**
-	 * After the pack reveal overlay closes, recomputes heavy overview stats off the EDT so the client thread returns
-	 * quickly, then applies Swing updates on the EDT.
-	 */
 	@Override
 	public void refreshAfterPackRevealClose()
 	{
@@ -495,47 +467,24 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		{
 			return;
 		}
-		ensureRootAttached();
-		if (shouldShowLoggedOutPrompt())
+		if (applyNormalSidebarChromeOrBlock())
 		{
-			showLoggedOutWelcome();
-			mainPanel.revalidate();
-			mainPanel.repaint();
 			return;
 		}
-		if (cloudSessionService.isAccountLocked())
-		{
-			showAccountLockedNotice();
-			mainPanel.revalidate();
-			mainPanel.repaint();
-			return;
-		}
-		if (cloudSessionService.isRestrictedWorld())
-		{
-			showEventWorldUnavailable();
-			mainPanel.revalidate();
-			mainPanel.repaint();
-			return;
-		}
-		titleTabWrapper.setVisible(true);
-		footerPanel.setVisible(true);
-		sidebarNoticeView.restoreOpenAccountPanelButtonToFooter();
-		applyDefaultTabSelectionOnce();
-		updateTabStyles();
 		if (selectedTab == Tab.OVERVIEW)
 		{
 			overviewContent.removeAll();
-			renderOverviewTabFromMetrics(overviewContent, snap, metrics);
+			overviewTab.render(overviewContent, snap, metrics);
 			contentLayout.show(content, Tab.OVERVIEW.name());
 		}
 		else if (selectedTab == Tab.COLLECTION)
 		{
-			renderCollectionTab();
+			collectionTab.render();
 			contentLayout.show(content, Tab.COLLECTION.name());
 		}
 		else if (selectedTab == Tab.SHOP)
 		{
-			renderPacksTabFromPackClose(snap, shopRows);
+			shopTab.renderFromPackClose(snap, shopRows);
 			showTabContent(Tab.SHOP);
 		}
 		else if (selectedTab == Tab.WELCOME)
@@ -543,10 +492,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			welcomeContent.removeAll();
 			renderWelcomeTab(welcomeContent);
 			contentLayout.show(content, Tab.WELCOME.name());
-		}
-		else
-		{
-			renderSelectedTab();
 		}
 		mainPanel.revalidate();
 		mainPanel.repaint();
@@ -573,47 +518,45 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		{
 			clearPackRevealSidebarFreeze();
 		}
-		ensureRootAttached();
 		updateCloudStatusIndicator();
+		if (applyNormalSidebarChromeOrBlock())
+		{
+			return;
+		}
+		renderSelectedTab();
+		mainPanel.revalidate();
+		mainPanel.repaint();
+	}
+
+	private boolean applyNormalSidebarChromeOrBlock()
+	{
 		if (shouldShowLoggedOutPrompt())
 		{
 			showLoggedOutWelcome();
 			mainPanel.revalidate();
 			mainPanel.repaint();
-			return;
+			return true;
 		}
 		if (cloudSessionService.isAccountLocked())
 		{
-			showAccountLockedNotice();
+			showSidebarBlockingNotice(sidebarNoticeView::showAccountLockedNotice);
 			mainPanel.revalidate();
 			mainPanel.repaint();
-			return;
+			return true;
 		}
 		if (cloudSessionService.isRestrictedWorld())
 		{
-			showEventWorldUnavailable();
+			showSidebarBlockingNotice(sidebarNoticeView::showEventWorldUnavailable);
 			mainPanel.revalidate();
 			mainPanel.repaint();
-			return;
+			return true;
 		}
 		titleTabWrapper.setVisible(true);
 		footerPanel.setVisible(true);
 		sidebarNoticeView.restoreOpenAccountPanelButtonToFooter();
 		applyDefaultTabSelectionOnce();
 		updateTabStyles();
-		renderSelectedTab();
-		mainPanel.revalidate();
-		mainPanel.repaint();
-	}
-
-	private void ensureRootAttached()
-	{
-		if (mainPanel.getComponentCount() == 0)
-		{
-			mainPanel.add(titlePanel, BorderLayout.NORTH);
-			mainPanel.add(content, BorderLayout.CENTER);
-			mainPanel.add(footerPanel, BorderLayout.SOUTH);
-		}
+		return false;
 	}
 
 	private void applyDefaultTabSelectionOnce()
@@ -636,33 +579,30 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			new EmptyBorder(8, 0, 0, 0)
 		));
 
-		JPanel createWrap = createProfileFooterWrap;
-		createWrap.setOpaque(false);
-		createWrap.setLayout(new BorderLayout(0, 8));
-		createWrap.setAlignmentX(JComponent.LEFT_ALIGNMENT);
+		createProfileFooterWrap.setOpaque(false);
+		createProfileFooterWrap.setLayout(new BorderLayout(0, 8));
+		createProfileFooterWrap.setAlignmentX(JComponent.LEFT_ALIGNMENT);
 
 		SidebarLayout.stylePrimaryFooterButton(createProfileButton);
-		createWrap.add(createProfilePromptPane, BorderLayout.NORTH);
-		createWrap.add(createProfileButton, BorderLayout.SOUTH);
-		footerPanel.add(createWrap);
+		createProfileFooterWrap.add(createProfilePromptPane, BorderLayout.NORTH);
+		createProfileFooterWrap.add(createProfileButton, BorderLayout.SOUTH);
+		footerPanel.add(createProfileFooterWrap);
 
 		footerPanel.add(createProfileFooterSpacer);
 
-		JPanel tradeWrap = tradeFooterWrap;
-		tradeWrap.setOpaque(false);
+		tradeFooterWrap.setOpaque(false);
 		SidebarLayout.stylePrimaryFooterButton(openTradesButton);
-		tradeWrap.add(openTradesButton, BorderLayout.CENTER);
-		SidebarLayout.clampPanelWidth(tradeWrap);
-		footerPanel.add(tradeWrap);
+		tradeFooterWrap.add(openTradesButton, BorderLayout.CENTER);
+		SidebarLayout.clampPanelWidth(tradeFooterWrap);
+		footerPanel.add(tradeFooterWrap);
 
 		footerPanel.add(tradeFooterSpacer);
 
-		JPanel albumWrap = albumFooterWrap;
-		albumWrap.setOpaque(false);
+		albumFooterWrap.setOpaque(false);
 		SidebarLayout.stylePrimaryFooterButton(openAccountPanelButton);
-		albumWrap.add(openAccountPanelButton, BorderLayout.CENTER);
-		SidebarLayout.clampPanelWidth(albumWrap);
-		footerPanel.add(albumWrap);
+		albumFooterWrap.add(openAccountPanelButton, BorderLayout.CENTER);
+		SidebarLayout.clampPanelWidth(albumFooterWrap);
+		footerPanel.add(albumFooterWrap);
 
 		updateFooterVisibility();
 	}
@@ -687,10 +627,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		contentLayout.show(content, Tab.WELCOME.name());
 	}
 
-	/**
-	 * {@link GameState#LOGGED_IN} is the normal case; {@link Client#getLocalPlayer()} covers brief or client-specific
-	 * states where the game world is active but {@code getGameState()} is not yet {@code LOGGED_IN}.
-	 */
 	private boolean isClientInGameWorld()
 	{
 		if (client.getGameState() == GameState.LOGGED_IN)
@@ -706,7 +642,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		title.setLayout(new BoxLayout(title, BoxLayout.Y_AXIS));
 		title.setOpaque(false);
 
-		// Title row: equal-width side slots keep "OSRS TCG" centered; links stay hoverable.
 		JPanel titleRow = new JPanel(new BorderLayout(0, 0));
 		titleRow.setOpaque(false);
 		titleRow.setBorder(new CompoundBorder(
@@ -745,7 +680,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		cloudStatusIndicator.setMinimumSize(indicatorSlot);
 		cloudStatusIndicator.setMaximumSize(indicatorSlot);
 
-		// Match side widths so the title stays in the true horizontal center.
 		int sideW = Math.max(leftLinks.getPreferredSize().width, indicatorSlot.width);
 		int sideH = Math.max(16, Math.max(leftLinks.getPreferredSize().height, indicatorSlot.height));
 		Dimension sideSlot = new Dimension(sideW, sideH);
@@ -757,7 +691,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		leftSlot.setMaximumSize(sideSlot);
 		leftSlot.add(leftLinks, BorderLayout.WEST);
 
-		// Equal-width slot, but pin the status dot to the right edge (mirror of left links).
 		JPanel rightSlot = new JPanel(new BorderLayout(0, 0));
 		rightSlot.setOpaque(false);
 		rightSlot.setPreferredSize(sideSlot);
@@ -773,7 +706,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		titleRow.add(titleLabel, BorderLayout.CENTER);
 		titleRow.add(rightSlot, BorderLayout.EAST);
 
-		// Bleed into mainPanel padding so the tab rail reaches the sidebar edges.
 		JPanel tabStrip = new JPanel(new BorderLayout(0, 0))
 		{
 			@Override
@@ -787,14 +719,13 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		tabStrip.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		tabStrip.setBorder(new EmptyBorder(4, -MAIN_PANEL_INSET, 0, -MAIN_PANEL_INSET));
 
-		JPanel tabButtons = new JPanel(new GridLayout(1, 4, TAB_BUTTON_GAP, 0));
+		JPanel tabButtons = new JPanel(new GridLayout(1, 4, SidebarLayout.TAB_BUTTON_GAP, 0));
 		tabButtons.setOpaque(false);
 		tabButtons.add(configureTabButton(welcomeTabButton, Tab.WELCOME));
 		tabButtons.add(configureTabButton(overviewTabButton, Tab.OVERVIEW));
 		tabButtons.add(configureTabButton(collectionTabButton, Tab.COLLECTION));
 		tabButtons.add(configureTabButton(shopTabButton, Tab.SHOP));
 
-		// Side wings: line runs past the buttons into the panel margin.
 		JComponent leftWing = SidebarLayout.tabRailWing();
 		JComponent rightWing = SidebarLayout.tabRailWing();
 		tabStrip.add(leftWing, BorderLayout.WEST);
@@ -809,7 +740,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		return title;
 	}
 
-	/** Continuous bottom rail under tabs/gaps/wings, broken under the selected tab. */
 	private void paintTabRailLine(JComponent strip, Graphics g)
 	{
 		JButton active = tabButtonFor(selectedTab);
@@ -843,10 +773,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 
 	public void updateCloudStatusIndicator()
 	{
-		if (cloudStatusIndicator == null)
-		{
-			return;
-		}
 		SidebarChrome.updateCloudStatusIndicator(cloudStatusIndicator, cloudSessionService, stateService);
 
 		Container parent = cloudStatusIndicator.getParent();
@@ -867,7 +793,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		updateFooterVisibility();
 	}
 
-	/** Usable footer column width - same strip the create-profile/account buttons fill. */
 	private int footerContentWidth()
 	{
 		int footerW = footerPanel.getWidth();
@@ -878,7 +803,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		int panelW = getWidth();
 		if (panelW > 0)
 		{
-			// mainPanel EmptyBorder(6,6,6,6)
 			return Math.max(80, panelW - 12);
 		}
 		return Math.max(80, PluginPanel.PANEL_WIDTH - 12);
@@ -886,7 +810,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 
 	private JButton configureTabButton(JButton button, Tab tab)
 	{
-		button.setText(tab.getLabel());
 		button.setFont(FontManager.getRunescapeSmallFont());
 		button.setFocusable(false);
 		button.setFocusPainted(false);
@@ -923,7 +846,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		updateFooterVisibility();
 	}
 
-	/** Overview/Collection/Shop need an in-game world; Welcome stays available on the login screen. */
 	private boolean isTabAvailable(Tab tab)
 	{
 		if (tab == null)
@@ -939,20 +861,10 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			&& !cloudSessionService.isAccountLocked();
 	}
 
-	private static String tabUnavailableTooltip(Tab tab)
-	{
-		if (tab == Tab.OVERVIEW || tab == Tab.COLLECTION || tab == Tab.SHOP)
-		{
-			return "Log in to RuneScape to use this tab";
-		}
-		return null;
-	}
-
 	private void updateFooterVisibility()
 	{
 		if (cloudSessionService.isAccountLocked() && isClientInGameWorld())
 		{
-			// Account button lives inside the full-sidebar notice; keep the normal footer hidden.
 			footerPanel.setVisible(false);
 			return;
 		}
@@ -984,13 +896,13 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			&& selectedTab != Tab.WELCOME;
 		tradeFooterWrap.setVisible(showTrade);
 
-		// Spacers only between visible blocks - never trailing empty space under the footer.
 		createProfileFooterSpacer.setVisible(showCreateProfile && (showAccountPanel || showTrade));
 		tradeFooterSpacer.setVisible(showTrade && showAccountPanel);
 
 		if (showCreateProfile)
 		{
-			updateCreateProfilePromptLayout();
+			createProfileController.updatePromptLayout(
+				createProfilePromptPane, createProfileFooterWrap, footerContentWidth());
 		}
 		SidebarLayout.lockFooterBlockHeight(albumFooterWrap);
 		SidebarLayout.lockFooterBlockHeight(tradeFooterWrap);
@@ -1002,7 +914,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			"<html><center>Open trades<br>"
 				+ "<span style='font-family:SansSerif;font-size:8px;color:#aaaaaa'>You have pending trades waiting...</span>"
 				+ "</center></html>");
-		button.addActionListener(e -> openAccountPanel("/trades"));
+		button.addActionListener(e -> accountLauncher.open("/trades"));
 		return button;
 	}
 
@@ -1020,7 +932,10 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			button.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 			button.setBorder(tabBorder(false, false));
 			button.setCursor(Cursor.getDefaultCursor());
-			button.setToolTipText(tabUnavailableTooltip(tab));
+			button.setToolTipText(
+				(tab == Tab.OVERVIEW || tab == Tab.COLLECTION || tab == Tab.SHOP)
+					? "Log in to RuneScape to use this tab"
+					: null);
 			return;
 		}
 		button.setToolTipText(null);
@@ -1074,7 +989,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			{
 				if (!collectionBuiltForActiveReveal)
 				{
-					renderCollectionTab();
+					collectionTab.render();
 					collectionBuiltForActiveReveal = true;
 				}
 				showTabContent(Tab.COLLECTION);
@@ -1084,7 +999,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			{
 				if (!shopBuiltForActiveReveal)
 				{
-					renderPacksTab();
+					shopTab.render();
 					shopBuiltForActiveReveal = true;
 				}
 				showTabContent(Tab.SHOP);
@@ -1097,14 +1012,14 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 
 		if (selectedTab == Tab.COLLECTION)
 		{
-			renderCollectionTab();
+			collectionTab.render();
 			showTabContent(selectedTab);
 			return;
 		}
 
 		if (selectedTab == Tab.SHOP)
 		{
-			renderPacksTab();
+			shopTab.render();
 			showTabContent(selectedTab);
 			return;
 		}
@@ -1170,7 +1085,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		synchronized (stateService)
 		{
 			TcgState s = stateService.getState();
-			// Beta (migrated) copies do not count toward shop pack progress or local overview.
 			CollectionState collection = s.getCollectionState();
 			return new PackCloseSnapshot(
 				new HashMap<>(collection.getOwnedCardsExcludingBeta()),
@@ -1181,9 +1095,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		}
 	}
 
-	/**
-	 * Snapshot used for sidebar stats: frozen pre-pull state while the pack overlay is open, otherwise live state.
-	 */
 	private PackCloseSnapshot capturePackCloseSnapshotForDisplay()
 	{
 		if (sidebarRevealSpoilerFreeze != null && packRevealService.isActive())
@@ -1213,12 +1124,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		shopBuiltForActiveReveal = false;
 	}
 
-	/**
-	 * Horizontal space for tab content. Prefers the tab scroll panes' actual, already-laid-out viewport width
-	 * (guaranteed to match reality, however wide the real scrollbar ends up rendering) over estimating it from
-	 * {@link #getWidth()} minus a handful of assumed constants, which can drift from the real value and clip text.
-	 * Falls back to that estimate only before the panes have ever been shown.
-	 */
 	private int liveSidebarContentWidth()
 	{
 		int viewportWidth = Math.max(
@@ -1228,7 +1133,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			shopPacksScrollPane.getViewport().getWidth());
 		if (viewportWidth > 0)
 		{
-			// Viewport already excludes the vertical scrollbar when it is showing.
 			return Math.max(80, viewportWidth);
 		}
 
@@ -1242,7 +1146,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		return Math.max(80, raw - mainPanelHorizontalPad - SidebarLayout.TAB_SCROLLBAR_RESERVED_WIDTH);
 	}
 
-	/** Width available to shop pack tiles - always the packs scroll viewport, not overview/welcome. */
 	private int liveShopPacksContentWidth()
 	{
 		int viewportWidth = shopPacksScrollPane.getViewport().getWidth();
@@ -1252,9 +1155,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		}
 		return liveSidebarContentWidth();
 	}
-
-
-
 
 	private javax.swing.border.Border tabBorder(boolean active, boolean enabled)
 	{
@@ -1267,7 +1167,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		}
 		if (active)
 		{
-			// Same left/top/right as inactive; no bottom border.
 			return new CompoundBorder(
 				new MatteBorder(1, 1, 0, 1, ColorScheme.MEDIUM_GRAY_COLOR),
 				new EmptyBorder(5, 2, 6, 2)
@@ -1290,17 +1189,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		List<CardDefinition> all = cardDatabase.getCards();
 		List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(all);
 		CloudSidebarCollectionStats metrics = TcgPublicStatsCalculator.resolveOverview(snap, all, rollPool);
-		renderOverviewTabFromMetrics(target, snap, metrics);
-	}
-
-	private void renderOverviewTabFromMetrics(JPanel target, PackCloseSnapshot snap, CloudSidebarCollectionStats metrics)
-	{
 		overviewTab.render(target, snap, metrics);
-	}
-
-	private void renderCollectionTab()
-	{
-		collectionTab.render();
 	}
 
 	private void onCollectionTabRendered()
@@ -1310,44 +1199,16 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		mainPanel.repaint();
 	}
 
-	private void renderPacksTab()
+	private void showSidebarBlockingNotice(Consumer<Runnable> show)
 	{
-		shopTab.render();
-	}
-
-	private void renderPacksTabFromPackClose(PackCloseSnapshot snap, List<BoosterShopRow> shopRows)
-	{
-		shopTab.renderFromPackClose(snap, shopRows);
-	}
-
-	private void showAccountLockedNotice()
-	{
-		sidebarNoticeView.showAccountLockedNotice(() ->
+		show.accept(() ->
 		{
 			titleTabWrapper.setVisible(false);
 			footerPanel.setVisible(false);
 		});
 		contentLayout.show(content, SidebarNoticeView.CARD);
-		if (titlePanel != null)
-		{
-			titlePanel.revalidate();
-			titlePanel.repaint();
-		}
-	}
-
-	private void showEventWorldUnavailable()
-	{
-		sidebarNoticeView.showEventWorldUnavailable(() ->
-		{
-			titleTabWrapper.setVisible(false);
-			footerPanel.setVisible(false);
-		});
-		contentLayout.show(content, SidebarNoticeView.CARD);
-		if (titlePanel != null)
-		{
-			titlePanel.revalidate();
-			titlePanel.repaint();
-		}
+		titlePanel.revalidate();
+		titlePanel.repaint();
 	}
 
 	private void updateManageAccountButtonState()
@@ -1358,12 +1219,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	private void updateCreateProfileButtonState()
 	{
 		createProfileController.updateButtonState(createProfileButton);
-	}
-
-	private void updateCreateProfilePromptLayout()
-	{
-		createProfileController.updatePromptLayout(
-			createProfilePromptPane, createProfileFooterWrap, footerContentWidth());
 	}
 
 	private void selectOverviewAfterCreateProfile()
@@ -1380,10 +1235,5 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		updateCreateProfileButtonState();
 		updateFooterVisibility();
 		updateCloudStatusIndicator();
-	}
-
-	private void openAccountPanel(String next)
-	{
-		accountLauncher.open(next);
 	}
 }

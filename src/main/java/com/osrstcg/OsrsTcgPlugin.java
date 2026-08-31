@@ -420,7 +420,7 @@ public class OsrsTcgPlugin extends Plugin
 		{
 			packRevealService.reset();
 			tcgPanel.clearPackRevealSidebarFreeze();
-			tcgPanel.resetSessionUi();
+			tcgPanel.refresh();
 			queueGameMessage(
 				"This profile was saved with debug mode on; collection and credits were reset.");
 		}
