@@ -8,6 +8,7 @@ import java.awt.RadialGradientPaint;
 import java.awt.RenderingHints;
 import java.awt.Shape;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Ellipse2D;
 import java.awt.geom.Path2D;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
@@ -32,7 +33,7 @@ public final class CardFxPainter
 	{
 	}
 
-	public static BufferedImage newLayer(int width, int height)
+	private static BufferedImage newLayer(int width, int height)
 	{
 		return new BufferedImage(Math.max(1, width), Math.max(1, height), BufferedImage.TYPE_INT_ARGB);
 	}
@@ -51,7 +52,7 @@ public final class CardFxPainter
 		return g;
 	}
 
-	public static void blend(BufferedImage base, BufferedImage layer, BlendMode mode, double opacity)
+	private static void blend(BufferedImage base, BufferedImage layer, BlendMode mode, double opacity)
 	{
 		if (base == null || layer == null || opacity <= 0.0d)
 		{
@@ -111,11 +112,6 @@ public final class CardFxPainter
 				return;
 			case LUMINOSITY:
 				setLuminosity(br, bg, bb, luminosity(sr, sg, sb), out);
-				return;
-			default:
-				out[0] = sr;
-				out[1] = sg;
-				out[2] = sb;
 		}
 	}
 
@@ -249,7 +245,7 @@ public final class CardFxPainter
 					new float[]{0f, coreFrac, midFrac, 1f},
 					new Color[]{core, core, alpha(core, anim.getOpacity() * 0.28d), alpha(core, 0.0d)},
 					MultipleGradientPaint.CycleMethod.NO_CYCLE));
-				g2.fill(new java.awt.geom.Ellipse2D.Double(cx - outer, cy - outer, outer * 2.0d, outer * 2.0d));
+				g2.fill(new Ellipse2D.Double(cx - outer, cy - outer, outer * 2.0d, outer * 2.0d));
 			}
 		}
 		finally
@@ -267,10 +263,11 @@ public final class CardFxPainter
 		int w = face.getWidth();
 		int h = face.getHeight();
 		Shape card = new RoundRectangle2D.Double(0, 0, w, h, cornerRadius * 2.0d, cornerRadius * 2.0d);
+		CardGrade grade = wear.getGrade();
 
-		drawColorWash(face, card, w, h, wear.getGrade().getFade());
+		drawColorWash(face, card, w, h, grade.getFade());
 		drawGrime(face, card, w, h, wear);
-		if (wear.getGrade() != CardGrade.A && wear.getGrade() != CardGrade.S)
+		if (grade != CardGrade.A && grade != CardGrade.S)
 		{
 			applyEdges(face, w, h, wear);
 		}
@@ -321,6 +318,15 @@ public final class CardFxPainter
 		blend(face, layer, BlendMode.MULTIPLY, opacity);
 	}
 
+	private static AffineTransform ellipseScaleTx(double cx, double cy, double rx, double ry)
+	{
+		AffineTransform tx = new AffineTransform();
+		tx.translate(cx, cy);
+		tx.scale(1.0d, ry / rx);
+		tx.translate(-cx, -cy);
+		return tx;
+	}
+
 	private static void radialEllipse(Graphics2D g, int w, int h, double cxPct, double cyPct, double rxPct, double ryPct,
 		Color color, double alpha, double endStop)
 	{
@@ -328,17 +334,13 @@ public final class CardFxPainter
 		double cy = cyPct * h;
 		double rx = Math.max(1.0d, rxPct * w);
 		double ry = Math.max(1.0d, ryPct * h);
-		AffineTransform tx = new AffineTransform();
-		tx.translate(cx, cy);
-		tx.scale(1.0d, ry / rx);
-		tx.translate(-cx, -cy);
 		g.setPaint(new RadialGradientPaint(
 			new Point2D.Double(cx, cy), (float) rx, new Point2D.Double(cx, cy),
 			new float[]{0f, (float) endStop},
 			new Color[]{alpha(color, alpha), alpha(color, 0.0d)},
 			MultipleGradientPaint.CycleMethod.NO_CYCLE,
 			MultipleGradientPaint.ColorSpaceType.SRGB,
-			tx));
+			ellipseScaleTx(cx, cy, rx, ry)));
 		g.fill(new Rectangle2D.Double(0, 0, w, h));
 	}
 
@@ -606,17 +608,13 @@ public final class CardFxPainter
 		double cy = cyPct * h;
 		double rx = Math.max(1.0d, rxPct * w);
 		double ry = Math.max(1.0d, ryPct * h);
-		AffineTransform tx = new AffineTransform();
-		tx.translate(cx, cy);
-		tx.scale(1.0d, ry / rx);
-		tx.translate(-cx, -cy);
 		return new RadialGradientPaint(
 			new Point2D.Double(cx, cy), (float) rx, new Point2D.Double(cx, cy),
 			new float[]{0f, midStop, endStop},
 			new Color[]{alpha(inner, innerAlpha), alpha(mid, midAlpha), alpha(mid, 0.0d)},
 			MultipleGradientPaint.CycleMethod.NO_CYCLE,
 			MultipleGradientPaint.ColorSpaceType.SRGB,
-			tx);
+			ellipseScaleTx(cx, cy, rx, ry));
 	}
 
 	private static BufferedImage softenLayer(BufferedImage layer, double blurPx)
@@ -636,7 +634,7 @@ public final class CardFxPainter
 		return current;
 	}
 
-	public static LinearGradientPaint cssLinearGradient(int w, int h, double angleDeg,
+	private static LinearGradientPaint cssLinearGradient(int w, int h, double angleDeg,
 		float[] fractions, Color[] colors)
 	{
 		double a = Math.toRadians(angleDeg);
@@ -651,7 +649,7 @@ public final class CardFxPainter
 			fractions, colors, MultipleGradientPaint.CycleMethod.NO_CYCLE);
 	}
 
-	public static Shape borderRadiusShape(double w, double h, double[] radiiPercent)
+	private static Shape borderRadiusShape(double w, double h, double[] radiiPercent)
 	{
 		double htl = radiiPercent[0] / 100.0d * w;
 		double htr = radiiPercent[1] / 100.0d * w;
