@@ -1,21 +1,40 @@
 package com.osrstcg.ui.welcome;
 
-import lombok.Data;
-
 /**
- * One welcome-tab paragraph loaded from {@code Welcome.json}.
+ * One welcome-tab paragraph.
  */
-@Data
-public class WelcomeParagraph
+public final class WelcomeParagraph
 {
-	/** Paragraph body. */
-	private String text;
-	/** Hex color ({@code #RRGGBB}) or a simple color name. */
-	private String color;
-	/**
-	 * Font tier: {@code >= 16} → regular; smaller → small. Ignored when {@link #bold} is true.
-	 */
-	private Integer size;
-	/** When true, uses the RuneScape bold font face. */
-	private Boolean bold;
+	private final String text;
+	private final String color;
+	private final Integer size;
+	private final Boolean bold;
+
+	public WelcomeParagraph(String text, String color, Integer size, Boolean bold)
+	{
+		this.text = text;
+		this.color = color;
+		this.size = size;
+		this.bold = bold;
+	}
+
+	public String getText()
+	{
+		return text;
+	}
+
+	public String getColor()
+	{
+		return color;
+	}
+
+	public Integer getSize()
+	{
+		return size;
+	}
+
+	public Boolean getBold()
+	{
+		return bold;
+	}
 }

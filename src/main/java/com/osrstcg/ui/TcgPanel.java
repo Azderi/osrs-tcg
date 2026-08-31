@@ -363,7 +363,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 
 	public void start()
 	{
-		welcomeContentCatalog.load();
 		stateService.addCollectionChangeListener(onCollectionChanged);
 		ensureRootAttached();
 		updateCloudStatusIndicator();
