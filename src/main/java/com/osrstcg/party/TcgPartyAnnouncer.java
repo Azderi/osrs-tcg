@@ -49,6 +49,6 @@ public class TcgPartyAnnouncer
 
 	private boolean partyAnnouncementsEnabled()
 	{
-		return config.partyAnnounceMythicPulls();
+		return config.partyAnnounceCollectionSets();
 	}
 }

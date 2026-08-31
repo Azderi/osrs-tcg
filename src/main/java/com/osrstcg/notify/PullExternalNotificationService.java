@@ -25,6 +25,8 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 import com.osrstcg.catalog.RarityMath;
+import com.osrstcg.notify.PullNotificationMessages.PackPull;
+import com.osrstcg.notify.PullNotificationMessages.PackSummarySections;
 
 @Slf4j
 @Singleton
@@ -57,21 +59,9 @@ public class PullExternalNotificationService
 		this.partyService = partyService;
 	}
 
-	public void notifyPackPull(
-		String cardName, boolean newForCollection, boolean foil, RarityMath.Tier tier, String instanceId)
+	public void notifyParty(String card, boolean newForCollection, boolean foil)
 	{
-		if (cardName == null || cardName.trim().isEmpty())
-		{
-			return;
-		}
-		String card = cardName.trim();
-		notifyParty(card, newForCollection, foil);
-		sendWebhook(card, newForCollection, foil, tier, instanceId);
-	}
-
-	private void notifyParty(String card, boolean newForCollection, boolean foil)
-	{
-		if (!config.partyAnnounceMythicPulls() || !partyService.isInParty())
+		if (!config.partyAnnouncePulls() || !partyService.isInParty())
 		{
 			return;
 		}
@@ -89,18 +79,12 @@ public class PullExternalNotificationService
 		}
 	}
 
-	private void sendWebhook(
+	public void sendWebhook(
 		String card, boolean newForCollection, boolean foil, RarityMath.Tier tier, String instanceId)
 	{
-		String webhookUrl = config.pullWebhookUrl();
-		if (webhookUrl == null || webhookUrl.trim().isEmpty())
-		{
-			return;
-		}
-		List<HttpUrl> webhookUrls = parseWebhookUrls(webhookUrl);
+		List<HttpUrl> webhookUrls = configuredWebhookUrls();
 		if (webhookUrls.isEmpty())
 		{
-			log.warn("Pull webhook skipped: no valid URLs in config");
 			return;
 		}
 		try
@@ -111,14 +95,62 @@ public class PullExternalNotificationService
 				resolvePlayerName(), card, newForCollection, foil, inspectUrl);
 			String statsLine = pullNotifySupport.statsPlainLine();
 			String payload = gson.toJson(buildPayload(description, statsLine, tier, imageUrl, inspectUrl));
-			for (HttpUrl parsedUrl : webhookUrls)
-			{
-				enqueueWebhook(card, parsedUrl, payload);
-			}
+			dispatchWebhook(card, webhookUrls, payload);
 		}
 		catch (Exception ex)
 		{
 			log.warn("Pull webhook failed before send for '{}'", card, ex);
+		}
+	}
+
+	public void sendPackSummary(List<PackPull> pulls)
+	{
+		List<HttpUrl> webhookUrls = configuredWebhookUrls();
+		if (webhookUrls.isEmpty() || !PullNotificationMessages.hasEligiblePull(pulls))
+		{
+			return;
+		}
+		try
+		{
+			PackSummarySections sections = PullNotificationMessages.buildSummarySections(pulls);
+			if (sections.newCards.isEmpty() && sections.duplicates.isEmpty())
+			{
+				return;
+			}
+			PackPull thumbnailPull = PullNotificationMessages.highestTierPull(pulls);
+			String imageUrl = thumbnailPull == null ? "" : pullNotifySupport.cardImageUrl(thumbnailPull.cardName);
+			String description = PullNotificationMessages.packSummaryMessage(resolvePlayerName(), sections);
+			String statsLine = pullNotifySupport.statsPlainLine();
+			RarityMath.Tier tier = PullNotificationMessages.highestTier(pulls);
+			String payload = gson.toJson(buildPayload(description, statsLine, tier, imageUrl, ""));
+			dispatchWebhook("pack summary", webhookUrls, payload);
+		}
+		catch (Exception ex)
+		{
+			log.warn("Pull webhook pack summary failed before send", ex);
+		}
+	}
+
+	private List<HttpUrl> configuredWebhookUrls()
+	{
+		String webhookUrl = config.pullWebhookUrl();
+		if (webhookUrl == null || webhookUrl.trim().isEmpty())
+		{
+			return List.of();
+		}
+		List<HttpUrl> webhookUrls = parseWebhookUrls(webhookUrl);
+		if (webhookUrls.isEmpty())
+		{
+			log.warn("Pull webhook skipped: no valid URLs in config");
+		}
+		return webhookUrls;
+	}
+
+	private void dispatchWebhook(String card, List<HttpUrl> webhookUrls, String payload)
+	{
+		for (HttpUrl parsedUrl : webhookUrls)
+		{
+			enqueueWebhook(card, parsedUrl, payload);
 		}
 	}
 

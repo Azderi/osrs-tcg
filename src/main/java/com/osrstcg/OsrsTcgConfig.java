@@ -1,7 +1,7 @@
 package com.osrstcg;
 
 import com.osrstcg.config.CreditsPerHourWindow;
-import com.osrstcg.config.DinkNotificationTrigger;
+import com.osrstcg.config.PullNotificationTrigger;
 import com.osrstcg.config.PullNotifyTier;
 import java.awt.Color;
 import net.runelite.client.config.Config;
@@ -259,11 +259,23 @@ public interface OsrsTcgConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "pullNotificationTrigger",
+		name = "Notification trigger",
+		description = "Notify per card or one summary at pack end.",
+		section = pullNotificationsSection,
+		position = 5
+	)
+	default PullNotificationTrigger pullNotificationTrigger()
+	{
+		return PullNotificationTrigger.EVERY_CARD;
+	}
+
+	@ConfigItem(
 		keyName = "notifyChat",
 		name = "In-game chat",
 		description = "Post collection-add lines to game chat.",
 		section = pullNotificationsSection,
-		position = 5
+		position = 6
 	)
 	default boolean notifyChat()
 	{
@@ -275,7 +287,7 @@ public interface OsrsTcgConfig extends Config
 		name = "Party pull announcements",
 		description = "Share pull alerts with party members.",
 		section = pullNotificationsSection,
-		position = 6
+		position = 7
 	)
 	default boolean partyAnnouncePulls()
 	{
@@ -287,7 +299,7 @@ public interface OsrsTcgConfig extends Config
 		name = "Party collection-set announcements",
 		description = "Share finished collection sets with party members.",
 		section = pullNotificationsSection,
-		position = 7
+		position = 8
 	)
 	default boolean partyAnnounceCollectionSets()
 	{
@@ -299,7 +311,7 @@ public interface OsrsTcgConfig extends Config
 		name = "Webhook URL",
 		description = "Discord webhook URL for pull alerts.",
 		section = pullNotificationsSection,
-		position = 8
+		position = 9
 	)
 	default String pullWebhookUrl()
 	{
@@ -311,22 +323,10 @@ public interface OsrsTcgConfig extends Config
 		name = "Enable Dink notifications",
 		description = "Send pull alerts via Dink.",
 		section = pullNotificationsSection,
-		position = 9
+		position = 10
 	)
 	default boolean dinkNotifications()
 	{
 		return false;
-	}
-
-	@ConfigItem(
-		keyName = "dinkNotificationTrigger",
-		name = "Dink trigger",
-		description = "Notify per card or at pack end.",
-		section = pullNotificationsSection,
-		position = 10
-	)
-	default DinkNotificationTrigger dinkNotificationTrigger()
-	{
-		return DinkNotificationTrigger.EVERY_CARD;
 	}
 }

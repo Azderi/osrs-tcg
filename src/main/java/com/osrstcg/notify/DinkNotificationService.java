@@ -1,7 +1,5 @@
 package com.osrstcg.notify;
 
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,37 +9,13 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.events.PluginMessage;
 import com.osrstcg.catalog.RarityMath;
+import com.osrstcg.notify.PullNotificationMessages.PackPull;
+import com.osrstcg.notify.PullNotificationMessages.PackSummarySections;
 
 @Slf4j
 @Singleton
 public class DinkNotificationService
 {
-	static final class PackPull
-	{
-		final String cardName;
-		final boolean newForCollection;
-		final boolean foil;
-		final RarityMath.Tier tier;
-		final String instanceId;
-		final boolean notificationEligible;
-
-		PackPull(
-			String cardName,
-			boolean newForCollection,
-			boolean foil,
-			RarityMath.Tier tier,
-			String instanceId,
-			boolean notificationEligible)
-		{
-			this.cardName = cardName;
-			this.newForCollection = newForCollection;
-			this.foil = foil;
-			this.tier = tier;
-			this.instanceId = instanceId;
-			this.notificationEligible = notificationEligible;
-		}
-	}
-
 	private static final String DINK_NAMESPACE = "dink";
 	private static final String DINK_NOTIFY = "notify";
 	private static final String PLUGIN_TITLE = "OSRS TCG";
@@ -88,73 +62,26 @@ public class DinkNotificationService
 
 	void notifyPackSummary(List<PackPull> pulls)
 	{
-		if (!hasNotificationEligiblePull(pulls))
+		if (!PullNotificationMessages.hasEligiblePull(pulls))
 		{
 			return;
 		}
-		List<String> newCards = new ArrayList<>();
-		List<String> duplicates = new ArrayList<>();
-		List<PackPull> sortedPulls = new ArrayList<>(pulls);
-		sortedPulls.sort(Comparator.comparingInt(DinkNotificationService::tierRank).reversed());
-		for (PackPull pull : sortedPulls)
-		{
-			if (pull == null || pull.cardName == null || pull.cardName.trim().isEmpty())
-			{
-				continue;
-			}
-			(pull.newForCollection ? newCards : duplicates).add(formatSummaryLine(pull));
-		}
-		if (newCards.isEmpty() && duplicates.isEmpty())
+		PackSummarySections sections = PullNotificationMessages.buildSummarySections(pulls);
+		if (sections.newCards.isEmpty() && sections.duplicates.isEmpty())
 		{
 			return;
 		}
-		PackPull thumbnailPull = pulls.get(0);
+		PackPull thumbnailPull = PullNotificationMessages.highestTierPull(pulls);
 		String imageUrl = thumbnailPull == null ? "" : pullNotifySupport.cardImageUrl(thumbnailPull.cardName);
 		Map<String, Object> metadata = new HashMap<>();
 		metadata.put("notificationType", "packSummary");
-		metadata.put("newCards", new ArrayList<>(newCards));
-		metadata.put("duplicates", new ArrayList<>(duplicates));
+		metadata.put("newCards", sections.newCards);
+		metadata.put("duplicates", sections.duplicates);
 		postNotify(
 			pullNotifySupport.messageWithStatsLine(
-				PullNotificationMessages.dinkPackSummaryMessage(newCards, duplicates)),
+				PullNotificationMessages.packSummaryMessage("%USERNAME%", sections)),
 			imageUrl,
 			metadata);
-	}
-
-	static boolean hasNotificationEligiblePull(List<PackPull> pulls)
-	{
-		if (pulls == null || pulls.isEmpty())
-		{
-			return false;
-		}
-		for (PackPull pull : pulls)
-		{
-			if (pull != null && pull.notificationEligible)
-			{
-				return true;
-			}
-		}
-		return false;
-	}
-
-	private static String formatSummaryLine(PackPull pull)
-	{
-		String displayName = pull.cardName.trim() + (pull.foil ? " (foil)" : "");
-		if (pull.notificationEligible)
-		{
-			displayName = "**" + displayName + "**";
-		}
-		String inspectUrl = PullNotificationMessages.inspectUrl(pull.instanceId);
-		if (!inspectUrl.isEmpty())
-		{
-			displayName = displayName + " — [Inspect](" + inspectUrl + ")";
-		}
-		return displayName;
-	}
-
-	private static int tierRank(PackPull pull)
-	{
-		return pull == null || pull.tier == null ? -1 : pull.tier.ordinal();
 	}
 
 	private void postNotify(String text, String imageUrl, Map<String, Object> metadata)

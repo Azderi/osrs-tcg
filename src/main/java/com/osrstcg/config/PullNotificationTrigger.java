@@ -1,13 +1,13 @@
 package com.osrstcg.config;
 
-public enum DinkNotificationTrigger
+public enum PullNotificationTrigger
 {
 	EVERY_CARD("Every card"),
 	AT_END("At end");
 
 	private final String label;
 
-	DinkNotificationTrigger(String label)
+	PullNotificationTrigger(String label)
 	{
 		this.label = label;
 	}

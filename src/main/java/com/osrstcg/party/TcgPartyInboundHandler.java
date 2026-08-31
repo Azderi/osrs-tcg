@@ -35,7 +35,7 @@ public class TcgPartyInboundHandler
 
 	public void onPull(TcgPullPartyMessage message)
 	{
-		if (!config.partyAnnounceMythicPulls() || message == null)
+		if (!config.partyAnnouncePulls() || message == null)
 		{
 			return;
 		}
@@ -60,7 +60,7 @@ public class TcgPartyInboundHandler
 
 	public void onCollectionSetComplete(TcgCollectionSetCompletePartyMessage message)
 	{
-		if (!config.partyAnnounceMythicPulls() || message == null)
+		if (!config.partyAnnounceCollectionSets() || message == null)
 		{
 			return;
 		}

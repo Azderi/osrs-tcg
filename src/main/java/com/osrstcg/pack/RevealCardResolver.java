@@ -3,7 +3,6 @@ package com.osrstcg.pack;
 import com.osrstcg.catalog.CardDatabase;
 import com.osrstcg.catalog.CardDefinition;
 import com.osrstcg.catalog.RarityMath;
-import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudEndpoints;
 import com.osrstcg.state.CardCollectionKey;
 import com.osrstcg.state.PackCardResult;
@@ -27,13 +26,11 @@ import lombok.extern.slf4j.Slf4j;
 final class RevealCardResolver
 {
 	private final CardDatabase cardDatabase;
-	private final CloudApiClient cloudApiClient;
 	private final Map<String, RarityMath.Tier> rarityTierByCardName = new HashMap<>();
 
-	RevealCardResolver(CardDatabase cardDatabase, CloudApiClient cloudApiClient)
+	RevealCardResolver(CardDatabase cardDatabase)
 	{
 		this.cardDatabase = cardDatabase;
-		this.cloudApiClient = cloudApiClient;
 	}
 
 	void rebuildRarityTierIndex()
@@ -151,9 +148,7 @@ final class RevealCardResolver
 
 		if (pull.getImagePath() != null && !pull.getImagePath().isBlank())
 		{
-			String absolute = cloudApiClient == null
-				? CloudEndpoints.webUrl(pull.getImagePath())
-				: cloudApiClient.resolvePublicUrl(pull.getImagePath());
+			String absolute = CloudEndpoints.resolvePublicUrl(pull.getImagePath());
 			if (absolute != null && !absolute.isBlank())
 			{
 				definition.setImageUrl(absolute);
@@ -161,9 +156,7 @@ final class RevealCardResolver
 		}
 		if (pull.getFoilImagePath() != null && !pull.getFoilImagePath().isBlank())
 		{
-			String absolute = cloudApiClient == null
-				? CloudEndpoints.webUrl(pull.getFoilImagePath())
-				: cloudApiClient.resolvePublicUrl(pull.getFoilImagePath());
+			String absolute = CloudEndpoints.resolvePublicUrl(pull.getFoilImagePath());
 			if (absolute != null && !absolute.isBlank())
 			{
 				definition.setFoilImagePath(absolute);

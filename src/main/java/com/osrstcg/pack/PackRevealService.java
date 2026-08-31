@@ -1,6 +1,5 @@
 package com.osrstcg.pack;
 
-import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.catalog.BoosterPackDefinition;
 import com.osrstcg.catalog.CardDatabase;
@@ -140,13 +139,13 @@ public class PackRevealService
 	@Inject
 	public PackRevealService(CardDatabase cardDatabase, CardImageCacheService imageCacheService,
 		PackCatalogService packCatalogService, PackRevealSoundService packRevealSoundService,
-		PullNotificationService pullNotificationService, CloudApiClient cloudApiClient)
+		PullNotificationService pullNotificationService)
 	{
 		this.imageCacheService = imageCacheService;
 		this.packCatalogService = packCatalogService;
 		this.packRevealSoundService = packRevealSoundService;
 		this.pullNotificationService = pullNotificationService;
-		this.revealCardResolver = new RevealCardResolver(cardDatabase, cloudApiClient);
+		this.revealCardResolver = new RevealCardResolver(cardDatabase);
 	}
 
 	public synchronized void beginPendingReveal(String boosterPackId,
@@ -369,7 +368,7 @@ public class PackRevealService
 		}
 		if ((batchOffset + visibleCount()) % 5 == 0)
 		{
-			pullNotificationService.notifyDinkAtEnd(List.copyOf(visibleCards()));
+			pullNotificationService.notifyPackAtEnd(List.copyOf(visibleCards()));
 		}
 		phase = Phase.WAIT_CLOSE;
 		phaseStartedAt = System.currentTimeMillis();
@@ -846,7 +845,7 @@ public class PackRevealService
 	{
 		if ((batchOffset + visibleCount()) % 5 == 0)
 		{
-			pullNotificationService.notifyDinkAtEnd(List.copyOf(visibleCards()));
+			pullNotificationService.notifyPackAtEnd(List.copyOf(visibleCards()));
 		}
 		phase = Phase.WAIT_CLOSE;
 		phaseStartedAt = System.currentTimeMillis();
