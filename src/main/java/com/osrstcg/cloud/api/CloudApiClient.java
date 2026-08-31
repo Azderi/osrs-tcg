@@ -308,25 +308,6 @@ public final class CloudApiClient
 		return requestAuthed("POST", "/packs/open", body);
 	}
 
-	public JsonObject sellCards(List<String> instanceIds, long accountHash) throws CloudApiException, IOException
-	{
-		JsonObject body = new JsonObject();
-		JsonArray ids = new JsonArray();
-		if (instanceIds != null)
-		{
-			for (String id : instanceIds)
-			{
-				if (id != null && !id.isBlank())
-				{
-					ids.add(id.trim());
-				}
-			}
-		}
-		body.add("instanceIds", ids);
-		body.addProperty("accountHash", Long.toString(accountHash));
-		return requestAuthed("POST", "/cards/sell", body);
-	}
-
 	public String resolvePublicUrl(String pathOrUrl)
 	{
 		return CloudEndpoints.resolvePublicUrl(pathOrUrl);

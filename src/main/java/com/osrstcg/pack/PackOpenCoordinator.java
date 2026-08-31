@@ -113,10 +113,9 @@ public class PackOpenCoordinator
 		ui.beginFreeze.run();
 		HashSet<CardCollectionKey> preOwned = new HashSet<>(
 			stateService.getState().getCollectionState().getOwnedCards().keySet());
-		String boosterTitle = booster.getName();
 		String boosterPackId = booster.getId() == null ? "" : booster.getId().trim();
 		int expectedCards = Math.max(1, packCatalogService.getCache().getPackSize());
-		packRevealService.beginPendingReveal(boosterTitle, boosterPackId, false, expectedCards);
+		packRevealService.beginPendingReveal(boosterPackId, false, expectedCards);
 		ui.refresh.run();
 		scheduler.execute(() ->
 		{

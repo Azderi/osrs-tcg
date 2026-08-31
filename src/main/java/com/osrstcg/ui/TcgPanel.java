@@ -9,7 +9,6 @@ import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.cloud.session.CloudSessionService;
 import com.osrstcg.cloud.shop.CloudPackService;
-import com.osrstcg.cloud.shop.CloudSellService;
 import com.osrstcg.cloud.trade.TradeCloudService;
 import com.osrstcg.pack.PackOpenCoordinator;
 import com.osrstcg.pack.PackRevealService;
@@ -175,7 +174,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		CloudSessionService cloudSessionService,
 		TradeCloudService tradeCloudService,
 		CloudApiClient cloudApiClient,
-		CloudSellService cloudSellService,
 		ScheduledExecutorService scheduler,
 		ChatMessageManager chatMessageManager)
 	{
@@ -213,10 +211,10 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		this.shopTab = new ShopTab(
 			stateService, cardDatabase, packRevealService,
 			packOpenCoordinator, packCatalogService, imageCacheService, config, cloudSessionService,
-			cloudSellService, scheduler, chatMessageManager, overviewTab,
+			overviewTab,
 			this::liveShopPacksContentWidth, this::capturePackCloseSnapshotForDisplay,
 			this::refresh, this::beginPackRevealSidebarFreeze, this::clearPackRevealSidebarFreeze,
-			this, shopHeaderPanel, packsContent);
+			shopHeaderPanel, packsContent);
 
 		setLayout(new BorderLayout());
 

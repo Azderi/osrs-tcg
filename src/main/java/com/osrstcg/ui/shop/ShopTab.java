@@ -3,28 +3,21 @@ package com.osrstcg.ui.shop;
 import com.osrstcg.OsrsTcgConfig;
 import com.osrstcg.catalog.BoosterPackDefinition;
 import com.osrstcg.catalog.CardDatabase;
-import com.osrstcg.catalog.CardDefinition;
 import com.osrstcg.catalog.CardImageCacheService;
 import com.osrstcg.catalog.RollPoolFilter;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.cloud.session.CloudSessionService;
-import com.osrstcg.cloud.shop.CloudSellService;
-import com.osrstcg.credit.DuplicateSellPlanner;
 import com.osrstcg.pack.PackOpenCoordinator;
 import com.osrstcg.pack.PackRevealService;
-import com.osrstcg.state.OwnedCardInstance;
 import com.osrstcg.state.TcgStateService;
 import com.osrstcg.ui.layout.PackCloseSnapshot;
 import com.osrstcg.ui.layout.SidebarLayout;
 import com.osrstcg.ui.overview.OverviewTab;
-import com.osrstcg.util.TcgPluginGameMessages;
 import java.awt.BorderLayout;
-import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
@@ -34,14 +27,11 @@ import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
-import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.ui.ColorScheme;
-import net.runelite.client.ui.FontManager;
 
 public final class ShopTab
 {
@@ -55,22 +45,16 @@ public final class ShopTab
 	private final CardImageCacheService imageCacheService;
 	private final OsrsTcgConfig config;
 	private final CloudSessionService cloudSessionService;
-	private final CloudSellService cloudSellService;
-	private final ScheduledExecutorService scheduler;
-	private final ChatMessageManager chatMessageManager;
 	private final OverviewTab overviewTab;
 	private final IntSupplier shopWidth;
 	private final Supplier<PackCloseSnapshot> snapshotSupplier;
 	private final Runnable refreshUi;
 	private final Runnable beginRevealFreeze;
 	private final Runnable clearRevealFreeze;
-	private final Component dialogParent;
 
 	private final JPanel shopHeaderPanel;
 	private final JPanel packsContent;
-	private final JButton sellDuplicatesButton;
 	private final AtomicBoolean packOpenInFlight = new AtomicBoolean(false);
-	private final AtomicBoolean sellInFlight = new AtomicBoolean(false);
 	private JLabel creditsValueLabel;
 	private final List<JButton> buyButtons = new ArrayList<>();
 	private final List<Integer> buyPrices = new ArrayList<>();
@@ -84,16 +68,12 @@ public final class ShopTab
 		CardImageCacheService imageCacheService,
 		OsrsTcgConfig config,
 		CloudSessionService cloudSessionService,
-		CloudSellService cloudSellService,
-		ScheduledExecutorService scheduler,
-		ChatMessageManager chatMessageManager,
 		OverviewTab overviewTab,
 		IntSupplier shopWidth,
 		Supplier<PackCloseSnapshot> snapshotSupplier,
 		Runnable refreshUi,
 		Runnable beginRevealFreeze,
 		Runnable clearRevealFreeze,
-		Component dialogParent,
 		JPanel shopHeaderPanel,
 		JPanel packsContent)
 	{
@@ -105,19 +85,14 @@ public final class ShopTab
 		this.imageCacheService = imageCacheService;
 		this.config = config;
 		this.cloudSessionService = cloudSessionService;
-		this.cloudSellService = cloudSellService;
-		this.scheduler = scheduler;
-		this.chatMessageManager = chatMessageManager;
 		this.overviewTab = overviewTab;
 		this.shopWidth = shopWidth;
 		this.snapshotSupplier = snapshotSupplier;
 		this.refreshUi = refreshUi;
 		this.beginRevealFreeze = beginRevealFreeze;
 		this.clearRevealFreeze = clearRevealFreeze;
-		this.dialogParent = dialogParent;
 		this.shopHeaderPanel = shopHeaderPanel;
 		this.packsContent = packsContent;
-		this.sellDuplicatesButton = createSellDuplicatesButton();
 	}
 
 	public void clear()
@@ -158,7 +133,6 @@ public final class ShopTab
 			creditsValueLabel.setText(SidebarLayout.format(credits));
 		}
 		applyBuyButtonEnabledState(credits);
-		updateSellDuplicatesButtonState();
 	}
 
 	public List<BoosterShopRow> computeRows(PackCloseSnapshot snap)
@@ -201,8 +175,6 @@ public final class ShopTab
 		creditsValueLabel = east instanceof JLabel ? (JLabel) east : null;
 		shopHeaderPanel.add(creditsPanel);
 		shopHeaderPanel.add(Box.createRigidArea(new Dimension(0, 8)));
-		shopHeaderPanel.add(sellDuplicatesPanel());
-		updateSellDuplicatesButtonState();
 		shopHeaderPanel.revalidate();
 		shopHeaderPanel.repaint();
 	}
@@ -345,143 +317,5 @@ public final class ShopTab
 			() -> packOpenCoordinator.openFromShop(
 				booster, packOpenInFlight, beginRevealFreeze, clearRevealFreeze, refreshUi,
 				SwingUtilities::invokeLater));
-	}
-
-	private JPanel sellDuplicatesPanel()
-	{
-		JPanel panel = new JPanel(new BorderLayout());
-		panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		panel.setBorder(new EmptyBorder(6, 6, 6, 6));
-		panel.add(sellDuplicatesButton, BorderLayout.CENTER);
-		SidebarLayout.clampPanelWidth(panel);
-		return panel;
-	}
-
-	private void updateSellDuplicatesButtonState()
-	{
-		List<OwnedCardInstance> instances = stateService.getState().getCollectionState().getOwnedInstances();
-		boolean hasDuplicates = DuplicateSellPlanner.hasSellableDuplicates(instances);
-		boolean cloudReady = cloudSessionService.isReady();
-		boolean busy = sellInFlight.get();
-		sellDuplicatesButton.setEnabled(hasDuplicates && cloudReady && !busy);
-		if (busy)
-		{
-			sellDuplicatesButton.setToolTipText("Sell in progress…");
-		}
-		else if (!cloudReady)
-		{
-			sellDuplicatesButton.setToolTipText(cloudSessionService.needsProfileCreate()
-				? "Create a profile before selling"
-				: "Cloud offline - cannot sell");
-		}
-		else if (!hasDuplicates)
-		{
-			sellDuplicatesButton.setToolTipText("No sellable duplicates");
-		}
-		else
-		{
-			sellDuplicatesButton.setToolTipText(null);
-		}
-	}
-
-	private void promptAndSellDuplicates()
-	{
-		if (sellInFlight.get())
-		{
-			return;
-		}
-		if (!cloudSessionService.isReady())
-		{
-			String reason = cloudSessionService.needsProfileCreate()
-				? "Create a profile before selling cards."
-				: "Cloud offline - cannot sell cards.";
-			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, reason);
-			refreshUi.run();
-			return;
-		}
-
-		if (!sellInFlight.compareAndSet(false, true))
-		{
-			return;
-		}
-		updateSellDuplicatesButtonState();
-		scheduler.execute(() ->
-		{
-			cloudSessionService.forceRefreshCollectionState();
-			DuplicateSellPlanner.Result plan;
-			synchronized (stateService)
-			{
-				plan = DuplicateSellPlanner.plan(
-					new ArrayList<>(stateService.getState().getCollectionState().getOwnedInstances()),
-					this::cardDefinitionForName);
-			}
-			DuplicateSellPlanner.Result planned = plan;
-			SwingUtilities.invokeLater(() ->
-			{
-				if (planned.getCardsSold() <= 0 || planned.getSoldInstanceIds().isEmpty())
-				{
-					sellInFlight.set(false);
-					updateSellDuplicatesButtonState();
-					TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
-						"No sellable duplicates.");
-					refreshUi.run();
-					return;
-				}
-
-				int choice = JOptionPane.showConfirmDialog(
-					dialogParent,
-					"Are you sure you want to sell " + planned.getCardsSold()
-						+ " cards for " + SidebarLayout.format(planned.getCreditsToAdd()) + " credits?",
-					"Sell duplicates",
-					JOptionPane.YES_NO_OPTION,
-					JOptionPane.WARNING_MESSAGE);
-				if (choice != JOptionPane.YES_OPTION)
-				{
-					sellInFlight.set(false);
-					updateSellDuplicatesButtonState();
-					return;
-				}
-
-				scheduler.execute(() ->
-				{
-					var result = cloudSellService.sellDuplicates(planned);
-					SwingUtilities.invokeLater(() ->
-					{
-						try
-						{
-							if (!cloudSessionService.isAccountLocked()
-								&& result.getMessage() != null && !result.getMessage().isEmpty())
-							{
-								TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
-									result.getMessage());
-							}
-							refreshUi.run();
-						}
-						finally
-						{
-							sellInFlight.set(false);
-							updateSellDuplicatesButtonState();
-						}
-					});
-				});
-			});
-		});
-	}
-
-	private JButton createSellDuplicatesButton()
-	{
-		JButton button = new JButton("Sell duplicates");
-		button.setFocusable(false);
-		button.setBackground(ColorScheme.DARKER_GRAY_COLOR.darker());
-		button.setForeground(Color.WHITE);
-		button.setFont(FontManager.getRunescapeSmallFont());
-		SidebarLayout.styleOutlinedButton(button, ColorScheme.LIGHT_GRAY_COLOR.darker(), 6, 6, 6, 6);
-		button.addActionListener(ev -> promptAndSellDuplicates());
-		return button;
-	}
-
-	private CardDefinition cardDefinitionForName(String cardName)
-	{
-		return cardDatabase.findByName(cardName).orElse(null);
 	}
 }
