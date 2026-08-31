@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +26,11 @@ import com.osrstcg.cloud.activity.ActivityConfigModels.ActivitiesConfigResponse;
 import com.osrstcg.cloud.activity.ActivityConfigModels.ActivityConfigDto;
 import com.osrstcg.cloud.catalog.LiveCardsResponse;
 import com.osrstcg.cloud.session.CloudTokenStore;
+import static com.osrstcg.cloud.api.JsonObjects.objectOrEmpty;
+import static com.osrstcg.cloud.api.JsonObjects.readBoolean;
+import static com.osrstcg.cloud.api.JsonObjects.readNumber;
 import static com.osrstcg.cloud.api.JsonObjects.text;
+import static com.osrstcg.cloud.api.JsonObjects.textTrimmed;
 import com.osrstcg.cloud.session.ProfileKeyHasher;
 import com.osrstcg.cloud.trade.TradeInboxItem;
 
@@ -41,8 +46,8 @@ public final class CloudApiClient
 	private final ProfileKeyHasher profileKeyHasher;
 	private volatile String cachedCatalogVersion;
 	private volatile Runnable staleRefreshHandler;
-	private volatile java.util.function.Consumer<CloudApiException> accountLockHandler;
-	private volatile java.util.function.Consumer<String> activitiesVersionListener;
+	private volatile Consumer<CloudApiException> accountLockHandler;
+	private volatile Consumer<String> activitiesVersionListener;
 	/** Nesting depth for {@link #openConsentTraffic()} (create-profile after Yes). */
 	private final ThreadLocal<Integer> consentTrafficDepth = ThreadLocal.withInitial(() -> 0);
 
@@ -103,12 +108,12 @@ public final class CloudApiClient
 		staleRefreshHandler = handler;
 	}
 
-	public void setAccountLockHandler(java.util.function.Consumer<CloudApiException> handler)
+	public void setAccountLockHandler(Consumer<CloudApiException> handler)
 	{
 		accountLockHandler = handler;
 	}
 
-	public void setActivitiesVersionListener(java.util.function.Consumer<String> listener)
+	public void setActivitiesVersionListener(Consumer<String> listener)
 	{
 		activitiesVersionListener = listener;
 	}
@@ -155,11 +160,7 @@ public final class CloudApiClient
 			String version = versionHeader;
 			if (version == null || version.isBlank())
 			{
-				String etag = response.header("ETag");
-				if (etag != null)
-				{
-					version = etag.replace("\"", "").trim();
-				}
+				version = stripQuotes(response.header("ETag"));
 			}
 			if (version != null && !version.isBlank())
 			{
@@ -177,7 +178,7 @@ public final class CloudApiClient
 		return request("GET", "/players/" + encoded + "/stats", null, false);
 	}
 
-	public void setCachedCatalogVersion(String catalogVersion)
+	private void setCachedCatalogVersion(String catalogVersion)
 	{
 		if (catalogVersion != null && !catalogVersion.isBlank())
 		{
@@ -187,9 +188,10 @@ public final class CloudApiClient
 
 	private void cacheCatalogVersionFrom(JsonObject json)
 	{
-		if (json != null && json.has("catalogVersion") && !json.get("catalogVersion").isJsonNull())
+		String version = textTrimmed(json, "catalogVersion");
+		if (version != null)
 		{
-			cachedCatalogVersion = json.get("catalogVersion").getAsString();
+			cachedCatalogVersion = version;
 		}
 	}
 
@@ -267,12 +269,8 @@ public final class CloudApiClient
 
 	public String getActivitiesVersion() throws CloudApiException, IOException
 	{
-		JsonObject json = request("GET", "/config/activities/version", null, false);
-		if (json.has("version") && !json.get("version").isJsonNull())
-		{
-			return json.get("version").getAsString();
-		}
-		return "";
+		String version = text(request("GET", "/config/activities/version", null, false), "version");
+		return version == null ? "" : version;
 	}
 
 	public ActivitiesConfigResponse getActivities(String cachedVersion) throws CloudApiException, IOException
@@ -308,11 +306,6 @@ public final class CloudApiClient
 		return requestAuthed("POST", "/packs/open", body);
 	}
 
-	public String resolvePublicUrl(String pathOrUrl)
-	{
-		return CloudEndpoints.resolvePublicUrl(pathOrUrl);
-	}
-
 	public static JsonObject withPluginAccountHash(JsonObject body, long accountHash)
 	{
 		if (accountHash == -1L)
@@ -335,11 +328,6 @@ public final class CloudApiClient
 	{
 		JsonObject body = withPluginAccountHash(new JsonObject(), accountHash);
 		return requestAuthed("POST", "/trades/" + tradeId + "/cancel", body);
-	}
-
-	public JsonObject getTradeInbox(long accountHash) throws CloudApiException, IOException
-	{
-		return getTradeInbox(accountHash, null);
 	}
 
 	public JsonObject getTradeInbox(long accountHash, Long sinceRevision) throws CloudApiException, IOException
@@ -372,14 +360,13 @@ public final class CloudApiClient
 				continue;
 			}
 			JsonObject o = el.getAsJsonObject();
-			if (!o.has("tradeId"))
+			String tradeId = text(o, "tradeId");
+			if (tradeId == null)
 			{
 				continue;
 			}
-			out.add(new TradeInboxItem(
-				o.get("tradeId").getAsString(),
-				o.has("fromDisplayName") ? o.get("fromDisplayName").getAsString() : "",
-				o.has("notified") && o.get("notified").getAsBoolean()));
+			String from = text(o, "fromDisplayName");
+			out.add(new TradeInboxItem(tradeId, from == null ? "" : from, readBoolean(o, "notified")));
 		}
 		return out;
 	}
@@ -395,13 +382,7 @@ public final class CloudApiClient
 			text(tokens, "refreshToken"),
 			text(tokens, "accountId"),
 			text(tokens, "status"));
-		if (tokens.has("migratedAt") && !tokens.get("migratedAt").isJsonNull()
-			&& !tokens.get("migratedAt").getAsString().isBlank())
-		{
-			tokenStore.setMigrated(true);
-		}
-		else if (tokens.has("migrated") && !tokens.get("migrated").isJsonNull()
-			&& tokens.get("migrated").getAsBoolean())
+		if (textTrimmed(tokens, "migratedAt") != null || readBoolean(tokens, "migrated"))
 		{
 			tokenStore.setMigrated(true);
 		}
@@ -466,13 +447,7 @@ public final class CloudApiClient
 		throws CloudApiException, IOException
 	{
 		requireCloudConsentAllowed();
-		HttpUrl url = HttpUrl.parse(CloudEndpoints.apiUrl(pathAndQuery));
-		if (url == null)
-		{
-			throw new CloudApiException(0, "invalid_base_url", "Invalid API base URL: " + CloudEndpoints.API_BASE_URL);
-		}
-
-		Request.Builder b = new Request.Builder().url(url);
+		Request.Builder b = new Request.Builder().url(requireApiUrl(pathAndQuery));
 		if (authed)
 		{
 			String access = tokenStore.getAccessToken();
@@ -510,7 +485,7 @@ public final class CloudApiClient
 		CloudApiException ex = exceptionFromHttpBody(status, body);
 		if (ex.isAccountBanned() || ex.isAccountQuarantined())
 		{
-			java.util.function.Consumer<CloudApiException> handler = accountLockHandler;
+			Consumer<CloudApiException> handler = accountLockHandler;
 			if (handler != null)
 			{
 				try
@@ -530,38 +505,23 @@ public final class CloudApiClient
 	{
 		String code = "http_error";
 		String message = body == null ? "" : body;
-		Long serverCredits = null;
 		JsonObject json = parseObject(body);
-		if (json.has("error") && json.get("error").isJsonObject())
+		JsonObject err = objectOrEmpty(json, "error");
+		String parsedCode = textTrimmed(err, "code");
+		if (parsedCode != null)
 		{
-			JsonObject err = json.getAsJsonObject("error");
-			if (err.has("code") && !err.get("code").isJsonNull())
-			{
-				String parsedCode = err.get("code").getAsString();
-				if (parsedCode != null && !parsedCode.isBlank())
-				{
-					code = parsedCode.trim();
-				}
-			}
-			if (err.has("message") && !err.get("message").isJsonNull())
-			{
-				String parsedMessage = err.get("message").getAsString();
-				if (parsedMessage != null && !parsedMessage.isBlank())
-				{
-					message = parsedMessage;
-				}
-			}
+			code = parsedCode;
 		}
-		if (json.has("credits") && !json.get("credits").isJsonNull() && json.get("credits").isJsonPrimitive())
+		String parsedMessage = text(err, "message");
+		if (parsedMessage != null && !parsedMessage.isBlank())
 		{
-			try
-			{
-				serverCredits = json.get("credits").getAsLong();
-			}
-			catch (RuntimeException ignored)
-			{
-				// leave null
-			}
+			message = parsedMessage;
+		}
+		Long serverCredits = null;
+		Double credits = readNumber(json, "credits");
+		if (credits != null)
+		{
+			serverCredits = Math.max(0L, Math.round(credits));
 		}
 		return new CloudApiException(status, code, CloudHttpErrorMapper.humanize(status, code, message), serverCredits);
 	}
@@ -572,7 +532,7 @@ public final class CloudApiClient
 		{
 			return;
 		}
-		java.util.function.Consumer<String> listener = activitiesVersionListener;
+		Consumer<String> listener = activitiesVersionListener;
 		if (listener != null)
 		{
 			try
@@ -600,15 +560,20 @@ public final class CloudApiClient
 		return t;
 	}
 
-	private Response getWithOptionalEtag(String path, String cachedVersion) throws CloudApiException, IOException
+	private HttpUrl requireApiUrl(String pathAndQuery) throws CloudApiException
 	{
-		requireCloudConsentAllowed();
-		HttpUrl url = HttpUrl.parse(CloudEndpoints.apiUrl(path));
+		HttpUrl url = HttpUrl.parse(CloudEndpoints.apiUrl(pathAndQuery));
 		if (url == null)
 		{
 			throw new CloudApiException(0, "invalid_base_url", "Invalid API base URL: " + CloudEndpoints.API_BASE_URL);
 		}
-		Request.Builder b = new Request.Builder().url(url).get();
+		return url;
+	}
+
+	private Response getWithOptionalEtag(String path, String cachedVersion) throws CloudApiException, IOException
+	{
+		requireCloudConsentAllowed();
+		Request.Builder b = new Request.Builder().url(requireApiUrl(path)).get();
 		if (cachedVersion != null && !cachedVersion.isBlank())
 		{
 			String etag = cachedVersion.trim();

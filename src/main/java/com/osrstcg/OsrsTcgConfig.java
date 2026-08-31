@@ -249,7 +249,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "duplicateNotifyTier",
 		name = "Duplicate notify tier",
-		description = "Minimum rarity for webhook/party duplicates.",
+		description = "Minimum rarity for duplicate pulls.",
 		section = pullNotificationsSection,
 		position = 4
 	)
@@ -259,13 +259,37 @@ public interface OsrsTcgConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "partyAnnounceMythicPulls",
-		name = "Party collection announcements",
-		description = "Share pull alerts with your party.",
+		keyName = "notifyChat",
+		name = "In-game chat",
+		description = "Post collection-add lines to game chat.",
 		section = pullNotificationsSection,
 		position = 5
 	)
-	default boolean partyAnnounceMythicPulls()
+	default boolean notifyChat()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "partyAnnouncePulls",
+		name = "Party pull announcements",
+		description = "Share pull alerts with party members.",
+		section = pullNotificationsSection,
+		position = 6
+	)
+	default boolean partyAnnouncePulls()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "partyAnnounceCollectionSets",
+		name = "Party collection-set announcements",
+		description = "Share finished collection sets with party members.",
+		section = pullNotificationsSection,
+		position = 7
+	)
+	default boolean partyAnnounceCollectionSets()
 	{
 		return true;
 	}
@@ -275,26 +299,19 @@ public interface OsrsTcgConfig extends Config
 		name = "Webhook URL",
 		description = "Discord webhook URL for pull alerts.",
 		section = pullNotificationsSection,
-		position = 6
+		position = 8
 	)
 	default String pullWebhookUrl()
 	{
 		return "";
 	}
 
-	@ConfigSection(
-		name = "Dink",
-		description = "Dink plugin notifications.",
-		position = 20
-	)
-	String dinkSection = "dink";
-
 	@ConfigItem(
 		keyName = "dinkNotifications",
-		name = "Enable Dink Notifications",
+		name = "Enable Dink notifications",
 		description = "Send pull alerts via Dink.",
-		section = dinkSection,
-		position = 0
+		section = pullNotificationsSection,
+		position = 9
 	)
 	default boolean dinkNotifications()
 	{
@@ -303,61 +320,13 @@ public interface OsrsTcgConfig extends Config
 
 	@ConfigItem(
 		keyName = "dinkNotificationTrigger",
-		name = "Trigger notification",
+		name = "Dink trigger",
 		description = "Notify per card or at pack end.",
-		section = dinkSection,
-		position = 1
+		section = pullNotificationsSection,
+		position = 10
 	)
 	default DinkNotificationTrigger dinkNotificationTrigger()
 	{
 		return DinkNotificationTrigger.EVERY_CARD;
-	}
-
-	@ConfigItem(
-		keyName = "dinkNewCardNotifyTier",
-		name = "Notify tier",
-		description = "Minimum rarity for new cards.",
-		section = dinkSection,
-		position = 2
-	)
-	default PullNotifyTier dinkNewCardNotifyTier()
-	{
-		return PullNotifyTier.MYTHIC;
-	}
-
-	@ConfigItem(
-		keyName = "dinkAlwaysNotifyFoils",
-		name = "Notify all foils",
-		description = "Notify all foils regardless of tier.",
-		section = dinkSection,
-		position = 3
-	)
-	default boolean dinkAlwaysNotifyFoils()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "dinkOnlyNotifyNew",
-		name = "Only notify new cards",
-		description = "Skip duplicate cards.",
-		section = dinkSection,
-		position = 4
-	)
-	default boolean dinkOnlyNotifyNew()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "dinkDuplicateNotifyTier",
-		name = "Duplicate notify tier",
-		description = "Minimum rarity for duplicates.",
-		section = dinkSection,
-		position = 5
-	)
-	default PullNotifyTier dinkDuplicateNotifyTier()
-	{
-		return PullNotifyTier.MYTHIC;
 	}
 }
