@@ -42,6 +42,7 @@ import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ForkJoinPool;
@@ -61,10 +62,10 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextPane;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.border.Border;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.MatteBorder;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
@@ -86,8 +87,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		COLLECTION("Collection"),
 		SHOP("Shop");
 
-		@Getter
-		private final String label;
+		final String label;
 
 		Tab(String label)
 		{
@@ -132,10 +132,10 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	private JPanel titleTabWrapper;
 	private final JComponent cloudStatusIndicator;
 	private final JButton openTradesButton;
-	private final JButton welcomeTabButton = new JButton(Tab.WELCOME.getLabel());
-	private final JButton overviewTabButton = new JButton(Tab.OVERVIEW.getLabel());
-	private final JButton collectionTabButton = new JButton(Tab.COLLECTION.getLabel());
-	private final JButton shopTabButton = new JButton(Tab.SHOP.getLabel());
+	private final JButton welcomeTabButton = new JButton(Tab.WELCOME.label);
+	private final JButton overviewTabButton = new JButton(Tab.OVERVIEW.label);
+	private final JButton collectionTabButton = new JButton(Tab.COLLECTION.label);
+	private final JButton shopTabButton = new JButton(Tab.SHOP.label);
 	private Tab selectedTab = Tab.OVERVIEW;
 	private final Runnable onCollectionChanged = () -> SwingUtilities.invokeLater(this::refresh);
 	private boolean defaultTabSelectionInitialized;
@@ -146,10 +146,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	private int lastPanelHeightForLayout = -1;
 	private final AtomicLong packCloseRefreshGen = new AtomicLong();
 	private PackCloseSnapshot sidebarRevealSpoilerFreeze;
-	private boolean welcomeBuiltForActiveReveal;
-	private boolean overviewBuiltForActiveReveal;
-	private boolean collectionBuiltForActiveReveal;
-	private boolean shopBuiltForActiveReveal;
+	private final boolean[] revealTabBuilt = new boolean[Tab.values().length];
 
 	private final WelcomeTab welcomeTab;
 	private final OverviewTab overviewTab;
@@ -430,9 +427,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			try
 			{
 				PackCloseSnapshot snap = capturePackCloseSnapshot();
-				List<CardDefinition> all = cardDatabase.getCards();
-				List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(all);
-				CloudSidebarCollectionStats metrics = TcgPublicStatsCalculator.resolveOverview(snap, all, rollPool);
+				CloudSidebarCollectionStats metrics = overviewMetrics(snap);
 				List<BoosterShopRow> shopRows = shopTab.computeRows(snap);
 				SwingUtilities.invokeLater(() -> applyPackCloseRefresh(gen, snap, metrics, shopRows));
 			}
@@ -491,6 +486,11 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			renderWelcomeTab(welcomeContent);
 			contentLayout.show(content, Tab.WELCOME.name());
 		}
+		relayoutMainPanel();
+	}
+
+	private void relayoutMainPanel()
+	{
 		mainPanel.revalidate();
 		mainPanel.repaint();
 	}
@@ -522,8 +522,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			return;
 		}
 		renderSelectedTab();
-		mainPanel.revalidate();
-		mainPanel.repaint();
+		relayoutMainPanel();
 	}
 
 	private boolean applyNormalSidebarChromeOrBlock()
@@ -531,30 +530,26 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		if (shouldShowLoggedOutPrompt())
 		{
 			showLoggedOutWelcome();
-			mainPanel.revalidate();
-			mainPanel.repaint();
-			return true;
 		}
-		if (cloudSessionService.isAccountLocked())
+		else if (cloudSessionService.isAccountLocked())
 		{
 			showSidebarBlockingNotice(sidebarNoticeView::showAccountLockedNotice);
-			mainPanel.revalidate();
-			mainPanel.repaint();
-			return true;
 		}
-		if (cloudSessionService.isRestrictedWorld())
+		else if (cloudSessionService.isRestrictedWorld())
 		{
 			showSidebarBlockingNotice(sidebarNoticeView::showEventWorldUnavailable);
-			mainPanel.revalidate();
-			mainPanel.repaint();
-			return true;
 		}
-		titleTabWrapper.setVisible(true);
-		footerPanel.setVisible(true);
-		sidebarNoticeView.restoreOpenAccountPanelButtonToFooter();
-		applyDefaultTabSelectionOnce();
-		updateTabStyles();
-		return false;
+		else
+		{
+			titleTabWrapper.setVisible(true);
+			footerPanel.setVisible(true);
+			sidebarNoticeView.restoreOpenAccountPanelButtonToFooter();
+			applyDefaultTabSelectionOnce();
+			updateTabStyles();
+			return false;
+		}
+		relayoutMainPanel();
+		return true;
 	}
 
 	private void applyDefaultTabSelectionOnce()
@@ -832,10 +827,10 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		{
 			selectedTab = Tab.WELCOME;
 		}
-		applyTabStyle(welcomeTabButton, Tab.WELCOME);
-		applyTabStyle(overviewTabButton, Tab.OVERVIEW);
-		applyTabStyle(collectionTabButton, Tab.COLLECTION);
-		applyTabStyle(shopTabButton, Tab.SHOP);
+		for (Tab tab : Tab.values())
+		{
+			applyTabStyle(tabButtonFor(tab), tab);
+		}
 		if (titleTabWrapper != null)
 		{
 			titleTabWrapper.revalidate();
@@ -861,12 +856,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 
 	private void updateFooterVisibility()
 	{
-		if (cloudSessionService.isAccountLocked() && isClientInGameWorld())
-		{
-			footerPanel.setVisible(false);
-			return;
-		}
-		if (cloudSessionService.isRestrictedWorld() && isClientInGameWorld())
+		if (footerHiddenForBlockingState())
 		{
 			footerPanel.setVisible(false);
 			return;
@@ -960,51 +950,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	{
 		if (packRevealService.isActive() && sidebarRevealSpoilerFreeze != null)
 		{
-			JPanel activePanel = panelForTab(selectedTab);
-			if (selectedTab == Tab.WELCOME)
-			{
-				if (!welcomeBuiltForActiveReveal)
-				{
-					activePanel.removeAll();
-					renderWelcomeTab(activePanel);
-					welcomeBuiltForActiveReveal = true;
-				}
-				contentLayout.show(content, selectedTab.name());
-				return;
-			}
-			if (selectedTab == Tab.OVERVIEW)
-			{
-				if (!overviewBuiltForActiveReveal)
-				{
-					activePanel.removeAll();
-					renderOverviewTab(activePanel);
-					overviewBuiltForActiveReveal = true;
-				}
-				contentLayout.show(content, selectedTab.name());
-				return;
-			}
-			if (selectedTab == Tab.COLLECTION)
-			{
-				if (!collectionBuiltForActiveReveal)
-				{
-					collectionTab.render();
-					collectionBuiltForActiveReveal = true;
-				}
-				showTabContent(Tab.COLLECTION);
-				return;
-			}
-			if (selectedTab == Tab.SHOP)
-			{
-				if (!shopBuiltForActiveReveal)
-				{
-					shopTab.render();
-					shopBuiltForActiveReveal = true;
-				}
-				showTabContent(Tab.SHOP);
-				return;
-			}
-			log.warn("Unsupported tab {}", selectedTab);
-			contentLayout.show(content, selectedTab.name());
+			renderSelectedTabWhileFrozen();
 			return;
 		}
 
@@ -1106,29 +1052,67 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	public void beginPackRevealSidebarFreeze()
 	{
 		sidebarRevealSpoilerFreeze = capturePackCloseSnapshot();
-		welcomeBuiltForActiveReveal = false;
-		overviewBuiltForActiveReveal = false;
-		collectionBuiltForActiveReveal = false;
-		shopBuiltForActiveReveal = false;
+		resetRevealTabBuilt();
 	}
 
 	@Override
 	public void clearPackRevealSidebarFreeze()
 	{
 		sidebarRevealSpoilerFreeze = null;
-		welcomeBuiltForActiveReveal = false;
-		overviewBuiltForActiveReveal = false;
-		collectionBuiltForActiveReveal = false;
-		shopBuiltForActiveReveal = false;
+		resetRevealTabBuilt();
+	}
+
+	private void resetRevealTabBuilt()
+	{
+		Arrays.fill(revealTabBuilt, false);
+	}
+
+	private void renderSelectedTabWhileFrozen()
+	{
+		Tab tab = selectedTab;
+		int o = tab.ordinal();
+		if (!revealTabBuilt[o])
+		{
+			switch (tab)
+			{
+				case WELCOME:
+					welcomeContent.removeAll();
+					renderWelcomeTab(welcomeContent);
+					break;
+				case OVERVIEW:
+					overviewContent.removeAll();
+					renderOverviewTab(overviewContent);
+					break;
+				case COLLECTION:
+					collectionTab.render();
+					break;
+				case SHOP:
+					shopTab.render();
+					break;
+				default:
+					log.warn("Unsupported tab {}", tab);
+					contentLayout.show(content, tab.name());
+					return;
+			}
+			revealTabBuilt[o] = true;
+		}
+		if (tab == Tab.COLLECTION || tab == Tab.SHOP)
+		{
+			showTabContent(tab);
+		}
+		else
+		{
+			contentLayout.show(content, tab.name());
+		}
 	}
 
 	private int liveSidebarContentWidth()
 	{
-		int viewportWidth = Math.max(
-			Math.max(
-				Math.max(welcomeScrollPane.getViewport().getWidth(), overviewScrollPane.getViewport().getWidth()),
-				collectionListScrollPane.getViewport().getWidth()),
-			shopPacksScrollPane.getViewport().getWidth());
+		int viewportWidth = 0;
+		for (JScrollPane sp : tabScrollPanes())
+		{
+			viewportWidth = Math.max(viewportWidth, sp.getViewport().getWidth());
+		}
 		if (viewportWidth > 0)
 		{
 			return Math.max(80, viewportWidth);
@@ -1154,7 +1138,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		return liveSidebarContentWidth();
 	}
 
-	private javax.swing.border.Border tabBorder(boolean active, boolean enabled)
+	private Border tabBorder(boolean active, boolean enabled)
 	{
 		if (!enabled)
 		{
@@ -1184,17 +1168,32 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	private void renderOverviewTab(JPanel target)
 	{
 		PackCloseSnapshot snap = capturePackCloseSnapshotForDisplay();
+		overviewTab.render(target, snap, overviewMetrics(snap));
+	}
+
+	private CloudSidebarCollectionStats overviewMetrics(PackCloseSnapshot snap)
+	{
 		List<CardDefinition> all = cardDatabase.getCards();
-		List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(all);
-		CloudSidebarCollectionStats metrics = TcgPublicStatsCalculator.resolveOverview(snap, all, rollPool);
-		overviewTab.render(target, snap, metrics);
+		return TcgPublicStatsCalculator.resolveOverview(snap, all, RollPoolFilter.filterRollPool(all));
+	}
+
+	private JScrollPane[] tabScrollPanes()
+	{
+		return new JScrollPane[] {
+			welcomeScrollPane, overviewScrollPane, collectionListScrollPane, shopPacksScrollPane
+		};
+	}
+
+	private boolean footerHiddenForBlockingState()
+	{
+		return isClientInGameWorld()
+			&& (cloudSessionService.isAccountLocked() || cloudSessionService.isRestrictedWorld());
 	}
 
 	private void onCollectionTabRendered()
 	{
 		showTabContent(Tab.COLLECTION);
-		mainPanel.revalidate();
-		mainPanel.repaint();
+		relayoutMainPanel();
 	}
 
 	private void showSidebarBlockingNotice(Consumer<Runnable> show)
