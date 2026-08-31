@@ -181,7 +181,7 @@ public class PackRevealService
 				urls.add(sleeve);
 			}
 		}
-		imageCacheService.preload(urls);
+		imageCacheService.preloadAsync(urls);
 	}
 
 	public synchronized boolean supplyRevealPulls(List<PackCardResult> pulls, Set<CardCollectionKey> preOwnedCards,
@@ -202,7 +202,7 @@ public class PackRevealService
 		this.cards = List.copyOf(resolved);
 		this.batchOffset = 0;
 		this.apexPackOpen = apexPackOpen;
-		imageCacheService.preload(this.cards.stream()
+		imageCacheService.preloadAsync(this.cards.stream()
 			.flatMap(c ->
 			{
 				CardDefinition def = c.getDefinition();

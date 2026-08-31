@@ -163,7 +163,7 @@ public final class ShopTab
 		}
 		if (!urls.isEmpty())
 		{
-			imageCacheService.preload(urls);
+			imageCacheService.preloadAsync(urls);
 		}
 	}
 

@@ -7,11 +7,13 @@ import com.osrstcg.util.AtomicFiles;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +25,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReadParam;
 import javax.imageio.ImageReader;
@@ -31,7 +35,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.RuneLite;
-import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -43,9 +46,6 @@ public class CardImageCacheService
 	private static final String USER_AGENT =
 		"osrs-tcg (https://github.com/Azderi/osrs-tcg)";
 	private static final int MEMORY_CACHE_MAX_ENTRIES = 256;
-	private static final int MAX_MEMORY_IMAGE_EDGE_PX = 130;
-	private static final int MAX_MEMORY_FULL_ART_EDGE_PX = 520;
-	private static final int MAX_MEMORY_PACK_SLEEVE_EDGE_PX = 1100;
 	private static final int MAX_IN_FLIGHT_LOADS = 4;
 	private static final AtomicInteger IMAGE_LOADER_SEQ = new AtomicInteger();
 	private static final ThreadFactory IMAGE_LOADER_THREAD_FACTORY = r ->
@@ -81,11 +81,6 @@ public class CardImageCacheService
 		this.tokenStore = tokenStore;
 	}
 
-	public void preload(Collection<String> urls)
-	{
-		preloadAsync(urls);
-	}
-
 	public CompletableFuture<Void> preloadAsync(Collection<String> urls)
 	{
 		if (urls == null)
@@ -98,7 +93,7 @@ public class CardImageCacheService
 			.filter(url -> !url.isEmpty())
 			.map(this::ensureLoad)
 			.filter(Objects::nonNull)
-			.collect(java.util.stream.Collectors.toList());
+			.collect(Collectors.toList());
 		if (futures.isEmpty())
 		{
 			return CompletableFuture.completedFuture(null);
@@ -108,18 +103,13 @@ public class CardImageCacheService
 
 	public BufferedImage getCached(String pathOrUrl)
 	{
-		if (pathOrUrl == null)
+		String fetchUrl = resolveFetchUrl(pathOrUrl);
+		if (fetchUrl == null)
 		{
 			return null;
 		}
 
-		String fetchUrl = normalizeUrl(pathOrUrl);
-		if (fetchUrl.isEmpty())
-		{
-			return null;
-		}
-
-		String cacheKey = cacheIdentity(fetchUrl);
+		String cacheKey = ImageCacheIdentity.cacheIdentity(fetchUrl);
 		BufferedImage cached = memoryCache.get(cacheKey);
 		if (cached != null)
 		{
@@ -128,19 +118,19 @@ public class CardImageCacheService
 
 		if (!isInFailCooldown(cacheKey, fetchUrl))
 		{
-			ensureLoad(fetchUrl);
+			ensureLoad(pathOrUrl);
 		}
 		return null;
 	}
 
 	private CompletableFuture<BufferedImage> ensureLoad(String rawUrl)
 	{
-		String fetchUrl = normalizeUrl(rawUrl);
-		if (fetchUrl.isEmpty())
+		String fetchUrl = resolveFetchUrl(rawUrl);
+		if (fetchUrl == null)
 		{
 			return null;
 		}
-		String cacheKey = cacheIdentity(fetchUrl);
+		String cacheKey = ImageCacheIdentity.cacheIdentity(fetchUrl);
 		BufferedImage cached = memoryCache.get(cacheKey);
 		if (cached != null)
 		{
@@ -176,7 +166,7 @@ public class CardImageCacheService
 					failedAtMs.remove(key);
 					memoryCache.put(key, image);
 				}
-				else if (!isEphemeralAuthUrl(fetchUrl))
+				else if (!ImageCacheIdentity.isEphemeralAuthUrl(fetchUrl))
 				{
 					failedAtMs.put(key, System.currentTimeMillis());
 				}
@@ -191,7 +181,7 @@ public class CardImageCacheService
 		{
 			return false;
 		}
-		long cooldown = isPackAssetUrl(fetchUrl) || isCardBackUrl(fetchUrl)
+		long cooldown = ImageCacheIdentity.isShortFailCooldownUrl(fetchUrl)
 			? PACK_FAIL_COOLDOWN_MS
 			: FAIL_COOLDOWN_MS;
 		if (System.currentTimeMillis() - failedAt >= cooldown)
@@ -216,7 +206,7 @@ public class CardImageCacheService
 		}
 
 		// No network to osrs-tcg.net until the user accepts cloud consent.
-		if (isOsrsTcgNetUrl(fetchUrl) && !tokenStore.isMigrated())
+		if (ImageCacheIdentity.isOsrsTcgNetUrl(fetchUrl) && !tokenStore.isMigrated())
 		{
 			return null;
 		}
@@ -231,7 +221,7 @@ public class CardImageCacheService
 			{
 				if (!response.isSuccessful() || response.body() == null)
 				{
-					if (isPackAssetUrl(fetchUrl))
+					if (ImageCacheIdentity.isPackAssetUrl(fetchUrl))
 					{
 						log.warn("Pack image HTTP {} for {}", response.code(), fetchUrl);
 					}
@@ -252,12 +242,12 @@ public class CardImageCacheService
 				{
 					return fromCache;
 				}
-				BufferedImage image = ImageIO.read(new java.io.ByteArrayInputStream(bytes));
+				BufferedImage image = ImageIO.read(new ByteArrayInputStream(bytes));
 				if (image == null)
 				{
 					return null;
 				}
-				return downscaleForMemoryCache(image, maxMemoryEdgeForUrl(fetchUrl));
+				return downscaleForMemoryCache(image, ImageCacheIdentity.maxMemoryEdgeForUrl(fetchUrl));
 			}
 		}
 		catch (Exception ex)
@@ -296,45 +286,9 @@ public class CardImageCacheService
 		return scaled;
 	}
 
-	static int maxMemoryEdgeForUrl(String url)
-	{
-		if (url == null || url.isEmpty())
-		{
-			return MAX_MEMORY_IMAGE_EDGE_PX;
-		}
-		String lower = url.toLowerCase(java.util.Locale.ROOT);
-		if (lower.contains("/images/cardback"))
-		{
-			return MAX_MEMORY_FULL_ART_EDGE_PX;
-		}
-		if (lower.contains("/images/packs/"))
-		{
-			if (lower.contains("thumbnail"))
-			{
-				return MAX_MEMORY_IMAGE_EDGE_PX;
-			}
-			return MAX_MEMORY_PACK_SLEEVE_EDGE_PX;
-		}
-		if (lower.contains("/artwork/files/") || lower.contains("/foil/"))
-		{
-			return MAX_MEMORY_FULL_ART_EDGE_PX;
-		}
-		return MAX_MEMORY_IMAGE_EDGE_PX;
-	}
-
-	private Path diskCacheDir()
-	{
-		return Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG", "images-v4");
-	}
-
-	private Path packDiskCacheDir()
-	{
-		return Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG", "packs");
-	}
-
 	public void deleteObsoleteImageCacheDirs()
 	{
-		Path root = Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG");
+		Path root = tcgCacheRoot();
 		deleteDirectoryQuietly(root.resolve("images-v3"));
 		deleteDirectoryQuietly(root.resolve("images-v2"));
 		deleteDirectoryQuietly(root.resolve("images"));
@@ -346,9 +300,9 @@ public class CardImageCacheService
 		{
 			return;
 		}
-		try (java.util.stream.Stream<Path> walk = Files.walk(dir))
+		try (Stream<Path> walk = Files.walk(dir))
 		{
-			walk.sorted(java.util.Comparator.reverseOrder()).forEach(path ->
+			walk.sorted(Comparator.reverseOrder()).forEach(path ->
 			{
 				try
 				{
@@ -369,70 +323,12 @@ public class CardImageCacheService
 
 	private Path diskCacheFile(String cacheKey)
 	{
-		String packName = packDiskFileName(cacheKey);
+		String packName = ImageCacheIdentity.packDiskFileName(cacheKey);
 		if (packName != null)
 		{
 			return packDiskCacheDir().resolve(packName);
 		}
 		return diskCacheDir().resolve(TcgStateHash.hexOfUtf8(cacheKey) + ".png");
-	}
-
-	static boolean isPackAssetUrl(String normalizedUrl)
-	{
-		return normalizedUrl != null
-			&& normalizedUrl.toLowerCase(java.util.Locale.ROOT).contains("/images/packs/");
-	}
-
-	static boolean isCardBackUrl(String normalizedUrl)
-	{
-		return normalizedUrl != null
-			&& normalizedUrl.toLowerCase(java.util.Locale.ROOT).contains("/images/cardback");
-	}
-
-	static String packDiskFileName(String normalizedUrl)
-	{
-		if (isCardBackUrl(normalizedUrl))
-		{
-			return "cardback.png";
-		}
-		if (!isPackAssetUrl(normalizedUrl))
-		{
-			return null;
-		}
-		String path = normalizedUrl;
-		int q = path.indexOf('?');
-		if (q >= 0)
-		{
-			path = path.substring(0, q);
-		}
-		int slash = path.lastIndexOf('/');
-		String raw = slash >= 0 ? path.substring(slash + 1) : path;
-		if (raw.isBlank())
-		{
-			return TcgStateHash.hexOfUtf8(normalizedUrl) + ".bin";
-		}
-		StringBuilder sb = new StringBuilder(raw.length());
-		for (int i = 0; i < raw.length(); i++)
-		{
-			char c = raw.charAt(i);
-			if ((c >= 'a' && c <= 'z')
-				|| (c >= 'A' && c <= 'Z')
-				|| (c >= '0' && c <= '9')
-				|| c == '.' || c == '_' || c == '-')
-			{
-				sb.append(c);
-			}
-			else
-			{
-				sb.append('_');
-			}
-		}
-		String cleaned = sb.toString();
-		if (cleaned.isBlank() || cleaned.equals(".") || cleaned.equals(".."))
-		{
-			return TcgStateHash.hexOfUtf8(normalizedUrl) + ".bin";
-		}
-		return cleaned;
 	}
 
 	private BufferedImage tryLoadFromDisk(String cacheKey, String edgeHintUrl)
@@ -462,7 +358,8 @@ public class CardImageCacheService
 				int width = reader.getWidth(0);
 				int height = reader.getHeight(0);
 				int maxEdge = Math.max(width, height);
-				int memoryCap = maxMemoryEdgeForUrl(edgeHintUrl != null ? edgeHintUrl : cacheKey);
+				int memoryCap = ImageCacheIdentity.maxMemoryEdgeForUrl(
+					edgeHintUrl != null ? edgeHintUrl : cacheKey);
 				int subsample = 1;
 				while (subsample < 32 && maxEdge / subsample > memoryCap * 2)
 				{
@@ -510,39 +407,32 @@ public class CardImageCacheService
 		}
 	}
 
-	static String cacheIdentity(String absoluteUrl)
+	private static String resolveFetchUrl(String rawUrl)
 	{
-		return ImageCacheIdentity.cacheIdentity(absoluteUrl);
-	}
-
-	static boolean isEphemeralAuthUrl(String absoluteUrl)
-	{
-		return ImageCacheIdentity.isEphemeralAuthUrl(absoluteUrl);
-	}
-
-	static String stripQueryParam(String absoluteUrl, String paramName)
-	{
-		return ImageCacheIdentity.stripQueryParam(absoluteUrl, paramName);
-	}
-
-	private String normalizeUrl(String pathOrUrl)
-	{
-		return CloudEndpoints.resolvePublicUrl(pathOrUrl);
-	}
-
-	static boolean isOsrsTcgNetUrl(String url)
-	{
-		HttpUrl parsed = HttpUrl.parse(url);
-		if (parsed == null)
+		if (rawUrl == null)
 		{
-			return false;
+			return null;
 		}
-		String host = parsed.host();
-		if (host == null || host.isEmpty())
+		String fetchUrl = CloudEndpoints.resolvePublicUrl(rawUrl);
+		if (fetchUrl.isEmpty())
 		{
-			return false;
+			return null;
 		}
-		String lower = host.toLowerCase(java.util.Locale.ROOT);
-		return "osrs-tcg.net".equals(lower) || lower.endsWith(".osrs-tcg.net");
+		return fetchUrl;
+	}
+
+	private static Path tcgCacheRoot()
+	{
+		return Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG");
+	}
+
+	private Path diskCacheDir()
+	{
+		return tcgCacheRoot().resolve("images-v4");
+	}
+
+	private Path packDiskCacheDir()
+	{
+		return tcgCacheRoot().resolve("packs");
 	}
 }
