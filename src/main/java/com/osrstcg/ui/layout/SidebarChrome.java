@@ -139,6 +139,11 @@ public final class SidebarChrome
 					: CloudSessionService.ACCOUNT_QUARANTINED_STATUS)
 				: message;
 		}
+		else if (cloudSessionService.isRunescapeLoginRequired())
+		{
+			color = errorRed;
+			tooltip = "Log in to RuneScape";
+		}
 		else if (restrictedWorld)
 		{
 			color = connectingYellow;

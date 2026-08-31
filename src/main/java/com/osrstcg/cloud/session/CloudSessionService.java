@@ -134,6 +134,11 @@ public final class CloudSessionService
 		return statusMessage.get();
 	}
 
+	public boolean isRunescapeLoginRequired()
+	{
+		return client.getGameState() != GameState.LOGGED_IN;
+	}
+
 	public boolean isSessionActive()
 	{
 		return connectionState.get() == CloudConnectionState.CONNECTED && tokens.getAccessToken() != null;
