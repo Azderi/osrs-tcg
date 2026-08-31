@@ -50,9 +50,9 @@ public class TcgPartyInboundHandler
 		String who = displayName(message.getMemberId());
 		String trimmed = cardName.trim();
 		Color rarity = cardDatabase.chatRarityColorForCardName(trimmed);
-		String formatted = TcgPluginGameMessages.formatPrefixedSomeoneAddedCollection(
+		String formatted = TcgPluginGameMessages.formatSomeoneAddedCollection(
 			who, trimmed, message.isNewForCollection(), message.isFoil(), rarity);
-		String plain = TcgPluginGameMessages.plainPrefixedSomeoneAddedCollection(
+		String plain = TcgPluginGameMessages.plainSomeoneAddedCollection(
 			who, trimmed, message.isNewForCollection(), message.isFoil());
 		TcgPluginGameMessages.queueFormattedGameMessage(chatMessageManager, formatted, plain);
 	}

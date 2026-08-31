@@ -21,7 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 public class CardDatabase
 {
 	private List<CardDefinition> cards = Collections.emptyList();
-	private Map<String, Color> chatRarityColorByLowerCaseName = Map.of();
+	private Map<String, Color> chatRarityColors = Map.of();
 	private Map<String, CardDefinition> byLowerCaseName = Map.of();
 
 	@Inject
@@ -74,7 +74,7 @@ public class CardDatabase
 		{
 			return Color.WHITE;
 		}
-		Color c = chatRarityColorByLowerCaseName.get(cardName.trim().toLowerCase(Locale.ROOT));
+		Color c = chatRarityColors.get(cardName.trim().toLowerCase(Locale.ROOT));
 		return c != null ? c : Color.WHITE;
 	}
 
@@ -82,7 +82,7 @@ public class CardDatabase
 	{
 		if (cards.isEmpty())
 		{
-			chatRarityColorByLowerCaseName = Map.of();
+			chatRarityColors = Map.of();
 			byLowerCaseName = Map.of();
 			return;
 		}
@@ -103,7 +103,7 @@ public class CardDatabase
 				: displayColor;
 			chatMap.putIfAbsent(key, chatColor);
 		}
-		chatRarityColorByLowerCaseName = Collections.unmodifiableMap(chatMap);
+		chatRarityColors = Collections.unmodifiableMap(chatMap);
 		byLowerCaseName = Collections.unmodifiableMap(nameMap);
 	}
 

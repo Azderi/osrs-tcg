@@ -27,6 +27,8 @@ import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntSupplier;
+import java.util.function.Predicate;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultComboBoxModel;
@@ -52,7 +54,7 @@ public final class CollectionTab
 {
 	public static final String LIST_CARD = "list";
 	public static final String EMPTY_CARD = "empty";
-	public static final int ROW_HEIGHT = 24;
+	private static final int ROW_HEIGHT = 24;
 
 	private final CardDatabase cardDatabase;
 	private final PackCatalogService packCatalogService;
@@ -149,7 +151,7 @@ public final class CollectionTab
 		collectionList.setListData(new CollectionListModel.Row[0]);
 	}
 
-	public void syncCellWidth()
+	private void syncCellWidth()
 	{
 		int w = contentWidth.getAsInt();
 		if (collectionList.getFixedCellWidth() != w)
@@ -164,24 +166,16 @@ public final class CollectionTab
 		List<CardDefinition> allCards = cardDatabase.getCards();
 		List<BoosterPackDefinition> packs = collectionFilterPacks();
 		BoosterPackDefinition selectedPack = resolveSelectedPack(packs);
+		List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(allCards);
 
 		collectionContent.removeAll();
-		JPanel toolbar = buildCollectionToolbar(packs, selectedPack, snap, allCards);
+		JPanel toolbar = buildCollectionToolbar(packs, selectedPack, snap, allCards, rollPool);
 		collectionContent.add(toolbar, BorderLayout.NORTH);
 		collectionContent.add(collectionListHost, BorderLayout.CENTER);
 		collectionContent.revalidate();
 		collectionContent.repaint();
 
 		scheduleCollectionListRebuild(snap, allCards, selectedPack);
-	}
-
-	private void scheduleCollectionListRebuildFromCurrentFilters()
-	{
-		List<BoosterPackDefinition> packs = collectionFilterPacks();
-		scheduleCollectionListRebuild(
-			snapshotSupplier.get(),
-			cardDatabase.getCards(),
-			resolveSelectedPack(packs));
 	}
 
 	private BoosterPackDefinition resolveSelectedPack(List<BoosterPackDefinition> packs)
@@ -264,7 +258,8 @@ public final class CollectionTab
 		List<BoosterPackDefinition> packs,
 		BoosterPackDefinition selectedPack,
 		PackCloseSnapshot snap,
-		List<CardDefinition> allCards)
+		List<CardDefinition> allCards,
+		List<CardDefinition> rollPool)
 	{
 		JPanel toolbar = new JPanel();
 		toolbar.setLayout(new BoxLayout(toolbar, BoxLayout.Y_AXIS));
@@ -285,19 +280,14 @@ public final class CollectionTab
 		JComboBox<CollectionFilterOptions.PackFilterOption> packCombo =
 			styleCollectionCombo(new JComboBox<>(packComboModel.model));
 		packCombo.setSelectedItem(packComboModel.selected);
-		packCombo.addActionListener(e ->
-		{
-			CollectionFilterOptions.PackFilterOption opt =
-				(CollectionFilterOptions.PackFilterOption) packCombo.getSelectedItem();
-			String nextId = opt == null ? null : opt.getPackId();
-			if ((nextId == null && collectionPackFilterId == null)
-				|| (nextId != null && nextId.equals(collectionPackFilterId)))
+		wireFilterCombo(packCombo,
+			opt ->
 			{
-				return;
-			}
-			collectionPackFilterId = nextId;
-			refreshCollectionTabUi();
-		});
+				String nextId = opt == null ? null : opt.getPackId();
+				return (nextId == null && collectionPackFilterId == null)
+					|| (nextId != null && nextId.equals(collectionPackFilterId));
+			},
+			opt -> collectionPackFilterId = opt == null ? null : opt.getPackId());
 		filters.add(labeledCollectionFilter("Collection", packCombo));
 
 		CollectionFilterOptions.RarityComboModel rarityComboModel =
@@ -305,38 +295,24 @@ public final class CollectionTab
 		JComboBox<CollectionFilterOptions.RarityFilterOption> rarityCombo =
 			styleCollectionCombo(new JComboBox<>(rarityComboModel.model));
 		rarityCombo.setSelectedItem(rarityComboModel.selected);
-		rarityCombo.addActionListener(e ->
-		{
-			CollectionFilterOptions.RarityFilterOption opt =
-				(CollectionFilterOptions.RarityFilterOption) rarityCombo.getSelectedItem();
-			RarityMath.Tier next = opt == null ? null : opt.getTier();
-			if (next == collectionRarityFilter)
+		wireFilterCombo(rarityCombo,
+			opt ->
 			{
-				return;
-			}
-			collectionRarityFilter = next;
-			refreshCollectionTabUi();
-		});
+				RarityMath.Tier next = opt == null ? null : opt.getTier();
+				return next == collectionRarityFilter;
+			},
+			opt -> collectionRarityFilter = opt == null ? null : opt.getTier());
 		filters.add(labeledCollectionFilter("Rarity", rarityCombo));
 
 		DefaultComboBoxModel<CollectionListModel.SortMode> sortModel =
 			new DefaultComboBoxModel<>(CollectionListModel.SortMode.values());
 		JComboBox<CollectionListModel.SortMode> sortCombo = styleCollectionCombo(new JComboBox<>(sortModel));
 		sortCombo.setSelectedItem(collectionSortMode);
-		sortCombo.addActionListener(e ->
-		{
-			CollectionListModel.SortMode next = (CollectionListModel.SortMode) sortCombo.getSelectedItem();
-			if (next == null || next == collectionSortMode)
-			{
-				return;
-			}
-			collectionSortMode = next;
-			refreshCollectionTabUi();
-		});
+		wireFilterCombo(sortCombo, next -> next == null || next == collectionSortMode, next -> collectionSortMode = next);
 		filters.add(labeledCollectionFilter("Sort by", sortCombo));
 
 		toolbar.add(filters);
-		toolbar.add(buildCollectionProgressLabel(selectedPack, snap, allCards));
+		toolbar.add(buildCollectionProgressLabel(selectedPack, snap, allCards, rollPool));
 
 		return toolbar;
 	}
@@ -344,9 +320,9 @@ public final class CollectionTab
 	private JLabel buildCollectionProgressLabel(
 		BoosterPackDefinition selectedPack,
 		PackCloseSnapshot snap,
-		List<CardDefinition> allCards)
+		List<CardDefinition> allCards,
+		List<CardDefinition> rollPool)
 	{
-		List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(allCards);
 		final String label;
 		final int owned;
 		final int total;
@@ -425,26 +401,7 @@ public final class CollectionTab
 		field.setForeground(Color.WHITE);
 		field.setCaretColor(Color.WHITE);
 		SidebarLayout.styleOutlinedButton(field, ColorScheme.MEDIUM_GRAY_COLOR, 2, 4, 2, 4);
-		field.getDocument().addDocumentListener(new DocumentListener()
-		{
-			@Override
-			public void insertUpdate(DocumentEvent e)
-			{
-				onCollectionSearchEdited();
-			}
-
-			@Override
-			public void removeUpdate(DocumentEvent e)
-			{
-				onCollectionSearchEdited();
-			}
-
-			@Override
-			public void changedUpdate(DocumentEvent e)
-			{
-				onCollectionSearchEdited();
-			}
-		});
+		field.getDocument().addDocumentListener(documentListener(this::onCollectionSearchEdited));
 		return field;
 	}
 
@@ -460,7 +417,50 @@ public final class CollectionTab
 		{
 			return;
 		}
-		scheduleCollectionListRebuildFromCurrentFilters();
+		List<BoosterPackDefinition> packs = collectionFilterPacks();
+		scheduleCollectionListRebuild(
+			snapshotSupplier.get(),
+			cardDatabase.getCards(),
+			resolveSelectedPack(packs));
+	}
+
+	private static DocumentListener documentListener(Runnable onChange)
+	{
+		return new DocumentListener()
+		{
+			@Override
+			public void insertUpdate(DocumentEvent e)
+			{
+				onChange.run();
+			}
+
+			@Override
+			public void removeUpdate(DocumentEvent e)
+			{
+				onChange.run();
+			}
+
+			@Override
+			public void changedUpdate(DocumentEvent e)
+			{
+				onChange.run();
+			}
+		};
+	}
+
+	private <T> void wireFilterCombo(JComboBox<T> combo, Predicate<T> unchanged, Consumer<T> apply)
+	{
+		combo.addActionListener(e ->
+		{
+			@SuppressWarnings("unchecked")
+			T next = (T) combo.getSelectedItem();
+			if (unchanged.test(next))
+			{
+				return;
+			}
+			apply.accept(next);
+			refreshCollectionTabUi();
+		});
 	}
 
 	private static <T> JComboBox<T> styleCollectionCombo(JComboBox<T> combo)

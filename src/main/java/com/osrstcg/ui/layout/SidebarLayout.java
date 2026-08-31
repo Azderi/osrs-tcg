@@ -32,9 +32,9 @@ public final class SidebarLayout
 {
 	public static final int MAIN_PANEL_INSET = 6;
 	public static final int TAB_BUTTON_GAP = 3;
-	public static final int TAB_SCROLLBAR_WIDTH = 6;
+	public static final int TAB_SCROLLBAR_THUMB = 6;
 	public static final int TAB_SCROLLBAR_GAP = 10;
-	public static final int TAB_SCROLLBAR_RESERVED_WIDTH = TAB_SCROLLBAR_WIDTH + TAB_SCROLLBAR_GAP;
+	public static final int TAB_SCROLLBAR_WIDTH = TAB_SCROLLBAR_THUMB + TAB_SCROLLBAR_GAP;
 	public static final String PATREON_URL = "https://www.patreon.com/Azderi";
 	public static final String DISCORD_URL = "https://discord.gg/P4pPu6RnCj";
 	public static final String CREDITS_IMAGE_PATH = "/com/osrstcg/images/credits.png";
@@ -45,7 +45,7 @@ public final class SidebarLayout
 
 	public static int sidebarInnerWidth()
 	{
-		return Math.max(160, PluginPanel.PANEL_WIDTH - 2 * PluginPanel.BORDER_OFFSET - TAB_SCROLLBAR_RESERVED_WIDTH);
+		return Math.max(160, PluginPanel.PANEL_WIDTH - 2 * PluginPanel.BORDER_OFFSET - TAB_SCROLLBAR_WIDTH);
 	}
 
 	public static void configureTabScrollPane(JScrollPane scrollPane)
@@ -62,7 +62,7 @@ public final class SidebarLayout
 		vbar.setUnitIncrement(16);
 		vbar.setOpaque(false);
 		vbar.putClientProperty(FlatClientProperties.STYLE,
-			"width:" + TAB_SCROLLBAR_WIDTH + "; trackArc:999; thumbArc:999; trackInsets:0,2,0,2; thumbInsets:0,2,0,2; "
+			"width:" + TAB_SCROLLBAR_THUMB + "; trackArc:999; thumbArc:999; trackInsets:0,2,0,2; thumbInsets:0,2,0,2; "
 				+ "track:#00000000; thumb:#4D4D4D; hoverThumbColor:#787878; showButtons:false");
 
 		scrollPane.addHierarchyListener(e ->

@@ -124,7 +124,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	private final JScrollPane shopPacksScrollPane = new JScrollPane(packsContent);
 	private final JPanel footerPanel = new JPanel();
 	private final JPanel createProfileFooterWrap = new JPanel(new BorderLayout(0, 0));
-	private final Component createProfileFooterSpacer = Box.createRigidArea(new Dimension(0, 10));
+	private final Component createProfileFooterGap = Box.createRigidArea(new Dimension(0, 10));
 	private final JPanel albumFooterWrap = new JPanel(new BorderLayout(0, 0));
 	private final JPanel tradeFooterWrap = new JPanel(new BorderLayout(0, 0));
 	private final Component tradeFooterSpacer = Box.createRigidArea(new Dimension(0, 10));
@@ -138,14 +138,14 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	private final JButton shopTabButton = new JButton(Tab.SHOP.label);
 	private Tab selectedTab = Tab.OVERVIEW;
 	private final Runnable onCollectionChanged = () -> SwingUtilities.invokeLater(this::refresh);
-	private boolean defaultTabSelectionInitialized;
+	private boolean defaultTabInitialized;
 	private boolean refreshQueued;
 	private boolean creditsRefreshQueued;
 	private volatile boolean panelVisible;
 	private int lastPanelWidthForLayout = -1;
 	private int lastPanelHeightForLayout = -1;
 	private final AtomicLong packCloseRefreshGen = new AtomicLong();
-	private PackCloseSnapshot sidebarRevealSpoilerFreeze;
+	private PackCloseSnapshot sidebarRevealSpoilerSnap;
 	private final boolean[] revealTabBuilt = new boolean[Tab.values().length];
 
 	private final WelcomeTab welcomeTab;
@@ -191,25 +191,25 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			config, cloudPackService, this::liveSidebarContentWidth, TcgPanel.class);
 		this.accountLauncher = new AccountPanelLauncher(
 			cloudSessionService, cloudApiClient, scheduler, chatMessageManager,
-			this::updateManageAccountButtonState);
+			this::updateManageAccountState);
 		this.openAccountPanelButton.addActionListener(e -> accountLauncher.open());
 		this.createProfileController = new CreateProfileController(
 			cloudSessionService, scheduler, chatMessageManager,
-			this, this::refresh, this::selectOverviewAfterCreateProfile,
+			this, this::refresh, this::selectOverviewAfterCreate,
 			accountLauncher::open, this::afterCreateProfileUi);
 		this.createProfileButton.addActionListener(e -> createProfileController.createProfile());
 		this.sidebarNoticeView = new SidebarNoticeView(
-			openAccountPanelButton, albumFooterWrap, cloudSessionService, this::updateManageAccountButtonState);
+			openAccountPanelButton, albumFooterWrap, cloudSessionService, this::updateManageAccountState);
 		this.collectionTab = new CollectionTab(
 			cardDatabase, packCatalogService, scheduler,
-			this::liveSidebarContentWidth, this::capturePackCloseSnapshotForDisplay,
+			this::liveSidebarContentWidth, this::capturePackCloseSnapshot,
 			this::onCollectionTabRendered, () -> selectedTab == Tab.COLLECTION,
 			collectionContent, collectionListHost, collectionList, collectionListScrollPane, collectionEmptyLabel);
 		this.shopTab = new ShopTab(
 			stateService, cardDatabase, packRevealService,
 			packOpenCoordinator, packCatalogService, imageCacheService, config, cloudSessionService,
 			overviewTab,
-			this::liveShopPacksContentWidth, this::capturePackCloseSnapshotForDisplay,
+			this::liveShopPacksContentWidth, this::capturePackCloseSnapshot,
 			this::refresh, this::beginPackRevealSidebarFreeze, this::clearPackRevealSidebarFreeze,
 			shopHeaderPanel, packsContent);
 
@@ -380,7 +380,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		{
 			return;
 		}
-		if (sidebarRevealSpoilerFreeze != null && packRevealService.isActive())
+		if (sidebarRevealSpoilerSnap != null && packRevealService.isActive())
 		{
 			return;
 		}
@@ -460,7 +460,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		{
 			return;
 		}
-		if (applyNormalSidebarChromeOrBlock())
+		if (applySidebarChromeOrBlock())
 		{
 			return;
 		}
@@ -496,7 +496,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			clearPackRevealSidebarFreeze();
 		}
 		updateCloudStatusIndicator();
-		if (applyNormalSidebarChromeOrBlock())
+		if (applySidebarChromeOrBlock())
 		{
 			return;
 		}
@@ -504,7 +504,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		relayoutMainPanel();
 	}
 
-	private boolean applyNormalSidebarChromeOrBlock()
+	private boolean applySidebarChromeOrBlock()
 	{
 		if (shouldShowLoggedOutPrompt())
 		{
@@ -522,7 +522,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		{
 			titleTabWrapper.setVisible(true);
 			footerPanel.setVisible(true);
-			sidebarNoticeView.restoreOpenAccountPanelButtonToFooter();
+			sidebarNoticeView.restoreAccountPanelToFooter();
 			applyDefaultTabSelectionOnce();
 			updateTabStyles();
 			return false;
@@ -533,11 +533,11 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 
 	private void applyDefaultTabSelectionOnce()
 	{
-		if (defaultTabSelectionInitialized)
+		if (defaultTabInitialized)
 		{
 			return;
 		}
-		defaultTabSelectionInitialized = true;
+		defaultTabInitialized = true;
 		long openedPacks = stateService.getState().getEconomyState().getOpenedPacks();
 		selectedTab = openedPacks == 0 ? Tab.WELCOME : Tab.OVERVIEW;
 	}
@@ -560,7 +560,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		createProfileFooterWrap.add(createProfileButton, BorderLayout.SOUTH);
 		footerPanel.add(createProfileFooterWrap);
 
-		footerPanel.add(createProfileFooterSpacer);
+		footerPanel.add(createProfileFooterGap);
 
 		tradeFooterWrap.setOpaque(false);
 		SidebarLayout.stylePrimaryFooterButton(openTradesButton);
@@ -590,7 +590,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 
 	private void showLoggedOutWelcome()
 	{
-		sidebarNoticeView.restoreOpenAccountPanelButtonToFooter();
+		sidebarNoticeView.restoreAccountPanelToFooter();
 		titleTabWrapper.setVisible(true);
 		selectedTab = Tab.WELCOME;
 		updateTabStyles();
@@ -761,7 +761,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		}
 		cloudStatusIndicator.revalidate();
 		cloudStatusIndicator.repaint();
-		updateManageAccountButtonState();
+		updateManageAccountState();
 		updateFooterVisibility();
 	}
 
@@ -846,15 +846,15 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			&& cloudSessionService.needsCloudConsent();
 
 		footerPanel.setVisible(true);
-		sidebarNoticeView.restoreOpenAccountPanelButtonToFooter();
+		sidebarNoticeView.restoreAccountPanelToFooter();
 		createProfileFooterWrap.setVisible(showCreateProfile);
-		updateCreateProfileButtonState();
+		updateCreateProfileState();
 
 		boolean cloudConnected = cloudSessionService.isSessionActive()
 			&& !cloudSessionService.needsCloudConsent();
 		boolean showAccountPanel = inWorld && !restrictedWorld && cloudConnected;
 		albumFooterWrap.setVisible(showAccountPanel);
-		updateManageAccountButtonState();
+		updateManageAccountState();
 
 		boolean showTrade = inWorld
 			&& !restrictedWorld
@@ -863,7 +863,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			&& selectedTab != Tab.WELCOME;
 		tradeFooterWrap.setVisible(showTrade);
 
-		createProfileFooterSpacer.setVisible(showCreateProfile && (showAccountPanel || showTrade));
+		createProfileFooterGap.setVisible(showCreateProfile && (showAccountPanel || showTrade));
 		tradeFooterSpacer.setVisible(showTrade && showAccountPanel);
 
 		if (showCreateProfile)
@@ -934,7 +934,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 
 	private void renderSelectedTab()
 	{
-		TabRenderMode mode = packRevealService.isActive() && sidebarRevealSpoilerFreeze != null
+		TabRenderMode mode = packRevealService.isActive() && sidebarRevealSpoilerSnap != null
 			? TabRenderMode.FROZEN
 			: TabRenderMode.NORMAL;
 		renderTab(selectedTab, mode, null, null, null);
@@ -1025,7 +1025,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		}
 	}
 
-	private PackCloseSnapshot capturePackCloseSnapshot()
+	private PackCloseSnapshot buildPackCloseSnapshot()
 	{
 		synchronized (stateService)
 		{
@@ -1040,26 +1040,26 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		}
 	}
 
-	private PackCloseSnapshot capturePackCloseSnapshotForDisplay()
+	private PackCloseSnapshot capturePackCloseSnapshot()
 	{
-		if (sidebarRevealSpoilerFreeze != null && packRevealService.isActive())
+		if (sidebarRevealSpoilerSnap != null && packRevealService.isActive())
 		{
-			return sidebarRevealSpoilerFreeze;
+			return sidebarRevealSpoilerSnap;
 		}
-		return capturePackCloseSnapshot();
+		return buildPackCloseSnapshot();
 	}
 
 	@Override
 	public void beginPackRevealSidebarFreeze()
 	{
-		sidebarRevealSpoilerFreeze = capturePackCloseSnapshot();
+		sidebarRevealSpoilerSnap = capturePackCloseSnapshot();
 		resetRevealTabBuilt();
 	}
 
 	@Override
 	public void clearPackRevealSidebarFreeze()
 	{
-		sidebarRevealSpoilerFreeze = null;
+		sidebarRevealSpoilerSnap = null;
 		resetRevealTabBuilt();
 	}
 
@@ -1087,7 +1087,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			return SidebarLayout.sidebarInnerWidth();
 		}
 		int mainPanelHorizontalPad = 12;
-		return Math.max(80, raw - mainPanelHorizontalPad - SidebarLayout.TAB_SCROLLBAR_RESERVED_WIDTH);
+		return Math.max(80, raw - mainPanelHorizontalPad - SidebarLayout.TAB_SCROLLBAR_WIDTH);
 	}
 
 	private int liveShopPacksContentWidth()
@@ -1129,7 +1129,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 
 	private void renderOverviewTab(JPanel target)
 	{
-		PackCloseSnapshot snap = capturePackCloseSnapshotForDisplay();
+		PackCloseSnapshot snap = capturePackCloseSnapshot();
 		overviewTab.render(target, snap, overviewMetrics(snap));
 	}
 
@@ -1170,17 +1170,17 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		titlePanel.repaint();
 	}
 
-	private void updateManageAccountButtonState()
+	private void updateManageAccountState()
 	{
-		accountLauncher.updateManageAccountButtonState(openAccountPanelButton, openTradesButton);
+		accountLauncher.updateManageAccountState(openAccountPanelButton, openTradesButton);
 	}
 
-	private void updateCreateProfileButtonState()
+	private void updateCreateProfileState()
 	{
 		createProfileController.updateButtonState(createProfileButton);
 	}
 
-	private void selectOverviewAfterCreateProfile()
+	private void selectOverviewAfterCreate()
 	{
 		if (selectedTab != Tab.OVERVIEW)
 		{
@@ -1191,7 +1191,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 
 	private void afterCreateProfileUi()
 	{
-		updateCreateProfileButtonState();
+		updateCreateProfileState();
 		updateFooterVisibility();
 		updateCloudStatusIndicator();
 	}

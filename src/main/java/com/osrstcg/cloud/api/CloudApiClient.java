@@ -46,7 +46,7 @@ public final class CloudApiClient
 	private volatile String cachedCatalogVersion;
 	private volatile Runnable staleRefreshHandler;
 	private volatile Consumer<CloudApiException> accountLockHandler;
-	private volatile Consumer<String> activitiesVersionListener;
+	private volatile Consumer<String> activitiesVersionCb;
 	/** Nesting depth for {@link #openConsentTraffic()} (create-profile after Yes). */
 	private final ThreadLocal<Integer> consentTrafficDepth = ThreadLocal.withInitial(() -> 0);
 
@@ -114,7 +114,7 @@ public final class CloudApiClient
 
 	public void setActivitiesVersionListener(Consumer<String> listener)
 	{
-		activitiesVersionListener = listener;
+		activitiesVersionCb = listener;
 	}
 
 	public String getCachedCatalogVersion()
@@ -517,7 +517,7 @@ public final class CloudApiClient
 		{
 			return;
 		}
-		Consumer<String> listener = activitiesVersionListener;
+		Consumer<String> listener = activitiesVersionCb;
 		if (listener != null)
 		{
 			try

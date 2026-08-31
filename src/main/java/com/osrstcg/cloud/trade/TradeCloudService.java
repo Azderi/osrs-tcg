@@ -163,7 +163,11 @@ public final class TradeCloudService
 						+ (url == null || url.isEmpty() ? "." : " - finish on the website."));
 				if (url != null && !url.isEmpty())
 				{
-					openUrl(CloudEndpoints.rewriteToWebBase(url));
+					String browseUrl = CloudEndpoints.rewriteToWebBase(url);
+					if (browseUrl != null && !browseUrl.isBlank())
+					{
+						LinkBrowser.browse(browseUrl);
+					}
 				}
 				notifyListener();
 				requestForcedRefresh();
@@ -223,7 +227,7 @@ public final class TradeCloudService
 		{
 			nextDelayMs = poll();
 			backoffMs.set(0L);
-			lastGoodPollAfterMs.set(resolveSuccessPollMs(nextDelayMs));
+			lastGoodPollAfterMs.set(nextDelayMs <= 0L ? DEFAULT_POLL_MS : nextDelayMs);
 			nextDelayMs = lastGoodPollAfterMs.get();
 		}
 		catch (CloudApiException ex)
@@ -233,7 +237,7 @@ public final class TradeCloudService
 		}
 		catch (Exception e)
 		{
-			nextDelayMs = delayForTransientError();
+			nextDelayMs = nextBackoffDelayMs();
 			log.debug("Trade inbox poll failed", e);
 		}
 		finally
@@ -259,16 +263,12 @@ public final class TradeCloudService
 
 	private long poll() throws Exception
 	{
-		if (!session.isReady())
-		{
-			return lastGoodPollAfterMs.get();
-		}
-		long hash = client.getAccountHash();
-		if (hash == -1L)
+		if (!session.isReady() || client.getAccountHash() == -1L)
 		{
 			return lastGoodPollAfterMs.get();
 		}
 
+		long hash = client.getAccountHash();
 		long knownRevision = lastRevision.get();
 		Long since = knownRevision >= 0L ? knownRevision : null;
 		JsonObject response = api.getTradeInbox(hash, since);
@@ -284,7 +284,7 @@ public final class TradeCloudService
 		{
 			JsonObject stats = response.getAsJsonObject("stats");
 			session.applySidebarStats(stats);
-			session.maybeReconcileCollectionFromInbox(stats);
+			session.reconcileCollectionFromInbox(stats);
 		}
 
 		if (response.has("revision") && !response.get("revision").isJsonNull())
@@ -299,7 +299,11 @@ public final class TradeCloudService
 		{
 			if (loginBroadcast || !item.isNotified())
 			{
-				queuePendingTradeRequestMessage(item.getFromDisplayName());
+				String fromLabel = item.getFromDisplayName() == null || item.getFromDisplayName().isBlank()
+					? "someone"
+					: item.getFromDisplayName().trim();
+				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+					"You have a pending trade request from " + fromLabel + ". Check the sidebar!");
 				if (!item.isNotified())
 				{
 					try
@@ -318,15 +322,6 @@ public final class TradeCloudService
 
 		notifyListener();
 		return pollAfterMs;
-	}
-
-	private void queuePendingTradeRequestMessage(String fromDisplayName)
-	{
-		String fromLabel = fromDisplayName == null || fromDisplayName.isBlank()
-			? "someone"
-			: fromDisplayName.trim();
-		TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
-			"You have a pending trade request from " + fromLabel + ". Check the sidebar!");
 	}
 
 	private void applyEconomyFieldsFromRpc(JsonObject response)
@@ -382,22 +377,12 @@ public final class TradeCloudService
 		}
 		if (ex.isRateLimited() || ex.isServerError())
 		{
-			long next = backoffMs.get();
-			if (next <= 0L)
-			{
-				next = DEFAULT_POLL_MS;
-			}
-			else
-			{
-				next = Math.min(BACKOFF_MAX_MS, next * 2L);
-			}
-			backoffMs.set(next);
-			return Math.max(DEFAULT_POLL_MS, next);
+			return nextBackoffDelayMs();
 		}
 		return Math.max(DEFAULT_POLL_MS, lastGoodPollAfterMs.get());
 	}
 
-	private long delayForTransientError()
+	private long nextBackoffDelayMs()
 	{
 		long next = backoffMs.get();
 		if (next <= 0L)
@@ -410,23 +395,5 @@ public final class TradeCloudService
 		}
 		backoffMs.set(next);
 		return Math.max(DEFAULT_POLL_MS, next);
-	}
-
-	private static long resolveSuccessPollMs(long pollAfterMs)
-	{
-		if (pollAfterMs <= 0L)
-		{
-			return DEFAULT_POLL_MS;
-		}
-		return pollAfterMs;
-	}
-
-	private static void openUrl(String url)
-	{
-		if (url == null || url.isBlank())
-		{
-			return;
-		}
-		LinkBrowser.browse(url);
 	}
 }

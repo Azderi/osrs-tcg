@@ -183,7 +183,7 @@ public class OsrsTcgPlugin extends Plugin
 		}
 		if (client.getAccountHash() != -1L)
 		{
-			loadStateForLoggedInAccountIfNeeded();
+			loadStateIfLoggedIn();
 		}
 		log.info("OSRS TCG plugin started. Credits={}, ownedCards={}, cardDefinitions={}",
 			NumberFormatting.format(stateService.getState().getEconomyState().getCredits()),
@@ -212,14 +212,14 @@ public class OsrsTcgPlugin extends Plugin
 		eventBus.register(creditAwardService);
 		creditAwardService.onPluginStarted();
 		eventBus.register(creditsRateTracker);
-		cloudSessionService.registerAccountLockCleanup(creditAwardService::stopCreditTrackingForAccountLock);
+		cloudSessionService.registerAccountLockCleanup(creditAwardService::stopCreditTrackingOnLock);
 		cloudSessionService.registerAccountLockCleanup(npcKillCreditTracker::shutdown);
 		eventBus.register(npcKillCreditTracker);
 		eventBus.register(gameMessageCreditTracker);
 		wsClient.registerMessage(TcgPullPartyMessage.class);
 		wsClient.registerMessage(TcgCollectionSetCompletePartyMessage.class);
 		chatCommandManager.registerCommandAsync(
-			TCG_PUBLIC_CHAT_COMMAND, this::lookupTcgPublicStatsChatCommand);
+			TCG_PUBLIC_CHAT_COMMAND, this::lookupPublicStatsChatCommand);
 		tcgPanel.start();
 		cloudSessionCoordinator.installStatusListener();
 		tradeCloudService.setInboxListener(tcgPanel::refresh);
@@ -341,7 +341,7 @@ public class OsrsTcgPlugin extends Plugin
 		}
 		else if (gs == GameState.LOGGED_IN)
 		{
-			loadStateForLoggedInAccountIfNeeded();
+			loadStateIfLoggedIn();
 		}
 		cloudSessionCoordinator.onGameStateChanged(event);
 		tcgPanel.refresh();
@@ -377,7 +377,7 @@ public class OsrsTcgPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onTcgCollectionSetCompletePartyMessage(TcgCollectionSetCompletePartyMessage message)
+	public void onCollectionSetCompleteParty(TcgCollectionSetCompletePartyMessage message)
 	{
 		tcgPartyInboundHandler.onCollectionSetComplete(message);
 	}
@@ -416,7 +416,7 @@ public class OsrsTcgPlugin extends Plugin
 		tcgPanel.refresh();
 	}
 
-	private void loadStateForLoggedInAccountIfNeeded()
+	private void loadStateIfLoggedIn()
 	{
 		long accountHash = client.getAccountHash();
 		if (accountHash == -1L)
@@ -444,7 +444,7 @@ public class OsrsTcgPlugin extends Plugin
 		creditsInfoboxMenuHandler.onOverlayMenuClicked(event);
 	}
 
-	private void lookupTcgPublicStatsChatCommand(ChatMessage chatMessage, String message)
+	private void lookupPublicStatsChatCommand(ChatMessage chatMessage, String message)
 	{
 		if (!message.trim().equalsIgnoreCase(TCG_PUBLIC_CHAT_COMMAND))
 		{

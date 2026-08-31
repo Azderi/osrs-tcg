@@ -125,7 +125,7 @@ public class PackRevealService
 	private int batchOffset;
 	private int revealedCount;
 	private boolean[] revealedByIndex = new boolean[0];
-	private boolean[] collectionChatPostedByIndex = new boolean[0];
+	private boolean[] collectionChatPosted = new boolean[0];
 	private long[] flipStartedAtMs = new long[0];
 	public static final int CARD_FLIP_MS = 550;
 	private long phaseStartedAt;
@@ -158,7 +158,7 @@ public class PackRevealService
 		List<RevealCard> placeholders = revealCardResolver.createPlaceholderCards(expectedCardCount);
 		this.cards = placeholders;
 		this.batchOffset = 0;
-		this.collectionChatPostedByIndex = new boolean[placeholders.size()];
+		this.collectionChatPosted = new boolean[placeholders.size()];
 		initCurrentBatchRevealFlags();
 		this.phaseStartedAt = 0L;
 		this.awaitingServerPulls = true;
@@ -219,7 +219,7 @@ public class PackRevealService
 				return Stream.of(def.getImageUrl());
 			})
 			.collect(Collectors.toList()));
-		this.collectionChatPostedByIndex = new boolean[this.cards.size()];
+		this.collectionChatPosted = new boolean[this.cards.size()];
 		initCurrentBatchRevealFlags();
 		this.awaitingServerPulls = false;
 		this.pendingRevealStartedAtMs = 0L;
@@ -327,7 +327,7 @@ public class PackRevealService
 			{
 				return false;
 			}
-			forceRevealCurrentBatchAndWaitClose();
+			forceRevealBatchAndWaitClose();
 			return false;
 		}
 
@@ -345,14 +345,14 @@ public class PackRevealService
 		return true;
 	}
 
-	private void forceRevealCurrentBatchAndWaitClose()
+	private void forceRevealBatchAndWaitClose()
 	{
 		int batchSize = visibleCount();
 		if (phase == Phase.CARD_REVEAL && revealedCount < batchSize)
 		{
 			packRevealSoundService.playCardFlip();
 		}
-		announcePartyPullsForUnrevealed(true);
+		announcePartyUnrevealedPulls(true);
 		if (hasUnrevealedPremiumAudio(visibleCards(), revealedByIndex))
 		{
 			packRevealSoundService.playMythicReveal();
@@ -366,7 +366,7 @@ public class PackRevealService
 		{
 			flipStartedAtMs[i] = 0L;
 		}
-		notifyPackAtEndIfBatchBoundary();
+		notifyPackAtBatchEnd();
 		phase = Phase.WAIT_CLOSE;
 		phaseStartedAt = System.currentTimeMillis();
 	}
@@ -408,7 +408,7 @@ public class PackRevealService
 		}
 		else if (phase == Phase.CARD_REVEAL && allRevealSlotsFaceUp())
 		{
-			enterWaitCloseAfterBatchFullyRevealed();
+			enterWaitCloseAfterBatch();
 		}
 	}
 
@@ -505,7 +505,7 @@ public class PackRevealService
 		}
 		if (anyCompleted && phase == Phase.CARD_REVEAL && revealedCount >= visibleCount() && visibleCount() > 0)
 		{
-			enterWaitCloseAfterBatchFullyRevealed();
+			enterWaitCloseAfterBatch();
 		}
 	}
 
@@ -594,7 +594,7 @@ public class PackRevealService
 		batchOffset = 0;
 		revealedCount = 0;
 		revealedByIndex = new boolean[0];
-		collectionChatPostedByIndex = new boolean[0];
+		collectionChatPosted = new boolean[0];
 		flipStartedAtMs = new long[0];
 		phaseStartedAt = 0L;
 		boosterPackId = "";
@@ -630,19 +630,19 @@ public class PackRevealService
 		{
 			return List.of();
 		}
-		announcePartyPullsForUnrevealed(false);
-		announceRemainingCollectionAddsToChat();
+		announcePartyUnrevealedPulls(false);
+		announceRemainingCollectionChat();
 		List<RevealCard> snapshot = List.copyOf(cards);
 		packRevealSoundService.hardStop();
 		reset();
 		return snapshot;
 	}
 
-	private void announceRemainingCollectionAddsToChat()
+	private void announceRemainingCollectionChat()
 	{
 		for (int i = 0; i < cards.size(); i++)
 		{
-			if (i < collectionChatPostedByIndex.length && collectionChatPostedByIndex[i])
+			if (i < collectionChatPosted.length && collectionChatPosted[i])
 			{
 				continue;
 			}
@@ -651,10 +651,10 @@ public class PackRevealService
 			{
 				continue;
 			}
-			pullNotificationService.announceCollectionAddAlways(card);
-			if (i < collectionChatPostedByIndex.length)
+			pullNotificationService.postCollectionAddChat(card);
+			if (i < collectionChatPosted.length)
 			{
-				collectionChatPostedByIndex[i] = true;
+				collectionChatPosted[i] = true;
 			}
 		}
 	}
@@ -675,9 +675,9 @@ public class PackRevealService
 			isFoilPull(card),
 			card.getTier(),
 			CardInfoTipModel.instanceIdFor(card))
-			&& absIndex < collectionChatPostedByIndex.length)
+			&& absIndex < collectionChatPosted.length)
 		{
-			collectionChatPostedByIndex[absIndex] = true;
+			collectionChatPosted[absIndex] = true;
 		}
 	}
 
@@ -715,7 +715,7 @@ public class PackRevealService
 		return -1;
 	}
 
-	private void announcePartyPullsForUnrevealed(boolean currentBatchOnly)
+	private void announcePartyUnrevealedPulls(boolean currentBatchOnly)
 	{
 		if (currentBatchOnly)
 		{
@@ -744,7 +744,7 @@ public class PackRevealService
 		}
 	}
 
-	private void notifyPackAtEndIfBatchBoundary()
+	private void notifyPackAtBatchEnd()
 	{
 		if ((batchOffset + visibleCount()) % 5 == 0)
 		{
@@ -846,9 +846,9 @@ public class PackRevealService
 		phaseStartedAt = System.currentTimeMillis();
 	}
 
-	private void enterWaitCloseAfterBatchFullyRevealed()
+	private void enterWaitCloseAfterBatch()
 	{
-		notifyPackAtEndIfBatchBoundary();
+		notifyPackAtBatchEnd();
 		phase = Phase.WAIT_CLOSE;
 		phaseStartedAt = System.currentTimeMillis();
 	}

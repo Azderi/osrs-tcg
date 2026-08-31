@@ -78,7 +78,7 @@ public class PackRevealOverlay extends Overlay
 	private volatile int revealHoverCanvasY;
 	private boolean apexPackPointerWasInside;
 	private final int[] pointerScratch = new int[2];
-	private boolean packRevealSoundActiveLastFrame;
+	private boolean packRevealSoundActivePrev;
 	private long lastHoverDynamicsNanos;
 
 	private boolean[] facePrewarmDone = EMPTY_BOOL;
@@ -144,7 +144,7 @@ public class PackRevealOverlay extends Overlay
 		Optional<PackRevealService.RevealPaintSnapshot> snapOpt = revealService.capturePaintFrame();
 		if (snapOpt.isEmpty())
 		{
-			if (packRevealSoundActiveLastFrame)
+			if (packRevealSoundActivePrev)
 			{
 				ForkJoinPool.commonPool().execute(() ->
 				{
@@ -157,22 +157,22 @@ public class PackRevealOverlay extends Overlay
 					}
 				});
 			}
-			packRevealSoundActiveLastFrame = false;
-			persistSessionPackZoomIfNeeded();
+			packRevealSoundActivePrev = false;
+			persistPackZoomIfNeeded();
 			resetHoverAnimations();
 			closeButtonBounds.setBounds(0, 0, 0, 0);
 			clearSlotCaches();
 			return null;
 		}
 		PackRevealService.RevealPaintSnapshot snap = snapOpt.get();
-		packRevealSoundActiveLastFrame = true;
+		packRevealSoundActivePrev = true;
 
 		Rectangle canvas = fullCanvas();
 		PackRevealDrawUtil.drawDim(graphics, canvas);
 
 		List<PackRevealService.RevealCard> cards = snap.getCards();
 		int cardCount = cards.size();
-		invalidateFaceSlotsIfVisibleCardsChanged(cards);
+		invalidateFaceSlotsIfChanged(cards);
 		PackRevealService.Phase phase = snap.getPhase();
 		PackRevealLayout.ViewportLayout layout = computeViewportLayout(canvas, cardCount, phase);
 		if (phase != PackRevealService.Phase.PACK_READY)
@@ -472,7 +472,7 @@ public class PackRevealOverlay extends Overlay
 		return "";
 	}
 
-	private void invalidateFaceSlotsIfVisibleCardsChanged(List<PackRevealService.RevealCard> cards)
+	private void invalidateFaceSlotsIfChanged(List<PackRevealService.RevealCard> cards)
 	{
 		String identity = visibleFaceIdentity(cards);
 		if (identity.equals(lastVisibleFaceIdentity))
@@ -808,7 +808,7 @@ public class PackRevealOverlay extends Overlay
 		return revealPointer(pointerScratch) && r.contains(pointerScratch[0], pointerScratch[1]);
 	}
 
-	private void persistSessionPackZoomIfNeeded()
+	private void persistPackZoomIfNeeded()
 	{
 		if (!Double.isNaN(sessionPackZoomMultiplier))
 		{

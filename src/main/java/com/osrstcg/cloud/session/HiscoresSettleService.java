@@ -20,7 +20,7 @@ import javax.inject.Provider;
 @Slf4j
 final class HiscoresSettleService
 {
-	private static final long HISCORES_SETTLE_RETRY_DELAY_SEC = 30L;
+	private static final long HISCORES_RETRY_DELAY_SEC = 30L;
 
 	private String lastDisplayName;
 
@@ -33,7 +33,7 @@ final class HiscoresSettleService
 	private final Provider<TradeCloudService> tradeCloudProvider;
 	private final Consumer<JsonObject> applySidebarStats;
 	private final AtomicBoolean hiscoresSettledThisLogin;
-	private final AtomicBoolean hiscoresSettleRetryScheduled;
+	private final AtomicBoolean hiscoresRetryScheduled;
 	private final java.util.function.BooleanSupplier needsCloudConsent;
 	private final java.util.function.BooleanSupplier isAccountLocked;
 
@@ -47,7 +47,7 @@ final class HiscoresSettleService
 		Provider<TradeCloudService> tradeCloudProvider,
 		Consumer<JsonObject> applySidebarStats,
 		AtomicBoolean hiscoresSettledThisLogin,
-		AtomicBoolean hiscoresSettleRetryScheduled,
+		AtomicBoolean hiscoresRetryScheduled,
 		java.util.function.BooleanSupplier needsCloudConsent,
 		java.util.function.BooleanSupplier isAccountLocked)
 	{
@@ -60,7 +60,7 @@ final class HiscoresSettleService
 		this.tradeCloudProvider = tradeCloudProvider;
 		this.applySidebarStats = applySidebarStats;
 		this.hiscoresSettledThisLogin = hiscoresSettledThisLogin;
-		this.hiscoresSettleRetryScheduled = hiscoresSettleRetryScheduled;
+		this.hiscoresRetryScheduled = hiscoresRetryScheduled;
 		this.needsCloudConsent = needsCloudConsent;
 		this.isAccountLocked = isAccountLocked;
 	}
@@ -154,7 +154,7 @@ final class HiscoresSettleService
 	void clearGate()
 	{
 		hiscoresSettledThisLogin.set(false);
-		hiscoresSettleRetryScheduled.set(false);
+		hiscoresRetryScheduled.set(false);
 	}
 
 	private void handleSettleError(CloudApiException ex, long accountHash, String displayName)
@@ -189,7 +189,7 @@ final class HiscoresSettleService
 
 	private void scheduleRetry(long accountHash, String displayName)
 	{
-		if (!hiscoresSettleRetryScheduled.compareAndSet(false, true))
+		if (!hiscoresRetryScheduled.compareAndSet(false, true))
 		{
 			return;
 		}
@@ -223,7 +223,7 @@ final class HiscoresSettleService
 				hiscoresSettledThisLogin.set(true);
 				log.warn("Hiscores settle retry failed", ex);
 			}
-		}, HISCORES_SETTLE_RETRY_DELAY_SEC, TimeUnit.SECONDS);
+		}, HISCORES_RETRY_DELAY_SEC, TimeUnit.SECONDS);
 	}
 
 	private String resolveDisplayName()

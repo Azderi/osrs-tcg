@@ -75,7 +75,7 @@ public final class CloudPackService
 		return buyAndOpenPack(booster, true);
 	}
 
-	private PackOpenResult buyAndOpenPack(BoosterPackDefinition booster, boolean allowCatalogMismatchRetry)
+	private PackOpenResult buyAndOpenPack(BoosterPackDefinition booster, boolean allowCatalogRetry)
 	{
 		long creditsBefore = stateService.getCredits();
 		if (booster == null)
@@ -106,7 +106,7 @@ public final class CloudPackService
 			long displayCredits = stateService.getCredits();
 			if (displayCredits < price)
 			{
-				refreshCreditsFromServerQuietly();
+				refreshCreditsQuietly();
 				displayCredits = stateService.getCredits();
 				if (displayCredits < price)
 				{
@@ -206,7 +206,7 @@ public final class CloudPackService
 				stateService.getCloudCollectionStats(), ownedBefore, pulls);
 			if (optimistic != null)
 			{
-				stateService.replaceCloudCollectionStatsCache(optimistic);
+				stateService.replaceCollectionStatsCache(optimistic);
 			}
 			CloudResponseSync.applyRevision(response, stateService, tradeCloud);
 			tradeCloud.requestForcedRefresh();
@@ -219,10 +219,10 @@ public final class CloudPackService
 					ownedAfter = new HashMap<>(stateService.getState().getCollectionState().getOwnedCards());
 				}
 				List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(cardDatabase.getCards());
-				for (String category : CollectionSetCompletionUtil.newlyCompletedPrimaryCategories(
+				for (String category : CollectionSetCompletionUtil.newlyCompletedCategories(
 					ownedBefore, ownedAfter, rollPool))
 				{
-					partyAnnouncer.announceCollectionSetComplete(category);
+					partyAnnouncer.announceSetComplete(category);
 				}
 			}
 
@@ -240,7 +240,7 @@ public final class CloudPackService
 		}
 		catch (CloudApiException ex)
 		{
-			if (allowCatalogMismatchRetry && ex.isCatalogMismatch())
+			if (allowCatalogRetry && ex.isCatalogMismatch())
 			{
 				log.info("Pack catalog mismatch - refetching once then retrying open");
 				try
@@ -265,7 +265,7 @@ public final class CloudPackService
 			session.noteLockFromApiException(ex);
 			if (isInsufficientCreditsError(ex))
 			{
-				applyInsufficientCreditsCorrection(ex);
+				applyInsufficientCreditsFix(ex);
 			}
 			String message = ex.isCatalogMismatch()
 				? "Pack catalog updated, try again."
@@ -283,7 +283,7 @@ public final class CloudPackService
 	 * Drop optimistic credit inflation and sync to server authority after a pack open is refused
 	 * for insufficient funds (so the sidebar matches what the server will spend).
 	 */
-	private void applyInsufficientCreditsCorrection(CloudApiException ex)
+	private void applyInsufficientCreditsFix(CloudApiException ex)
 	{
 		Long serverCredits = ex == null ? null : ex.getServerCredits();
 		if (serverCredits != null)
@@ -293,10 +293,10 @@ public final class CloudPackService
 			stateService.replaceCloudEconomyCache(serverCredits, openedPacks, totalGained);
 			stateService.clearOptimisticCredits();
 		}
-		refreshCreditsFromServerQuietly();
+		refreshCreditsQuietly();
 	}
 
-	private void refreshCreditsFromServerQuietly()
+	private void refreshCreditsQuietly()
 	{
 		try
 		{

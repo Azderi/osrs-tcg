@@ -144,7 +144,7 @@ public class PackOpenCoordinator
 			ui.clearFreeze.run();
 			if (result.isSuccess() && result.getPulls() != null && !result.getPulls().isEmpty())
 			{
-				pullNotificationService.announceAllCollectionAdds(result.getPulls(), preOwned);
+				pullNotificationService.postAllCollectionAdds(result.getPulls(), preOwned);
 			}
 			ui.refresh.run();
 			return;

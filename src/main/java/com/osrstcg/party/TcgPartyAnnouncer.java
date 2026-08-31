@@ -20,7 +20,7 @@ public class TcgPartyAnnouncer
 		this.config = config;
 	}
 
-	public void announceCollectionSetComplete(String collectionDisplayName)
+	public void announceSetComplete(String collectionDisplayName)
 	{
 		if (!partyAnnouncementsEnabled())
 		{

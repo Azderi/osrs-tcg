@@ -110,7 +110,7 @@ public final class TcgPluginGameMessages
 		return foil ? n + " (foil)" : n;
 	}
 
-	public static String formatPrefixedSomeoneAddedCollection(
+	public static String formatSomeoneAddedCollection(
 		String who, String cardName, boolean newForCollection, boolean foil, Color rarityColor)
 	{
 		return prefixBuilder()
@@ -126,14 +126,14 @@ public final class TcgPluginGameMessages
 			.build();
 	}
 
-	public static String plainPrefixedSomeoneAddedCollection(
+	public static String plainSomeoneAddedCollection(
 		String who, String cardName, boolean newForCollection, boolean foil)
 	{
 		return PLAIN_PREFIX + who + " just added " + duplicatePrefix(newForCollection)
 			+ announcedCardLabel(cardName, foil) + " to their collection!";
 	}
 
-	public static String formatPrefixedYouAddedCollection(
+	public static String formatYouAddedCollection(
 		String cardName, boolean newForCollection, boolean foil, Color rarityColor)
 	{
 		return prefixBuilder()
@@ -147,7 +147,7 @@ public final class TcgPluginGameMessages
 			.build();
 	}
 
-	public static String plainPrefixedYouAddedCollection(String cardName, boolean newForCollection, boolean foil)
+	public static String plainYouAddedCollection(String cardName, boolean newForCollection, boolean foil)
 	{
 		return PLAIN_PREFIX + "You just added " + duplicatePrefix(newForCollection)
 			+ announcedCardLabel(cardName, foil) + " to your collection!";
@@ -172,10 +172,10 @@ public final class TcgPluginGameMessages
 			|| plain.startsWith(PLAIN_DEBUG_PREFIX) || plain.startsWith("[TCG DEBUG]");
 		if (!hasFormattedTag || !hasPlainPrefix)
 		{
-			String body = stripLeadingPluginPrefix(plain);
+			String body = stripFormattedPluginPrefix(plain);
 			if (body.isEmpty() && !formatted.isEmpty())
 			{
-				body = stripLeadingFormattedPluginPrefix(formatted).replaceAll("(?i)</?col[^>]*>", "");
+				body = stripFormattedPluginPrefix(formatted).replaceAll("(?i)</?col[^>]*>", "");
 			}
 			boolean debug = plain.startsWith(PLAIN_DEBUG_PREFIX) || plain.startsWith("[TCG DEBUG]")
 				|| formatted.contains("TCG DEBUG");
@@ -186,8 +186,8 @@ public final class TcgPluginGameMessages
 			}
 			else if (!hasFormattedTag && formatted.contains("<col"))
 			{
-				formatted = prefixBuilder().build() + stripLeadingFormattedPluginPrefix(formatted);
-				plain = PLAIN_PREFIX + stripLeadingPluginPrefix(plain.isEmpty() ? body : plain);
+				formatted = prefixBuilder().build() + stripFormattedPluginPrefix(formatted);
+				plain = PLAIN_PREFIX + stripFormattedPluginPrefix(plain.isEmpty() ? body : plain);
 			}
 			else
 			{
@@ -202,7 +202,7 @@ public final class TcgPluginGameMessages
 			.build());
 	}
 
-	static String stripLeadingFormattedPluginPrefix(String formatted)
+	static String stripFormattedPluginPrefix(String formatted)
 	{
 		if (formatted == null || formatted.isEmpty())
 		{

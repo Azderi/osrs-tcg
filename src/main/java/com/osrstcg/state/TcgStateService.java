@@ -73,8 +73,8 @@ public class TcgStateService
 				true);
 		}
 
-		boolean strippedDebug = stripDebugProvenanceRowsIfDebugDisabled();
-		boolean upgradedSkillBaseline = ensureSkillCreditBaselineSchemaField();
+		boolean strippedDebug = stripDebugProvenanceIfDisabled();
+		boolean upgradedSkillBaseline = ensureSkillBaselineSchema();
 		ensureProfileMetaSchemaFields();
 		if (upgradedSkillBaseline)
 		{
@@ -88,7 +88,7 @@ public class TcgStateService
 		return result;
 	}
 
-	private boolean ensureSkillCreditBaselineSchemaField()
+	private boolean ensureSkillBaselineSchema()
 	{
 		SkillCreditBaseline baseline = state.getSkillCreditBaseline();
 		if (baseline == null)
@@ -271,7 +271,7 @@ public class TcgStateService
 		notifyStateChangeListeners();
 	}
 
-	public synchronized void replaceCloudCollectionStatsCache(CloudSidebarCollectionStats stats)
+	public synchronized void replaceCollectionStatsCache(CloudSidebarCollectionStats stats)
 	{
 		this.cloudCollectionStats = stats;
 		notifyStateChangeListeners();
@@ -288,7 +288,7 @@ public class TcgStateService
 		return cloudCollectionStats;
 	}
 
-	public synchronized void clearCloudCollectionStatsCache()
+	public synchronized void clearCollectionStatsCache()
 	{
 		this.cloudCollectionStats = null;
 	}
@@ -378,7 +378,7 @@ public class TcgStateService
 		return state.isDebugLogging();
 	}
 
-	private boolean stripDebugProvenanceRowsIfDebugDisabled()
+	private boolean stripDebugProvenanceIfDisabled()
 	{
 		if (state.isDebugLogging())
 		{

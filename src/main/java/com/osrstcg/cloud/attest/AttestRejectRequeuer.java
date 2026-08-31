@@ -14,7 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 final class AttestRejectRequeuer
 {
-	static final String REASON_KILL_AMOUNT_TOO_LARGE = "kill_amount_too_large";
+	static final String REASON_KILL_AMT_TOO_LARGE = "kill_amount_too_large";
 	static final String REASON_SETTLE_COOLDOWN = "settle_cooldown";
 
 	private final CreditAttestQueue queue;
@@ -66,7 +66,7 @@ final class AttestRejectRequeuer
 				continue;
 			}
 
-			if (!REASON_KILL_AMOUNT_TOO_LARGE.equals(reason))
+			if (!REASON_KILL_AMT_TOO_LARGE.equals(reason))
 			{
 				continue;
 			}
@@ -79,7 +79,7 @@ final class AttestRejectRequeuer
 			if (amount <= CreditAttestCoalescer.MAX_KILL_AMOUNT)
 			{
 				log.warn("npc_kill rejected as {} with amount {} (≤{}); leaving to server reconcile",
-					REASON_KILL_AMOUNT_TOO_LARGE, amount, CreditAttestCoalescer.MAX_KILL_AMOUNT);
+					REASON_KILL_AMT_TOO_LARGE, amount, CreditAttestCoalescer.MAX_KILL_AMOUNT);
 				continue;
 			}
 			String npcName = CreditAttestQueue.evidenceString(evidence, "npcName", "");

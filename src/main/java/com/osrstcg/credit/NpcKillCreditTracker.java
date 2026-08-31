@@ -23,7 +23,7 @@ import net.runelite.client.eventbus.Subscribe;
 @Singleton
 public final class NpcKillCreditTracker
 {
-	private static final int INTERACTION_TIMEOUT_TICKS = 12;
+	private static final int INTERACT_TIMEOUT_TICKS = 12;
 
 	private final Client client;
 	private final ClientThread clientThread;
@@ -159,7 +159,7 @@ public final class NpcKillCreditTracker
 	{
 		int currentTick = client.getTickCount();
 		lastInteractionTicks.keySet().removeIf(npcIndex ->
-			(currentTick - lastInteractionTicks.get(npcIndex)) > INTERACTION_TIMEOUT_TICKS);
+			(currentTick - lastInteractionTicks.get(npcIndex)) > INTERACT_TIMEOUT_TICKS);
 	}
 
 	/** Enqueues an {@code npc_kill} attest event; optimistic credits equal combat level (1×). */
@@ -210,7 +210,7 @@ public final class NpcKillCreditTracker
 	private boolean isInteractionValid(int npcIndex)
 	{
 		Integer lastTick = lastInteractionTicks.get(npcIndex);
-		return lastTick != null && (client.getTickCount() - lastTick) <= INTERACTION_TIMEOUT_TICKS;
+		return lastTick != null && (client.getTickCount() - lastTick) <= INTERACT_TIMEOUT_TICKS;
 	}
 
 	private void cleanupAfterLogging(int npcIndex)

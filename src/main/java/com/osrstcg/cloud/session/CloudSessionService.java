@@ -50,7 +50,7 @@ public final class CloudSessionService
 	private final ActivityConfigService activityConfigService;
 	private final RestrictedWorldGuard restrictedWorldGuard;
 	private final Provider<TradeCloudService> tradeCloudProvider;
-	private final Provider<CreditAttestQueue> creditAttestQueueProvider;
+	private final Provider<CreditAttestQueue> attestQueueProvider;
 	private final CloudCollectionPager collectionPager;
 	private final CloudCollectionSyncService collectionSync;
 	private final HiscoresSettleService hiscoresSettle;
@@ -61,7 +61,7 @@ public final class CloudSessionService
 	private final AtomicReference<String> statusMessage = new AtomicReference<>("Disconnected");
 	private final AtomicReference<Runnable> statusListener = new AtomicReference<>(null);
 	private final AtomicBoolean hiscoresSettledThisLogin = new AtomicBoolean(false);
-	private final AtomicBoolean hiscoresSettleRetryScheduled = new AtomicBoolean(false);
+	private final AtomicBoolean hiscoresRetryScheduled = new AtomicBoolean(false);
 	private final AtomicBoolean accountBanned = new AtomicBoolean(false);
 	private final AtomicBoolean accountQuarantined = new AtomicBoolean(false);
 	private final List<Runnable> accountLockCleanups = new CopyOnWriteArrayList<>();
@@ -86,7 +86,7 @@ public final class CloudSessionService
 		RestrictedWorldGuard restrictedWorldGuard,
 		ScheduledExecutorService scheduler,
 		Provider<TradeCloudService> tradeCloudProvider,
-		Provider<CreditAttestQueue> creditAttestQueueProvider,
+		Provider<CreditAttestQueue> attestQueueProvider,
 		TcgPublicStatsCalculator publicStatsCalculator)
 	{
 		this.client = client;
@@ -101,14 +101,14 @@ public final class CloudSessionService
 		this.activityConfigService = activityConfigService;
 		this.restrictedWorldGuard = restrictedWorldGuard;
 		this.tradeCloudProvider = tradeCloudProvider;
-		this.creditAttestQueueProvider = creditAttestQueueProvider;
+		this.attestQueueProvider = attestQueueProvider;
 		this.collectionPager = new CloudCollectionPager(api);
 		this.collectionSync = new CloudCollectionSyncService(
-			this, api, tokens, stateService, creditAttestQueueProvider,
+			this, api, tokens, stateService, attestQueueProvider,
 			publicStatsCalculator, collectionPager);
 		this.hiscoresSettle = new HiscoresSettleService(
 			client, api, tokens, restrictedWorldGuard, scheduler, chatMessageManager, tradeCloudProvider,
-			collectionSync::applySidebarStats, hiscoresSettledThisLogin, hiscoresSettleRetryScheduled,
+			collectionSync::applySidebarStats, hiscoresSettledThisLogin, hiscoresRetryScheduled,
 			this::needsCloudConsent, this::isAccountLocked);
 		this.profileConsent = new CloudProfileConsentService(
 			this, collectionSync, hiscoresSettle, client, api, tokens, profileKeyHasher, stateService,
@@ -233,7 +233,7 @@ public final class CloudSessionService
 	private void enterAccountLock(AtomicBoolean flag, String statusMessage, String kind)
 	{
 		boolean already = flag.getAndSet(true);
-		pauseCloudTrafficForAccountLock();
+		pauseCloudTrafficOnLock();
 		setState(CloudConnectionState.DISCONNECTED, statusMessage);
 		if (!already)
 		{
@@ -267,9 +267,9 @@ public final class CloudSessionService
 		}
 	}
 
-	private void pauseCloudTrafficForAccountLock()
+	private void pauseCloudTrafficOnLock()
 	{
-		CreditAttestQueue attestQueue = creditAttestQueueProvider.get();
+		CreditAttestQueue attestQueue = attestQueueProvider.get();
 		attestQueue.stop();
 		attestQueue.discardPending();
 		for (Runnable cleanup : accountLockCleanups)
@@ -485,7 +485,7 @@ public final class CloudSessionService
 		accountBanned.set(false);
 		accountQuarantined.set(false);
 		clearLoginFetchGates();
-		stateService.clearCloudCollectionStatsCache();
+		stateService.clearCollectionStatsCache();
 		stateService.clearCloudGroupKey();
 		setState(CloudConnectionState.DISCONNECTED, "Disconnected");
 	}
@@ -500,9 +500,9 @@ public final class CloudSessionService
 		collectionSync.applySidebarStats(stats);
 	}
 
-	public void maybeReconcileCollectionFromInbox(JsonObject stats)
+	public void reconcileCollectionFromInbox(JsonObject stats)
 	{
-		collectionSync.maybeReconcileCollectionFromInbox(stats);
+		collectionSync.reconcileCollectionFromInbox(stats);
 	}
 
 	public void refreshCreditsFromServer() throws Exception

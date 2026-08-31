@@ -23,8 +23,8 @@ import net.runelite.api.events.WorldChanged;
 @Singleton
 public class CloudSessionCoordinator
 {
-	private static final long CLOUD_RECONNECT_MIN_DELAY_MS = 5L * 60L * 1000L;
-	private static final long CLOUD_RECONNECT_MAX_DELAY_MS = 15L * 60L * 1000L;
+	private static final long CLOUD_RECONNECT_MIN_MS = 5L * 60L * 1000L;
+	private static final long CLOUD_RECONNECT_MAX_MS = 15L * 60L * 1000L;
 
 	private final Client client;
 	private final TcgStateService stateService;
@@ -180,8 +180,8 @@ public class CloudSessionCoordinator
 		{
 			return;
 		}
-		long spanMs = CLOUD_RECONNECT_MAX_DELAY_MS - CLOUD_RECONNECT_MIN_DELAY_MS;
-		long delayMs = CLOUD_RECONNECT_MIN_DELAY_MS
+		long spanMs = CLOUD_RECONNECT_MAX_MS - CLOUD_RECONNECT_MIN_MS;
+		long delayMs = CLOUD_RECONNECT_MIN_MS
 			+ ThreadLocalRandom.current().nextLong(spanMs + 1L);
 		synchronized (cloudReconnectLock)
 		{

@@ -98,7 +98,7 @@ public class PullNotifySupport
 		return trigger == null ? PullNotificationTrigger.EVERY_CARD : trigger;
 	}
 
-	public List<PullNotificationMessages.PackPull> packPullsFromRevealCards(List<RevealCard> cards)
+	public List<PullNotificationMessages.PackPull> packPullsFromCards(List<RevealCard> cards)
 	{
 		List<PullNotificationMessages.PackPull> pulls = new ArrayList<>();
 		if (cards == null)

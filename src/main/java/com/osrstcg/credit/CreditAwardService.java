@@ -29,7 +29,7 @@ import com.osrstcg.state.TcgStateService;
 public class CreditAwardService
 {
 	private static final int FAKE_XP_DROP_SANITY_CAP = 20_000_000;
-	private static final int CREDIT_AWARD_COOLDOWN_TICKS = 3;
+	private static final int CREDIT_COOLDOWN_TICKS = 3;
 	private static final Set<Skill> COMBAT_SKILLS = EnumSet.of(
 		Skill.ATTACK,
 		Skill.DEFENCE,
@@ -44,10 +44,10 @@ public class CreditAwardService
 	private final CreditAttestQueue attestQueue;
 	private final ChatMessageManager chatMessageManager;
 	private final SkillCreditSession skills = new SkillCreditSession();
-	private boolean creditAwardCooldownActive;
-	private int creditAwardCooldownUntilTick;
-	private boolean pendingStatsSettleAfterLoginOrHop;
-	private boolean restoreUncreditedXpFromPersistedBaseline;
+	private boolean creditCooldownActive;
+	private int creditCooldownUntilTick;
+	private boolean pendingStatsSettle;
+	private boolean restoreXpFromPersistedBaseline;
 
 	@Inject
 	public CreditAwardService(Client client, TcgStateService stateService, CloudSessionService session,
@@ -81,7 +81,7 @@ public class CreditAwardService
 		{
 			return;
 		}
-		skills.snapshotSkillBaselinesIfLoggedIn(client);
+		skills.snapshotBaselinesIfLoggedIn(client);
 		persistSkillBaselineToState();
 	}
 
@@ -90,7 +90,7 @@ public class CreditAwardService
 		return !session.isAccountLocked();
 	}
 
-	public void stopCreditTrackingForAccountLock()
+	public void stopCreditTrackingOnLock()
 	{
 		clearUncreditedXpPool("account locked");
 		skills.resetTracking();
@@ -236,7 +236,7 @@ public class CreditAwardService
 			return;
 		}
 
-		if (pendingStatsSettleAfterLoginOrHop)
+		if (pendingStatsSettle)
 		{
 			beginCreditAwardCooldown();
 		}
@@ -255,38 +255,38 @@ public class CreditAwardService
 			return;
 		}
 
-		if (creditAwardCooldownActive)
+		if (creditCooldownActive)
 		{
 			if (isCreditAwardOnCooldown())
 			{
 				return;
 			}
 
-			creditAwardCooldownActive = false;
-			pendingStatsSettleAfterLoginOrHop = false;
-			captureSkillBaselinesAfterLoginSettle();
+			creditCooldownActive = false;
+			pendingStatsSettle = false;
+			captureBaselinesAfterSettle();
 			debugAward("Credit award cooldown ended; resuming live credit gains");
 			return;
 		}
 
 		if (!skills.skillXpInitialized || !skills.skillLevelsInitialized)
 		{
-			skills.snapshotSkillBaselinesIfLoggedIn(client);
+			skills.snapshotBaselinesIfLoggedIn(client);
 			persistSkillBaselineToState();
 		}
 	}
 
-	private void captureSkillBaselinesAfterLoginSettle()
+	private void captureBaselinesAfterSettle()
 	{
-		if (restoreUncreditedXpFromPersistedBaseline)
+		if (restoreXpFromPersistedBaseline)
 		{
 			skills.restoreUncreditedXp(presentBaseline());
-			restoreUncreditedXpFromPersistedBaseline = false;
+			restoreXpFromPersistedBaseline = false;
 		}
 
 		if (!skills.skillXpInitialized || !skills.skillLevelsInitialized)
 		{
-			skills.snapshotSkillBaselinesIfLoggedIn(client);
+			skills.snapshotBaselinesIfLoggedIn(client);
 		}
 		persistSkillBaselineToState();
 		debugAward("Live skill baselines captured after settle");
@@ -433,7 +433,7 @@ public class CreditAwardService
 		debugAward(String.format("Registered +%s XP (%s) -> pending attest %s (bucket %s)",
 			NumberFormatting.format(xpGained), safeName(source),
 			NumberFormatting.format(skills.pendingSlayerXpToAttest),
-			NumberFormatting.format(XpCreditMath.SLAYER_XP_PER_CREDIT_CHUNK)));
+			NumberFormatting.format(XpCreditMath.SLAYER_XP_PER_CHUNK)));
 
 		if (!session.canCollectAttests())
 		{
@@ -445,10 +445,10 @@ public class CreditAwardService
 
 		long toSend = skills.pendingSlayerXpToAttest;
 		skills.pendingSlayerXpToAttest = 0L;
-		skills.slayerOptimisticRemainder += toSend;
-		long chunks = skills.slayerOptimisticRemainder / XpCreditMath.SLAYER_XP_PER_CREDIT_CHUNK;
+		skills.slayerXpRemainder += toSend;
+		long chunks = skills.slayerXpRemainder / XpCreditMath.SLAYER_XP_PER_CHUNK;
 		long credits = chunks * XpCreditMath.SLAYER_CREDITS_PER_CHUNK;
-		skills.slayerOptimisticRemainder -= chunks * XpCreditMath.SLAYER_XP_PER_CREDIT_CHUNK;
+		skills.slayerXpRemainder -= chunks * XpCreditMath.SLAYER_XP_PER_CHUNK;
 
 		persistSkillBaselineToState();
 		enqueueXpChunk(source, toSend, credits);
@@ -507,16 +507,16 @@ public class CreditAwardService
 
 	private void armStatsSettleForLoginScreen()
 	{
-		pendingStatsSettleAfterLoginOrHop = true;
-		restoreUncreditedXpFromPersistedBaseline = true;
-		suppressCreditAwardsUntilStatsSettle(true);
+		pendingStatsSettle = true;
+		restoreXpFromPersistedBaseline = true;
+		suppressAwardsUntilSettle(true);
 	}
 
 	private void armStatsSettleForHopOrLogin()
 	{
-		pendingStatsSettleAfterLoginOrHop = true;
-		restoreUncreditedXpFromPersistedBaseline = false;
-		suppressCreditAwardsUntilStatsSettle(false);
+		pendingStatsSettle = true;
+		restoreXpFromPersistedBaseline = false;
+		suppressAwardsUntilSettle(false);
 	}
 
 	private void persistSkillBaselineToState()
@@ -530,7 +530,7 @@ public class CreditAwardService
 		stateService.replaceSkillCreditBaseline(baseline);
 	}
 
-	private void suppressCreditAwardsUntilStatsSettle(boolean clearUncreditedXpPool)
+	private void suppressAwardsUntilSettle(boolean clearUncreditedXpPool)
 	{
 		beginCreditAwardCooldown();
 		skills.resetTracking();
@@ -542,30 +542,30 @@ public class CreditAwardService
 
 	private void beginCreditAwardCooldown()
 	{
-		creditAwardCooldownActive = true;
+		creditCooldownActive = true;
 		if (client == null)
 		{
-			creditAwardCooldownUntilTick = 0;
+			creditCooldownUntilTick = 0;
 			return;
 		}
 
-		creditAwardCooldownUntilTick = client.getTickCount() + CREDIT_AWARD_COOLDOWN_TICKS;
+		creditCooldownUntilTick = client.getTickCount() + CREDIT_COOLDOWN_TICKS;
 	}
 
 	public boolean isCreditAwardOnCooldown()
 	{
-		if (!creditAwardCooldownActive || client == null)
+		if (!creditCooldownActive || client == null)
 		{
 			return false;
 		}
 
 		int tick = client.getTickCount();
-		if (tick >= creditAwardCooldownUntilTick)
+		if (tick >= creditCooldownUntilTick)
 		{
 			return false;
 		}
 
-		if (creditAwardCooldownUntilTick - tick > CREDIT_AWARD_COOLDOWN_TICKS)
+		if (creditCooldownUntilTick - tick > CREDIT_COOLDOWN_TICKS)
 		{
 			return false;
 		}

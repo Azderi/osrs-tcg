@@ -17,7 +17,7 @@ final class CloudCollectionSyncService
 	private final CloudApiClient api;
 	private final CloudTokenStore tokens;
 	private final TcgStateService stateService;
-	private final Provider<CreditAttestQueue> creditAttestQueueProvider;
+	private final Provider<CreditAttestQueue> attestQueueProvider;
 	private final TcgPublicStatsCalculator publicStatsCalculator;
 	private final CloudCollectionPager pager;
 
@@ -26,7 +26,7 @@ final class CloudCollectionSyncService
 		CloudApiClient api,
 		CloudTokenStore tokens,
 		TcgStateService stateService,
-		Provider<CreditAttestQueue> creditAttestQueueProvider,
+		Provider<CreditAttestQueue> attestQueueProvider,
 		TcgPublicStatsCalculator publicStatsCalculator,
 		CloudCollectionPager pager)
 	{
@@ -34,7 +34,7 @@ final class CloudCollectionSyncService
 		this.api = api;
 		this.tokens = tokens;
 		this.stateService = stateService;
-		this.creditAttestQueueProvider = creditAttestQueueProvider;
+		this.attestQueueProvider = attestQueueProvider;
 		this.publicStatsCalculator = publicStatsCalculator;
 		this.pager = pager;
 	}
@@ -61,7 +61,7 @@ final class CloudCollectionSyncService
 		}
 		if (CloudSidebarCollectionStats.hasCollectionFields(stats))
 		{
-			stateService.replaceCloudCollectionStatsCache(CloudSidebarCollectionStats.fromStatsJson(stats));
+			stateService.replaceCollectionStatsCache(CloudSidebarCollectionStats.fromStatsJson(stats));
 		}
 		if (stats.has("status") && !stats.get("status").isJsonNull())
 		{
@@ -69,7 +69,7 @@ final class CloudCollectionSyncService
 		}
 	}
 
-	void maybeReconcileCollectionFromInbox(JsonObject stats)
+	void reconcileCollectionFromInbox(JsonObject stats)
 	{
 		if (stats == null || session.needsCloudConsent())
 		{
@@ -119,7 +119,7 @@ final class CloudCollectionSyncService
 		}
 		try
 		{
-			creditAttestQueueProvider.get().flushBlocking();
+			attestQueueProvider.get().flushBlocking();
 		}
 		catch (Exception ex)
 		{

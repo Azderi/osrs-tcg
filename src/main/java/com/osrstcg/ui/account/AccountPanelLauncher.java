@@ -89,7 +89,7 @@ public final class AccountPanelLauncher
 		});
 	}
 
-	public void updateManageAccountButtonState(JButton openAccountPanelButton, JButton openTradesButton)
+	public void updateManageAccountState(JButton openAccountPanelButton, JButton openTradesButton)
 	{
 		if (openAccountPanelButton == null)
 		{

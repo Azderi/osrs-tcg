@@ -115,7 +115,7 @@ public final class CardInfoTipModel
 		return forPackRevealCard(card, false);
 	}
 
-	public static Content forPackRevealCard(PackRevealService.RevealCard card, boolean includeContextMenuActions)
+	public static Content forPackRevealCard(PackRevealService.RevealCard card, boolean includeContextActions)
 	{
 		if (card == null)
 		{
@@ -127,7 +127,7 @@ public final class CardInfoTipModel
 		Double condition = pull == null ? null : pull.getCondition();
 		List<Row> rows = packRevealRows(condition);
 		appendArtistRow(rows, def);
-		if (includeContextMenuActions)
+		if (includeContextActions)
 		{
 			String instanceId = instanceIdFor(card);
 			if (instanceId != null)

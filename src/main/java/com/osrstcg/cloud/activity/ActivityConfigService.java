@@ -35,7 +35,7 @@ import net.runelite.client.RuneLite;
 @Singleton
 public final class ActivityConfigService
 {
-	private static final long QUIET_POLL_PERIOD_MINUTES = 10L;
+	private static final long QUIET_POLL_MINUTES = 10L;
 
 	private final CloudApiClient api;
 	private final Gson gson;
@@ -234,8 +234,8 @@ public final class ActivityConfigService
 			}
 			quietPollFuture = scheduler.scheduleAtFixedRate(
 				this::ensureFreshSafe,
-				QUIET_POLL_PERIOD_MINUTES,
-				QUIET_POLL_PERIOD_MINUTES,
+				QUIET_POLL_MINUTES,
+				QUIET_POLL_MINUTES,
 				TimeUnit.MINUTES);
 		}
 	}

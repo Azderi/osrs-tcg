@@ -96,7 +96,7 @@ public final class CollectionSetCompletionUtil
 		return done;
 	}
 
-	public static List<String> newlyCompletedPrimaryCategories(Map<CardCollectionKey, Integer> ownedBefore,
+	public static List<String> newlyCompletedCategories(Map<CardCollectionKey, Integer> ownedBefore,
 		Map<CardCollectionKey, Integer> ownedAfter, List<CardDefinition> rollPool)
 	{
 		Set<String> after = completedPrimaryCategoryNames(ownedAfter, rollPool);

@@ -14,7 +14,7 @@ final class CardTextLayout
 {
 	private static final int FULL_ART_DESIGN_W = 180;
 	private static final int FULL_ART_DESIGN_H = 260;
-	private static final int FULL_ART_EXAMINE_MAX_LINES = 5;
+	private static final int FULL_ART_EXAMINE_MAX = 5;
 
 	private CardTextLayout()
 	{
@@ -34,11 +34,11 @@ final class CardTextLayout
 		}
 		int maxWidth = fullArtDesignExamineMaxWidth();
 		List<String> lines = wrapLines(fm, raw, maxWidth);
-		if (lines.size() > FULL_ART_EXAMINE_MAX_LINES)
+		if (lines.size() > FULL_ART_EXAMINE_MAX)
 		{
-			lines = new ArrayList<>(lines.subList(0, FULL_ART_EXAMINE_MAX_LINES));
-			lines.set(FULL_ART_EXAMINE_MAX_LINES - 1,
-				ellipsizeToWidth(lines.get(FULL_ART_EXAMINE_MAX_LINES - 1), fm, maxWidth));
+			lines = new ArrayList<>(lines.subList(0, FULL_ART_EXAMINE_MAX));
+			lines.set(FULL_ART_EXAMINE_MAX - 1,
+				ellipsizeToWidth(lines.get(FULL_ART_EXAMINE_MAX - 1), fm, maxWidth));
 		}
 		return lines;
 	}

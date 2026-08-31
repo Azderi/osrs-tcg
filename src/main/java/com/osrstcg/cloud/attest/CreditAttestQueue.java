@@ -52,7 +52,7 @@ public final class CreditAttestQueue
 	private final CreditAttestScheduler attestScheduler;
 	private volatile long lastAccountHash = -1L;
 	private volatile String lastDisplayName;
-	private volatile long spillLoadedForAccountHash = -1L;
+	private volatile long spillLoadedAccountHash = -1L;
 
 	@Inject
 	CreditAttestQueue(
@@ -115,7 +115,7 @@ public final class CreditAttestQueue
 	public void stop()
 	{
 		attestScheduler.stop();
-		spillLoadedForAccountHash = -1L;
+		spillLoadedAccountHash = -1L;
 		rateCapNotifier.reset();
 	}
 
@@ -244,7 +244,7 @@ public final class CreditAttestQueue
 		{
 			if (lastAccountHash != -1L && lastAccountHash != hash)
 			{
-				spillLoadedForAccountHash = -1L;
+				spillLoadedAccountHash = -1L;
 			}
 			lastAccountHash = hash;
 			return hash;
@@ -275,7 +275,7 @@ public final class CreditAttestQueue
 		}
 		synchronized (lock)
 		{
-			if (spillLoadedForAccountHash == hash)
+			if (spillLoadedAccountHash == hash)
 			{
 				return;
 			}
@@ -284,7 +284,7 @@ public final class CreditAttestQueue
 		long optimisticTotal = 0L;
 		synchronized (lock)
 		{
-			if (spillLoadedForAccountHash == hash)
+			if (spillLoadedAccountHash == hash)
 			{
 				return;
 			}
@@ -293,7 +293,7 @@ public final class CreditAttestQueue
 			{
 				return;
 			}
-			spillLoadedForAccountHash = hash;
+			spillLoadedAccountHash = hash;
 			if (!loaded.isEmpty())
 			{
 				pendingRaw.addAll(0, loaded);

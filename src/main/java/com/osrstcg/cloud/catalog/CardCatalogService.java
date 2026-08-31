@@ -65,7 +65,7 @@ public final class CardCatalogService
 
 	public void loadDiskCacheIfPresent()
 	{
-		deleteObsoleteCardArtOverlayCache();
+		deleteStaleCardArtCache();
 		Path live = diskCacheDir().resolve(LIVE_CACHE_FILE);
 		if (Files.isRegularFile(live))
 		{
@@ -185,7 +185,7 @@ public final class CardCatalogService
 		}
 	}
 
-	private void deleteObsoleteCardArtOverlayCache()
+	private void deleteStaleCardArtCache()
 	{
 		Path dir = diskCacheDir();
 		try

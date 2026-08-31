@@ -28,7 +28,7 @@ public class PackRevealSoundService
 	private boolean revealOpenFailed;
 	private boolean flipOpenFailed;
 	private boolean cardDealOpenFailed;
-	private boolean apexHoverOneShotOpenFailed;
+	private boolean apexHoverOpenFailed;
 
 	/** Greatest card index whose deal-start sound has been played this deal phase ({@code -1} = none). */
 	private int dealMotionSoundUpToIndex = -1;
@@ -82,13 +82,13 @@ public class PackRevealSoundService
 
 	public synchronized void playApexPackHoverOneShot()
 	{
-		if (!config.enableSounds() || apexHoverOneShotOpenFailed)
+		if (!config.enableSounds() || apexHoverOpenFailed)
 		{
 			return;
 		}
 		if (!playResource(APEX_PACK_HOVER_RESOURCE, "apex.wav", GAIN_APEX_HOVER_DB))
 		{
-			apexHoverOneShotOpenFailed = true;
+			apexHoverOpenFailed = true;
 		}
 	}
 

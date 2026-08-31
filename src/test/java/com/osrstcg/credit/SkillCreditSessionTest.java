@@ -107,12 +107,12 @@ public class SkillCreditSessionTest
 		session.addUncreditedXp(Skill.WOODCUTTING, 100L);
 		session.addUncreditedXp(Skill.MINING, 200L);
 		session.pendingSlayerXpToAttest = 50L;
-		session.slayerOptimisticRemainder = 75L;
+		session.slayerXpRemainder = 75L;
 
 		session.clearUncreditedXpPool();
 
 		assertEquals(0L, session.totalUncreditedXp());
 		assertEquals(0L, session.pendingSlayerXpToAttest);
-		assertEquals(0L, session.slayerOptimisticRemainder);
+		assertEquals(0L, session.slayerXpRemainder);
 	}
 }

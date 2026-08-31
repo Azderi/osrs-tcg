@@ -28,7 +28,7 @@ public class PullNotificationService
 	private final CardDatabase cardDatabase;
 	private final PullNotifySupport pullNotifySupport;
 	private final DinkNotificationService dinkNotificationService;
-	private final PullExternalNotificationService pullExternalNotificationService;
+	private final PullExternalNotificationService externalNotifyService;
 
 	@Inject
 	PullNotificationService(
@@ -37,14 +37,14 @@ public class PullNotificationService
 		CardDatabase cardDatabase,
 		PullNotifySupport pullNotifySupport,
 		DinkNotificationService dinkNotificationService,
-		PullExternalNotificationService pullExternalNotificationService)
+		PullExternalNotificationService externalNotifyService)
 	{
 		this.config = config;
 		this.chatMessageManager = chatMessageManager;
 		this.cardDatabase = cardDatabase;
 		this.pullNotifySupport = pullNotifySupport;
 		this.dinkNotificationService = dinkNotificationService;
-		this.pullExternalNotificationService = pullExternalNotificationService;
+		this.externalNotifyService = externalNotifyService;
 	}
 
 	public boolean notifyPull(
@@ -61,10 +61,10 @@ public class PullNotificationService
 			queueCollectionAddChat(trimmed, newForCollection, foil, cardDatabase.chatRarityColorForCardName(trimmed));
 			chatPosted = true;
 		}
-		pullExternalNotificationService.notifyParty(trimmed, newForCollection, foil);
+		externalNotifyService.notifyParty(trimmed, newForCollection, foil);
 		if (pullNotifySupport.notificationTrigger() == PullNotificationTrigger.EVERY_CARD)
 		{
-			pullExternalNotificationService.sendWebhook(trimmed, newForCollection, foil, tier, instanceId);
+			externalNotifyService.sendWebhook(trimmed, newForCollection, foil, tier, instanceId);
 			if (config.dinkNotifications())
 			{
 				dinkNotificationService.notifyPackPull(trimmed, newForCollection, foil, tier, instanceId);
@@ -73,7 +73,7 @@ public class PullNotificationService
 		return chatPosted;
 	}
 
-	public void announceCollectionAddAlways(String cardName, boolean newForCollection, boolean foil, Color rarityColor)
+	public void postCollectionAddChat(String cardName, boolean newForCollection, boolean foil, Color rarityColor)
 	{
 		if (PullNotificationMessages.isBlank(cardName))
 		{
@@ -84,7 +84,7 @@ public class PullNotificationService
 		queueCollectionAddChat(trimmed, newForCollection, foil, rarity);
 	}
 
-	public void announceAllCollectionAdds(List<PackCardResult> pulls, Set<CardCollectionKey> preOwnedCards)
+	public void postAllCollectionAdds(List<PackCardResult> pulls, Set<CardCollectionKey> preOwnedCards)
 	{
 		if (pulls == null || pulls.isEmpty())
 		{
@@ -112,11 +112,11 @@ public class PullNotificationService
 			String name = CardDisplayNames.titleForPull(pull, catalog);
 			boolean isNew = !preOwnedKeys.contains(normalizeOwnedKey(pull.getCardName(), pull.isFoil()));
 			Color rarity = cardDatabase.chatRarityColorForCardName(name);
-			announceCollectionAddAlways(name, isNew, pull.isFoil(), rarity);
+			postCollectionAddChat(name, isNew, pull.isFoil(), rarity);
 		}
 	}
 
-	public void announceCollectionAddAlways(RevealCard card)
+	public void postCollectionAddChat(RevealCard card)
 	{
 		if (card == null || card.getPull() == null)
 		{
@@ -139,7 +139,7 @@ public class PullNotificationService
 		Color rarity = card.getRarityColor() != null
 			? card.getRarityColor()
 			: cardDatabase.chatRarityColorForCardName(name);
-		announceCollectionAddAlways(name, card.isNew(), pull.isFoil(), rarity);
+		postCollectionAddChat(name, card.isNew(), pull.isFoil(), rarity);
 	}
 
 	public void notifyPackAtEnd(List<PackRevealService.RevealCard> cards)
@@ -148,9 +148,9 @@ public class PullNotificationService
 		{
 			return;
 		}
-		pullNotifySupport.packSummaryContent(pullNotifySupport.packPullsFromRevealCards(cards)).ifPresent(content ->
+		pullNotifySupport.packSummaryContent(pullNotifySupport.packPullsFromCards(cards)).ifPresent(content ->
 		{
-			pullExternalNotificationService.sendPackSummary(content);
+			externalNotifyService.sendPackSummary(content);
 			if (config.dinkNotifications())
 			{
 				dinkNotificationService.notifyPackSummary(content);
@@ -160,9 +160,9 @@ public class PullNotificationService
 
 	private void queueCollectionAddChat(String cardName, boolean newForCollection, boolean foil, Color rarityColor)
 	{
-		String formatted = TcgPluginGameMessages.formatPrefixedYouAddedCollection(
+		String formatted = TcgPluginGameMessages.formatYouAddedCollection(
 			cardName, newForCollection, foil, rarityColor);
-		String plain = TcgPluginGameMessages.plainPrefixedYouAddedCollection(cardName, newForCollection, foil);
+		String plain = TcgPluginGameMessages.plainYouAddedCollection(cardName, newForCollection, foil);
 		TcgPluginGameMessages.queueFormattedGameMessage(chatMessageManager, formatted, plain);
 	}
 
