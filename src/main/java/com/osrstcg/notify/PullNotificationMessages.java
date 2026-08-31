@@ -52,6 +52,16 @@ public final class PullNotificationMessages
 		}
 	}
 
+	static boolean isBlank(String value)
+	{
+		return value == null || value.trim().isEmpty();
+	}
+
+	static String playerLabel(String name)
+	{
+		return isBlank(name) ? "Unknown player" : name.trim();
+	}
+
 	public static String inspectUrl(String instanceId)
 	{
 		if (instanceId == null || instanceId.isBlank())
@@ -64,9 +74,8 @@ public final class PullNotificationMessages
 	public static String collectionMessage(
 		String playerName, String cardName, boolean newForCollection, boolean foil, String inspectUrl)
 	{
-		String who = playerName == null || playerName.trim().isEmpty() ? "Unknown player" : playerName.trim();
 		String card = cardName == null ? "" : cardName.trim();
-		String body = who + " just added " + (newForCollection ? "" : "duplicate ") + card
+		String body = playerLabel(playerName) + " just added " + (newForCollection ? "" : "duplicate ") + card
 			+ (foil ? " (foil)" : "") + " to their collection!";
 		return appendInspectLink(body, inspectUrl);
 	}
@@ -159,8 +168,7 @@ public final class PullNotificationMessages
 
 	public static String packSummaryMessage(String opener, PackSummarySections sections)
 	{
-		String who = opener == null || opener.trim().isEmpty() ? "Unknown player" : opener.trim();
-		StringBuilder message = new StringBuilder(who).append(" opened a booster pack!");
+		StringBuilder message = new StringBuilder(playerLabel(opener)).append(" opened a booster pack!");
 		if (sections != null)
 		{
 			appendCardSection(message, "New cards", sections.newCards);

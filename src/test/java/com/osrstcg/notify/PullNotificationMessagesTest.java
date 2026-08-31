@@ -6,6 +6,9 @@ import java.util.Collections;
 import java.util.List;
 import org.junit.Test;
 
+import static com.osrstcg.notify.PullNotificationMessages.buildSummarySections;
+import static com.osrstcg.notify.PullNotificationMessages.hasEligiblePull;
+import static com.osrstcg.notify.PullNotificationMessages.packSummaryMessage;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -18,10 +21,9 @@ public class PullNotificationMessagesTest
 		List<PullNotificationMessages.PackPull> pulls = Arrays.asList(
 			pull("Zilyana", true),
 			pull("Goblin", false));
-		PullNotificationMessages.PackSummarySections sections = PullNotificationMessages.buildSummarySections(pulls);
 		assertEquals(
 			"%USERNAME% opened a booster pack!\n\n**New cards**\n- **Zilyana**\n- Goblin",
-			PullNotificationMessages.packSummaryMessage("%USERNAME%", sections));
+			packSummaryMessage("%USERNAME%", buildSummarySections(pulls)));
 	}
 
 	@Test
@@ -30,26 +32,23 @@ public class PullNotificationMessagesTest
 		List<PullNotificationMessages.PackPull> pulls = Collections.singletonList(
 			new PullNotificationMessages.PackPull(
 				"General Graardor", false, false, RarityMath.Tier.COMMON, null, true));
-		PullNotificationMessages.PackSummarySections sections = PullNotificationMessages.buildSummarySections(pulls);
 		assertEquals(
 			"%USERNAME% opened a booster pack!\n\n**Duplicates**\n- **General Graardor**",
-			PullNotificationMessages.packSummaryMessage("%USERNAME%", sections));
+			packSummaryMessage("%USERNAME%", buildSummarySections(pulls)));
 	}
 
 	@Test
 	public void packSummaryContainsOnlyOpeningLineWhenBothSectionsAreEmpty()
 	{
-		PullNotificationMessages.PackSummarySections sections =
-			PullNotificationMessages.buildSummarySections(Collections.emptyList());
 		assertEquals(
 			"%USERNAME% opened a booster pack!",
-			PullNotificationMessages.packSummaryMessage("%USERNAME%", sections));
+			packSummaryMessage("%USERNAME%", buildSummarySections(Collections.emptyList())));
 	}
 
 	@Test
 	public void packSummaryIsSuppressedWhenNoPullIsNotificationEligible()
 	{
-		assertFalse(PullNotificationMessages.hasEligiblePull(Arrays.asList(
+		assertFalse(hasEligiblePull(Arrays.asList(
 			pull("Common card", false),
 			pull("Rare card", false))));
 	}
@@ -57,7 +56,7 @@ public class PullNotificationMessagesTest
 	@Test
 	public void packSummaryIsAllowedWhenAnyPullIsNotificationEligible()
 	{
-		assertTrue(PullNotificationMessages.hasEligiblePull(Arrays.asList(
+		assertTrue(hasEligiblePull(Arrays.asList(
 			pull("Common card", false),
 			pull("Mythic card", true),
 			pull("Another common card", false))));
@@ -66,9 +65,9 @@ public class PullNotificationMessagesTest
 	@Test
 	public void emptyOrNullPackSummaryIsSuppressed()
 	{
-		assertFalse(PullNotificationMessages.hasEligiblePull(null));
-		assertFalse(PullNotificationMessages.hasEligiblePull(Collections.emptyList()));
-		assertFalse(PullNotificationMessages.hasEligiblePull(Collections.singletonList(null)));
+		assertFalse(hasEligiblePull(null));
+		assertFalse(hasEligiblePull(Collections.emptyList()));
+		assertFalse(hasEligiblePull(Collections.singletonList(null)));
 	}
 
 	private static PullNotificationMessages.PackPull pull(String cardName, boolean notificationEligible)

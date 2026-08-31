@@ -1,7 +1,6 @@
 package com.osrstcg.cloud.api;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -125,16 +124,12 @@ public final class CloudApiClient
 
 	public JsonObject getHealth() throws CloudApiException, IOException
 	{
-		JsonObject json = request("GET", "/health", null, false);
-		cacheCatalogVersionFrom(json);
-		return json;
+		return fetchWithCatalogVersionFromBody(request("GET", "/health", null, false));
 	}
 
 	public JsonObject getPacks() throws CloudApiException, IOException
 	{
-		JsonObject json = requestAuthed("GET", "/packs", null);
-		cacheCatalogVersionFrom(json);
-		return json;
+		return fetchWithCatalogVersionFromBody(requestAuthed("GET", "/packs", null));
 	}
 
 	public LiveCardsResponse getLiveCards(String cachedCatalogVersion) throws CloudApiException, IOException
@@ -151,11 +146,7 @@ public final class CloudApiClient
 			{
 				return LiveCardsResponse.notModified(versionHeader);
 			}
-			String text = readBody(response);
-			if (!response.isSuccessful())
-			{
-				throw httpError(response.code(), text);
-			}
+			String text = readSuccessfulBody(response);
 			JsonObject body = parseObject(text);
 			String version = versionHeader;
 			if (version == null || version.isBlank())
@@ -188,11 +179,13 @@ public final class CloudApiClient
 
 	private void cacheCatalogVersionFrom(JsonObject json)
 	{
-		String version = textTrimmed(json, "catalogVersion");
-		if (version != null)
-		{
-			cachedCatalogVersion = version;
-		}
+		setCachedCatalogVersion(textTrimmed(json, "catalogVersion"));
+	}
+
+	private JsonObject fetchWithCatalogVersionFromBody(JsonObject json)
+	{
+		cacheCatalogVersionFrom(json);
+		return json;
 	}
 
 	public JsonObject pairStart(String displayName, String profileKeyHash, long accountHash)
@@ -457,9 +450,9 @@ public final class CloudApiClient
 			}
 			b.header("Authorization", "Bearer " + access);
 		}
-		if ("GET".equals(method) || "HEAD".equals(method))
+		if ("GET".equals(method))
 		{
-			b.method(method, null);
+			b.get();
 		}
 		else
 		{
@@ -584,6 +577,16 @@ public final class CloudApiClient
 			b.header("If-None-Match", etag);
 		}
 		return http.newCall(b.build()).execute();
+	}
+
+	private static String readSuccessfulBody(Response response) throws CloudApiException, IOException
+	{
+		String text = readBody(response);
+		if (!response.isSuccessful())
+		{
+			throw httpError(response.code(), text);
+		}
+		return text;
 	}
 
 	private static String readBody(Response response) throws IOException

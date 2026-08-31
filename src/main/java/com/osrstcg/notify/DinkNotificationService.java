@@ -1,7 +1,6 @@
 package com.osrstcg.notify;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -9,7 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.events.PluginMessage;
 import com.osrstcg.catalog.RarityMath;
-import com.osrstcg.notify.PullNotificationMessages.PackPull;
+import com.osrstcg.notify.PullNotifySupport.PackSummaryContent;
 
 @Slf4j
 @Singleton
@@ -17,6 +16,7 @@ public class DinkNotificationService
 {
 	private static final String DINK_NAMESPACE = "dink";
 	private static final String DINK_NOTIFY = "notify";
+	private static final String DINK_USERNAME = "%USERNAME%";
 
 	private final EventBus eventBus;
 	private final PullNotifySupport pullNotifySupport;
@@ -31,15 +31,36 @@ public class DinkNotificationService
 	public void notifyPackPull(
 		String cardName, boolean newForCollection, boolean foil, RarityMath.Tier tier, String instanceId)
 	{
-		if (cardName == null || cardName.trim().isEmpty())
+		if (PullNotificationMessages.isBlank(cardName))
 		{
 			return;
 		}
-		String trimmed = cardName.trim();
-		String imageUrl = pullNotifySupport.cardImageUrl(trimmed);
-		String inspectUrl = PullNotificationMessages.inspectUrl(instanceId);
+		PullNotifySupport.PullCardContent content = pullNotifySupport.pullCardContent(
+			cardName, newForCollection, foil, instanceId, DINK_USERNAME);
+		postNotify(
+			pullNotifySupport.messageWithStatsLine(content.description),
+			content.imageUrl,
+			pullMetadata(cardName.trim(), foil, newForCollection, tier, content.imageUrl, content.inspectUrl));
+	}
+
+	void notifyPackSummary(PackSummaryContent content)
+	{
 		Map<String, Object> metadata = new HashMap<>();
-		metadata.put("cardName", trimmed);
+		metadata.put("notificationType", "packSummary");
+		metadata.put("newCards", content.sections.newCards);
+		metadata.put("duplicates", content.sections.duplicates);
+		postNotify(
+			pullNotifySupport.messageWithStatsLine(content.messageFor(DINK_USERNAME)),
+			content.imageUrl,
+			metadata);
+	}
+
+	private static Map<String, Object> pullMetadata(
+		String cardName, boolean foil, boolean newForCollection, RarityMath.Tier tier,
+		String imageUrl, String inspectUrl)
+	{
+		Map<String, Object> metadata = new HashMap<>();
+		metadata.put("cardName", cardName);
 		metadata.put("foil", foil);
 		metadata.put("newForCollection", newForCollection);
 		metadata.put("rarityTier", tier == null ? "" : tier.getLabel());
@@ -51,26 +72,7 @@ public class DinkNotificationService
 		{
 			metadata.put("inspectUrl", inspectUrl);
 		}
-		postNotify(
-			pullNotifySupport.messageWithStatsLine(
-				PullNotificationMessages.collectionMessage("%USERNAME%", trimmed, newForCollection, foil, inspectUrl)),
-			imageUrl,
-			metadata);
-	}
-
-	void notifyPackSummary(List<PackPull> pulls)
-	{
-		pullNotifySupport.packSummaryContent(pulls, "%USERNAME%").ifPresent(content ->
-		{
-			Map<String, Object> metadata = new HashMap<>();
-			metadata.put("notificationType", "packSummary");
-			metadata.put("newCards", content.sections.newCards);
-			metadata.put("duplicates", content.sections.duplicates);
-			postNotify(
-				pullNotifySupport.messageWithStatsLine(content.summaryMessage),
-				content.imageUrl,
-				metadata);
-		});
+		return metadata;
 	}
 
 	private void postNotify(String text, String imageUrl, Map<String, Object> metadata)

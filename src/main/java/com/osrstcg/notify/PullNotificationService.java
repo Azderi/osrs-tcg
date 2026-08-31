@@ -11,7 +11,6 @@ import com.osrstcg.pack.PackRevealService.RevealCard;
 import com.osrstcg.util.CardDisplayNames;
 import com.osrstcg.util.TcgPluginGameMessages;
 import java.awt.Color;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -20,7 +19,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.client.chat.ChatMessageManager;
 import com.osrstcg.catalog.RarityMath;
-import com.osrstcg.notify.PullNotificationMessages.PackPull;
 
 @Singleton
 public class PullNotificationService
@@ -52,11 +50,7 @@ public class PullNotificationService
 	public boolean notifyPull(
 		String cardName, boolean newForCollection, boolean foil, RarityMath.Tier tier, String instanceId)
 	{
-		if (cardName == null || cardName.trim().isEmpty())
-		{
-			return false;
-		}
-		if (!pullNotifySupport.shouldNotify(tier, foil, newForCollection))
+		if (PullNotificationMessages.isBlank(cardName) || !pullNotifySupport.shouldNotify(tier, foil, newForCollection))
 		{
 			return false;
 		}
@@ -68,7 +62,7 @@ public class PullNotificationService
 			chatPosted = true;
 		}
 		pullExternalNotificationService.notifyParty(trimmed, newForCollection, foil);
-		if (pullTrigger() == PullNotificationTrigger.EVERY_CARD)
+		if (pullNotifySupport.notificationTrigger() == PullNotificationTrigger.EVERY_CARD)
 		{
 			pullExternalNotificationService.sendWebhook(trimmed, newForCollection, foil, tier, instanceId);
 			if (config.dinkNotifications())
@@ -81,7 +75,7 @@ public class PullNotificationService
 
 	public void announceCollectionAddAlways(String cardName, boolean newForCollection, boolean foil, Color rarityColor)
 	{
-		if (cardName == null || cardName.trim().isEmpty())
+		if (PullNotificationMessages.isBlank(cardName))
 		{
 			return;
 		}
@@ -150,36 +144,18 @@ public class PullNotificationService
 
 	public void notifyPackAtEnd(List<PackRevealService.RevealCard> cards)
 	{
-		if (pullTrigger() != PullNotificationTrigger.AT_END || cards == null || cards.isEmpty())
+		if (pullNotifySupport.notificationTrigger() != PullNotificationTrigger.AT_END || cards == null || cards.isEmpty())
 		{
 			return;
 		}
-		List<PackPull> pulls = buildPackPulls(cards);
-		pullExternalNotificationService.sendPackSummary(pulls);
-		if (config.dinkNotifications())
+		pullNotifySupport.packSummaryContent(pullNotifySupport.packPullsFromRevealCards(cards)).ifPresent(content ->
 		{
-			dinkNotificationService.notifyPackSummary(pulls);
-		}
-	}
-
-	private List<PackPull> buildPackPulls(List<RevealCard> cards)
-	{
-		List<PackPull> pulls = new ArrayList<>();
-		for (RevealCard card : cards)
-		{
-			if (card == null || card.getPull() == null || card.getPull().getCardName() == null)
+			pullExternalNotificationService.sendPackSummary(content);
+			if (config.dinkNotifications())
 			{
-				continue;
+				dinkNotificationService.notifyPackSummary(content);
 			}
-			pulls.add(new PackPull(
-				card.getPull().getCardName().trim(),
-				card.isNew(),
-				card.getPull().isFoil(),
-				card.getTier(),
-				card.getPull().getInstanceId(),
-				pullNotifySupport.shouldNotify(card.getTier(), card.getPull().isFoil(), card.isNew())));
-		}
-		return pulls;
+		});
 	}
 
 	private void queueCollectionAddChat(String cardName, boolean newForCollection, boolean foil, Color rarityColor)
@@ -194,11 +170,5 @@ public class PullNotificationService
 	{
 		String name = cardName == null ? "" : cardName.trim().toLowerCase(Locale.ROOT);
 		return name + "|" + (foil ? "1" : "0");
-	}
-
-	private PullNotificationTrigger pullTrigger()
-	{
-		PullNotificationTrigger trigger = config.pullNotificationTrigger();
-		return trigger == null ? PullNotificationTrigger.EVERY_CARD : trigger;
 	}
 }

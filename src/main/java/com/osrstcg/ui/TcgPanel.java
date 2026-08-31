@@ -464,28 +464,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		{
 			return;
 		}
-		if (selectedTab == Tab.OVERVIEW)
-		{
-			overviewContent.removeAll();
-			overviewTab.render(overviewContent, snap, metrics);
-			contentLayout.show(content, Tab.OVERVIEW.name());
-		}
-		else if (selectedTab == Tab.COLLECTION)
-		{
-			collectionTab.render();
-			contentLayout.show(content, Tab.COLLECTION.name());
-		}
-		else if (selectedTab == Tab.SHOP)
-		{
-			shopTab.renderFromPackClose(snap, shopRows);
-			showTabContent(Tab.SHOP);
-		}
-		else if (selectedTab == Tab.WELCOME)
-		{
-			welcomeContent.removeAll();
-			renderWelcomeTab(welcomeContent);
-			contentLayout.show(content, Tab.WELCOME.name());
-		}
+		renderTab(selectedTab, TabRenderMode.PACK_CLOSE, snap, metrics, shopRows);
 		relayoutMainPanel();
 	}
 
@@ -946,42 +925,81 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		}
 	}
 
+	private enum TabRenderMode
+	{
+		NORMAL,
+		FROZEN,
+		PACK_CLOSE
+	}
+
 	private void renderSelectedTab()
 	{
-		if (packRevealService.isActive() && sidebarRevealSpoilerFreeze != null)
+		TabRenderMode mode = packRevealService.isActive() && sidebarRevealSpoilerFreeze != null
+			? TabRenderMode.FROZEN
+			: TabRenderMode.NORMAL;
+		renderTab(selectedTab, mode, null, null, null);
+	}
+
+	private void renderTab(Tab tab, TabRenderMode mode, PackCloseSnapshot snap,
+		CloudSidebarCollectionStats metrics, List<BoosterShopRow> shopRows)
+	{
+		if (mode == TabRenderMode.FROZEN && revealTabBuilt[tab.ordinal()])
 		{
-			renderSelectedTabWhileFrozen();
+			showRenderedTab(tab, mode);
 			return;
 		}
 
-		if (selectedTab == Tab.COLLECTION)
-		{
-			collectionTab.render();
-			showTabContent(selectedTab);
-			return;
-		}
-
-		if (selectedTab == Tab.SHOP)
-		{
-			shopTab.render();
-			showTabContent(selectedTab);
-			return;
-		}
-
-		JPanel activePanel = panelForTab(selectedTab);
-		activePanel.removeAll();
-		switch (selectedTab)
+		switch (tab)
 		{
 			case WELCOME:
-				renderWelcomeTab(activePanel);
+				welcomeContent.removeAll();
+				renderWelcomeTab(welcomeContent);
 				break;
 			case OVERVIEW:
-				renderOverviewTab(activePanel);
+				overviewContent.removeAll();
+				if (mode == TabRenderMode.PACK_CLOSE)
+				{
+					overviewTab.render(overviewContent, snap, metrics);
+				}
+				else
+				{
+					renderOverviewTab(overviewContent);
+				}
 				break;
-			default:
-				log.warn("Unsupported tab {}", selectedTab);
+			case COLLECTION:
+				collectionTab.render();
+				break;
+			case SHOP:
+				if (mode == TabRenderMode.PACK_CLOSE)
+				{
+					shopTab.renderFromPackClose(snap, shopRows);
+				}
+				else
+				{
+					shopTab.render();
+				}
+				break;
 		}
-		showTabContent(selectedTab);
+
+		if (mode == TabRenderMode.FROZEN)
+		{
+			revealTabBuilt[tab.ordinal()] = true;
+		}
+		showRenderedTab(tab, mode);
+	}
+
+	private void showRenderedTab(Tab tab, TabRenderMode mode)
+	{
+		if (mode == TabRenderMode.NORMAL
+			|| (mode == TabRenderMode.FROZEN && (tab == Tab.COLLECTION || tab == Tab.SHOP))
+			|| (mode == TabRenderMode.PACK_CLOSE && tab == Tab.SHOP))
+		{
+			showTabContent(tab);
+		}
+		else
+		{
+			contentLayout.show(content, tab.name());
+		}
 	}
 
 	private void showTabContent(Tab tab)
@@ -1004,23 +1022,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			SidebarLayout.revalidateTabScrollPane(shopPacksScrollPane);
 			shopHeaderPanel.revalidate();
 			shopContent.revalidate();
-		}
-	}
-
-	private JPanel panelForTab(Tab tab)
-	{
-		switch (tab)
-		{
-			case WELCOME:
-				return welcomeContent;
-			case OVERVIEW:
-				return overviewContent;
-			case COLLECTION:
-				return collectionContent;
-			case SHOP:
-				return packsContent;
-			default:
-				return overviewContent;
 		}
 	}
 
@@ -1065,45 +1066,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	private void resetRevealTabBuilt()
 	{
 		Arrays.fill(revealTabBuilt, false);
-	}
-
-	private void renderSelectedTabWhileFrozen()
-	{
-		Tab tab = selectedTab;
-		int o = tab.ordinal();
-		if (!revealTabBuilt[o])
-		{
-			switch (tab)
-			{
-				case WELCOME:
-					welcomeContent.removeAll();
-					renderWelcomeTab(welcomeContent);
-					break;
-				case OVERVIEW:
-					overviewContent.removeAll();
-					renderOverviewTab(overviewContent);
-					break;
-				case COLLECTION:
-					collectionTab.render();
-					break;
-				case SHOP:
-					shopTab.render();
-					break;
-				default:
-					log.warn("Unsupported tab {}", tab);
-					contentLayout.show(content, tab.name());
-					return;
-			}
-			revealTabBuilt[o] = true;
-		}
-		if (tab == Tab.COLLECTION || tab == Tab.SHOP)
-		{
-			showTabContent(tab);
-		}
-		else
-		{
-			contentLayout.show(content, tab.name());
-		}
 	}
 
 	private int liveSidebarContentWidth()

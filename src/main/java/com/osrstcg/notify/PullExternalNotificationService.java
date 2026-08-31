@@ -25,7 +25,7 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 import com.osrstcg.catalog.RarityMath;
-import com.osrstcg.notify.PullNotificationMessages.PackPull;
+import com.osrstcg.notify.PullNotifySupport.PackSummaryContent;
 
 @Slf4j
 @Singleton
@@ -87,12 +87,10 @@ public class PullExternalNotificationService
 		}
 		try
 		{
-			String imageUrl = pullNotifySupport.cardImageUrl(card);
-			String inspectUrl = PullNotificationMessages.inspectUrl(instanceId);
-			String description = PullNotificationMessages.collectionMessage(
-				resolvePlayerName(), card, newForCollection, foil, inspectUrl);
-			String statsLine = pullNotifySupport.statsPlainLine();
-			String payload = gson.toJson(buildPayload(description, statsLine, tier, imageUrl, inspectUrl));
+			PullNotifySupport.PullCardContent content = pullNotifySupport.pullCardContent(
+				card, newForCollection, foil, instanceId, resolvePlayerName());
+			String payload = gson.toJson(buildPayload(
+				content.description, pullNotifySupport.statsPlainLine(), tier, content.imageUrl, content.inspectUrl));
 			dispatchWebhook(card, webhookUrls, payload);
 		}
 		catch (Exception ex)
@@ -101,30 +99,27 @@ public class PullExternalNotificationService
 		}
 	}
 
-	public void sendPackSummary(List<PackPull> pulls)
+	public void sendPackSummary(PackSummaryContent content)
 	{
 		List<HttpUrl> webhookUrls = configuredWebhookUrls();
 		if (webhookUrls.isEmpty())
 		{
 			return;
 		}
-		pullNotifySupport.packSummaryContent(pulls, resolvePlayerName()).ifPresent(content ->
+		try
 		{
-			try
-			{
-				String payload = gson.toJson(buildPayload(
-					content.summaryMessage,
-					pullNotifySupport.statsPlainLine(),
-					content.tier,
-					content.imageUrl,
-					""));
-				dispatchWebhook("pack summary", webhookUrls, payload);
-			}
-			catch (Exception ex)
-			{
-				log.warn("Pull webhook pack summary failed before send", ex);
-			}
-		});
+			String payload = gson.toJson(buildPayload(
+				content.messageFor(resolvePlayerName()),
+				pullNotifySupport.statsPlainLine(),
+				content.tier,
+				content.imageUrl,
+				""));
+			dispatchWebhook("pack summary", webhookUrls, payload);
+		}
+		catch (Exception ex)
+		{
+			log.warn("Pull webhook pack summary failed before send", ex);
+		}
 	}
 
 	private List<HttpUrl> configuredWebhookUrls()
@@ -252,10 +247,8 @@ public class PullExternalNotificationService
 		{
 			embed.put("image", Map.of("url", imageUrl));
 		}
-		List<Map<String, Object>> embeds = new ArrayList<>();
-		embeds.add(embed);
 		Map<String, Object> payload = new LinkedHashMap<>();
-		payload.put("embeds", embeds);
+		payload.put("embeds", List.of(embed));
 		return payload;
 	}
 
@@ -269,9 +262,9 @@ public class PullExternalNotificationService
 	{
 		if (client.getLocalPlayer() == null || client.getLocalPlayer().getName() == null)
 		{
-			return "Unknown player";
+			return PullNotificationMessages.playerLabel(null);
 		}
-		return Text.sanitize(client.getLocalPlayer().getName());
+		return PullNotificationMessages.playerLabel(Text.sanitize(client.getLocalPlayer().getName()));
 	}
 
 	private static String truncateForLog(String value)
