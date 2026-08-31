@@ -77,12 +77,11 @@ public class PackRevealService
 		private final long phaseElapsedMs;
 		private final double packFadeProgress;
 		private final String boosterPackId;
-		private final boolean showScrollWheelOverlayHint;
 		private final boolean apexPackOpen;
 
 		private RevealPaintSnapshot(Phase phase, List<RevealCard> cards, boolean[] revealedByIndex,
 			float[] flipProgressByIndex, long phaseElapsedMs,
-			double packFadeProgress, String boosterPackId, boolean showScrollWheelOverlayHint, boolean apexPackOpen)
+			double packFadeProgress, String boosterPackId, boolean apexPackOpen)
 		{
 			this.phase = phase;
 			this.cards = cards;
@@ -91,7 +90,6 @@ public class PackRevealService
 			this.phaseElapsedMs = phaseElapsedMs;
 			this.packFadeProgress = packFadeProgress;
 			this.boosterPackId = boosterPackId == null ? "" : boosterPackId;
-			this.showScrollWheelOverlayHint = showScrollWheelOverlayHint;
 			this.apexPackOpen = apexPackOpen;
 		}
 
@@ -118,12 +116,6 @@ public class PackRevealService
 		public String getBoosterPackId()
 		{
 			return boosterPackId;
-		}
-
-		/** Whether the first-pack scroll/zoom hint should be drawn this frame (10 seconds from reveal start). */
-		public boolean isShowScrollWheelOverlayHint()
-		{
-			return showScrollWheelOverlayHint;
 		}
 
 		public boolean isApexPackOpen()
@@ -173,7 +165,6 @@ public class PackRevealService
 	}
 
 	private static final long PACK_FADE_MS = 500L;
-	private static final long SCROLL_WHEEL_HINT_DURATION_MS = 10_000L;
 
 	/** Milliseconds between each card starting its flight from the pile. */
 	public static final long PACK_DEAL_STAGGER_MS = 115L;
@@ -214,8 +205,6 @@ public class PackRevealService
 	private String boosterPackId = "";
 	/** When true, sealed-pack overlay uses apex hover sound and Godly-tier glow. */
 	private boolean apexPackOpen;
-	/** Wall-clock ms until which the first-pack scroll hint is shown; {@code 0} = off. */
-	private long scrollWheelHintUntilMs;
 	/** True after {@link #beginPendingReveal} until {@link #supplyRevealPulls} or abort. */
 	private boolean awaitingServerPulls;
 	/** Wall-clock start of the current pending open; {@code 0} when not awaiting. */
@@ -249,18 +238,15 @@ public class PackRevealService
 	 * back to the catalog card's precomputed {@code tierLabel}.
 	 */
 	public synchronized void beginPendingReveal(String boosterTitle, String boosterPackId,
-		boolean showScrollWheelOverlayHint, boolean apexPackOpen)
+		boolean apexPackOpen)
 	{
-		beginPendingReveal(boosterTitle, boosterPackId, showScrollWheelOverlayHint, apexPackOpen, 0);
+		beginPendingReveal(boosterTitle, boosterPackId, apexPackOpen, 0);
 	}
 
 	public synchronized void beginPendingReveal(String boosterTitle, String boosterPackId,
-		boolean showScrollWheelOverlayHint, boolean apexPackOpen, int expectedCardCount)
+		boolean apexPackOpen, int expectedCardCount)
 	{
 		packRevealSoundService.hardStop();
-		this.scrollWheelHintUntilMs = showScrollWheelOverlayHint
-			? System.currentTimeMillis() + SCROLL_WHEEL_HINT_DURATION_MS
-			: 0L;
 		this.boosterPackId = boosterPackId == null ? "" : boosterPackId.trim();
 		this.apexPackOpen = apexPackOpen;
 		preloadRevealSleeve(this.boosterPackId);
@@ -630,7 +616,6 @@ public class PackRevealService
 		double packFadeProgress = computePackFadeProgressLocked();
 		boolean[] revCopy = Arrays.copyOf(revealedByIndex, revealedByIndex.length);
 		float[] flipCopy = buildFlipProgressLocked();
-		boolean scrollHintVisible = System.currentTimeMillis() < scrollWheelHintUntilMs;
 		return Optional.of(new RevealPaintSnapshot(
 			phase,
 			List.copyOf(visibleCards()),
@@ -639,7 +624,6 @@ public class PackRevealService
 			phaseElapsedMs,
 			packFadeProgress,
 			boosterPackId,
-			scrollHintVisible,
 			apexPackOpen));
 	}
 
@@ -804,7 +788,6 @@ public class PackRevealService
 		phaseStartedAt = 0L;
 		boosterPackId = "";
 		apexPackOpen = false;
-		scrollWheelHintUntilMs = 0L;
 		awaitingServerPulls = false;
 		pendingRevealStartedAtMs = 0L;
 		preOwnedFoilNames = Set.of();

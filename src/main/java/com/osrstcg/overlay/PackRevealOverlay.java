@@ -823,19 +823,9 @@ public class PackRevealOverlay extends Overlay
 		}
 	}
 
-	private void paintScrollHintOnTop(Graphics2D g, Rectangle canvas, PackRevealService.RevealPaintSnapshot snap)
-	{
-		if (!snap.isShowScrollWheelOverlayHint())
-		{
-			return;
-		}
-		PackRevealDrawUtil.drawScrollWheelHint(g, canvas);
-	}
-
 	private void paintRevealChrome(Graphics2D graphics, Rectangle canvas, PackRevealService.RevealPaintSnapshot snap,
 		List<PackRevealService.RevealCard> cards)
 	{
-		paintScrollHintOnTop(graphics, canvas, snap);
 		paintCloseButton(graphics, canvas);
 		if (cards != null)
 		{

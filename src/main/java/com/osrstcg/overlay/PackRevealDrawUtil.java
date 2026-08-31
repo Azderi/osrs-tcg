@@ -145,21 +145,6 @@ final class PackRevealDrawUtil
 		}
 	}
 
-	static void drawScrollWheelHint(Graphics2D g, Rectangle canvas)
-	{
-		String text = "Scroll to adjust card scale";
-		Font font = FontManager.getRunescapeBoldFont();
-		g.setFont(font);
-		FontMetrics fm = g.getFontMetrics(font);
-		int tw = fm.stringWidth(text);
-		int x = canvas.x + (canvas.width - tw) / 2;
-		int y = canvas.y + Math.max(28, PackRevealLayout.VIEWPORT_EDGE_PAD + 8) + fm.getAscent();
-		g.setColor(new Color(0, 0, 0, 220));
-		g.drawString(text, x + 2, y + 2);
-		g.setColor(new Color(0xFF, 0xF5, 0xDC));
-		g.drawString(text, x, y);
-	}
-
 	static Rectangle scaleRectCentered(Rectangle r, double scale)
 	{
 		int nw = Math.max(1, (int) Math.round(r.width * scale));
