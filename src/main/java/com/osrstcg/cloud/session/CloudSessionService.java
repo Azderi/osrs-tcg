@@ -1,7 +1,6 @@
 package com.osrstcg.cloud.session;
 
 import com.osrstcg.state.TcgState;
-import com.osrstcg.persist.TcgStateCodec;
 import com.osrstcg.catalog.CardImageCacheService;
 import com.osrstcg.interop.TcgPublicStatsCalculator;
 import com.osrstcg.state.TcgStateService;
@@ -20,12 +19,12 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.client.chat.ChatMessageManager;
-import net.runelite.client.config.ConfigManager;
 import net.runelite.client.util.Text;
 import com.osrstcg.cloud.activity.ActivityConfigService;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
 import com.osrstcg.cloud.api.CloudConnectionState;
+import com.osrstcg.cloud.api.JsonObjects;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
 import com.osrstcg.cloud.catalog.CardCatalogService;
 import com.osrstcg.cloud.catalog.PackCatalogService;
@@ -35,6 +34,10 @@ import com.osrstcg.cloud.trade.TradeCloudService;
 @Singleton
 public final class CloudSessionService
 {
+	private static final String WAITING_FOR_ACCOUNT = "Waiting for account";
+	private static final String WAITING_FOR_DISPLAY_NAME = "Waiting for display name";
+	private static final String CONSENT_WAITING_STATUS = "Create a profile";
+
 	private final Client client;
 	private final CloudApiClient api;
 	private final CloudTokenStore tokens;
@@ -47,33 +50,22 @@ public final class CloudSessionService
 	private final ActivityConfigService activityConfigService;
 	private final RestrictedWorldGuard restrictedWorldGuard;
 	private final Provider<TradeCloudService> tradeCloudProvider;
-	private final Provider<CreditAttestQueue> creditAttestQueueProvider;
+	private final Provider<CreditAttestQueue> attestQueueProvider;
 	private final CloudCollectionPager collectionPager;
 	private final CloudCollectionSyncService collectionSync;
 	private final HiscoresSettleService hiscoresSettle;
-	private final CloudMigrationService migration;
+	private final CloudProfileConsentService profileConsent;
 
 	private final AtomicReference<CloudConnectionState> connectionState =
 		new AtomicReference<>(CloudConnectionState.DISCONNECTED);
 	private final AtomicReference<String> statusMessage = new AtomicReference<>("Disconnected");
 	private final AtomicReference<Runnable> statusListener = new AtomicReference<>(null);
-	/** At most one hiscores settle attempt outcome per cloud login (retries for 503 use a separate flag). */
 	private final AtomicBoolean hiscoresSettledThisLogin = new AtomicBoolean(false);
-	private final AtomicBoolean hiscoresSettleRetryScheduled = new AtomicBoolean(false);
-	/** When true, next collection reconcile always pulls {@code /me/state}. */
-	private final AtomicBoolean forceStatePullOnce = new AtomicBoolean(false);
-	/** Background poll after async migrate upload until server import finishes. */
-	private final AtomicBoolean migrateImportWatchScheduled = new AtomicBoolean(false);
-	/** Skip replacing local collection with empty cloud while a migrate job is queued. */
-	private final AtomicBoolean deferCollectionPullForMigrateImport = new AtomicBoolean(false);
-	/** Server banned this account for the current login; cleared on logout. */
+	private final AtomicBoolean hiscoresRetryScheduled = new AtomicBoolean(false);
 	private final AtomicBoolean accountBanned = new AtomicBoolean(false);
-	/** Server quarantined this account for the current login; cleared on logout. */
 	private final AtomicBoolean accountQuarantined = new AtomicBoolean(false);
-	/** Run after ban/quarantine lock; registered by plugin startup to avoid Guice cycles. */
 	private final List<Runnable> accountLockCleanups = new CopyOnWriteArrayList<>();
 
-	public static final String DEBUG_MODE_STATUS = "Debug mode";
 	public static final String ACCOUNT_BANNED_STATUS =
 		"Your account has been banned. Check the account panel for more information.";
 	public static final String ACCOUNT_QUARANTINED_STATUS =
@@ -86,8 +78,6 @@ public final class CloudSessionService
 		CloudTokenStore tokens,
 		ProfileKeyHasher profileKeyHasher,
 		TcgStateService stateService,
-		TcgStateCodec stateCodec,
-		ConfigManager configManager,
 		ChatMessageManager chatMessageManager,
 		PackCatalogService packCatalogService,
 		CardCatalogService cardCatalogService,
@@ -96,7 +86,7 @@ public final class CloudSessionService
 		RestrictedWorldGuard restrictedWorldGuard,
 		ScheduledExecutorService scheduler,
 		Provider<TradeCloudService> tradeCloudProvider,
-		Provider<CreditAttestQueue> creditAttestQueueProvider,
+		Provider<CreditAttestQueue> attestQueueProvider,
 		TcgPublicStatsCalculator publicStatsCalculator)
 	{
 		this.client = client;
@@ -111,39 +101,27 @@ public final class CloudSessionService
 		this.activityConfigService = activityConfigService;
 		this.restrictedWorldGuard = restrictedWorldGuard;
 		this.tradeCloudProvider = tradeCloudProvider;
-		this.creditAttestQueueProvider = creditAttestQueueProvider;
+		this.attestQueueProvider = attestQueueProvider;
 		this.collectionPager = new CloudCollectionPager(api);
 		this.collectionSync = new CloudCollectionSyncService(
-			this, api, tokens, stateService, chatMessageManager, creditAttestQueueProvider,
-			publicStatsCalculator, collectionPager, forceStatePullOnce, deferCollectionPullForMigrateImport);
+			this, api, tokens, stateService, attestQueueProvider,
+			publicStatsCalculator, collectionPager);
 		this.hiscoresSettle = new HiscoresSettleService(
 			client, api, tokens, restrictedWorldGuard, scheduler, chatMessageManager, tradeCloudProvider,
-			collectionSync::applySidebarStats, hiscoresSettledThisLogin, hiscoresSettleRetryScheduled,
-			this::needsCloudConsent, this::isAccountLocked, this::isDebugModePaused);
-		this.migration = new CloudMigrationService(
-			this, collectionSync, client, api, tokens, profileKeyHasher, stateService, stateCodec,
-			chatMessageManager, packCatalogService, cardCatalogService, activityConfigService, scheduler,
-			forceStatePullOnce, migrateImportWatchScheduled, deferCollectionPullForMigrateImport,
-			configManager);
+			collectionSync::applySidebarStats, hiscoresSettledThisLogin, hiscoresRetryScheduled,
+			this::needsCloudConsent, this::isAccountLocked);
+		this.profileConsent = new CloudProfileConsentService(
+			this, collectionSync, hiscoresSettle, client, api, tokens, profileKeyHasher, stateService,
+			chatMessageManager, packCatalogService, cardCatalogService, activityConfigService);
 		api.setStaleRefreshHandler(this::handleStaleRefresh);
 		api.setAccountLockHandler(this::noteLockFromApiException);
 	}
 
-	/** Invoked when a mid-session refresh finds revoked credentials - no auto re-pair. */
 	private void handleStaleRefresh()
 	{
-		packCatalogService.clear();
-		cardCatalogService.resetLoginFetchGate();
-		activityConfigService.stopQuietPoll();
-		hiscoresSettle.clearGate();
-		if (needsCloudConsent())
-		{
-			setState(CloudConnectionState.DISCONNECTED, consentWaitingMessage());
-		}
-		else
-		{
-			setState(CloudConnectionState.DISCONNECTED, "Disconnected");
-		}
+		clearLoginFetchGates();
+		setState(CloudConnectionState.DISCONNECTED,
+			needsCloudConsent() ? CONSENT_WAITING_STATUS : "Disconnected");
 	}
 
 	public CloudConnectionState getConnectionState()
@@ -156,42 +134,27 @@ public final class CloudSessionService
 		return statusMessage.get();
 	}
 
-	/** Paired/refreshed with a usable access token (migration may still be pending). */
 	public boolean isSessionActive()
 	{
 		return connectionState.get() == CloudConnectionState.CONNECTED && tokens.getAccessToken() != null;
 	}
 
-	/**
-	 * Cloud gameplay ready: session active, migrated (consent accepted), not on a blocked world type,
-	 * not account-banned/quarantined, and not paused for Overview debug mode.
-	 */
 	public boolean isReady()
 	{
-		return isSessionActive()
-			&& !needsCloudConsent()
-			&& !isRestrictedWorld()
-			&& !isAccountLocked()
-			&& !isDebugModePaused();
+		return isSessionActive() && cloudGatesOpen();
 	}
 
-	/**
-	 * True when credit events may be buffered with optimistic local credits even if the
-	 * session is offline ({@link #isReady()} false). Requires consent; excluded when
-	 * banned/quarantined, on a restricted world, or in Overview debug pause.
-	 */
 	public boolean canCollectAttests()
 	{
-		return !needsCloudConsent()
-			&& !isAccountLocked()
-			&& !isRestrictedWorld()
-			&& !isDebugModePaused();
+		return cloudGatesOpen();
 	}
 
-	/**
-	 * Soft status while a consented client is offline and waiting for the 10-minute reconnect timer.
-	 * No-op unless currently {@link CloudConnectionState#ERROR} or disconnected with collect allowed.
-	 */
+	private boolean cloudGatesOpen()
+	{
+		return !needsCloudConsent() && !isAccountLocked()
+			&& !isRestrictedWorld();
+	}
+
 	public void noteOfflineReconnectScheduled()
 	{
 		if (!canCollectAttests() || isReady())
@@ -208,36 +171,24 @@ public final class CloudSessionService
 
 	public boolean isRestrictedWorld()
 	{
-		return restrictedWorldGuard != null && restrictedWorldGuard.isRestricted();
+		return restrictedWorldGuard.isRestricted();
 	}
 
-	/**
-	 * True after the server reports {@code banned: true} (e.g. attest). Cleared on logout.
-	 * Tokens are kept so the account panel can still open.
-	 */
 	public boolean isAccountBanned()
 	{
 		return accountBanned.get();
 	}
 
-	/**
-	 * True after the server reports {@code quarantined: true} (e.g. attest). Cleared on logout.
-	 * Tokens are kept so the account panel can still open.
-	 */
 	public boolean isAccountQuarantined()
 	{
 		return accountQuarantined.get();
 	}
 
-	/** Banned or quarantined for this login - full sidebar lock, no cloud gameplay. */
 	public boolean isAccountLocked()
 	{
 		return isAccountBanned() || isAccountQuarantined();
 	}
 
-	/**
-	 * True when the website account panel can be opened (active session, or locked with tokens retained).
-	 */
 	public boolean canOpenAccountPanel()
 	{
 		if (tokens.getAccessToken() == null || needsCloudConsent() || isRestrictedWorld())
@@ -247,45 +198,22 @@ public final class CloudSessionService
 		return isSessionActive() || isAccountLocked();
 	}
 
-	/** Overview debug mode: cloud fully paused (yellow status). */
-	public boolean isDebugModePaused()
-	{
-		return stateService.isDebugLogging();
-	}
-
-	/** Pin / restore card catalog for debug tools (memory, disk, or live public fetch). */
-	public void ensureDebugCardCatalog()
-	{
-		cardCatalogService.ensureCachedCatalogForDebug();
-	}
-
-	/**
-	 * Mark the sidebar as paused on a blocked world type (yellow). Does not clear tokens.
-	 */
 	public void enterRestrictedWorld()
 	{
 		hiscoresSettle.clearGate();
 		activityConfigService.stopQuietPoll();
-		String detail = restrictedWorldGuard == null ? "" : restrictedWorldGuard.describeBlockedTypes();
+		String detail = restrictedWorldGuard.describeBlockedTypes();
 		String message = detail.isEmpty()
 			? RestrictedWorldGuard.STATUS_MESSAGE
 			: RestrictedWorldGuard.STATUS_MESSAGE + " (" + detail + ")";
 		setState(CloudConnectionState.DISCONNECTED, message);
 	}
 
-	/**
-	 * Lock the plugin for this login after the server reports a ban. Stops cloud traffic, keeps
-	 * tokens for {@code webCode} / account panel, and shows a red disconnected status until logout.
-	 */
 	public void enterAccountBanned()
 	{
 		enterAccountLock(accountBanned, ACCOUNT_BANNED_STATUS, "banned");
 	}
 
-	/**
-	 * Lock the plugin for this login after the server reports quarantine. Same full-sidebar treatment
-	 * as a ban (account panel still available). Ban takes precedence if already banned.
-	 */
 	public void enterAccountQuarantined()
 	{
 		if (isAccountBanned())
@@ -298,7 +226,7 @@ public final class CloudSessionService
 	private void enterAccountLock(AtomicBoolean flag, String statusMessage, String kind)
 	{
 		boolean already = flag.getAndSet(true);
-		pauseCloudTrafficForAccountLock();
+		pauseCloudTrafficOnLock();
 		setState(CloudConnectionState.DISCONNECTED, statusMessage);
 		if (!already)
 		{
@@ -324,11 +252,6 @@ public final class CloudSessionService
 		}
 	}
 
-	/**
-	 * Register cleanup to run when the account is banned or quarantined (e.g. stop credit tracking).
-	 * Registered from {@link com.osrstcg.OsrsTcgPlugin} startup to avoid a Guice cycle with
-	 * {@link com.osrstcg.credit.CreditAwardService}.
-	 */
 	public void registerAccountLockCleanup(Runnable cleanup)
 	{
 		if (cleanup != null)
@@ -337,9 +260,9 @@ public final class CloudSessionService
 		}
 	}
 
-	private void pauseCloudTrafficForAccountLock()
+	private void pauseCloudTrafficOnLock()
 	{
-		CreditAttestQueue attestQueue = creditAttestQueueProvider.get();
+		CreditAttestQueue attestQueue = attestQueueProvider.get();
 		attestQueue.stop();
 		attestQueue.discardPending();
 		for (Runnable cleanup : accountLockCleanups)
@@ -360,156 +283,47 @@ public final class CloudSessionService
 		packCatalogService.clear();
 	}
 
-	/** Apply ban/quarantine locks from an attest (or similar) JSON body. */
 	public void noteAttestBanFlags(JsonObject response)
 	{
 		if (response == null)
 		{
 			return;
 		}
-		if (response.has("banned") && !response.get("banned").isJsonNull()
-			&& response.get("banned").getAsBoolean())
-		{
-			enterAccountBanned();
-			return;
-		}
-		if (response.has("quarantined") && !response.get("quarantined").isJsonNull()
-			&& response.get("quarantined").getAsBoolean())
-		{
-			enterAccountQuarantined();
-		}
+		applyAccountLockFlags(
+			JsonObjects.readBoolean(response, "banned"),
+			JsonObjects.readBoolean(response, "quarantined"));
 	}
 
-	/** Lock from HTTP {@code banned} / {@code account_banned} / {@code quarantined} error codes (pack open, attest, etc.). */
 	public void noteLockFromApiException(CloudApiException ex)
 	{
 		if (ex == null)
 		{
 			return;
 		}
-		if (ex.isAccountBanned())
+		applyAccountLockFlags(ex.isAccountBanned(), ex.isAccountQuarantined());
+	}
+
+	private void applyAccountLockFlags(boolean banned, boolean quarantined)
+	{
+		if (banned)
 		{
 			enterAccountBanned();
 			return;
 		}
-		if (ex.isAccountQuarantined())
+		if (quarantined)
 		{
 			enterAccountQuarantined();
 		}
 	}
 
-	/**
-	 * Pause all cloud traffic for Overview debug mode (yellow). Flushes any pending attests first,
-	 * then discards leftovers. Tokens are kept so leaving debug can reconnect without re-pairing.
-	 * Call after {@link TcgStateService#setDebugLogging(true)}, off the EDT / client thread.
-	 */
-	public void enterDebugMode()
-	{
-		CreditAttestQueue attestQueue = creditAttestQueueProvider.get();
-		try
-		{
-			attestQueue.flushBlocking();
-		}
-		catch (Exception ex)
-		{
-			log.warn("Credit attest flush before debug mode failed", ex);
-		}
-		pauseForDebugMode(true);
-	}
-
-	/**
-	 * Apply debug-mode cloud pause without a network flush (plugin start / already-paused).
-	 * Call after {@link TcgStateService#setDebugLogging(true)}.
-	 */
-	public void pauseForDebugMode()
-	{
-		pauseForDebugMode(false);
-	}
-
-	private void pauseForDebugMode(boolean resetLocalProgress)
-	{
-		CreditAttestQueue attestQueue = creditAttestQueueProvider.get();
-		attestQueue.stop();
-		attestQueue.discardPending();
-		stateService.clearOptimisticCredits();
-		tradeCloudProvider.get().stop();
-		activityConfigService.stopQuietPoll();
-		hiscoresSettle.clearGate();
-		packCatalogService.clear();
-		// Public catalog fetch is still allowed; pin whatever we have for ::tcg-* tools.
-		cardCatalogService.ensureCachedCatalogForDebug();
-		stateService.clearCloudCollectionStatsCache();
-		stateService.clearCloudGroupKey();
-		if (resetLocalProgress)
-		{
-			// Clean local sandbox (credits, opened packs, collection) when toggling debug on.
-			stateService.resetProgressForCloudResync();
-		}
-		setState(CloudConnectionState.DISCONNECTED, DEBUG_MODE_STATUS);
-	}
-
-	/**
-	 * Leave debug mode: wipe local progress, reconnect, and force-pull cloud state.
-	 * Call after {@link TcgStateService#setDebugLogging(false)}. Runs network work on the caller thread.
-	 */
-	public synchronized void exitDebugModeAndResync()
-	{
-		CreditAttestQueue attestQueue = creditAttestQueueProvider.get();
-		attestQueue.stop();
-		attestQueue.discardPending();
-		tradeCloudProvider.get().stop();
-		cardCatalogService.clearDebugCatalogPin();
-		stateService.resetProgressForCloudResync();
-		forceStatePullOnce.set(true);
-		ensureSession();
-		if (isReady())
-		{
-			attestQueue.start();
-			tradeCloudProvider.get().start();
-		}
-	}
-
-	/**
-	 * True when an access token is still available for a teardown attest flush
-	 * (logout / shutdown / unload). Unlike {@link #isReady()}, does not require
-	 * {@link CloudConnectionState#CONNECTED} so a final flush can run even if the
-	 * UI already marked the session disconnected.
-	 */
 	public boolean canAttestFlush()
 	{
 		return tokens.getAccessToken() != null && !needsCloudConsent() && !isAccountLocked();
 	}
 
-	/**
-	 * True until the user accepts Migrate collection / Create profile.
-	 * While true, no cloud API traffic should run (except the consent action itself).
-	 */
 	public boolean needsCloudConsent()
 	{
 		return !tokens.isMigrated();
-	}
-
-	/**
-	 * Local pre-cloud collection still needs an explicit migrate upload.
-	 * Local-only - no session required (cloud stays offline until the user accepts).
-	 * True when in-memory progress exists or the current profile has disk save files.
-	 */
-	public boolean isMigrationPending()
-	{
-		return needsCloudConsent() && hasLocalProgressToMigrate();
-	}
-
-	/**
-	 * No local progress and no disk saves - show Create profile instead of migrate.
-	 */
-	public boolean needsProfileCreate()
-	{
-		return needsCloudConsent() && !hasLocalProgressToMigrate();
-	}
-
-	private String consentWaitingMessage()
-	{
-		return isMigrationPending() ? "Migrate your collection" : "Create a profile";
 	}
 
 	public void setStatusListener(Runnable listener)
@@ -517,30 +331,21 @@ public final class CloudSessionService
 		statusListener.set(listener);
 	}
 
-	/**
-	 * True when login happened but account hash / display name are not readable yet.
-	 * Callers should retry {@link #ensureSession()} on a later game tick.
-	 */
 	public boolean isWaitingForGameIdentity()
 	{
 		String message = statusMessage.get();
-		return "Waiting for display name".equals(message) || "Waiting for account".equals(message);
+		return WAITING_FOR_DISPLAY_NAME.equals(message) || WAITING_FOR_ACCOUNT.equals(message);
 	}
 
 	public synchronized void ensureSession()
 	{
-		if (stateService.isDebugLogging())
-		{
-			setState(CloudConnectionState.DISCONNECTED, DEBUG_MODE_STATUS);
-			return;
-		}
 		if (isAccountLocked())
 		{
 			setState(CloudConnectionState.DISCONNECTED,
 				isAccountBanned() ? ACCOUNT_BANNED_STATUS : ACCOUNT_QUARANTINED_STATUS);
 			return;
 		}
-		if (restrictedWorldGuard != null && restrictedWorldGuard.isRestricted())
+		if (isRestrictedWorld())
 		{
 			enterRestrictedWorld();
 			return;
@@ -553,21 +358,19 @@ public final class CloudSessionService
 		long accountHash = client.getAccountHash();
 		if (accountHash == -1L)
 		{
-			setState(CloudConnectionState.DISCONNECTED, "Waiting for account");
+			setState(CloudConnectionState.DISCONNECTED, WAITING_FOR_ACCOUNT);
 			return;
 		}
-		// No cloud API until the user accepts Migrate collection / Create profile.
 		if (needsCloudConsent())
 		{
-			setState(CloudConnectionState.DISCONNECTED, consentWaitingMessage());
+			setState(CloudConnectionState.DISCONNECTED, CONSENT_WAITING_STATUS);
 			return;
 		}
 		String displayName = resolveDisplayName();
-		// Refresh / resume only needs account hash + tokens. Display name is required to pair.
 		boolean needsDisplayName = !tokens.hasRefreshToken();
-		if (needsDisplayName && (displayName == null || displayName.isEmpty()))
+		if (needsDisplayName && displayNameMissing(displayName))
 		{
-			setState(CloudConnectionState.DISCONNECTED, "Waiting for display name");
+			setState(CloudConnectionState.DISCONNECTED, WAITING_FOR_DISPLAY_NAME);
 			return;
 		}
 		String profileHash = profileKeyHasher.currentProfileKeyHash();
@@ -600,21 +403,20 @@ public final class CloudSessionService
 
 			if (!tokens.hasRefreshToken())
 			{
-				if (displayName == null || displayName.isEmpty())
+				if (displayNameMissing(displayName))
 				{
-					setState(CloudConnectionState.DISCONNECTED, "Waiting for display name");
+					setState(CloudConnectionState.DISCONNECTED, WAITING_FOR_DISPLAY_NAME);
 					return;
 				}
 				pairSession(displayName, profileHash, accountHash);
 			}
 
-			migration.adoptServerMigrationIfNeeded();
+			profileConsent.adoptServerMigrationIfNeeded();
 			collectionSync.refreshLocalCacheFromCloud();
 			if (isAccountLocked())
 			{
 				return;
 			}
-			// Prefer settle before CONNECTED so status listeners starting attest see last_settle_at.
 			hiscoresSettle.settleAfterCloudLogin();
 			if (isAccountLocked())
 			{
@@ -633,19 +435,18 @@ public final class CloudSessionService
 				return;
 			}
 			setState(CloudConnectionState.ERROR, ex.getMessage());
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-				"[OSRS TCG] Cloud: " + ex.getMessage());
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+				"Cloud: " + ex.getMessage());
 		}
 		catch (Exception ex)
 		{
 			log.warn("Cloud session failed", ex);
 			setState(CloudConnectionState.ERROR, "Cloud unreachable");
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-				"[OSRS TCG] Cloud unreachable");
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+				"Cloud unreachable");
 		}
 	}
 
-	/** @return sanitized local player name, or null if not ready yet after login */
 	String resolveDisplayName()
 	{
 		if (client.getLocalPlayer() == null || client.getLocalPlayer().getName() == null)
@@ -656,23 +457,9 @@ public final class CloudSessionService
 		return name == null || name.isEmpty() ? null : name;
 	}
 
-	/**
-	 * Uploads the local pre-cloud profile to the server. Call off the EDT.
-	 * Pairs/logs in first when credentials were cleared or never established.
-	 */
-	public synchronized void migrateLocalCollection() throws Exception
+	public synchronized void createProfile() throws Exception
 	{
-		migrateLocalCollection(false);
-	}
-
-	/**
-	 * @param requireCollectionUpload when true (user picked a save / Migrate collection),
-	 *     refuse the empty create-profile shortcut so we never mark local migrated without
-	 *     {@code POST /me/migrate}.
-	 */
-	public synchronized void migrateLocalCollection(boolean requireCollectionUpload) throws Exception
-	{
-		migration.migrateLocalCollection(requireCollectionUpload);
+		profileConsent.createProfile();
 	}
 
 	void deleteObsoleteLocalCaches()
@@ -685,11 +472,8 @@ public final class CloudSessionService
 	{
 		accountBanned.set(false);
 		accountQuarantined.set(false);
-		packCatalogService.clear();
-		cardCatalogService.resetLoginFetchGate();
-		activityConfigService.stopQuietPoll();
-		hiscoresSettle.clearGate();
-		stateService.clearCloudCollectionStatsCache();
+		clearLoginFetchGates();
+		stateService.clearCollectionStatsCache();
 		stateService.clearCloudGroupKey();
 		setState(CloudConnectionState.DISCONNECTED, "Disconnected");
 	}
@@ -699,36 +483,19 @@ public final class CloudSessionService
 		hiscoresSettle.snapshotOnLogout();
 	}
 
-	public void settleHiscoresAfterCloudLogin()
-	{
-		hiscoresSettle.settleAfterCloudLogin();
-	}
-
-	/**
-	 * Apply economy / sidebar fields from a {@code /me/stats}-shaped object, an inbox {@code stats}
-	 * payload, or pack/attest RPC responses that include the same fields. Missing fields are left
-	 * unchanged so partial responses do not wipe the cache.
-	 * <p>
-	 * Collection overview fields ({@code uniqueOwned}, {@code collectionScore}, …) exclude beta cards.
-	 */
 	public void applySidebarStats(JsonObject stats)
 	{
 		collectionSync.applySidebarStats(stats);
 	}
 
-	public void maybeReconcileCollectionFromInbox(JsonObject stats)
+	public void reconcileCollectionFromInbox(JsonObject stats)
 	{
-		collectionSync.maybeReconcileCollectionFromInbox(stats);
+		collectionSync.reconcileCollectionFromInbox(stats);
 	}
 
 	public void refreshCreditsFromServer() throws Exception
 	{
 		collectionSync.refreshCreditsFromServer();
-	}
-
-	public boolean forceRefreshCollectionState()
-	{
-		return collectionSync.forceRefreshCollectionState();
 	}
 
 	void pairSession(String displayName, String profileHash, long accountHash)
@@ -746,11 +513,6 @@ public final class CloudSessionService
 			|| !local.getCollectionState().getOwnedInstances().isEmpty();
 	}
 
-	private boolean hasLocalProgressToMigrate()
-	{
-		return hasLocalProgress() || stateService.hasDiskSaves();
-	}
-
 	void setState(CloudConnectionState state, String message)
 	{
 		connectionState.set(state);
@@ -760,5 +522,18 @@ public final class CloudSessionService
 		{
 			listener.run();
 		}
+	}
+
+	private void clearLoginFetchGates()
+	{
+		packCatalogService.clear();
+		cardCatalogService.resetLoginFetchGate();
+		activityConfigService.stopQuietPoll();
+		hiscoresSettle.clearGate();
+	}
+
+	private static boolean displayNameMissing(String displayName)
+	{
+		return displayName == null || displayName.isEmpty();
 	}
 }

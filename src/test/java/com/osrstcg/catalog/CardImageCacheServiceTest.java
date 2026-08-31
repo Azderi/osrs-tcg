@@ -15,15 +15,15 @@ public class CardImageCacheServiceTest
 		String b = "https://api.osrs-tcg.net/api/v1/artwork/files/01HZTESTULIDTOKEN0000000001?token=exp.sigB";
 		assertEquals(
 			"https://api.osrs-tcg.net/api/v1/artwork/files/01HZTESTULIDTOKEN0000000001",
-			CardImageCacheService.cacheIdentity(a));
-		assertEquals(CardImageCacheService.cacheIdentity(a), CardImageCacheService.cacheIdentity(b));
+			ImageCacheIdentity.cacheIdentity(a));
+		assertEquals(ImageCacheIdentity.cacheIdentity(a), ImageCacheIdentity.cacheIdentity(b));
 	}
 
 	@Test
 	public void cacheIdentityKeepsStableDetailUrls()
 	{
 		String url = "https://osrs-tcg.net/images/items/detail/1234.png";
-		assertEquals(url, CardImageCacheService.cacheIdentity(url));
+		assertEquals(url, ImageCacheIdentity.cacheIdentity(url));
 	}
 
 	@Test
@@ -32,26 +32,26 @@ public class CardImageCacheServiceTest
 		String url = "https://example.test/img.png?foo=1&token=abc&bar=2";
 		assertEquals(
 			"https://example.test/img.png?foo=1&bar=2",
-			CardImageCacheService.stripQueryParam(url, "token"));
+			ImageCacheIdentity.stripQueryParam(url, "token"));
 	}
 
 	@Test
 	public void ephemeralAuthDetectedForSignedArtwork()
 	{
-		assertTrue(CardImageCacheService.isEphemeralAuthUrl(
+		assertTrue(ImageCacheIdentity.isEphemeralAuthUrl(
 			"https://api.osrs-tcg.net/api/v1/artwork/files/01HZ?token=x.y"));
-		assertFalse(CardImageCacheService.isEphemeralAuthUrl(
+		assertFalse(ImageCacheIdentity.isEphemeralAuthUrl(
 			"https://osrs-tcg.net/images/items/detail/1.png"));
 	}
 
 	@Test
 	public void packAssetUrlDetected()
 	{
-		assertTrue(CardImageCacheService.isPackAssetUrl(
+		assertTrue(ImageCacheIdentity.isPackAssetUrl(
 			"https://osrs-tcg.net/images/packs/Pack_Clue_thumbnail.png"));
-		assertTrue(CardImageCacheService.isPackAssetUrl(
+		assertTrue(ImageCacheIdentity.isPackAssetUrl(
 			"https://osrs-tcg.net/images/packs/Pack_Standard.png"));
-		assertFalse(CardImageCacheService.isPackAssetUrl(
+		assertFalse(ImageCacheIdentity.isPackAssetUrl(
 			"https://osrs-tcg.net/images/items/detail/1.png"));
 	}
 
@@ -60,15 +60,15 @@ public class CardImageCacheServiceTest
 	{
 		assertEquals(
 			"Pack_Misthalin_thumbnail.png",
-			CardImageCacheService.packDiskFileName(
+			ImageCacheIdentity.packDiskFileName(
 				"https://osrs-tcg.net/images/packs/Pack_Misthalin_thumbnail.png"));
 		assertEquals(
 			"Pack_Clue_thumbnail.png",
-			CardImageCacheService.packDiskFileName(
+			ImageCacheIdentity.packDiskFileName(
 				"https://osrs-tcg.net/images/packs/Pack_Clue_thumbnail.png"));
 		assertEquals(
 			"cardback.png",
-			CardImageCacheService.packDiskFileName(
+			ImageCacheIdentity.packDiskFileName(
 				"https://osrs-tcg.net/images/Cardback_new.png"));
 	}
 
@@ -77,7 +77,7 @@ public class CardImageCacheServiceTest
 	{
 		assertEquals(
 			520,
-			CardImageCacheService.maxMemoryEdgeForUrl(
+			ImageCacheIdentity.maxMemoryEdgeForUrl(
 				"https://osrs-tcg.net/images/Cardback_new.png"));
 	}
 
@@ -86,11 +86,11 @@ public class CardImageCacheServiceTest
 	{
 		assertEquals(
 			130,
-			CardImageCacheService.maxMemoryEdgeForUrl(
+			ImageCacheIdentity.maxMemoryEdgeForUrl(
 				"https://osrs-tcg.net/images/packs/Pack_Clue_thumbnail.png"));
 		assertEquals(
 			1100,
-			CardImageCacheService.maxMemoryEdgeForUrl(
+			ImageCacheIdentity.maxMemoryEdgeForUrl(
 				"https://osrs-tcg.net/images/packs/Pack_Standard.png"));
 	}
 }

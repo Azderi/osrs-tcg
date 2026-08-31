@@ -11,9 +11,10 @@ import com.osrstcg.cloud.attest.CreditAttestQueue;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.cloud.trade.TcgTradeMenuHandler;
 import com.osrstcg.cloud.trade.TradeCloudService;
-import com.osrstcg.command.TcgDebugCommands;
+import com.osrstcg.command.TcgResetCommand;
 import com.osrstcg.catalog.CardDatabase;
 import com.osrstcg.state.TcgPublicStats;
+import com.osrstcg.overlay.CreditsInfoboxMenuHandler;
 import com.osrstcg.overlay.CreditsInfoboxOverlay;
 import com.osrstcg.overlay.PackRevealInputListener;
 import com.osrstcg.overlay.PackRevealOverlay;
@@ -22,16 +23,13 @@ import com.osrstcg.credit.CreditAwardService;
 import com.osrstcg.credit.CreditsRateTracker;
 import com.osrstcg.credit.GameMessageCreditTracker;
 import com.osrstcg.credit.NpcKillCreditTracker;
-import com.osrstcg.pack.PackSafeModeService;
-import com.osrstcg.credit.PlayerCombatMonitor;
+import com.osrstcg.pack.PackRevealService;
 import com.osrstcg.party.TcgCollectionSetCompletePartyMessage;
 import com.osrstcg.party.TcgPartyInboundHandler;
 import com.osrstcg.party.TcgPullPartyMessage;
 import com.osrstcg.persist.TcgSaveTrigger;
 import com.osrstcg.persist.TcgStateLoadResult;
-import com.osrstcg.persist.TcgStateLoadSource;
 import com.osrstcg.pack.PackRevealSoundService;
-import com.osrstcg.pack.PackRevealService;
 import com.osrstcg.interop.TcgChatStatsShareService;
 import com.osrstcg.state.TcgStateService;
 import com.osrstcg.ui.TcgPanel;
@@ -41,6 +39,7 @@ import java.awt.image.BufferedImage;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import javax.inject.Inject;
+import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.MessageNode;
@@ -112,7 +111,9 @@ public class OsrsTcgPlugin extends Plugin
 	@Inject
 	private CloudSessionCoordinator cloudSessionCoordinator;
 	@Inject
-	private TcgDebugCommands tcgDebugCommands;
+	private TcgResetCommand tcgResetCommand;
+	@Inject
+	private CreditsInfoboxMenuHandler creditsInfoboxMenuHandler;
 	@Inject
 	private TcgTradeMenuHandler tcgTradeMenuHandler;
 	@Inject
@@ -152,10 +153,6 @@ public class OsrsTcgPlugin extends Plugin
 	@Inject
 	private TcgChatStatsShareService tcgChatStatsShareService;
 	@Inject
-	private PlayerCombatMonitor playerCombatMonitor;
-	@Inject
-	private PackSafeModeService packSafeModeService;
-	@Inject
 	private OwnedCardNamesApiService ownedCardNamesApiService;
 	@Inject
 	private CloudSessionService cloudSessionService;
@@ -174,13 +171,11 @@ public class OsrsTcgPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
-		// Drop obsolete config keys from older plugin versions.
 		configManager.unsetConfiguration("osrstcg", "apiBaseUrl");
 		configManager.unsetConfiguration("osrstcg", "webBaseUrl");
 		configManager.unsetConfiguration("osrstcg", "groupKey");
 		cardCatalogService.loadDiskCacheIfPresent();
 		activityConfigService.loadDiskCacheIfPresent();
-		// Public catalog/config fetch only after cloud consent (cloudMigrated).
 		if (!cloudSessionService.needsCloudConsent())
 		{
 			cardCatalogService.prefetchAsync();
@@ -188,7 +183,7 @@ public class OsrsTcgPlugin extends Plugin
 		}
 		if (client.getAccountHash() != -1L)
 		{
-			loadStateForLoggedInAccountIfNeeded();
+			loadStateIfLoggedIn();
 		}
 		log.info("OSRS TCG plugin started. Credits={}, ownedCards={}, cardDefinitions={}",
 			NumberFormatting.format(stateService.getState().getEconomyState().getCredits()),
@@ -217,22 +212,20 @@ public class OsrsTcgPlugin extends Plugin
 		eventBus.register(creditAwardService);
 		creditAwardService.onPluginStarted();
 		eventBus.register(creditsRateTracker);
-		cloudSessionService.registerAccountLockCleanup(creditAwardService::stopCreditTrackingForAccountLock);
+		cloudSessionService.registerAccountLockCleanup(creditAwardService::stopCreditTrackingOnLock);
 		cloudSessionService.registerAccountLockCleanup(npcKillCreditTracker::shutdown);
 		eventBus.register(npcKillCreditTracker);
 		eventBus.register(gameMessageCreditTracker);
-		eventBus.register(playerCombatMonitor);
-		eventBus.register(packSafeModeService);
 		wsClient.registerMessage(TcgPullPartyMessage.class);
 		wsClient.registerMessage(TcgCollectionSetCompletePartyMessage.class);
 		chatCommandManager.registerCommandAsync(
-			TCG_PUBLIC_CHAT_COMMAND, this::lookupTcgPublicStatsChatCommand);
+			TCG_PUBLIC_CHAT_COMMAND, this::lookupPublicStatsChatCommand);
 		tcgPanel.start();
 		cloudSessionCoordinator.installStatusListener();
 		tradeCloudService.setInboxListener(tcgPanel::refresh);
 		creditAttestQueue.setEconomyListener(tcgPanel::refreshCredits);
-		packCatalogService.setChangeListener(() -> javax.swing.SwingUtilities.invokeLater(tcgPanel::refresh));
-		cardCatalogService.setChangeListener(() -> javax.swing.SwingUtilities.invokeLater(tcgPanel::refresh));
+		packCatalogService.setChangeListener(this::refreshPanelOnEdt);
+		cardCatalogService.setChangeListener(this::refreshPanelOnEdt);
 		ownedCardNamesApiService.start();
 		if (client.getGameState() == GameState.LOGGED_IN)
 		{
@@ -245,8 +238,6 @@ public class OsrsTcgPlugin extends Plugin
 	@Override
 	protected void shutDown()
 	{
-		// Persist before any blocking cloud I/O - same order as logout / ClientShutdown.
-		// Otherwise a hung attest flush can skip the checkpoint and the next startUp loads stale disk.
 		creditAwardService.flushSkillBaselineForPersist();
 		if (!stateService.saveFullCheckpoint(TcgSaveTrigger.PLUGIN_UNLOAD))
 		{
@@ -270,9 +261,6 @@ public class OsrsTcgPlugin extends Plugin
 		eventBus.unregister(creditsRateTracker);
 		eventBus.unregister(npcKillCreditTracker);
 		eventBus.unregister(gameMessageCreditTracker);
-		eventBus.unregister(playerCombatMonitor);
-		eventBus.unregister(packSafeModeService);
-		playerCombatMonitor.reset();
 		wsClient.unregisterMessage(TcgPullPartyMessage.class);
 		wsClient.unregisterMessage(TcgCollectionSetCompletePartyMessage.class);
 		chatCommandManager.unregisterCommand(TCG_PUBLIC_CHAT_COMMAND);
@@ -300,7 +288,6 @@ public class OsrsTcgPlugin extends Plugin
 		cloudSessionCoordinator.onLoggedInGameTick();
 	}
 
-	/** Closes the pack overlay if the cloud open RPC stalls past {@link PackRevealService#PENDING_PULLS_TIMEOUT_MS}. */
 	private void handlePendingPackOpenTimeout()
 	{
 		if (!packRevealService.isAwaitingServerPulls())
@@ -312,7 +299,11 @@ public class OsrsTcgPlugin extends Plugin
 		{
 			return;
 		}
-		queueGameMessage("[OSRS TCG] " + PackRevealService.PENDING_PULLS_TIMEOUT_MESSAGE);
+		if (client != null)
+		{
+			TcgPluginGameMessages.queueOnClientThread(clientThread, chatMessageManager,
+				PackRevealService.PENDING_PULLS_TIMEOUT_MESSAGE);
+		}
 		tcgPanel.clearPackRevealSidebarFreeze();
 		tcgPanel.refreshAfterPackRevealClose();
 	}
@@ -320,32 +311,21 @@ public class OsrsTcgPlugin extends Plugin
 	@Subscribe
 	public void onClientShutdown(ClientShutdown event)
 	{
-		// RSProfile / local checkpoint must stay synchronous so ConfigManager's ClientShutdown
-		// handler (priority -100) can sendConfig() with the latest keys.
 		creditAwardService.flushSkillBaselineForPersist();
 		stateService.saveFullCheckpoint(TcgSaveTrigger.CLIENT_SHUTDOWN);
-
-		// Network attest flush is registered as a Future so ClientUI.waitForAllConsumers
-		// (≈10s) keeps the process alive until the HTTP drain finishes or times out.
 		event.waitFor(CompletableFuture.runAsync(cloudSessionCoordinator::flushAttestsForShutdown, scheduledExecutorService));
 	}
 
 	@Subscribe
 	public void onStatChanged(StatChanged event)
 	{
-		if (creditAwardService.onStatChanged(event))
-		{
-			tcgPanel.refreshCredits();
-		}
+		refreshCreditsIf(creditAwardService.onStatChanged(event));
 	}
 
 	@Subscribe
 	public void onFakeXpDrop(FakeXpDrop event)
 	{
-		if (creditAwardService.onFakeXpDrop(event))
-		{
-			tcgPanel.refreshCredits();
-		}
+		refreshCreditsIf(creditAwardService.onFakeXpDrop(event));
 	}
 
 	@Subscribe
@@ -353,8 +333,6 @@ public class OsrsTcgPlugin extends Plugin
 	{
 		creditAwardService.onGameStateChanged(event);
 		GameState gs = event.getGameState();
-		queueDebugMessage(String.format("GameStateChanged: %s",
-			gs == null ? "null" : gs.name()));
 
 		if (gs == GameState.LOGIN_SCREEN)
 		{
@@ -363,7 +341,7 @@ public class OsrsTcgPlugin extends Plugin
 		}
 		else if (gs == GameState.LOGGED_IN)
 		{
-			loadStateForLoggedInAccountIfNeeded();
+			loadStateIfLoggedIn();
 		}
 		cloudSessionCoordinator.onGameStateChanged(event);
 		tcgPanel.refresh();
@@ -372,9 +350,6 @@ public class OsrsTcgPlugin extends Plugin
 	@Subscribe
 	public void onWorldChanged(WorldChanged event)
 	{
-		queueDebugMessage(String.format("WorldChanged: world=%d types=%s",
-			client.getWorld(),
-			client.getWorldType() == null ? "[]" : client.getWorldType().toString()));
 		cloudSessionCoordinator.onWorldChanged(event);
 	}
 
@@ -391,7 +366,7 @@ public class OsrsTcgPlugin extends Plugin
 		}
 		if ("compactShop".equals(event.getKey()))
 		{
-			javax.swing.SwingUtilities.invokeLater(tcgPanel::refresh);
+			refreshPanelOnEdt();
 		}
 	}
 
@@ -425,42 +400,13 @@ public class OsrsTcgPlugin extends Plugin
 		tcgTradeMenuHandler.onMenuOptionClicked(event);
 	}
 
-	/** After {@link TcgStateService#load()} on login / account switch; clears UI when debug-tainted saves are reset. */
 	private void applyLoadedProfileState(TcgStateLoadResult loadResult)
 	{
 		creditAwardService.resetExperienceCreditBaseline();
-		if (loadResult != null && loadResult.isDebugResetOnLoad())
-		{
-			packRevealService.reset();
-			tcgPanel.clearPackRevealSidebarFreeze();
-			tcgPanel.resetSessionUi();
-			queueGameMessage(
-				"[OSRS TCG] This profile was saved with debug mode on; collection and credits were reset.");
-		}
-		else
-		{
-			tcgPanel.refresh();
-		}
+		tcgPanel.refresh();
 	}
 
-	private void announceLoadResult(TcgStateLoadResult loadResult)
-	{
-		if (loadResult == null)
-		{
-			return;
-		}
-
-		if (loadResult.getSource() == TcgStateLoadSource.DISK)
-		{
-			queueDebugMessage("Restored progress from tcg.save.");
-		}
-		else if (loadResult.getSource() == TcgStateLoadSource.DISK_SNAPSHOT)
-		{
-			queueGameMessage("[OSRS TCG] Restored progress from a disk snapshot.");
-		}
-	}
-
-	private void loadStateForLoggedInAccountIfNeeded()
+	private void loadStateIfLoggedIn()
 	{
 		long accountHash = client.getAccountHash();
 		if (accountHash == -1L)
@@ -473,49 +419,22 @@ public class OsrsTcgPlugin extends Plugin
 		}
 		TcgStateLoadResult loadResult = stateService.load();
 		applyLoadedProfileState(loadResult);
-		announceLoadResult(loadResult);
 		loadedAccountHash = accountHash;
-	}
-
-	private void queueGameMessage(String message)
-	{
-		if (client == null || clientThread == null || message == null || message.isEmpty())
-		{
-			return;
-		}
-
-		clientThread.invokeLater(() ->
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager, message));
-	}
-
-	private void queueDebugMessage(String message)
-	{
-		if (client == null || clientThread == null || message == null || message.isEmpty())
-		{
-			return;
-		}
-		if (config == null || !config.debugMessages())
-		{
-			return;
-		}
-
-		clientThread.invokeLater(() ->
-			TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, message));
 	}
 
 	@Subscribe
 	public void onCommandExecuted(CommandExecuted event)
 	{
-		tcgDebugCommands.onCommandExecuted(event);
+		tcgResetCommand.onCommandExecuted(event);
 	}
 
 	@Subscribe
 	public void onOverlayMenuClicked(OverlayMenuClicked event)
 	{
-		tcgDebugCommands.onOverlayMenuClicked(event);
+		creditsInfoboxMenuHandler.onOverlayMenuClicked(event);
 	}
 
-	private void lookupTcgPublicStatsChatCommand(ChatMessage chatMessage, String message)
+	private void lookupPublicStatsChatCommand(ChatMessage chatMessage, String message)
 	{
 		if (!message.trim().equalsIgnoreCase(TCG_PUBLIC_CHAT_COMMAND))
 		{
@@ -568,7 +487,6 @@ public class OsrsTcgPlugin extends Plugin
 			}
 			catch (CloudApiException ex)
 			{
-				// 404 player_not_found (private/sandbox/missing) - leave plain !tcg
 				log.debug("!tcg cloud lookup for {}: {} {}", player, ex.getCode(), ex.getMessage());
 			}
 			catch (Exception ex)
@@ -576,6 +494,19 @@ public class OsrsTcgPlugin extends Plugin
 				log.debug("!tcg cloud lookup failed for {}", player, ex);
 			}
 		});
+	}
+
+	private void refreshCreditsIf(boolean awarded)
+	{
+		if (awarded)
+		{
+			tcgPanel.refreshCredits();
+		}
+	}
+
+	private void refreshPanelOnEdt()
+	{
+		SwingUtilities.invokeLater(tcgPanel::refresh);
 	}
 
 	private BufferedImage buildPanelIcon()

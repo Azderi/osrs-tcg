@@ -6,7 +6,6 @@ import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.party.PartyService;
 
-/** Sends OSRS TCG party websocket payloads (collection set completion). */
 @Slf4j
 @Singleton
 public class TcgPartyAnnouncer
@@ -21,7 +20,7 @@ public class TcgPartyAnnouncer
 		this.config = config;
 	}
 
-	public void announceCollectionSetComplete(String collectionDisplayName)
+	public void announceSetComplete(String collectionDisplayName)
 	{
 		if (!partyAnnouncementsEnabled())
 		{
@@ -49,6 +48,6 @@ public class TcgPartyAnnouncer
 
 	private boolean partyAnnouncementsEnabled()
 	{
-		return config.partyAnnounceMythicPulls();
+		return config.partyAnnounceCollectionSets();
 	}
 }

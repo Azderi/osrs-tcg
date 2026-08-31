@@ -4,18 +4,12 @@ import com.osrstcg.state.CloudSidebarCollectionStats;
 import com.osrstcg.state.TcgState;
 import com.osrstcg.interop.TcgPublicStatsCalculator;
 import com.osrstcg.state.TcgStateService;
-import com.osrstcg.util.TcgPluginGameMessages;
 import com.google.gson.JsonObject;
-import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Provider;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.client.chat.ChatMessageManager;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
 
-/**
- * {@code /me/state} collection pages, reconcile, and sidebar stats.
- */
 @Slf4j
 final class CloudCollectionSyncService
 {
@@ -23,35 +17,26 @@ final class CloudCollectionSyncService
 	private final CloudApiClient api;
 	private final CloudTokenStore tokens;
 	private final TcgStateService stateService;
-	private final ChatMessageManager chatMessageManager;
-	private final Provider<CreditAttestQueue> creditAttestQueueProvider;
+	private final Provider<CreditAttestQueue> attestQueueProvider;
 	private final TcgPublicStatsCalculator publicStatsCalculator;
 	private final CloudCollectionPager pager;
-	private final AtomicBoolean forceStatePullOnce;
-	private final AtomicBoolean deferCollectionPullForMigrateImport;
 
 	CloudCollectionSyncService(
 		CloudSessionService session,
 		CloudApiClient api,
 		CloudTokenStore tokens,
 		TcgStateService stateService,
-		ChatMessageManager chatMessageManager,
-		Provider<CreditAttestQueue> creditAttestQueueProvider,
+		Provider<CreditAttestQueue> attestQueueProvider,
 		TcgPublicStatsCalculator publicStatsCalculator,
-		CloudCollectionPager pager,
-		AtomicBoolean forceStatePullOnce,
-		AtomicBoolean deferCollectionPullForMigrateImport)
+		CloudCollectionPager pager)
 	{
 		this.session = session;
 		this.api = api;
 		this.tokens = tokens;
 		this.stateService = stateService;
-		this.chatMessageManager = chatMessageManager;
-		this.creditAttestQueueProvider = creditAttestQueueProvider;
+		this.attestQueueProvider = attestQueueProvider;
 		this.publicStatsCalculator = publicStatsCalculator;
 		this.pager = pager;
-		this.forceStatePullOnce = forceStatePullOnce;
-		this.deferCollectionPullForMigrateImport = deferCollectionPullForMigrateImport;
 	}
 
 	void applySidebarStats(JsonObject stats)
@@ -76,7 +61,7 @@ final class CloudCollectionSyncService
 		}
 		if (CloudSidebarCollectionStats.hasCollectionFields(stats))
 		{
-			stateService.replaceCloudCollectionStatsCache(CloudSidebarCollectionStats.fromStatsJson(stats));
+			stateService.replaceCollectionStatsCache(CloudSidebarCollectionStats.fromStatsJson(stats));
 		}
 		if (stats.has("status") && !stats.get("status").isJsonNull())
 		{
@@ -84,7 +69,7 @@ final class CloudCollectionSyncService
 		}
 	}
 
-	void maybeReconcileCollectionFromInbox(JsonObject stats)
+	void reconcileCollectionFromInbox(JsonObject stats)
 	{
 		if (stats == null || session.needsCloudConsent())
 		{
@@ -102,15 +87,13 @@ final class CloudCollectionSyncService
 				{
 					String localCollHash = stateService.getCloudCollectionHash();
 					String serverCollHash = serverMarkers.collectionHash;
-					boolean collectionChanged = (!serverCollHash.isEmpty()
-							&& !serverCollHash.equalsIgnoreCase(localCollHash))
-						|| (localCollHash.isEmpty() && !serverCollHash.isEmpty())
+					boolean collectionChanged =
+						(!serverCollHash.isEmpty() && !serverCollHash.equalsIgnoreCase(localCollHash))
 						|| (serverCollHash.isEmpty() && localRevision < serverMarkers.revision);
 					if (collectionChanged)
 					{
 						log.info("Collection overview mismatch (server unique={} local unique={}) - pulling /me/cards",
 							server.getUniqueOwned(), local.getUniqueOwned());
-						forceStatePullOnce.set(true);
 					}
 					else
 					{
@@ -136,7 +119,7 @@ final class CloudCollectionSyncService
 		}
 		try
 		{
-			creditAttestQueueProvider.get().flushBlocking();
+			attestQueueProvider.get().flushBlocking();
 		}
 		catch (Exception ex)
 		{
@@ -145,27 +128,6 @@ final class CloudCollectionSyncService
 		JsonObject stats = api.getStats();
 		applySidebarStats(stats);
 		stateService.clearOptimisticCredits();
-	}
-
-	boolean forceRefreshCollectionState()
-	{
-		if (!session.isReady())
-		{
-			return false;
-		}
-		try
-		{
-			forceStatePullOnce.set(true);
-			JsonObject stats = api.getStats();
-			applySidebarStats(stats);
-			reconcileCollectionWithCloud(stats);
-			return true;
-		}
-		catch (Exception e)
-		{
-			log.warn("Forced collection refresh failed", e);
-			return false;
-		}
 	}
 
 	void refreshLocalCacheFromCloud() throws Exception
@@ -185,13 +147,10 @@ final class CloudCollectionSyncService
 		CloudPlayerStateParser.SyncMarkers server = CloudPlayerStateParser.readSyncMarkers(stats);
 		TcgState local = stateService.getState();
 		long localRevision = local.getCloudRevision();
-		String localHash = local.getCloudStateHash() == null ? "" : local.getCloudStateHash();
+		String localHash = local.getCloudStateHash();
 		String localCollHash = stateService.getCloudCollectionHash();
 		String serverCollHash = server.collectionHash;
-		boolean force = forceStatePullOnce.compareAndSet(true, false);
-		boolean collectionChanged = force
-			|| (!serverCollHash.isEmpty() && !serverCollHash.equalsIgnoreCase(localCollHash))
-			|| (localCollHash.isEmpty() && !serverCollHash.isEmpty())
+		boolean collectionChanged = (!serverCollHash.isEmpty() && !serverCollHash.equalsIgnoreCase(localCollHash))
 			|| (serverCollHash.isEmpty() && server.revision > localRevision);
 
 		if (!collectionChanged)
@@ -204,34 +163,24 @@ final class CloudCollectionSyncService
 			return;
 		}
 
-		String reason = force ? "forced"
-			: (localCollHash.isEmpty() && !serverCollHash.isEmpty()) ? "missing local collection hash"
-			: (serverCollHash.isEmpty() && server.revision > localRevision) ? "legacy revision behind"
+		String reason = (serverCollHash.isEmpty() && server.revision > localRevision) ? "legacy revision behind"
 			: "collection hash mismatch";
-		debugCollectionSync("Requesting collection sync from server (" + reason
-			+ "; local collHash=" + localCollHash + ", server collHash=" + serverCollHash + ")");
+		log.info("Requesting collection sync from server ({}; local collHash={}, server collHash={})",
+			reason, localCollHash, serverCollHash);
 
 		JsonObject stateJson = api.getState();
 		CloudPlayerStateParser.ParsedCloudPlayerState parsed = pager.loadCloudPlayerStateWithCards(stateJson);
 		if (!parsed.migrated)
 		{
-			if (deferCollectionPullForMigrateImport.get())
-			{
-				log.info("Cloud migrate import still pending; skipping collection pull");
-				debugCollectionSync("Collection sync skipped - migrate import pending");
-				return;
-			}
 			if (!tokens.isMigrated())
 			{
 				log.info("Cloud /me/state reports account not migrated yet; skipping collection pull");
-				debugCollectionSync("Collection sync skipped - account not migrated yet");
 				return;
 			}
 		}
 		else
 		{
 			tokens.setMigrated(true);
-			deferCollectionPullForMigrateImport.set(false);
 		}
 		stateService.replaceCloudGroupKey(parsed.groupKey);
 		stateService.replaceFromCloudState(
@@ -248,22 +197,10 @@ final class CloudCollectionSyncService
 		}
 		log.info("Synced collection from cloud (revision={}, cards={}, migratedAtPresent={})",
 			parsed.revision, parsed.cards.size(), parsed.migrated);
-		debugCollectionSync("Collection synced from server (revision=" + parsed.revision
-			+ ", " + parsed.cards.size() + " cards)");
 	}
 
 	CloudPlayerStateParser.ParsedCloudPlayerState loadCloudPlayerStateWithCards(JsonObject stateJson) throws Exception
 	{
 		return pager.loadCloudPlayerStateWithCards(stateJson);
-	}
-
-	private void debugCollectionSync(String message)
-	{
-		if (!stateService.isDebugChatEnabled() || message == null || message.isBlank())
-		{
-			return;
-		}
-		log.info("[TCG DEBUG] {}", message);
-		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, message);
 	}
 }

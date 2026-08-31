@@ -28,16 +28,13 @@ import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
 
-/**
- * Shared sidebar metrics, scroll chrome, and small widget helpers.
- */
 public final class SidebarLayout
 {
 	public static final int MAIN_PANEL_INSET = 6;
 	public static final int TAB_BUTTON_GAP = 3;
-	public static final int TAB_SCROLLBAR_WIDTH = 6;
+	public static final int TAB_SCROLLBAR_THUMB = 6;
 	public static final int TAB_SCROLLBAR_GAP = 10;
-	public static final int TAB_SCROLLBAR_RESERVED_WIDTH = TAB_SCROLLBAR_WIDTH + TAB_SCROLLBAR_GAP;
+	public static final int TAB_SCROLLBAR_WIDTH = TAB_SCROLLBAR_THUMB + TAB_SCROLLBAR_GAP;
 	public static final String PATREON_URL = "https://www.patreon.com/Azderi";
 	public static final String DISCORD_URL = "https://discord.gg/P4pPu6RnCj";
 	public static final String CREDITS_IMAGE_PATH = "/com/osrstcg/images/credits.png";
@@ -46,10 +43,9 @@ public final class SidebarLayout
 	{
 	}
 
-	/** Usable width inside the plugin sidebar; leaves room for tab scrollbars. */
 	public static int sidebarInnerWidth()
 	{
-		return Math.max(160, PluginPanel.PANEL_WIDTH - 2 * PluginPanel.BORDER_OFFSET - TAB_SCROLLBAR_RESERVED_WIDTH);
+		return Math.max(160, PluginPanel.PANEL_WIDTH - 2 * PluginPanel.BORDER_OFFSET - TAB_SCROLLBAR_WIDTH);
 	}
 
 	public static void configureTabScrollPane(JScrollPane scrollPane)
@@ -66,7 +62,7 @@ public final class SidebarLayout
 		vbar.setUnitIncrement(16);
 		vbar.setOpaque(false);
 		vbar.putClientProperty(FlatClientProperties.STYLE,
-			"width:" + TAB_SCROLLBAR_WIDTH + "; trackArc:999; thumbArc:999; trackInsets:0,2,0,2; thumbInsets:0,2,0,2; "
+			"width:" + TAB_SCROLLBAR_THUMB + "; trackArc:999; thumbArc:999; trackInsets:0,2,0,2; thumbInsets:0,2,0,2; "
 				+ "track:#00000000; thumb:#4D4D4D; hoverThumbColor:#787878; showButtons:false");
 
 		scrollPane.addHierarchyListener(e ->
@@ -107,9 +103,15 @@ public final class SidebarLayout
 		button.setFocusable(false);
 		button.setBackground(ColorScheme.DARKER_GRAY_COLOR.darker());
 		button.setForeground(Color.WHITE);
-		button.setBorder(new CompoundBorder(
-			new MatteBorder(1, 1, 1, 1, ColorScheme.LIGHT_GRAY_COLOR.darker()),
-			new EmptyBorder(10, 14, 10, 14)
+		styleOutlinedButton(button, ColorScheme.LIGHT_GRAY_COLOR.darker(), 10, 14, 10, 14);
+	}
+
+	public static void styleOutlinedButton(JComponent component, Color borderColor,
+		int top, int left, int bottom, int right)
+	{
+		component.setBorder(new CompoundBorder(
+			new MatteBorder(1, 1, 1, 1, borderColor),
+			new EmptyBorder(top, left, bottom, right)
 		));
 	}
 
@@ -219,6 +221,16 @@ public final class SidebarLayout
 		panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, preferred.height));
 	}
 
+	public static void clampFixedWidth(JComponent component, int width)
+	{
+		component.setAlignmentX(Component.LEFT_ALIGNMENT);
+		Dimension preferred = component.getPreferredSize();
+		int h = preferred.height;
+		component.setPreferredSize(new Dimension(width, h));
+		component.setMaximumSize(new Dimension(width, h));
+		component.setMinimumSize(new Dimension(0, h));
+	}
+
 	public static Font resolveWelcomeFont(boolean bold, int fontSize)
 	{
 		if (bold)
@@ -230,23 +242,5 @@ public final class SidebarLayout
 			return FontManager.getRunescapeFont();
 		}
 		return FontManager.getRunescapeSmallFont();
-	}
-
-	public static String trimTrailingSlash(String url)
-	{
-		if (url == null)
-		{
-			return null;
-		}
-		String t = url.trim();
-		if (t.isEmpty())
-		{
-			return null;
-		}
-		while (t.endsWith("/"))
-		{
-			t = t.substring(0, t.length() - 1);
-		}
-		return t.isEmpty() ? null : t;
 	}
 }

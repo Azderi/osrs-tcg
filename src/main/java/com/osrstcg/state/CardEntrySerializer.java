@@ -15,7 +15,7 @@ public final class CardEntrySerializer
 
 	public static List<CardEntry> buildProfileEntries(List<OwnedCardInstance> instances)
 	{
-		return buildEntries(instances, true, false);
+		return buildEntries(instances);
 	}
 
 	public static List<OwnedCardInstance> expandToInstances(List<CardEntry> entries)
@@ -45,29 +45,19 @@ public final class CardEntrySerializer
 				{
 					continue;
 				}
-				boolean legacyLockedQty = variant.lockedQuantity != null;
-				int lockedQty = legacyLockedQty
-					? Math.min(quantity, Math.max(0, variant.lockedQuantity))
-					: (Boolean.TRUE.equals(variant.locked) ? 1 : 0);
 				boolean beta = Boolean.TRUE.equals(variant.beta);
-				Double condition = variant.condition;
-				String source = variant.source;
 				String id = variant.id == null || variant.id.isBlank() ? null : variant.id.trim();
 				for (int i = 0; i < quantity; i++)
 				{
-					boolean locked = legacyLockedQty ? i < lockedQty : Boolean.TRUE.equals(variant.locked);
 					String rowId = (i == 0) ? id : null;
-					rows.add(new OwnedCardInstance(rowId, cardName, isFoil(variant), by, at, locked, condition, beta, source));
+					rows.add(new OwnedCardInstance(rowId, cardName, isFoil(variant), by, at, beta));
 				}
 			}
 		}
 		return rows;
 	}
 
-	private static List<CardEntry> buildEntries(
-		List<OwnedCardInstance> instances,
-		boolean includeLocked,
-		boolean filterDebugProvenance)
+	private static List<CardEntry> buildEntries(List<OwnedCardInstance> instances)
 	{
 		if (instances == null || instances.isEmpty())
 		{
@@ -78,10 +68,6 @@ public final class CardEntrySerializer
 		for (OwnedCardInstance inst : instances)
 		{
 			if (inst == null || inst.getCardName() == null || inst.getCardName().trim().isEmpty())
-			{
-				continue;
-			}
-			if (filterDebugProvenance && OwnedCardInstance.hasDebugPullMetadata(inst.getPulledByUsername()))
 			{
 				continue;
 			}
@@ -117,21 +103,9 @@ public final class CardEntrySerializer
 			variant.pulledBy = by.isEmpty() ? null : by;
 			long at = inst.getPulledAtEpochMs();
 			variant.pulledAt = at <= 0L ? null : at;
-			if (includeLocked && inst.isLocked())
-			{
-				variant.locked = Boolean.TRUE;
-			}
-			if (inst.getCondition() != null)
-			{
-				variant.condition = inst.getCondition();
-			}
 			if (inst.isBeta())
 			{
 				variant.beta = Boolean.TRUE;
-			}
-			if (inst.getSource() != null && !inst.getSource().isEmpty())
-			{
-				variant.source = inst.getSource();
 			}
 			entry.variants.add(variant);
 		}

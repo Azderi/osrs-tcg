@@ -2,12 +2,18 @@ package com.osrstcg.cloud.activity;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
+import com.osrstcg.cloud.activity.ActivityConfigModels.ActivitiesConfigResponse;
+import com.osrstcg.cloud.activity.ActivityConfigModels.ActivityChatRuleDto;
+import com.osrstcg.cloud.activity.ActivityConfigModels.ActivityConfigDto;
+import com.osrstcg.cloud.activity.ActivityConfigModels.NpcExclusionsDto;
+import com.osrstcg.cloud.api.CloudApiClient;
+import com.osrstcg.cloud.api.CloudApiException;
+import com.osrstcg.util.AtomicFiles;
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -24,18 +30,12 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.RuneLite;
-import com.osrstcg.cloud.api.CloudApiClient;
-import com.osrstcg.cloud.api.CloudApiException;
 
-/**
- * Loads chat activity rules and NPC kill exclusions from {@code GET /api/v1/config/activities}.
- * Memory + disk last-good; version-check before full fetch; soft-header + quiet poll refresh.
- */
 @Slf4j
 @Singleton
 public final class ActivityConfigService
 {
-	private static final long QUIET_POLL_PERIOD_MINUTES = 10L;
+	private static final long QUIET_POLL_MINUTES = 10L;
 
 	private final CloudApiClient api;
 	private final Gson gson;
@@ -43,7 +43,6 @@ public final class ActivityConfigService
 
 	private final AtomicReference<CompiledActivityConfig> compiled =
 		new AtomicReference<>(CompiledActivityConfig.EMPTY);
-	private final AtomicReference<ActivityConfigDto> rawCache = new AtomicReference<>(null);
 	private final AtomicBoolean ensureInFlight = new AtomicBoolean(false);
 	private final AtomicBoolean softRefreshScheduled = new AtomicBoolean(false);
 	private final Object pollLock = new Object();
@@ -58,7 +57,6 @@ public final class ActivityConfigService
 		api.setActivitiesVersionListener(this::noteRemoteVersion);
 	}
 
-	/** Plugin start: apply disk last-good if present (no network). */
 	public void loadDiskCacheIfPresent()
 	{
 		Path file = diskCacheFile();
@@ -83,22 +81,17 @@ public final class ActivityConfigService
 		}
 	}
 
-	/** Background prefetch (plugin start). Does not start the quiet poll. */
 	public void prefetchAsync()
 	{
 		scheduler.execute(this::ensureFreshSafe);
 	}
 
-	/**
-	 * After cloud login: refresh config and start the 10-minute quiet poll.
-	 */
 	public void refreshOnLogin()
 	{
 		startQuietPoll();
 		scheduler.execute(this::ensureFreshSafe);
 	}
 
-	/** Logout / disconnect - stop quiet poll; keep memory + disk cache. */
 	public void stopQuietPoll()
 	{
 		synchronized (pollLock)
@@ -111,9 +104,6 @@ public final class ActivityConfigService
 		}
 	}
 
-	/**
-	 * Soft header / explicit: if remote version differs from cache, schedule a single-flight refresh.
-	 */
 	public void noteRemoteVersion(String remoteVersion)
 	{
 		if (remoteVersion == null || remoteVersion.isBlank())
@@ -244,8 +234,8 @@ public final class ActivityConfigService
 			}
 			quietPollFuture = scheduler.scheduleAtFixedRate(
 				this::ensureFreshSafe,
-				QUIET_POLL_PERIOD_MINUTES,
-				QUIET_POLL_PERIOD_MINUTES,
+				QUIET_POLL_MINUTES,
+				QUIET_POLL_MINUTES,
 				TimeUnit.MINUTES);
 		}
 	}
@@ -254,7 +244,6 @@ public final class ActivityConfigService
 	{
 		CompiledActivityConfig next = compile(dto);
 		compiled.set(next);
-		rawCache.set(dto);
 		if (persistDisk)
 		{
 			persistDiskCache(dto);
@@ -339,40 +328,20 @@ public final class ActivityConfigService
 				return null;
 			}
 		}
-		// prefix (default)
 		return new CompiledActivityConfig.CompiledChatRule(
 			rule.activityId.trim(), rule.credits, rule.label, rule.value, null);
 	}
 
 	private void persistDiskCache(ActivityConfigDto dto)
 	{
-		Path dir = diskCacheDir();
 		Path target = diskCacheFile();
-		Path tmp = dir.resolve("activities.json.tmp");
 		try
 		{
-			Files.createDirectories(dir);
-			Files.writeString(tmp, gson.toJson(dto), StandardCharsets.UTF_8);
-			try
-			{
-				Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-			}
-			catch (java.nio.file.AtomicMoveNotSupportedException ex)
-			{
-				Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
-			}
+			AtomicFiles.writeString(target, gson.toJson(dto), StandardCharsets.UTF_8);
 		}
 		catch (Exception ex)
 		{
 			log.debug("Activity config disk cache write failed", ex);
-			try
-			{
-				Files.deleteIfExists(tmp);
-			}
-			catch (Exception ignored)
-			{
-				// ignore
-			}
 		}
 	}
 

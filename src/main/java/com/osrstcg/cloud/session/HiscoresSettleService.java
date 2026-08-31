@@ -13,16 +13,15 @@ import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.util.Text;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
+import com.osrstcg.cloud.api.JsonObjects;
 import com.osrstcg.cloud.trade.TradeCloudService;
 import javax.inject.Provider;
 
-/** Logout snapshot + login settle / retry / toast for Jagex hiscores credits. */
 @Slf4j
 final class HiscoresSettleService
 {
-	private static final long HISCORES_SETTLE_RETRY_DELAY_SEC = 30L;
+	private static final long HISCORES_RETRY_DELAY_SEC = 30L;
 
-	/** Last sanitized RSN when local player is cleared (e.g. logout snapshot). */
 	private String lastDisplayName;
 
 	private final Client client;
@@ -34,10 +33,9 @@ final class HiscoresSettleService
 	private final Provider<TradeCloudService> tradeCloudProvider;
 	private final Consumer<JsonObject> applySidebarStats;
 	private final AtomicBoolean hiscoresSettledThisLogin;
-	private final AtomicBoolean hiscoresSettleRetryScheduled;
+	private final AtomicBoolean hiscoresRetryScheduled;
 	private final java.util.function.BooleanSupplier needsCloudConsent;
 	private final java.util.function.BooleanSupplier isAccountLocked;
-	private final java.util.function.BooleanSupplier isDebugModePaused;
 
 	HiscoresSettleService(
 		Client client,
@@ -49,10 +47,9 @@ final class HiscoresSettleService
 		Provider<TradeCloudService> tradeCloudProvider,
 		Consumer<JsonObject> applySidebarStats,
 		AtomicBoolean hiscoresSettledThisLogin,
-		AtomicBoolean hiscoresSettleRetryScheduled,
+		AtomicBoolean hiscoresRetryScheduled,
 		java.util.function.BooleanSupplier needsCloudConsent,
-		java.util.function.BooleanSupplier isAccountLocked,
-		java.util.function.BooleanSupplier isDebugModePaused)
+		java.util.function.BooleanSupplier isAccountLocked)
 	{
 		this.client = client;
 		this.api = api;
@@ -63,15 +60,14 @@ final class HiscoresSettleService
 		this.tradeCloudProvider = tradeCloudProvider;
 		this.applySidebarStats = applySidebarStats;
 		this.hiscoresSettledThisLogin = hiscoresSettledThisLogin;
-		this.hiscoresSettleRetryScheduled = hiscoresSettleRetryScheduled;
+		this.hiscoresRetryScheduled = hiscoresRetryScheduled;
 		this.needsCloudConsent = needsCloudConsent;
 		this.isAccountLocked = isAccountLocked;
-		this.isDebugModePaused = isDebugModePaused;
 	}
 
 	void snapshotOnLogout()
 	{
-		if (isDebugModePaused.getAsBoolean() || isAccountLocked.getAsBoolean()
+		if (isAccountLocked.getAsBoolean()
 			|| tokens.getAccessToken() == null || needsCloudConsent.getAsBoolean())
 		{
 			return;
@@ -158,7 +154,7 @@ final class HiscoresSettleService
 	void clearGate()
 	{
 		hiscoresSettledThisLogin.set(false);
-		hiscoresSettleRetryScheduled.set(false);
+		hiscoresRetryScheduled.set(false);
 	}
 
 	private void handleSettleError(CloudApiException ex, long accountHash, String displayName)
@@ -193,7 +189,7 @@ final class HiscoresSettleService
 
 	private void scheduleRetry(long accountHash, String displayName)
 	{
-		if (!hiscoresSettleRetryScheduled.compareAndSet(false, true))
+		if (!hiscoresRetryScheduled.compareAndSet(false, true))
 		{
 			return;
 		}
@@ -227,10 +223,9 @@ final class HiscoresSettleService
 				hiscoresSettledThisLogin.set(true);
 				log.warn("Hiscores settle retry failed", ex);
 			}
-		}, HISCORES_SETTLE_RETRY_DELAY_SEC, TimeUnit.SECONDS);
+		}, HISCORES_RETRY_DELAY_SEC, TimeUnit.SECONDS);
 	}
 
-	/** @return sanitized local player name, or last cached name if the client already cleared it */
 	private String resolveDisplayName()
 	{
 		if (client.getLocalPlayer() != null && client.getLocalPlayer().getName() != null)
@@ -273,20 +268,20 @@ final class HiscoresSettleService
 		if (accepted > 0L)
 		{
 			String toast = buildToast(accepted, response);
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager, toast);
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, toast);
 		}
 	}
 
 	private static String buildToast(long accepted, JsonObject response)
 	{
-		StringBuilder sb = new StringBuilder("[OSRS TCG] Offline settle: +");
+		StringBuilder sb = new StringBuilder("Offline settle: +");
 		sb.append(NumberFormatting.format(accepted)).append(" credits");
 		if (response.has("breakdown") && response.get("breakdown").isJsonObject())
 		{
 			JsonObject b = response.getAsJsonObject("breakdown");
-			long xp = readLong(b, "xpCredits");
-			long levels = readLong(b, "levelCredits");
-			long activities = readLong(b, "activityCredits");
+			long xp = JsonObjects.readLong(b, "xpCredits");
+			long levels = JsonObjects.readLong(b, "levelCredits");
+			long activities = JsonObjects.readLong(b, "activityCredits");
 			if (xp > 0L || levels > 0L || activities > 0L)
 			{
 				sb.append(" (");
@@ -318,21 +313,5 @@ final class HiscoresSettleService
 		}
 		sb.append('.');
 		return sb.toString();
-	}
-
-	private static long readLong(JsonObject obj, String key)
-	{
-		if (obj == null || !obj.has(key) || obj.get(key).isJsonNull())
-		{
-			return 0L;
-		}
-		try
-		{
-			return obj.get(key).getAsLong();
-		}
-		catch (Exception ignored)
-		{
-			return 0L;
-		}
 	}
 }

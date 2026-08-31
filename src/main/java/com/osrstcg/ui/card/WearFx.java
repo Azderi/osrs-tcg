@@ -3,15 +3,11 @@ package com.osrstcg.ui.card;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.Value;
 
-/**
- * Deterministic wear layers for the card inspect view. Literal port of
- * {@code osrs-tcg-front/src/album/wearFx.js} - the FNV-1a seed and the mulberry32 draw order are
- * byte-identical to the website, so the same {@code (name, pulledBy, pulledAt, condition)} yields
- * the same scratches and stains in the plugin and in the browser.
- *
- * <p>Any change here must preserve the exact number and order of {@link Mulberry32#next()} calls.</p>
- */
+@Getter
 public final class WearFx
 {
 	public enum SpotShape
@@ -23,9 +19,6 @@ public final class WearFx
 		SPLOTCH
 	}
 
-	/**
-	 * mulberry32 with JS {@code Math.imul} / {@code >>>} semantics expressed in 32-bit Java ints.
-	 */
 	public static final class Mulberry32
 	{
 		private int a;
@@ -35,7 +28,6 @@ public final class WearFx
 			this.a = seed == 0 ? 0x9E3779B9 : seed;
 		}
 
-		/** Next value in {@code [0, 1)}. */
 		public double next()
 		{
 			a = a + 0x6D2B79F5;
@@ -45,210 +37,53 @@ public final class WearFx
 		}
 	}
 
-	/** A single hairline abrasion. {@code x}/{@code y} are percent of card size, {@code len} percent of width. */
-	public static final class Scratch
+	@Value
+	public static class Scratch
 	{
-		private final double x;
-		private final double y;
-		private final double len;
-		private final double angle;
-		private final double opacity;
-
-		Scratch(double x, double y, double len, double angle, double opacity)
-		{
-			this.x = x;
-			this.y = y;
-			this.len = len;
-			this.angle = angle;
-			this.opacity = opacity;
-		}
-
-		public double getX()
-		{
-			return x;
-		}
-
-		public double getY()
-		{
-			return y;
-		}
-
-		public double getLen()
-		{
-			return len;
-		}
-
-		public double getAngle()
-		{
-			return angle;
-		}
-
-		public double getOpacity()
-		{
-			return opacity;
-		}
+		double x;
+		double y;
+		double len;
+		double angle;
+		double opacity;
 	}
 
-	/**
-	 * A dirt stain. {@code x}/{@code y} are percent of card size (centered), {@code w}/{@code h} percent
-	 * of card width/height, {@code borderRadius} the eight CSS corner percentages
-	 * (horizontal TL, TR, BR, BL then vertical TL, TR, BR, BL).
-	 */
-	public static final class Spot
+	@Value
+	public static class Spot
 	{
-		private final double x;
-		private final double y;
-		private final double w;
-		private final double h;
-		private final double rotate;
-		private final double[] borderRadius;
-		private final double blur;
-		private final SpotShape shape;
-		private final double opacity;
-
-		Spot(double x, double y, double w, double h, double rotate, double[] borderRadius, double blur, SpotShape shape, double opacity)
-		{
-			this.x = x;
-			this.y = y;
-			this.w = w;
-			this.h = h;
-			this.rotate = rotate;
-			this.borderRadius = borderRadius;
-			this.blur = blur;
-			this.shape = shape;
-			this.opacity = opacity;
-		}
-
-		public double getX()
-		{
-			return x;
-		}
-
-		public double getY()
-		{
-			return y;
-		}
-
-		public double getW()
-		{
-			return w;
-		}
-
-		public double getH()
-		{
-			return h;
-		}
-
-		public double getRotate()
-		{
-			return rotate;
-		}
+		double x;
+		double y;
+		double w;
+		double h;
+		double rotate;
+		@Getter(AccessLevel.NONE)
+		double[] borderRadius;
+		double blur;
+		SpotShape shape;
+		double opacity;
 
 		public double[] getBorderRadius()
 		{
 			return borderRadius.clone();
 		}
-
-		public double getBlur()
-		{
-			return blur;
-		}
-
-		public SpotShape getShape()
-		{
-			return shape;
-		}
-
-		public double getOpacity()
-		{
-			return opacity;
-		}
 	}
 
 	private final int seed;
 	private final CardGrade grade;
-	private final double intensity;
-	private final double fade;
-	private final double scratchMix;
 	private final double dirtMix;
 	private final double edgeMix;
-	private final boolean showEdges;
-	private final boolean showScratches;
 	private final List<Scratch> scratches;
 	private final List<Spot> spots;
 
-	private WearFx(int seed, CardGrade grade, double intensity, double fade, double scratchMix, double dirtMix, double edgeMix,
-		boolean showEdges, boolean showScratches, List<Scratch> scratches, List<Spot> spots)
+	private WearFx(int seed, CardGrade grade, double dirtMix, double edgeMix, List<Scratch> scratches, List<Spot> spots)
 	{
 		this.seed = seed;
 		this.grade = grade;
-		this.intensity = intensity;
-		this.fade = fade;
-		this.scratchMix = scratchMix;
 		this.dirtMix = dirtMix;
 		this.edgeMix = edgeMix;
-		this.showEdges = showEdges;
-		this.showScratches = showScratches;
 		this.scratches = Collections.unmodifiableList(scratches);
 		this.spots = Collections.unmodifiableList(spots);
 	}
 
-	public int getSeed()
-	{
-		return seed;
-	}
-
-	public CardGrade getGrade()
-	{
-		return grade;
-	}
-
-	public double getIntensity()
-	{
-		return intensity;
-	}
-
-	public double getFade()
-	{
-		return fade;
-	}
-
-	public double getScratchMix()
-	{
-		return scratchMix;
-	}
-
-	public double getDirtMix()
-	{
-		return dirtMix;
-	}
-
-	public double getEdgeMix()
-	{
-		return edgeMix;
-	}
-
-	public boolean isShowEdges()
-	{
-		return showEdges;
-	}
-
-	public boolean isShowScratches()
-	{
-		return showScratches;
-	}
-
-	public List<Scratch> getScratches()
-	{
-		return scratches;
-	}
-
-	public List<Spot> getSpots()
-	{
-		return spots;
-	}
-
-	/** FNV-1a 32-bit, matching {@code hashStringToSeed} (UTF-16 code units). */
 	public static int hashStringToSeed(String str)
 	{
 		int h = 0x811C9DC5;
@@ -264,10 +99,6 @@ public final class WearFx
 		return h;
 	}
 
-	/**
-	 * {@code hash("name|pulledBy|pulledAt")}, or {@code fallback} when all three are empty/zero.
-	 * The seed string must stay byte-identical to the site's.
-	 */
 	public static int wearSeedFromPull(String cardName, String pulledBy, Long pulledAt, int fallback)
 	{
 		String name = cardName == null ? "" : cardName.trim();
@@ -281,11 +112,6 @@ public final class WearFx
 		return h == 0 ? 1 : h;
 	}
 
-	/**
-	 * Wear for one instance, or {@code null} when the grade is unknown (no condition) or S (beta / mint).
-	 *
-	 * @param condition 0.01–100, or {@code null} when absent (beta / migrated instances)
-	 */
 	public static WearFx wearFxFromCondition(Double condition, Long pulledAt, boolean beta, String cardName, String pulledBy)
 	{
 		CardGrade grade = CardGrade.gradeFromVariant(beta, condition);
@@ -304,15 +130,13 @@ public final class WearFx
 		int seed = wearSeedFromPull(cardName, pulledBy, pulledAt, fallback);
 		Mulberry32 rand = new Mulberry32(seed);
 
-		// Wear profile mix: 0 = dirt-heavy, 1 = scratch-heavy. Inversely shared budget.
 		double profile = rand.next();
-		boolean showScratches = grade != CardGrade.A && grade != CardGrade.S;
-		boolean showEdges = showScratches;
+		boolean detailWear = grade != CardGrade.A && grade != CardGrade.S;
 
 		double scratchMix;
 		double dirtMix;
 		double edgeMix;
-		if (showScratches)
+		if (detailWear)
 		{
 			scratchMix = 0.22d + profile * 0.78d;
 			dirtMix = 0.22d + (1.0d - profile) * 0.78d;
@@ -327,7 +151,7 @@ public final class WearFx
 		}
 
 		List<Scratch> scratches = new ArrayList<>();
-		if (showScratches)
+		if (detailWear)
 		{
 			long scratchCount = Math.round((1.0d + intensity * 14.0d) * scratchMix);
 			for (long i = 0; i < scratchCount; i++)
@@ -351,7 +175,7 @@ public final class WearFx
 		{
 			double baseSize = (gradeA ? 3.0d : 4.0d)
 				+ rand.next() * (gradeA ? 5.0d : 6.0d + intensity * 14.0d * dirtMix);
-			SpotGeometry geom = spotGeometry(rand, baseSize);
+			SpotGeom geom = spotGeometry(rand, baseSize);
 			double x = 8.0d + rand.next() * 84.0d;
 			double y = 10.0d + rand.next() * 80.0d;
 			double opacity = ((gradeA ? 0.06d : 0.09d)
@@ -360,10 +184,9 @@ public final class WearFx
 			spots.add(new Spot(x, y, geom.w, geom.h, geom.rotate, geom.borderRadius, geom.blur, geom.shape, opacity));
 		}
 
-		return new WearFx(seed, grade, intensity, fade, scratchMix, dirtMix, edgeMix, showEdges, showScratches, scratches, spots);
+		return new WearFx(seed, grade, dirtMix, edgeMix, scratches, spots);
 	}
 
-	/** {@code Math.round(Number(condition) * 100) || 1}. */
 	private static int conditionFallbackSeed(Double condition)
 	{
 		if (condition == null || condition.isNaN() || condition.isInfinite())
@@ -378,16 +201,16 @@ public final class WearFx
 		return (int) v;
 	}
 
-	private static final class SpotGeometry
+	private static final class SpotGeom
 	{
-		private final SpotShape shape;
-		private final double w;
-		private final double h;
-		private final double rotate;
-		private final double[] borderRadius;
-		private final double blur;
+		final SpotShape shape;
+		final double w;
+		final double h;
+		final double rotate;
+		final double[] borderRadius;
+		final double blur;
 
-		private SpotGeometry(SpotShape shape, double w, double h, double rotate, double[] borderRadius, double blur)
+		SpotGeom(SpotShape shape, double w, double h, double rotate, double[] borderRadius, double blur)
 		{
 			this.shape = shape;
 			this.w = w;
@@ -398,7 +221,6 @@ public final class WearFx
 		}
 	}
 
-	/** Eight CSS corner percentages, drawn in template order so the RNG stream matches the site. */
 	private static double[] organicBorderRadius(Mulberry32 rand)
 	{
 		double[] corners = new double[8];
@@ -419,7 +241,7 @@ public final class WearFx
 		return corners;
 	}
 
-	private static SpotGeometry spotGeometry(Mulberry32 rand, double baseSize)
+	private static SpotGeom spotGeometry(Mulberry32 rand, double baseSize)
 	{
 		double pick = rand.next();
 		SpotShape shape;
@@ -451,7 +273,7 @@ public final class WearFx
 				double w = baseSize * (0.65d + rand.next() * 0.95d);
 				double h = baseSize * (0.38d + rand.next() * 0.58d);
 				double rotate = rand.next() * 180.0d;
-				return new SpotGeometry(shape, w, h, rotate, uniformRadius(50.0d), 0.0d);
+				return new SpotGeom(shape, w, h, rotate, uniformRadius(50.0d), 0.0d);
 			}
 			case SMEAR:
 			{
@@ -460,7 +282,7 @@ public final class WearFx
 				double rotate = rand.next() * 180.0d;
 				double radius = Math.round(30.0d + rand.next() * 25.0d);
 				double blur = 0.35d + rand.next() * 0.65d;
-				return new SpotGeometry(shape, w, h, rotate, uniformRadius(radius), blur);
+				return new SpotGeom(shape, w, h, rotate, uniformRadius(radius), blur);
 			}
 			case BLOB:
 			{
@@ -469,7 +291,7 @@ public final class WearFx
 				double rotate = rand.next() * 360.0d;
 				double[] radius = organicBorderRadius(rand);
 				double blur = 0.2d + rand.next() * 0.55d;
-				return new SpotGeometry(shape, w, h, rotate, radius, blur);
+				return new SpotGeom(shape, w, h, rotate, radius, blur);
 			}
 			case SPLOTCH:
 			{
@@ -478,10 +300,10 @@ public final class WearFx
 				double rotate = -45.0d + rand.next() * 90.0d;
 				double[] radius = organicBorderRadius(rand);
 				double blur = 0.25d + rand.next() * 0.75d;
-				return new SpotGeometry(shape, w, h, rotate, radius, blur);
+				return new SpotGeom(shape, w, h, rotate, radius, blur);
 			}
 			default:
-				return new SpotGeometry(SpotShape.ROUND, baseSize, baseSize, 0.0d, uniformRadius(50.0d), 0.0d);
+				return new SpotGeom(SpotShape.ROUND, baseSize, baseSize, 0.0d, uniformRadius(50.0d), 0.0d);
 		}
 	}
 }

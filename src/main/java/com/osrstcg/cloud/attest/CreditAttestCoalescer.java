@@ -11,20 +11,16 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import static com.osrstcg.cloud.attest.CreditAttestQueue.evidenceInt;
+import static com.osrstcg.cloud.attest.CreditAttestQueue.evidenceLong;
+import static com.osrstcg.cloud.attest.CreditAttestQueue.evidenceObject;
+import static com.osrstcg.cloud.attest.CreditAttestQueue.evidenceString;
 
-/**
- * Coalesces raw credit-attest events into domain events immediately before
- * {@code POST /credits/attest}. Aggregation is flush-window only (pending unacked queue),
- * with {@code xp_chunk} and {@code npc_kill} further split by UTC epoch hour so a long
- * backlog does not look like one tick against server hourly rate caps.
- */
 public final class CreditAttestCoalescer
 {
 	public static final int MAX_BATCH = 100;
 	public static final int MAX_KILL_AMOUNT = 500;
-	/** Soft threshold: flush early when coalesced count reaches this (before hard 100). */
 	public static final int EARLY_FLUSH_COALESCED = 80;
-	/** Wall-clock hour used to bucket XP / kill merges (matches server hourly budgets). */
 	public static final long HOUR_MS = 3_600_000L;
 
 	public static final String TYPE_NPC_KILL = "npc_kill";
@@ -32,15 +28,9 @@ public final class CreditAttestCoalescer
 	public static final String TYPE_LEVEL_UP = "level_up";
 	public static final String TYPE_ACTIVITY = "activity";
 
-	/** Client-only field on queued events; stripped before POST. */
 	public static final String CLIENT_OPTIMISTIC_CREDITS = "_optimisticCredits";
 
-	/**
-	 * Combat skills whose XP chunks are dropped (no attest / no credit).
-	 * Hitpoints is attested with 0 optimistic credits
-	 * and is excluded from the XP credit remainder.
-	 */
-	private static final Set<String> COMBAT_SKILLS_BLOCK_XP = combatSkillSet(
+	private static final Set<String> COMBAT_SKILLS_BLOCK_XP = Set.of(
 		"ATTACK", "STRENGTH", "DEFENCE", "RANGED", "MAGIC");
 	private static final String HITPOINTS_SKILL_KEY = "HITPOINTS";
 
@@ -48,10 +38,6 @@ public final class CreditAttestCoalescer
 	{
 	}
 
-	/**
-	 * Coalesce a raw tick/intake list into attest events (may exceed {@link #MAX_BATCH};
-	 * callers split with {@link #takePriorityBatch}).
-	 */
 	public static List<JsonObject> coalesce(List<JsonObject> rawEvents)
 	{
 		if (rawEvents == null || rawEvents.isEmpty())
@@ -91,7 +77,6 @@ public final class CreditAttestCoalescer
 					mergeKill(kills, evidence, at, optimistic);
 					break;
 				case TYPE_ACTIVITY:
-					// Keep discrete - server cooldowns; do not fabricate merges.
 					activities.add(copyEvent(TYPE_ACTIVITY, evidence, at, optimistic));
 					break;
 				default:
@@ -139,16 +124,11 @@ public final class CreditAttestCoalescer
 		return out;
 	}
 
-	/** Estimate coalesced size without building full JSON (for early-flush gating). */
 	public static int estimateCoalescedCount(List<JsonObject> rawEvents)
 	{
 		return coalesce(rawEvents).size();
 	}
 
-	/**
-	 * Removes up to {@code max} highest-priority events from {@code coalesced} (mutates list).
-	 * Priority: level_up → large xp → large kills → activity → other.
-	 */
 	public static List<JsonObject> takePriorityBatch(List<JsonObject> coalesced, int max)
 	{
 		if (coalesced == null || coalesced.isEmpty() || max <= 0)
@@ -192,23 +172,17 @@ public final class CreditAttestCoalescer
 		return batch;
 	}
 
-	/** True for Attack/Strength/Defence/Ranged/Magic - XP chunks are not attested. */
 	public static boolean isCombatSkillName(String skill)
 	{
 		return COMBAT_SKILLS_BLOCK_XP.contains(normalizeSkillKey(skill));
 	}
 
-	/** True for Hitpoints, including maxed fake-drop sources like {@code "Hitpoints drop"}. */
 	public static boolean isHitpointsSkillName(String skill)
 	{
 		String key = normalizeSkillKey(skill);
 		return key.equals(HITPOINTS_SKILL_KEY) || key.startsWith(HITPOINTS_SKILL_KEY + " ");
 	}
 
-	/**
-	 * True when every event is a Hitpoints {@code xp_chunk}.
-	 * Those are held client-side until a non-Hitpoints event can accompany them.
-	 */
 	public static boolean isHitpointsXpOnly(List<JsonObject> events)
 	{
 		if (events == null || events.isEmpty())
@@ -239,7 +213,6 @@ public final class CreditAttestCoalescer
 		return skill.trim().toUpperCase(Locale.ROOT);
 	}
 
-	/** UTC epoch hour index for {@code atMs} (floor division by {@link #HOUR_MS}). */
 	public static long epochHour(long atMs)
 	{
 		long t = atMs;
@@ -406,7 +379,6 @@ public final class CreditAttestCoalescer
 		return event;
 	}
 
-	/** Reads client-only optimistic stamp; 0 when absent. */
 	public static long optimisticOf(JsonObject event)
 	{
 		if (event == null || !event.has(CLIENT_OPTIMISTIC_CREDITS) || event.get(CLIENT_OPTIMISTIC_CREDITS).isJsonNull())
@@ -423,7 +395,6 @@ public final class CreditAttestCoalescer
 		}
 	}
 
-	/** Deep-copies an event for POST without client-only fields. */
 	public static JsonObject forWire(JsonObject event)
 	{
 		if (event == null)
@@ -433,53 +404,6 @@ public final class CreditAttestCoalescer
 		JsonObject copy = event.deepCopy();
 		copy.remove(CLIENT_OPTIMISTIC_CREDITS);
 		return copy;
-	}
-
-	private static Set<String> combatSkillSet(String... names)
-	{
-		Set<String> set = new HashSet<>();
-		for (String name : names)
-		{
-			set.add(name);
-		}
-		return Set.copyOf(set);
-	}
-
-	private static JsonObject evidenceObject(JsonObject event)
-	{
-		if (event != null && event.has("evidence") && event.get("evidence").isJsonObject())
-		{
-			return event.getAsJsonObject("evidence");
-		}
-		return new JsonObject();
-	}
-
-	private static String evidenceString(JsonObject evidence, String key, String defaultValue)
-	{
-		if (evidence == null || !evidence.has(key) || evidence.get(key).isJsonNull())
-		{
-			return defaultValue;
-		}
-		String value = evidence.get(key).getAsString();
-		return value == null ? defaultValue : value;
-	}
-
-	private static int evidenceInt(JsonObject evidence, String key, int defaultValue)
-	{
-		if (evidence == null || !evidence.has(key) || evidence.get(key).isJsonNull())
-		{
-			return defaultValue;
-		}
-		return evidence.get(key).getAsInt();
-	}
-
-	private static long evidenceLong(JsonObject evidence, String key, long defaultValue)
-	{
-		if (evidence == null || !evidence.has(key) || evidence.get(key).isJsonNull())
-		{
-			return defaultValue;
-		}
-		return evidence.get(key).getAsLong();
 	}
 
 	private static long atOf(JsonObject event)

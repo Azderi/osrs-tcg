@@ -23,18 +23,18 @@ public final class SidebarNoticeView
 	private final JButton openAccountPanelButton;
 	private final JPanel albumFooterWrap;
 	private final CloudSessionService cloudSessionService;
-	private final Runnable updateManageAccountButtonState;
+	private final Runnable onManageAccountStateUpdate;
 
 	public SidebarNoticeView(
 		JButton openAccountPanelButton,
 		JPanel albumFooterWrap,
 		CloudSessionService cloudSessionService,
-		Runnable updateManageAccountButtonState)
+		Runnable onManageAccountStateUpdate)
 	{
 		this.openAccountPanelButton = openAccountPanelButton;
 		this.albumFooterWrap = albumFooterWrap;
 		this.cloudSessionService = cloudSessionService;
-		this.updateManageAccountButtonState = updateManageAccountButtonState;
+		this.onManageAccountStateUpdate = onManageAccountStateUpdate;
 		sidebarNoticeContent.setOpaque(false);
 		sidebarNoticeMessageWrap.setOpaque(false);
 		sidebarNoticeButtonWrap.setOpaque(false);
@@ -77,13 +77,13 @@ public final class SidebarNoticeView
 		sidebarNoticeButtonWrap.removeAll();
 		if (showAccountPanelButton)
 		{
-			reparentOpenAccountPanelButton(sidebarNoticeButtonWrap);
+			reparentAccountPanelButton(sidebarNoticeButtonWrap);
 			sidebarNoticeButtonWrap.setVisible(true);
-			updateManageAccountButtonState.run();
+			onManageAccountStateUpdate.run();
 		}
 		else
 		{
-			restoreOpenAccountPanelButtonToFooter();
+			restoreAccountPanelToFooter();
 			sidebarNoticeButtonWrap.setVisible(false);
 		}
 
@@ -91,7 +91,7 @@ public final class SidebarNoticeView
 		sidebarNoticeContent.repaint();
 	}
 
-	public void reparentOpenAccountPanelButton(JPanel target)
+	public void reparentAccountPanelButton(JPanel target)
 	{
 		if (target == null || openAccountPanelButton == null)
 		{
@@ -113,12 +113,12 @@ public final class SidebarNoticeView
 		target.repaint();
 	}
 
-	public void restoreOpenAccountPanelButtonToFooter()
+	public void restoreAccountPanelToFooter()
 	{
 		if (openAccountPanelButton == null || albumFooterWrap == null)
 		{
 			return;
 		}
-		reparentOpenAccountPanelButton(albumFooterWrap);
+		reparentAccountPanelButton(albumFooterWrap);
 	}
 }

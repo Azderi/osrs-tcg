@@ -34,12 +34,4 @@ final class OptimisticCreditBuffer
 		}
 		pending = Math.max(0L, pending - amount);
 	}
-
-	/** Spends from pending first; returns how much of {@code amount} came from the buffer. */
-	long consumeForSpend(long amount)
-	{
-		long fromPending = Math.min(pending, amount);
-		pending -= fromPending;
-		return fromPending;
-	}
 }

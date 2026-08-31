@@ -1,7 +1,7 @@
 package com.osrstcg;
 
 import com.osrstcg.config.CreditsPerHourWindow;
-import com.osrstcg.config.DinkNotificationTrigger;
+import com.osrstcg.config.PullNotificationTrigger;
 import com.osrstcg.config.PullNotifyTier;
 import java.awt.Color;
 import net.runelite.client.config.Config;
@@ -19,12 +19,19 @@ public interface OsrsTcgConfig extends Config
 	)
 	String generalSection = "general";
 
+	@ConfigSection(
+		name = "Credits",
+		description = "Credits display and notifications.",
+		position = 5
+	)
+	String creditsSection = "credits";
+
 	@ConfigItem(
 		keyName = "creditsInfobox",
 		name = "Credits infobox",
 		description = "Show your credits on screen. Alt+drag to move. Shift+right-click to open packs "
 			+ "or reset Credits/h.",
-		section = generalSection,
+		section = creditsSection,
 		position = 0
 	)
 	default boolean creditsInfobox()
@@ -36,7 +43,7 @@ public interface OsrsTcgConfig extends Config
 		keyName = "creditsPerHour",
 		name = "Credits per hour",
 		description = "Show credits/h on the credits infobox. Shift+right-click the infobox to reset.",
-		section = generalSection,
+		section = creditsSection,
 		position = 1
 	)
 	default boolean creditsPerHour()
@@ -49,7 +56,7 @@ public interface OsrsTcgConfig extends Config
 		name = "Credits/h window",
 		description = "Sliding window for credits/h. Persistent keeps all gains until Shift+right-click "
 			+ "Reset on the credits infobox.",
-		section = generalSection,
+		section = creditsSection,
 		position = 2
 	)
 	default CreditsPerHourWindow creditsPerHourWindow()
@@ -61,7 +68,7 @@ public interface OsrsTcgConfig extends Config
 		keyName = "creditNotifications",
 		name = "Credit notifications",
 		description = "Chat when you have the amount of credits you set.",
-		section = generalSection,
+		section = creditsSection,
 		position = 3
 	)
 	default boolean creditNotifications()
@@ -73,19 +80,19 @@ public interface OsrsTcgConfig extends Config
 		keyName = "creditNotificationAmount",
 		name = "Notification amount",
 		description = "Credit threshold for notifications.",
-		section = generalSection,
+		section = creditsSection,
 		position = 4
 	)
 	default int creditNotificationAmount()
 	{
 		return 2500;
 	}
-	
+
 	@ConfigItem(
 		keyName = "runeliteNotifications",
-		name = "Runelite notifications",
-		description = "Enable certain notifications to be sent through Runelite's default notification service as well.",
-		section = generalSection,
+		name = "RuneLite notifications",
+		description = "Also send credit notifications through RuneLite's notification service.",
+		section = creditsSection,
 		position = 5
 	)
 	default boolean runeliteNotifications()
@@ -98,19 +105,26 @@ public interface OsrsTcgConfig extends Config
 		name = "Compact shop",
 		description = "Hide pack thumbnails in the shop so more packs fit on the sidebar.",
 		section = generalSection,
-		position = 6
+		position = 0
 	)
 	default boolean compactShop()
 	{
 		return false;
 	}
 
+	@ConfigSection(
+		name = "Pack opening",
+		description = "Pack reveal overlay and sounds.",
+		position = 7
+	)
+	String packOpeningSection = "packOpening";
+
 	@ConfigItem(
 		keyName = "enableSounds",
 		name = "Enable pack opening sounds",
 		description = "Play sounds when opening packs.",
-		section = generalSection,
-		position = 7
+		section = packOpeningSection,
+		position = 0
 	)
 	default boolean enableSounds()
 	{
@@ -121,8 +135,8 @@ public interface OsrsTcgConfig extends Config
 		keyName = "showGradeWear",
 		name = "Show grade wear",
 		description = "Show condition wear effects on cards in the pack opening overlay.",
-		section = generalSection,
-		position = 8
+		section = packOpeningSection,
+		position = 1
 	)
 	default boolean showGradeWear()
 	{
@@ -133,8 +147,8 @@ public interface OsrsTcgConfig extends Config
 		keyName = "packRarityHighlight",
 		name = "Rarity Highlight",
 		description = "Show rarity when hovering unflipped pack cards.",
-		section = generalSection,
-		position = 9
+		section = packOpeningSection,
+		position = 2
 	)
 	default boolean packRarityHighlight()
 	{
@@ -146,8 +160,8 @@ public interface OsrsTcgConfig extends Config
 		name = "Rarity Text",
 		description = "Show the rarity name above unflipped pack cards on hover. Helps colour blind users "
 			+ "tell rarities apart without relying on the highlight colour.",
-		section = generalSection,
-		position = 10
+		section = packOpeningSection,
+		position = 3
 	)
 	default boolean packRarityText()
 	{
@@ -155,24 +169,11 @@ public interface OsrsTcgConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "safeMode",
-		name = "Safe-mode",
-		description = "Block opening packs while in combat.",
-		section = generalSection,
-		position = 11
-	)
-	default boolean safeMode()
-	{
-		return false;
-	}
-
-	@ConfigItem(
 		keyName = "showSidebarRanks",
 		name = "Sidebar hiscores ranks",
-		description = "Show your hiscores rank under overview stats after opening a pack "
-			+ "(updated at most once every 10 minutes).",
+		description = "Show your hiscores rank under overview stats after opening a pack.",
 		section = generalSection,
-		position = 12
+		position = 1
 	)
 	default boolean showSidebarRanks()
 	{
@@ -184,23 +185,11 @@ public interface OsrsTcgConfig extends Config
 		name = "Chat prefix colour",
 		description = "Colour of the [OSRS TCG] chat tag.",
 		section = generalSection,
-		position = 13
+		position = 2
 	)
 	default Color chatPrefixColor()
 	{
 		return new Color(0xC4, 0x94, 0x1A);
-	}
-
-	@ConfigItem(
-		keyName = "debugMessages",
-		name = "Debug messages",
-		description = "Show extra plugin details in chat.",
-		section = generalSection,
-		position = 14
-	)
-	default boolean debugMessages()
-	{
-		return false;
 	}
 
 	@ConfigSection(
@@ -225,7 +214,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "notifyNonFoils",
 		name = "Notify non-foils",
-		description = "Also notify for normal (non-foil) cards.",
+		description = "Also notify for normal cards.",
 		section = pullNotificationsSection,
 		position = 1
 	)
@@ -259,13 +248,61 @@ public interface OsrsTcgConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "partyAnnounceMythicPulls",
-		name = "Party collection announcements",
-		description = "Share pull alerts with your party.",
+		keyName = "duplicateNotifyTier",
+		name = "Duplicate notify tier",
+		description = "Minimum rarity for duplicate pulls.",
 		section = pullNotificationsSection,
 		position = 4
 	)
-	default boolean partyAnnounceMythicPulls()
+	default PullNotifyTier duplicateNotifyTier()
+	{
+		return PullNotifyTier.MYTHIC;
+	}
+
+	@ConfigItem(
+		keyName = "pullNotificationTrigger",
+		name = "Notification trigger",
+		description = "Notify per card or one summary at pack end.",
+		section = pullNotificationsSection,
+		position = 5
+	)
+	default PullNotificationTrigger pullNotificationTrigger()
+	{
+		return PullNotificationTrigger.EVERY_CARD;
+	}
+
+	@ConfigItem(
+		keyName = "notifyChat",
+		name = "In-game chat",
+		description = "Post collection-add lines to game chat.",
+		section = pullNotificationsSection,
+		position = 6
+	)
+	default boolean notifyChat()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "partyAnnouncePulls",
+		name = "Party pull announcements",
+		description = "Share pull alerts with party members.",
+		section = pullNotificationsSection,
+		position = 7
+	)
+	default boolean partyAnnouncePulls()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "partyAnnounceCollectionSets",
+		name = "Party collection-set announcements",
+		description = "Share finished collection sets with party members.",
+		section = pullNotificationsSection,
+		position = 8
+	)
+	default boolean partyAnnounceCollectionSets()
 	{
 		return true;
 	}
@@ -273,91 +310,43 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "pullWebhookUrl",
 		name = "Webhook URL",
-		description = "Discord webhook for pull alerts. Leave empty to disable.",
+		description = "Discord webhook URL for pull alerts.",
 		section = pullNotificationsSection,
-		position = 5
+		position = 9
 	)
 	default String pullWebhookUrl()
 	{
 		return "";
 	}
 
-	@ConfigSection(
-		name = "Dink",
-		description = "Send OSRS TCG notifications through Dink.",
-		position = 20
-	)
-	String dinkSection = "dink";
-
 	@ConfigItem(
 		keyName = "dinkNotifications",
-		name = "Enable Dink Notifications",
-		description = "Send notable pull alerts to Discord via Dink.",
-		section = dinkSection,
-		position = 0
+		name = "Enable Dink notifications",
+		description = "Send pull alerts via Dink.",
+		section = pullNotificationsSection,
+		position = 10
 	)
 	default boolean dinkNotifications()
 	{
 		return false;
 	}
 
-	@ConfigItem(
-		keyName = "dinkNotificationTrigger",
-		name = "Trigger notification",
-		description = "Send Dink notifications as each card is revealed or after the whole pack is revealed.",
-		section = dinkSection,
-		position = 1
+	@ConfigSection(
+		name = "Debug",
+		description = "Developer and troubleshooting options.",
+		position = 15
 	)
-	default DinkNotificationTrigger dinkNotificationTrigger()
-	{
-		return DinkNotificationTrigger.EVERY_CARD;
-	}
+	String debugSection = "debug";
 
 	@ConfigItem(
-		keyName = "dinkNewCardNotifyTier",
-		name = "Notify tier",
-		description = "Notify for this rarity and higher.",
-		section = dinkSection,
-		position = 2
+		keyName = "debugMessages",
+		name = "Debug messages",
+		description = "Chat debug messages",
+		section = debugSection,
+		position = 0
 	)
-	default PullNotifyTier dinkNewCardNotifyTier()
+	default boolean debugMessages()
 	{
-		return PullNotifyTier.MYTHIC;
-	}
-
-	@ConfigItem(
-		keyName = "dinkAlwaysNotifyFoils",
-		name = "Notify all foils",
-		description = "Notify for foils regardless of rank. When disabled, foils must meet the relevant rank threshold.",
-		section = dinkSection,
-		position = 3
-	)
-	default boolean dinkAlwaysNotifyFoils()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "dinkOnlyNotifyNew",
-		name = "Only notify new cards",
-		description = "Only send Dink notifications for new cards at or above the selected rank threshold.",
-		section = dinkSection,
-		position = 4
-	)
-	default boolean dinkOnlyNotifyNew()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "dinkDuplicateNotifyTier",
-		name = "Duplicate notify tier",
-		description = "Minimum card rank for duplicate Dink notifications if only notify new cards is turned off.",
-		section = dinkSection,
-		position = 5
-	)
-	default PullNotifyTier dinkDuplicateNotifyTier()
-	{
-		return PullNotifyTier.MYTHIC;
+		return false;
 	}
 }

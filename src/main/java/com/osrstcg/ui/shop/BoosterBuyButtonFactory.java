@@ -13,9 +13,7 @@ import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
-import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
-import javax.swing.border.MatteBorder;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 
@@ -24,7 +22,7 @@ final class BoosterBuyButtonFactory
 {
 	static final int BOOSTER_BUTTON_MIN_HEIGHT = 120;
 	/** Tighter tile when pack thumbnails are omitted ({@link com.osrstcg.OsrsTcgConfig#compactShop()}). */
-	static final int BOOSTER_BUTTON_MIN_HEIGHT_COMPACT = 72;
+	static final int BOOSTER_MIN_HEIGHT_COMPACT = 72;
 
 	private BoosterBuyButtonFactory()
 	{
@@ -81,10 +79,8 @@ final class BoosterBuyButtonFactory
 		button.setVerticalTextPosition(SwingConstants.CENTER);
 		button.setBackground(ColorScheme.DARKER_GRAY_COLOR.darker());
 		button.setForeground(Color.WHITE);
-		button.setBorder(new CompoundBorder(
-			new MatteBorder(1, 1, 1, 1, ColorScheme.LIGHT_GRAY_COLOR.darker()),
-			new EmptyBorder(compact ? 4 : 6, 6, compact ? 6 : 8, 6)
-		));
+		SidebarLayout.styleOutlinedButton(button, ColorScheme.LIGHT_GRAY_COLOR.darker(),
+			compact ? 4 : 6, 6, compact ? 6 : 8, 6);
 		button.setFocusPainted(false);
 		button.setFont(FontManager.getRunescapeSmallFont());
 		button.setFocusable(false);
@@ -94,7 +90,7 @@ final class BoosterBuyButtonFactory
 				iconLabel.setIcon(button.isEnabled() ? packIconColor : packIconGray));
 		}
 		int bw = Math.max(96, buttonWidth);
-		int minH = compact ? BOOSTER_BUTTON_MIN_HEIGHT_COMPACT : BOOSTER_BUTTON_MIN_HEIGHT;
+		int minH = compact ? BOOSTER_MIN_HEIGHT_COMPACT : BOOSTER_BUTTON_MIN_HEIGHT;
 		int neededH = Math.max(minH, button.getPreferredSize().height);
 		Dimension tile = new Dimension(bw, neededH);
 		button.setPreferredSize(tile);
@@ -116,14 +112,14 @@ final class BoosterBuyButtonFactory
 			public void updateUI()
 			{
 				super.updateUI();
-				applyShopBoosterTextLabelStyle(this);
+				applyBoostBtnLabelStyle(this);
 			}
 		};
-		applyShopBoosterTextLabelStyle(label);
+		applyBoostBtnLabelStyle(label);
 		return label;
 	}
 
-	private static void applyShopBoosterTextLabelStyle(JLabel label)
+	private static void applyBoostBtnLabelStyle(JLabel label)
 	{
 		label.setAlignmentX(Component.CENTER_ALIGNMENT);
 		label.setForeground(Color.WHITE);

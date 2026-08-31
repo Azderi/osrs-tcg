@@ -5,7 +5,6 @@ import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
 import com.osrstcg.cloud.api.CloudEndpoints;
 import com.osrstcg.cloud.session.CloudSessionService;
-import com.osrstcg.ui.layout.SidebarLayout;
 import com.osrstcg.util.TcgPluginGameMessages;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -39,16 +38,6 @@ public final class AccountPanelLauncher
 		this.scheduler = scheduler;
 		this.chatMessageManager = chatMessageManager;
 		this.updateButtonState = updateButtonState;
-	}
-
-	public AtomicBoolean inFlight()
-	{
-		return inFlight;
-	}
-
-	public void open()
-	{
-		open("/me");
 	}
 
 	public void open(String next)
@@ -95,7 +84,7 @@ public final class AccountPanelLauncher
 		});
 	}
 
-	public void updateManageAccountButtonState(JButton openAccountPanelButton, JButton openTradesButton)
+	public void updateManageAccountState(JButton openAccountPanelButton, JButton openTradesButton)
 	{
 		if (openAccountPanelButton == null)
 		{
@@ -124,9 +113,9 @@ public final class AccountPanelLauncher
 	private void queueOpenAccountPanelError(String detail)
 	{
 		String message = detail == null || detail.isBlank()
-			? "[OSRS TCG] Could not open account page"
-			: "[OSRS TCG] Could not open account page - " + detail.trim();
-		TcgPluginGameMessages.queueGameMessage(chatMessageManager, message);
+			? "Could not open account page"
+			: "Could not open account page - " + detail.trim();
+		TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, message);
 	}
 
 	public static String resolveWebLoginUrl(JsonObject response)
@@ -144,60 +133,22 @@ public final class AccountPanelLauncher
 
 	public static String buildWebLoginUrl(String webBaseUrl, String code, String next)
 	{
-		if (code == null || code.isBlank())
-		{
-			return null;
-		}
-		String root = SidebarLayout.trimTrailingSlash(webBaseUrl);
-		if (root == null || root.isEmpty())
+		if (code == null || code.isBlank() || webBaseUrl == null || webBaseUrl.isBlank())
 		{
 			return null;
 		}
 		String nextPath = next == null || next.isBlank() ? "/me" : next.trim();
 		String encodedCode = URLEncoder.encode(code.trim(), StandardCharsets.UTF_8);
 		String encodedNext = URLEncoder.encode(nextPath, StandardCharsets.UTF_8);
-		return root + "/login?code=" + encodedCode + "&next=" + encodedNext;
-	}
-
-	public static String rewriteToWebBase(String webBaseUrl, String serverUrl)
-	{
-		if (serverUrl == null || serverUrl.isBlank())
-		{
-			return null;
-		}
-		String root = SidebarLayout.trimTrailingSlash(webBaseUrl);
-		if (root == null || root.isEmpty())
-		{
-			return serverUrl.trim();
-		}
-		String raw = serverUrl.trim();
-		try
-		{
-			java.net.URI uri = java.net.URI.create(raw);
-			if (uri.isAbsolute())
-			{
-				String path = uri.getRawPath() == null || uri.getRawPath().isEmpty() ? "/" : uri.getRawPath();
-				String query = uri.getRawQuery();
-				return root + path + (query == null || query.isEmpty() ? "" : "?" + query);
-			}
-		}
-		catch (IllegalArgumentException ignored)
-		{
-			// fall through to relative join
-		}
-		return root + (raw.startsWith("/") ? raw : "/" + raw);
-	}
-
-	private String fallbackWebLoginUrl(String code, String next)
-	{
-		return buildWebLoginUrl(CloudEndpoints.WEB_BASE_URL, code, next);
+		return webBaseUrl + "/login?code=" + encodedCode + "&next=" + encodedNext;
 	}
 
 	private String resolveWebLoginUrlOrFallback(JsonObject response, String next)
 	{
 		if (response != null && response.has("code") && !response.get("code").isJsonNull())
 		{
-			String fromCode = fallbackWebLoginUrl(response.get("code").getAsString(), next);
+			String fromCode = buildWebLoginUrl(
+				CloudEndpoints.WEB_BASE_URL, response.get("code").getAsString(), next);
 			if (fromCode != null && !fromCode.isEmpty())
 			{
 				return fromCode;
@@ -206,7 +157,7 @@ public final class AccountPanelLauncher
 		String url = resolveWebLoginUrl(response);
 		if (url != null)
 		{
-			return rewriteToWebBase(CloudEndpoints.WEB_BASE_URL, url);
+			return CloudEndpoints.rewriteToWebBase(url);
 		}
 		return null;
 	}

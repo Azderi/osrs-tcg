@@ -1,10 +1,10 @@
 package com.osrstcg.ui.collection;
 
 import com.osrstcg.util.NumberFormatting;
+import com.osrstcg.ui.layout.SidebarLayout;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.Dimension;
 import java.util.function.IntSupplier;
 import javax.swing.JLabel;
 import javax.swing.JList;
@@ -26,7 +26,6 @@ public final class CollectionRowRenderer extends JPanel
 	{
 		this.contentWidth = contentWidth;
 		setLayout(new BorderLayout(6, 0));
-		// Right inset from commit 3ae86d9 - keeps scores clear of the collection scrollbar.
 		setBorder(new EmptyBorder(3, 6, 3, 12));
 		setOpaque(true);
 		name.setFont(FontManager.getRunescapeSmallFont());
@@ -57,17 +56,7 @@ public final class CollectionRowRenderer extends JPanel
 			score.setText(NumberFormatting.formatCompact(value.getScore()));
 		}
 		setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		clampRowWidth();
+		SidebarLayout.clampFixedWidth(this, contentWidth.getAsInt());
 		return this;
-	}
-
-	private void clampRowWidth()
-	{
-		int w = contentWidth.getAsInt();
-		setAlignmentX(LEFT_ALIGNMENT);
-		Dimension preferred = getPreferredSize();
-		setPreferredSize(new Dimension(w, preferred.height));
-		setMaximumSize(new Dimension(w, preferred.height));
-		setMinimumSize(new Dimension(0, preferred.height));
 	}
 }

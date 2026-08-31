@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import com.osrstcg.cloud.activity.ActivityConfigService;
 import com.osrstcg.cloud.activity.CompiledActivityConfig;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
+import com.osrstcg.state.TcgStateService;
 import com.osrstcg.ui.SidebarRefresh;
 import com.osrstcg.util.NumberFormatting;
 import com.osrstcg.util.TcgPluginGameMessages;
@@ -19,20 +20,11 @@ import net.runelite.api.events.ChatMessage;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.util.Text;
-import com.osrstcg.state.TcgStateService;
 
-/**
- * Awards credits for activities that cannot use {@link NpcKillCreditTracker}.
- * Matchers and amounts come from server activity config ({@link ActivityConfigService}).
- */
 @Slf4j
 @Singleton
 public final class GameMessageCreditTracker
 {
-	/**
-	 * Boss KC / completion lines use {@link ChatMessageType#GAMEMESSAGE} by default, but
-	 * {@link ChatMessageType#SPAM} when the in-game "Filter out boss kill-count with spam-filter" setting is on.
-	 */
 	private static final Set<ChatMessageType> CREDIT_CHAT_TYPES = EnumSet.of(
 		ChatMessageType.GAMEMESSAGE,
 		ChatMessageType.SPAM);
@@ -88,9 +80,7 @@ public final class GameMessageCreditTracker
 
 	private void debugActivityQueued(CompiledActivityConfig.CompiledChatRule matched)
 	{
-		boolean chat = stateService.isDebugChatEnabled();
-		boolean trace = stateService.isDebugTracingActive();
-		if (!chat && !trace)
+		if (!stateService.isDebugChatEnabled())
 		{
 			return;
 		}
@@ -98,14 +88,12 @@ public final class GameMessageCreditTracker
 		String label = matched.getLabel();
 		String what = label == null || label.isBlank() ? matched.getActivityId() : label;
 		String body = String.format(
-			"Activity \"%s\" detected -> +%s credits queued",
+			"Activity \"%s\" -> +%s credits (total %s)",
 			what,
-			NumberFormatting.format(matched.getCredits()));
+			NumberFormatting.format(matched.getCredits()),
+			NumberFormatting.format(stateService.getCredits()));
 		log.info("[TCG DEBUG] {}", body);
-		if (chat)
-		{
-			TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, body);
-		}
+		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, body);
 	}
 
 	private Optional<CompiledActivityConfig.CompiledChatRule> firstMatchingRule(String messageWithoutTags)

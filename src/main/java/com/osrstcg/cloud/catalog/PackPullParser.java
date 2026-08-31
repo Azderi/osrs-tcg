@@ -4,10 +4,8 @@ import com.google.gson.JsonObject;
 import com.osrstcg.cloud.api.JsonObjects;
 import com.osrstcg.state.PackCardResult;
 import java.util.UUID;
-import lombok.extern.slf4j.Slf4j;
 
 /** Parses {@code POST /packs/open} {@code cards[]} elements into {@link PackCardResult}. */
-@Slf4j
 public final class PackPullParser
 {
 	private PackPullParser()
@@ -26,25 +24,14 @@ public final class PackPullParser
 			return null;
 		}
 		String displayName = JsonObjects.text(c, "name");
-		boolean foil = c.has("foil") && !c.get("foil").isJsonNull() && c.get("foil").getAsBoolean();
+		boolean foil = JsonObjects.readBoolean(c, "foil");
 		String instanceId = JsonObjects.text(c, "instanceId");
 		if (instanceId == null || instanceId.isBlank())
 		{
 			instanceId = UUID.randomUUID().toString();
 		}
 		String tierLabel = JsonObjects.text(c, "tierLabel");
-		long score = 0L;
-		if (c.has("score") && !c.get("score").isJsonNull())
-		{
-			try
-			{
-				score = Math.max(0L, Math.round(c.get("score").getAsDouble()));
-			}
-			catch (RuntimeException ex)
-			{
-				log.debug("Invalid pack pull score for {}", name, ex);
-			}
-		}
+		long score = Math.max(0L, JsonObjects.readLong(c, "score"));
 		String imagePath = JsonObjects.text(c, "imagePath");
 		String foilImagePath = JsonObjects.text(c, "foilImagePath");
 		String artistName = JsonObjects.text(c, "artistName");
@@ -52,34 +39,12 @@ public final class PackPullParser
 		String artistUrl = JsonObjects.text(c, "artistUrl");
 		String examine = JsonObjects.text(c, "examine");
 		String wikiPage = JsonObjects.text(c, "wikiPage");
-		Double condition = null;
-		if (c.has("condition") && !c.get("condition").isJsonNull())
-		{
-			try
-			{
-				condition = c.get("condition").getAsDouble();
-			}
-			catch (RuntimeException ignored)
-			{
-				condition = null;
-			}
-		}
+		Double condition = JsonObjects.readNullableDouble(c, "condition");
 		String pulledBy = JsonObjects.text(c, "pulledBy");
-		Long pulledAt = null;
-		if (c.has("pulledAt") && !c.get("pulledAt").isJsonNull())
-		{
-			try
-			{
-				pulledAt = Math.max(0L, c.get("pulledAt").getAsLong());
-			}
-			catch (RuntimeException ignored)
-			{
-				pulledAt = null;
-			}
-		}
-		String source = JsonObjects.text(c, "source");
+		Double pulledAtNumber = JsonObjects.readNumber(c, "pulledAt");
+		Long pulledAt = pulledAtNumber == null ? null : Math.max(0L, Math.round(pulledAtNumber));
 		return new PackCardResult(name.trim(), foil, instanceId, tierLabel, score, imagePath, foilImagePath,
-			artistName, artistColor, artistUrl, examine, condition, pulledBy, pulledAt, source, wikiPage,
+			artistName, artistColor, artistUrl, examine, condition, pulledBy, pulledAt, wikiPage,
 			displayName);
 	}
 }

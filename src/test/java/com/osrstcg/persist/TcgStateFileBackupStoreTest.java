@@ -2,11 +2,9 @@ package com.osrstcg.persist;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
 
 import com.google.gson.Gson;
 import com.osrstcg.cloud.session.ProfileKeyHasher;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.Rule;
 import org.junit.Test;
@@ -42,21 +40,6 @@ public class TcgStateFileBackupStoreTest
 		assertEquals(legacyRoot.resolve("default"), dir);
 	}
 
-	@Test
-	public void legacyScanIncludesAccountHashDirUnderBackups() throws Exception
-	{
-		Path profilesRoot = tmp.newFolder("profiles").toPath();
-		Path legacyRoot = tmp.newFolder("backups").toPath();
-		long accountHash = 12345L;
-		String dirName = ProfileKeyHasher.accountDirName(accountHash);
-		Path legacyAccountDir = legacyRoot.resolve(dirName);
-		Files.createDirectories(legacyAccountDir);
-		Files.writeString(legacyAccountDir.resolve(TcgStateFileBackupStore.MASTER_FILENAME), "test");
-
-		TestFileStore store = new TestFileStore(profilesRoot, legacyRoot, accountHash);
-		assertTrue(store.hasLegacySaveFiles());
-	}
-
 	private static final class TestFileStore extends TcgStateFileBackupStore
 	{
 		private final Path profilesRoot;
@@ -65,7 +48,7 @@ public class TcgStateFileBackupStoreTest
 
 		TestFileStore(Path profilesRoot, Path legacyRoot, long accountHash)
 		{
-			super(null, new TcgStateCodec(new Gson()), new Gson());
+			super(null, new TcgStateCodec(new Gson()));
 			this.profilesRoot = profilesRoot;
 			this.legacyRoot = legacyRoot;
 			this.accountHash = accountHash;

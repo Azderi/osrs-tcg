@@ -2,28 +2,17 @@ package com.osrstcg.util;
 
 import java.awt.Color;
 import net.runelite.api.ChatMessageType;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatColorType;
 import net.runelite.client.chat.ChatMessageBuilder;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.chat.QueuedMessage;
 
-/**
- * RuneLite chat markup for OSRS TCG game messages: coloured {@code OSRS TCG} (or {@code TCG DEBUG})
- * inside brackets; card names use rarity colours.
- */
 public final class TcgPluginGameMessages
 {
-	/**
-	 * Warm gold for the {@code OSRS TCG} label in game chat.
-	 */
 	public static final Color DEFAULT_PREFIX_COLOR = new Color(0xC4, 0x94, 0x1A);
 
 	public static Color PREFIX_COLOR = DEFAULT_PREFIX_COLOR;
-
-	/**
-	 * Warm gold for Godly-tier card names in game chat.
-	 */
-	public static final Color CHAT_EMPHASIS_GOLD = new Color(0xC4, 0x94, 0x1A);
 
 	private static final String PLAIN_PREFIX = "[OSRS TCG] ";
 	private static final String PLAIN_DEBUG_PREFIX = "[TCG DEBUG] ";
@@ -32,22 +21,12 @@ public final class TcgPluginGameMessages
 	{
 	}
 
-	/** Plain-text {@code [OSRS TCG] } prefix (for values / logs). */
 	public static String plainPrefix()
 	{
 		return PLAIN_PREFIX;
 	}
 
-	/**
-	 * Starts a game-chat builder with the colourized {@code [OSRS TCG]} tag already appended.
-	 * Callers should continue with body content.
-	 */
-	public static ChatMessageBuilder prefixedBuilder()
-	{
-		return prefixBuilder();
-	}
-
-	private static ChatMessageBuilder prefixBuilder()
+	public static ChatMessageBuilder prefixBuilder()
 	{
 		return new ChatMessageBuilder()
 			.append(ChatColorType.NORMAL)
@@ -72,9 +51,6 @@ public final class TcgPluginGameMessages
 		PREFIX_COLOR = color == null ? DEFAULT_PREFIX_COLOR : color;
 	}
 
-	/**
-	 * {@code [} default {@code OSRS TCG]} gold {@code ]} default, then body. {@code body} is escaped as plain chat text.
-	 */
 	public static String withPrefix(String body)
 	{
 		if (body == null)
@@ -99,10 +75,6 @@ public final class TcgPluginGameMessages
 			.build();
 	}
 
-	/**
-	 * Strips a leading {@code [OSRS TCG]} / {@code [TCG DEBUG]} tag so callers can pass either a bare
-	 * body or an already-prefixed plain string.
-	 */
 	public static String stripLeadingPluginPrefix(String message)
 	{
 		if (message == null || message.isEmpty())
@@ -128,9 +100,6 @@ public final class TcgPluginGameMessages
 		return message;
 	}
 
-	/**
-	 * Card name for pull / collection lines: trimmed name, {@code (foil)} suffix when applicable, no quotes.
-	 */
 	public static String announcedCardLabel(String cardName, boolean foil)
 	{
 		String n = cardName == null ? "" : cardName.trim();
@@ -141,7 +110,7 @@ public final class TcgPluginGameMessages
 		return foil ? n + " (foil)" : n;
 	}
 
-	public static String formatPrefixedSomeoneAddedCollection(
+	public static String formatSomeoneAddedCollection(
 		String who, String cardName, boolean newForCollection, boolean foil, Color rarityColor)
 	{
 		return prefixBuilder()
@@ -157,14 +126,14 @@ public final class TcgPluginGameMessages
 			.build();
 	}
 
-	public static String plainPrefixedSomeoneAddedCollection(
+	public static String plainSomeoneAddedCollection(
 		String who, String cardName, boolean newForCollection, boolean foil)
 	{
 		return PLAIN_PREFIX + who + " just added " + duplicatePrefix(newForCollection)
 			+ announcedCardLabel(cardName, foil) + " to their collection!";
 	}
 
-	public static String formatPrefixedYouAddedCollection(
+	public static String formatYouAddedCollection(
 		String cardName, boolean newForCollection, boolean foil, Color rarityColor)
 	{
 		return prefixBuilder()
@@ -178,7 +147,7 @@ public final class TcgPluginGameMessages
 			.build();
 	}
 
-	public static String plainPrefixedYouAddedCollection(String cardName, boolean newForCollection, boolean foil)
+	public static String plainYouAddedCollection(String cardName, boolean newForCollection, boolean foil)
 	{
 		return PLAIN_PREFIX + "You just added " + duplicatePrefix(newForCollection)
 			+ announcedCardLabel(cardName, foil) + " to your collection!";
@@ -198,16 +167,15 @@ public final class TcgPluginGameMessages
 		{
 			plain = "";
 		}
-		// Guard: never emit a plugin game message without the colourized [OSRS TCG] / [TCG DEBUG] tag.
 		boolean hasFormattedTag = formatted.contains("OSRS TCG") || formatted.contains("TCG DEBUG");
 		boolean hasPlainPrefix = plain.startsWith(PLAIN_PREFIX) || plain.startsWith("[OSRS TCG]")
 			|| plain.startsWith(PLAIN_DEBUG_PREFIX) || plain.startsWith("[TCG DEBUG]");
 		if (!hasFormattedTag || !hasPlainPrefix)
 		{
-			String body = stripLeadingPluginPrefix(plain);
+			String body = stripFormattedPluginPrefix(plain);
 			if (body.isEmpty() && !formatted.isEmpty())
 			{
-				body = stripLeadingFormattedPluginPrefix(formatted).replaceAll("(?i)</?col[^>]*>", "");
+				body = stripFormattedPluginPrefix(formatted).replaceAll("(?i)</?col[^>]*>", "");
 			}
 			boolean debug = plain.startsWith(PLAIN_DEBUG_PREFIX) || plain.startsWith("[TCG DEBUG]")
 				|| formatted.contains("TCG DEBUG");
@@ -218,9 +186,8 @@ public final class TcgPluginGameMessages
 			}
 			else if (!hasFormattedTag && formatted.contains("<col"))
 			{
-				// Rich body without tag - prepend colourized tag, keep body markup.
-				formatted = prefixBuilder().build() + stripLeadingFormattedPluginPrefix(formatted);
-				plain = PLAIN_PREFIX + stripLeadingPluginPrefix(plain.isEmpty() ? body : plain);
+				formatted = prefixBuilder().build() + stripFormattedPluginPrefix(formatted);
+				plain = PLAIN_PREFIX + stripFormattedPluginPrefix(plain.isEmpty() ? body : plain);
 			}
 			else
 			{
@@ -235,8 +202,7 @@ public final class TcgPluginGameMessages
 			.build());
 	}
 
-	/** Strips a leading colourized or plain plugin tag from a RuneLite formatted chat string. */
-	static String stripLeadingFormattedPluginPrefix(String formatted)
+	static String stripFormattedPluginPrefix(String formatted)
 	{
 		if (formatted == null || formatted.isEmpty())
 		{
@@ -256,10 +222,6 @@ public final class TcgPluginGameMessages
 		return s;
 	}
 
-	/**
-	 * Queues a game message with coloured {@code [OSRS TCG]} prefix.
-	 * {@code body} should not include the prefix (it is added here).
-	 */
 	public static void queuePrefixedGameMessage(ChatMessageManager chatMessageManager, String body)
 	{
 		if (body == null)
@@ -270,9 +232,15 @@ public final class TcgPluginGameMessages
 		queueFormattedGameMessage(chatMessageManager, withPrefix(body), PLAIN_PREFIX + body);
 	}
 
-	/**
-	 * Queues a debug game message with coloured {@code [TCG DEBUG]} prefix.
-	 */
+	public static void queueOnClientThread(ClientThread clientThread, ChatMessageManager chatMessageManager, String body)
+	{
+		if (clientThread == null || body == null || body.isEmpty())
+		{
+			return;
+		}
+		clientThread.invokeLater(() -> queuePrefixedGameMessage(chatMessageManager, body));
+	}
+
 	public static void queueDebugGameMessage(ChatMessageManager chatMessageManager, String body)
 	{
 		if (body == null)
@@ -281,15 +249,6 @@ public final class TcgPluginGameMessages
 		}
 		body = stripLeadingPluginPrefix(body);
 		queueFormattedGameMessage(chatMessageManager, withDebugPrefix(body), PLAIN_DEBUG_PREFIX + body);
-	}
-
-	/**
-	 * Queues a normal plugin game message with coloured {@code [OSRS TCG]} prefix.
-	 * Accepts either a bare body or a string that already starts with {@code [OSRS TCG]}.
-	 */
-	public static void queueGameMessage(ChatMessageManager chatMessageManager, String message)
-	{
-		queuePrefixedGameMessage(chatMessageManager, message);
 	}
 
 	private static String duplicatePrefix(boolean newForCollection)

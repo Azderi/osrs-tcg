@@ -1,7 +1,6 @@
 package com.osrstcg.persist;
 
 import com.osrstcg.state.TcgState;
-import java.util.List;
 import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -28,7 +27,7 @@ public class TcgStateStore
 		this(stateCodec, null);
 	}
 
-	/** Loads from the current account dir ({@code tcg.save} then newest snapshot). */
+	/** Loads {@code tcg.save} from the current account dir. */
 	public TcgStateLoadResult load()
 	{
 		Optional<TcgState> master = loadMaster();
@@ -36,14 +35,6 @@ public class TcgStateStore
 		{
 			return new TcgStateLoadResult(master.get(), TcgStateLoadSource.DISK);
 		}
-
-		Optional<TcgState> snapshot = loadMostRecentSnapshot();
-		if (snapshot.isPresent())
-		{
-			log.warn("OSRS TCG restored state from hash snapshot after tcg.save was missing.");
-			return new TcgStateLoadResult(snapshot.get(), TcgStateLoadSource.DISK_SNAPSHOT, false, true);
-		}
-
 		return new TcgStateLoadResult(TcgState.empty(), TcgStateLoadSource.EMPTY);
 	}
 
@@ -56,111 +47,29 @@ public class TcgStateStore
 		return fileBackupStore.loadMaster();
 	}
 
-	public Optional<TcgState> loadMostRecentSnapshot()
-	{
-		if (fileBackupStore == null)
-		{
-			return Optional.empty();
-		}
-		return fileBackupStore.loadMostRecentSnapshot();
-	}
-
-	/** Disk save metadata for the current account ({@code tcg.save} + snapshots). */
-	public List<TcgSaveMetadataEntry> listSaveMetadata()
-	{
-		if (fileBackupStore == null)
-		{
-			return List.of();
-		}
-		return fileBackupStore.listSaveMetadata();
-	}
-
-	/** Legacy profile-key dirs (migrate upload picker only). */
-	public List<TcgSaveMetadataEntry> listLegacySaveMetadata()
-	{
-		if (fileBackupStore == null)
-		{
-			return List.of();
-		}
-		return fileBackupStore.listLegacySaveMetadata();
-	}
-
-	public Optional<TcgState> loadByFileName(String fileName)
-	{
-		return loadByFileName(fileName, null);
-	}
-
-	public Optional<TcgState> loadByFileName(String fileName, String accountDirId)
-	{
-		if (fileBackupStore == null)
-		{
-			return Optional.empty();
-		}
-		return fileBackupStore.loadByFileName(fileName, accountDirId);
-	}
-
-	public boolean hasSaveFiles()
-	{
-		return fileBackupStore != null && fileBackupStore.hasSaveFiles();
-	}
-
-	public boolean hasLegacySaveFiles()
-	{
-		return fileBackupStore != null && fileBackupStore.hasLegacySaveFiles();
-	}
-
 	public boolean saveFullCheckpoint(TcgState state, TcgSaveTrigger trigger)
 	{
-		Encoded encoded = encode(state);
-		if (encoded == null || fileBackupStore == null)
-		{
-			return false;
-		}
-
-		boolean diskOk = fileBackupStore.writeMaster(encoded.blob, encoded.cardCount, encoded.credits, trigger);
-		diskOk = fileBackupStore.writeSnapshot(encoded.blob, encoded.cardCount, encoded.credits, trigger) && diskOk;
-		return diskOk;
+		return writeMaster(state, trigger == null ? TcgSaveTrigger.LOGOUT : trigger);
 	}
 
 	public boolean saveCheckpoint(TcgState state, TcgSaveTrigger trigger)
 	{
-		Encoded encoded = encode(state);
-		if (encoded == null || fileBackupStore == null)
-		{
-			return false;
-		}
-		return fileBackupStore.writeSnapshot(encoded.blob, encoded.cardCount, encoded.credits, trigger);
+		return writeMaster(state, trigger == null ? TcgSaveTrigger.MANUAL : trigger);
 	}
 
-	private Encoded encode(TcgState state)
+	private boolean writeMaster(TcgState state, TcgSaveTrigger trigger)
 	{
-		if (state == null)
+		if (state == null || fileBackupStore == null)
 		{
-			return null;
+			return false;
 		}
 		String json = stateCodec.toJson(state);
 		String stored = TcgStateStorageEncoding.encode(json);
 		if (stored.isEmpty())
 		{
 			log.error("OSRS TCG state save aborted: encoding produced an empty payload.");
-			return null;
+			return false;
 		}
-		int cardCount = state.getCollectionState().getOwnedInstances().size();
-		long credits = state.getEconomyState().getCredits();
-		return new Encoded(stored, cardCount, credits);
-	}
-
-	private static final class Encoded
-	{
-		private final String blob;
-		private final int cardCount;
-		private final long credits;
-
-		private Encoded(String blob, int cardCount, long credits)
-		{
-			this.blob = blob;
-			this.cardCount = cardCount;
-			this.credits = credits;
-		}
+		return fileBackupStore.writeMaster(stored);
 	}
 }

@@ -1,12 +1,11 @@
 package com.osrstcg.cloud.session;
 
+import com.osrstcg.cloud.api.JsonObjects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.client.config.ConfigManager;
 
-/**
- * RSProfile-scoped cloud session secrets (not exposed as {@code @ConfigItem}s).
- */
+/** Session JWT store (access/refresh). Not account credentials. */
 @Singleton
 public final class CloudTokenStore
 {
@@ -27,12 +26,12 @@ public final class CloudTokenStore
 
 	public String getAccessToken()
 	{
-		return blankToNull(configManager.getRSProfileConfiguration(GROUP, ACCESS));
+		return JsonObjects.blankToNull(configManager.getRSProfileConfiguration(GROUP, ACCESS));
 	}
 
 	public String getRefreshToken()
 	{
-		return blankToNull(configManager.getRSProfileConfiguration(GROUP, REFRESH));
+		return JsonObjects.blankToNull(configManager.getRSProfileConfiguration(GROUP, REFRESH));
 	}
 
 	public boolean isMigrated()
@@ -78,20 +77,10 @@ public final class CloudTokenStore
 		configManager.unsetRSProfileConfiguration(GROUP, REFRESH);
 		configManager.unsetRSProfileConfiguration(GROUP, ACCOUNT_ID);
 		configManager.unsetRSProfileConfiguration(GROUP, STATUS);
-		// Keep cloudMigrated - account migration survives token revocation / re-pair on this profile.
 	}
 
 	public boolean hasRefreshToken()
 	{
 		return getRefreshToken() != null;
-	}
-
-	private static String blankToNull(String value)
-	{
-		if (value == null || value.trim().isEmpty())
-		{
-			return null;
-		}
-		return value;
 	}
 }

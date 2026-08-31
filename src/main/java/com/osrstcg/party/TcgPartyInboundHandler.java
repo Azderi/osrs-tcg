@@ -11,7 +11,6 @@ import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
 
-/** Inbound party chat bodies for mythic pulls and collection-set completion. */
 @Singleton
 public class TcgPartyInboundHandler
 {
@@ -35,7 +34,7 @@ public class TcgPartyInboundHandler
 
 	public void onPull(TcgPullPartyMessage message)
 	{
-		if (!config.partyAnnounceMythicPulls() || message == null)
+		if (!config.partyAnnouncePulls() || message == null)
 		{
 			return;
 		}
@@ -51,16 +50,16 @@ public class TcgPartyInboundHandler
 		String who = displayName(message.getMemberId());
 		String trimmed = cardName.trim();
 		Color rarity = cardDatabase.chatRarityColorForCardName(trimmed);
-		String formatted = TcgPluginGameMessages.formatPrefixedSomeoneAddedCollection(
+		String formatted = TcgPluginGameMessages.formatSomeoneAddedCollection(
 			who, trimmed, message.isNewForCollection(), message.isFoil(), rarity);
-		String plain = TcgPluginGameMessages.plainPrefixedSomeoneAddedCollection(
+		String plain = TcgPluginGameMessages.plainSomeoneAddedCollection(
 			who, trimmed, message.isNewForCollection(), message.isFoil());
 		TcgPluginGameMessages.queueFormattedGameMessage(chatMessageManager, formatted, plain);
 	}
 
 	public void onCollectionSetComplete(TcgCollectionSetCompletePartyMessage message)
 	{
-		if (!config.partyAnnounceMythicPulls() || message == null)
+		if (!config.partyAnnounceCollectionSets() || message == null)
 		{
 			return;
 		}

@@ -16,17 +16,12 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * In-memory card definitions. Populated from the live web catalog
- * ({@code GET /api/v1/catalog/cards/live}) via {@link com.osrstcg.cloud.catalog.CardCatalogService},
- * or from the disk cache of that fetch - not from a bundled plugin resource.
- */
 @Singleton
 @Slf4j
 public class CardDatabase
 {
 	private List<CardDefinition> cards = Collections.emptyList();
-	private Map<String, Color> chatRarityColorByLowerCaseName = Map.of();
+	private Map<String, Color> chatRarityColors = Map.of();
 	private Map<String, CardDefinition> byLowerCaseName = Map.of();
 
 	@Inject
@@ -64,9 +59,6 @@ public class CardDatabase
 		return Optional.ofNullable(byLowerCaseName.get(key));
 	}
 
-	/**
-	 * Replace the in-memory catalog (network fetch or disk cache).
-	 */
 	public synchronized void replaceCards(List<CardDefinition> incoming, String sourceLabel)
 	{
 		List<CardDefinition> normalized = normalize(incoming == null ? List.of() : incoming);
@@ -76,17 +68,13 @@ public class CardDatabase
 			sourceLabel == null || sourceLabel.isBlank() ? "catalog" : sourceLabel);
 	}
 
-	/**
-	 * Display-tier colour for chat (same tier source as the collection album / pack reveal). Godly uses
-	 * {@link TcgPluginGameMessages#CHAT_EMPHASIS_GOLD} to match the {@code OSRS TCG} label.
-	 */
 	public synchronized Color chatRarityColorForCardName(String cardName)
 	{
 		if (cardName == null || cardName.trim().isEmpty())
 		{
 			return Color.WHITE;
 		}
-		Color c = chatRarityColorByLowerCaseName.get(cardName.trim().toLowerCase(Locale.ROOT));
+		Color c = chatRarityColors.get(cardName.trim().toLowerCase(Locale.ROOT));
 		return c != null ? c : Color.WHITE;
 	}
 
@@ -94,7 +82,7 @@ public class CardDatabase
 	{
 		if (cards.isEmpty())
 		{
-			chatRarityColorByLowerCaseName = Map.of();
+			chatRarityColors = Map.of();
 			byLowerCaseName = Map.of();
 			return;
 		}
@@ -111,11 +99,11 @@ public class CardDatabase
 			RarityMath.Tier t = RarityMath.tierFromLabel(c.getTierLabel());
 			Color displayColor = t.getColor();
 			Color chatColor = t == RarityMath.Tier.GODLY
-				? TcgPluginGameMessages.CHAT_EMPHASIS_GOLD
+				? TcgPluginGameMessages.DEFAULT_PREFIX_COLOR
 				: displayColor;
 			chatMap.putIfAbsent(key, chatColor);
 		}
-		chatRarityColorByLowerCaseName = Collections.unmodifiableMap(chatMap);
+		chatRarityColors = Collections.unmodifiableMap(chatMap);
 		byLowerCaseName = Collections.unmodifiableMap(nameMap);
 	}
 
@@ -156,9 +144,6 @@ public class CardDatabase
 		return normalized;
 	}
 
-	/**
-	 * Trims blank image paths to {@code null}. Artwork is always CDN/API hosted on osrs-tcg.net.
-	 */
 	static String normalizeImageUrl(String raw)
 	{
 		if (raw == null)
@@ -169,7 +154,6 @@ public class CardDatabase
 		return url.isEmpty() ? null : url;
 	}
 
-	/** Same trim rules as {@link #normalizeImageUrl(String)}. */
 	static String normalizeFoilImagePath(String raw)
 	{
 		return normalizeImageUrl(raw);

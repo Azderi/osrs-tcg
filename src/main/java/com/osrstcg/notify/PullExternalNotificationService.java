@@ -2,8 +2,7 @@ package com.osrstcg.notify;
 
 import com.google.gson.Gson;
 import com.osrstcg.OsrsTcgConfig;
-import com.osrstcg.catalog.CardDatabase;
-import com.osrstcg.catalog.CardDefinition;
+import com.osrstcg.party.TcgPullPartyMessage;
 import java.awt.Color;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -14,6 +13,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.client.party.PartyService;
 import net.runelite.client.util.Text;
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -24,107 +24,124 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
-import com.osrstcg.catalog.CardImageCacheService;
 import com.osrstcg.catalog.RarityMath;
-import com.osrstcg.interop.TcgChatStatsShareService;
-import com.osrstcg.interop.TcgPublicStatsCalculator;
+import com.osrstcg.notify.PullNotifySupport.PackSummaryContent;
 
-/**
- * Sends rarity-coloured Discord embeds to optional user-configured webhook URL(s).
- */
 @Slf4j
 @Singleton
-public class PullWebhookNotificationService
+public class PullExternalNotificationService
 {
 	private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
-	private static final String EMBED_TITLE = "OSRS TCG";
 
 	private final OkHttpClient okHttpClient;
 	private final Gson gson;
 	private final Client client;
 	private final OsrsTcgConfig config;
-	private final CardDatabase cardDatabase;
-	private final CardImageCacheService cardImageCacheService;
-	private final TcgPublicStatsCalculator tcgPublicStatsCalculator;
-	private final TcgChatStatsShareService tcgChatStatsShareService;
+	private final PullNotifySupport pullNotifySupport;
+	private final PartyService partyService;
 
 	@Inject
-	PullWebhookNotificationService(
+	PullExternalNotificationService(
 		OkHttpClient okHttpClient,
 		Gson gson,
 		Client client,
 		OsrsTcgConfig config,
-		CardDatabase cardDatabase,
-		CardImageCacheService cardImageCacheService,
-		TcgPublicStatsCalculator tcgPublicStatsCalculator,
-		TcgChatStatsShareService tcgChatStatsShareService)
+		PullNotifySupport pullNotifySupport,
+		PartyService partyService)
 	{
 		this.okHttpClient = okHttpClient;
 		this.gson = gson;
 		this.client = client;
 		this.config = config;
-		this.cardDatabase = cardDatabase;
-		this.cardImageCacheService = cardImageCacheService;
-		this.tcgPublicStatsCalculator = tcgPublicStatsCalculator;
-		this.tcgChatStatsShareService = tcgChatStatsShareService;
+		this.pullNotifySupport = pullNotifySupport;
+		this.partyService = partyService;
 	}
 
-	public void notifyPackPull(String cardName, boolean newForCollection, boolean foil, RarityMath.Tier tier)
+	public void notifyParty(String card, boolean newForCollection, boolean foil)
 	{
-		notifyPackPull(cardName, newForCollection, foil, tier, null);
+		if (!config.partyAnnouncePulls() || !partyService.isInParty())
+		{
+			return;
+		}
+		try
+		{
+			TcgPullPartyMessage message = new TcgPullPartyMessage();
+			message.setCardName(card);
+			message.setNewForCollection(newForCollection);
+			message.setFoil(foil);
+			partyService.send(message);
+		}
+		catch (Exception ex)
+		{
+			log.debug("Could not send party pull message", ex);
+		}
 	}
 
-	public void notifyPackPull(
-		String cardName, boolean newForCollection, boolean foil, RarityMath.Tier tier, String instanceId)
+	public void sendWebhook(
+		String card, boolean newForCollection, boolean foil, RarityMath.Tier tier, String instanceId)
+	{
+		List<HttpUrl> webhookUrls = configuredWebhookUrls();
+		if (webhookUrls.isEmpty())
+		{
+			return;
+		}
+		try
+		{
+			PullNotifySupport.PullCardContent content = pullNotifySupport.pullCardContent(
+				card, newForCollection, foil, instanceId, resolvePlayerName());
+			String payload = gson.toJson(buildPayload(
+				content.description, pullNotifySupport.statsPlainLine(), tier, content.imageUrl, content.inspectUrl));
+			dispatchWebhook(card, webhookUrls, payload);
+		}
+		catch (Exception ex)
+		{
+			log.warn("Pull webhook failed before send for '{}'", card, ex);
+		}
+	}
+
+	public void sendPackSummary(PackSummaryContent content)
+	{
+		List<HttpUrl> webhookUrls = configuredWebhookUrls();
+		if (webhookUrls.isEmpty())
+		{
+			return;
+		}
+		try
+		{
+			String payload = gson.toJson(buildPayload(
+				content.messageFor(resolvePlayerName()),
+				pullNotifySupport.statsPlainLine(),
+				content.tier,
+				content.imageUrl,
+				""));
+			dispatchWebhook("pack summary", webhookUrls, payload);
+		}
+		catch (Exception ex)
+		{
+			log.warn("Pull webhook pack summary failed before send", ex);
+		}
+	}
+
+	private List<HttpUrl> configuredWebhookUrls()
 	{
 		String webhookUrl = config.pullWebhookUrl();
 		if (webhookUrl == null || webhookUrl.trim().isEmpty())
 		{
-			log.debug("Pull webhook skipped: no URL configured");
-			return;
+			return List.of();
 		}
-		if (cardName == null || cardName.trim().isEmpty())
-		{
-			log.warn("Pull webhook skipped: empty card name");
-			return;
-		}
-
 		List<HttpUrl> webhookUrls = parseWebhookUrls(webhookUrl);
 		if (webhookUrls.isEmpty())
 		{
 			log.warn("Pull webhook skipped: no valid URLs in config");
-			return;
 		}
+		return webhookUrls;
+	}
 
-		try
+	private void dispatchWebhook(String card, List<HttpUrl> webhookUrls, String payload)
+	{
+		for (HttpUrl parsedUrl : webhookUrls)
 		{
-			String card = cardName.trim();
-			String imageUrl = resolveCardImageUrl(card);
-			String inspectUrl = PullNotificationMessages.inspectUrl(instanceId);
-			String playerName = resolvePlayerName();
-			String description = PullNotificationMessages.collectionMessage(
-				playerName, card, newForCollection, foil, inspectUrl);
-			String statsLine = tcgChatStatsShareService.buildPlainLine(tcgPublicStatsCalculator.computeLive());
-			String payload = gson.toJson(buildPayload(description, statsLine, tier, imageUrl, inspectUrl));
-
-			log.info(
-				"Sending pull webhook for '{}' (foil={}, new={}, tier={}) to {} URL(s) (payload {} bytes, footer {} chars)",
-				card,
-				foil,
-				newForCollection,
-				tier == null ? "unknown" : tier.getLabel(),
-				webhookUrls.size(),
-				payload.length(),
-				statsLine.length());
-
-			for (HttpUrl parsedUrl : webhookUrls)
-			{
-				enqueueWebhook(card, parsedUrl, payload);
-			}
-		}
-		catch (Exception ex)
-		{
-			log.warn("Pull webhook failed before send for '{}'", cardName.trim(), ex);
+			enqueueWebhook(card, parsedUrl, payload);
 		}
 	}
 
@@ -134,7 +151,6 @@ public class PullWebhookNotificationService
 			.url(parsedUrl)
 			.post(RequestBody.create(JSON, payload))
 			.build();
-
 		okHttpClient.newCall(request).enqueue(new Callback()
 		{
 			@Override
@@ -150,7 +166,7 @@ public class PullWebhookNotificationService
 				{
 					if (response.isSuccessful())
 					{
-						log.info("Pull webhook sent for '{}' to {} (HTTP {})",
+						log.debug("Pull webhook sent for '{}' to {} (HTTP {})",
 							card, maskWebhookUrl(parsedUrl), response.code());
 						return;
 					}
@@ -192,20 +208,31 @@ public class PullWebhookNotificationService
 		return urls;
 	}
 
-	private static String maskWebhookUrl(HttpUrl url)
+	private static String maskWebhookUrl(Object url)
 	{
 		if (url == null)
 		{
 			return "<invalid>";
 		}
-		return url.scheme() + "://" + url.host() + url.encodedPath();
+		if (url instanceof HttpUrl)
+		{
+			HttpUrl parsed = (HttpUrl) url;
+			return parsed.scheme() + "://" + parsed.host() + parsed.encodedPath();
+		}
+		String raw = url.toString().trim();
+		if (raw.isEmpty())
+		{
+			return "<empty>";
+		}
+		HttpUrl parsed = HttpUrl.parse(raw);
+		return parsed == null ? "<invalid>" : maskWebhookUrl(parsed);
 	}
 
 	private static Map<String, Object> buildPayload(
 		String description, String footerText, RarityMath.Tier tier, String imageUrl, String inspectUrl)
 	{
 		Map<String, Object> embed = new LinkedHashMap<>();
-		embed.put("title", EMBED_TITLE);
+		embed.put("title", PullNotificationMessages.PLUGIN_TITLE);
 		if (inspectUrl != null && !inspectUrl.isEmpty())
 		{
 			embed.put("url", inspectUrl);
@@ -220,11 +247,8 @@ public class PullWebhookNotificationService
 		{
 			embed.put("image", Map.of("url", imageUrl));
 		}
-
-		List<Map<String, Object>> embeds = new ArrayList<>();
-		embeds.add(embed);
 		Map<String, Object> payload = new LinkedHashMap<>();
-		payload.put("embeds", embeds);
+		payload.put("embeds", List.of(embed));
 		return payload;
 	}
 
@@ -238,26 +262,9 @@ public class PullWebhookNotificationService
 	{
 		if (client.getLocalPlayer() == null || client.getLocalPlayer().getName() == null)
 		{
-			return "Unknown player";
+			return PullNotificationMessages.playerLabel(null);
 		}
-		return Text.sanitize(client.getLocalPlayer().getName());
-	}
-
-	private String resolveCardImageUrl(String cardName)
-	{
-		return cardDatabase.findByName(cardName)
-			.map(CardDefinition::getImageUrl)
-			.map(cardImageCacheService::resolveAbsoluteUrl)
-			.orElse("");
-	}
-
-	private static String maskWebhookUrl(String url)
-	{
-		if (url == null || url.isEmpty())
-		{
-			return "<empty>";
-		}
-		return maskWebhookUrl(HttpUrl.parse(url.trim()));
+		return PullNotificationMessages.playerLabel(Text.sanitize(client.getLocalPlayer().getName()));
 	}
 
 	private static String truncateForLog(String value)

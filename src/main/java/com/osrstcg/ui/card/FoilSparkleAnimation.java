@@ -1,20 +1,7 @@
 package com.osrstcg.ui.card;
 
-/**
- * Port of {@code @keyframes album-foil-sparkle} + {@code ease-in-out} from
- * {@code osrs-tcg-front/src/index.css} ({@code .album-card__sparkle}).
- *
- * <pre>
- * 0%, 100% → opacity 0,   scale 0.4
- * 40%, 55% → opacity 0.95, scale 1.0
- * 70%      → opacity 0.2,  scale 0.7
- * </pre>
- *
- * Timing between keyframes is CSS {@code ease-in-out} ({@code cubic-bezier(0.42, 0, 0.58, 1)}).
- */
 public final class FoilSparkleAnimation
 {
-	/** CSS {@code animation-timing-function: ease-in-out}. */
 	private static final double EASE_X1 = 0.42d;
 	private static final double EASE_Y1 = 0.0d;
 	private static final double EASE_X2 = 0.58d;
@@ -46,10 +33,6 @@ public final class FoilSparkleAnimation
 	{
 	}
 
-	/**
-	 * Sample the infinite loop after {@code delaySec}, at absolute time {@code timeSec}
-	 * (same clock for every sparkle on a card).
-	 */
 	public static Sample sample(double delaySec, double durationSec, double timeSec)
 	{
 		if (durationSec <= 0.0d)
@@ -59,7 +42,6 @@ public final class FoilSparkleAnimation
 		double elapsed = timeSec - delaySec;
 		if (elapsed < 0.0d)
 		{
-			// fill-mode none → CSS base opacity:0; treat as the 0% keyframe for continuity.
 			return new Sample(0.0d, 0.4d);
 		}
 		double phase = (elapsed / durationSec) % 1.0d;
@@ -70,7 +52,6 @@ public final class FoilSparkleAnimation
 		return samplePhase(phase);
 	}
 
-	/** {@code phase} in {@code [0, 1)} along one animation cycle. */
 	static Sample samplePhase(double phase)
 	{
 		double p = phase;
@@ -101,7 +82,6 @@ public final class FoilSparkleAnimation
 		return new Sample(o0 + (o1 - o0) * u, s0 + (s1 - s0) * u);
 	}
 
-	/** Unit-interval CSS cubic-bezier progress (Y of Bezier given X). */
 	static double easeInOut(double t)
 	{
 		double x = Math.max(0.0d, Math.min(1.0d, t));
@@ -133,7 +113,6 @@ public final class FoilSparkleAnimation
 		return bezierCoord(t, y1, y2);
 	}
 
-	/** Cubic Bezier with P0=0, P3=1. */
 	private static double bezierCoord(double t, double p1, double p2)
 	{
 		double u = 1.0d - t;

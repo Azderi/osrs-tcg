@@ -2,19 +2,12 @@ package com.osrstcg.ui.card;
 
 import java.awt.Color;
 
-/**
- * Color helpers matching {@code brighterHex} / {@code blendHex} in
- * {@code osrs-tcg-front/src/album/rarityMath.js}. {@link Color#brighter()} uses a multiplicative
- * curve and does not lift pure-black or saturated channels the same way, so it cannot be used where
- * website parity matters.
- */
 public final class CardColorMath
 {
 	private CardColorMath()
 	{
 	}
 
-	/** Lifts each channel by {@code (255 - ch) * 0.35}. */
 	public static Color brighterColor(Color color)
 	{
 		if (color == null)
@@ -29,7 +22,6 @@ public final class CardColorMath
 		return Math.min(255, (int) Math.round(channel + (255 - channel) * 0.35d));
 	}
 
-	/** Linear channel mix; {@code amount} is clamped to {@code [0, 1]}. */
 	public static Color blendColors(Color base, Color tint, double amount)
 	{
 		if (base == null)
@@ -58,14 +50,16 @@ public final class CardColorMath
 		return Math.max(0, Math.min(255, value));
 	}
 
-	/**
-	 * CSS {@code hsl()} / {@code hsla()}.
-	 *
-	 * @param hueDeg      hue in degrees (wrapped)
-	 * @param saturation  0–1
-	 * @param lightness   0–1
-	 * @param alpha       0–1
-	 */
+	public static Color withAlpha(Color c, double a)
+	{
+		if (c == null)
+		{
+			c = Color.WHITE;
+		}
+		int av = clamp255((int) Math.round(Math.max(0.0d, Math.min(1.0d, a)) * 255.0d));
+		return new Color(c.getRed(), c.getGreen(), c.getBlue(), av);
+	}
+
 	public static Color hsla(double hueDeg, double saturation, double lightness, double alpha)
 	{
 		double h = ((hueDeg % 360.0d) + 360.0d) % 360.0d / 360.0d;

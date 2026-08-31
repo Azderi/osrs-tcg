@@ -8,15 +8,13 @@ import com.osrstcg.catalog.CardDatabase;
 import com.osrstcg.catalog.CardDefinition;
 import com.osrstcg.state.CardCollectionKey;
 import com.osrstcg.state.CloudSidebarCollectionStats;
+import com.osrstcg.state.OwnedCardInstance;
 import com.osrstcg.state.PackCardResult;
 import com.osrstcg.state.PackOpenResult;
 import com.osrstcg.catalog.CollectionSetCompletionUtil;
-import com.osrstcg.pack.PackSafeModeService;
 import com.osrstcg.catalog.RollPoolFilter;
 import com.osrstcg.party.TcgPartyAnnouncer;
 import com.osrstcg.state.TcgStateService;
-import com.osrstcg.util.NumberFormatting;
-import com.osrstcg.util.TcgPluginGameMessages;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -26,10 +24,10 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
-import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.util.Text;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
+import com.osrstcg.cloud.api.CloudResponseSync;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.cloud.catalog.PackPullParser;
@@ -48,9 +46,7 @@ public final class CloudPackService
 	private final TcgStateService stateService;
 	private final CardDatabase cardDatabase;
 	private final Client client;
-	private final PackSafeModeService packSafeModeService;
 	private final TcgPartyAnnouncer partyAnnouncer;
-	private final ChatMessageManager chatMessageManager;
 
 	@Inject
 	CloudPackService(
@@ -62,9 +58,7 @@ public final class CloudPackService
 		TcgStateService stateService,
 		CardDatabase cardDatabase,
 		Client client,
-		PackSafeModeService packSafeModeService,
-		TcgPartyAnnouncer partyAnnouncer,
-		ChatMessageManager chatMessageManager)
+		TcgPartyAnnouncer partyAnnouncer)
 	{
 		this.api = api;
 		this.session = session;
@@ -74,9 +68,7 @@ public final class CloudPackService
 		this.stateService = stateService;
 		this.cardDatabase = cardDatabase;
 		this.client = client;
-		this.packSafeModeService = packSafeModeService;
 		this.partyAnnouncer = partyAnnouncer;
-		this.chatMessageManager = chatMessageManager;
 	}
 
 	public PackOpenResult buyAndOpenPack(BoosterPackDefinition booster)
@@ -84,7 +76,7 @@ public final class CloudPackService
 		return buyAndOpenPack(booster, true);
 	}
 
-	private PackOpenResult buyAndOpenPack(BoosterPackDefinition booster, boolean allowCatalogMismatchRetry)
+	private PackOpenResult buyAndOpenPack(BoosterPackDefinition booster, boolean allowCatalogRetry)
 	{
 		long creditsBefore = stateService.getCredits();
 		if (booster == null)
@@ -93,30 +85,17 @@ public final class CloudPackService
 		}
 		if (!session.isReady())
 		{
-			String reason = session.isMigrationPending()
-				? "Migrate your collection before opening packs."
-				: session.needsProfileCreate()
-					? "Create a profile before opening packs."
-					: "Cloud offline - cannot open packs.";
+			String reason = session.needsCloudConsent()
+				? "Create a profile before opening packs."
+				: "Cloud offline - cannot open packs.";
 			return PackOpenResult.failed(reason, creditsBefore, booster.getPrice());
-		}
-		if (packSafeModeService != null && packSafeModeService.isPackOpeningBlocked())
-		{
-			String blockMessage = packSafeModeService.packOpeningBlockMessage();
-			return PackOpenResult.failed(
-				blockMessage == null ? "Cannot open packs right now." : blockMessage,
-				creditsBefore,
-				booster.getPrice());
 		}
 
 		try
 		{
-			// Prefer live cache price (server-authoritative after login fetch).
 			BoosterPackDefinition priced = packCatalog.getCache().get(booster.getId()).orElse(booster);
 			int price = priced.getPrice();
 
-			// Flush pending attests only when settled credits cannot cover this pack; otherwise trust
-			// optimistic display credits and let the normal attest timer catch up.
 			if (stateService.getAuthoritativeCredits() < price)
 			{
 				attestQueue.flushBlocking();
@@ -125,7 +104,7 @@ public final class CloudPackService
 			long displayCredits = stateService.getCredits();
 			if (displayCredits < price)
 			{
-				refreshCreditsFromServerQuietly();
+				refreshCreditsQuietly();
 				displayCredits = stateService.getCredits();
 				if (displayCredits < price)
 				{
@@ -160,25 +139,7 @@ public final class CloudPackService
 				ownedBefore = new HashMap<>(stateService.getState().getCollectionState().getOwnedCards());
 			}
 
-			String packLabel = priced.getName() == null || priced.getName().isBlank() ? packId : priced.getName().trim();
-			debugPackOpen("Sending pack open request (" + packLabel + ", id=" + packId + ")");
-			JsonObject response;
-			try
-			{
-				response = api.openPack(body);
-			}
-			catch (CloudApiException ex)
-			{
-				debugPackOpen("Pack open reply failed: HTTP " + ex.getStatus()
-					+ " (" + ex.getCode() + ") - " + ex.getMessage());
-				throw ex;
-			}
-			catch (Exception ex)
-			{
-				String detail = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
-				debugPackOpen("Pack open reply failed: " + detail);
-				throw ex;
-			}
+			JsonObject response = api.openPack(body);
 			long creditsAfter = response.has("credits")
 				? response.get("credits").getAsLong()
 				: stateService.getAuthoritativeCredits();
@@ -187,7 +148,7 @@ public final class CloudPackService
 				: stateService.getState().getTotalCreditsGained();
 
 			List<PackCardResult> pulls = new ArrayList<>();
-			List<com.osrstcg.state.OwnedCardInstance> newInstances = new ArrayList<>();
+			List<OwnedCardInstance> newInstances = new ArrayList<>();
 			String localPulledBy = client.getLocalPlayer() == null
 				? ""
 				: Text.sanitize(client.getLocalPlayer().getName());
@@ -211,34 +172,21 @@ public final class CloudPackService
 					long pulledAt = pull.getPulledAtEpochMs() == null || pull.getPulledAtEpochMs() <= 0L
 						? now
 						: pull.getPulledAtEpochMs();
-					String source = pull.getSource() == null || pull.getSource().isBlank()
-						? "pack"
-						: pull.getSource();
-					// Same provenance for store + reveal so wear/foil seeds match the website inspect view.
-					PackCardResult normalized = pull.withProvenance(pulledBy, pulledAt, source);
-					newInstances.add(new com.osrstcg.state.OwnedCardInstance(
+					PackCardResult normalized = pull.withProvenance(pulledBy, pulledAt);
+					newInstances.add(new OwnedCardInstance(
 						normalized.getInstanceId(),
 						normalized.getCardName(),
 						normalized.isFoil(),
 						pulledBy,
-						pulledAt,
-						false,
-						normalized.getCondition(),
-						false,
-						source));
+						pulledAt));
 					pulls.add(normalized);
 				}
 			}
-			// One master write for the whole pack - avoid N× encode/save hitch mid-reveal.
 			stateService.addOwnedCardInstances(newInstances);
 
-			// Large packs return many cards but response openedPacks often only +1; derive from cards ÷ pack size.
 			int cardsPerPack = Math.max(1, packCatalog.getCache().getPackSize());
-			int previousOpenedPacks = (int) stateService.getState().getEconomyState().getOpenedPacks();
-			int openedPacks = previousOpenedPacks + (pulls.size() / cardsPerPack);
-
-			debugPackOpen("Pack open reply received ("
-				+ pulls.size() + " cards, credits=" + NumberFormatting.format(creditsAfter) + ")");
+			int openedPacks = (int) stateService.getState().getEconomyState().getOpenedPacks()
+				+ (pulls.size() / cardsPerPack);
 
 			stateService.replaceCloudEconomyCache(creditsAfter, openedPacks, totalGained);
 			absorbRanksFromPackOpen(response);
@@ -246,37 +194,21 @@ public final class CloudPackService
 				stateService.getCloudCollectionStats(), ownedBefore, pulls);
 			if (optimistic != null)
 			{
-				stateService.replaceCloudCollectionStatsCache(optimistic);
+				stateService.replaceCollectionStatsCache(optimistic);
 			}
-			// Collection instances + economy already match this pack-open response. Adopt sync markers
-			// and inbox sinceRevision so the forced poll is cheap (statsUnchanged) and does not
-			// re-pull /me/state mid-reveal.
-			if (response.has("revision") && !response.get("revision").isJsonNull())
-			{
-				long revision = response.get("revision").getAsLong();
-				String stateHash = "";
-				if (response.has("stateHash") && !response.get("stateHash").isJsonNull())
-				{
-					stateHash = response.get("stateHash").getAsString();
-				}
-				stateService.applyCloudSyncMarkers(revision, stateHash);
-				tradeCloud.noteRevision(revision);
-			}
+			CloudResponseSync.applyRevision(response, stateService, tradeCloud);
 			tradeCloud.requestForcedRefresh();
 
-			if (partyAnnouncer != null)
+			Map<CardCollectionKey, Integer> ownedAfter;
+			synchronized (stateService)
 			{
-				Map<CardCollectionKey, Integer> ownedAfter;
-				synchronized (stateService)
-				{
-					ownedAfter = new HashMap<>(stateService.getState().getCollectionState().getOwnedCards());
-				}
-				List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(cardDatabase.getCards());
-				for (String category : CollectionSetCompletionUtil.newlyCompletedPrimaryCategories(
-					ownedBefore, ownedAfter, rollPool))
-				{
-					partyAnnouncer.announceCollectionSetComplete(category);
-				}
+				ownedAfter = new HashMap<>(stateService.getState().getCollectionState().getOwnedCards());
+			}
+			List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(cardDatabase.getCards());
+			for (String category : CollectionSetCompletionUtil.newlyCompletedCategories(
+				ownedBefore, ownedAfter, rollPool))
+			{
+				partyAnnouncer.announceSetComplete(category);
 			}
 
 			boolean apex = response.has("apex") && response.get("apex").getAsBoolean();
@@ -293,7 +225,7 @@ public final class CloudPackService
 		}
 		catch (CloudApiException ex)
 		{
-			if (allowCatalogMismatchRetry && ex.isCatalogMismatch())
+			if (allowCatalogRetry && ex.isCatalogMismatch())
 			{
 				log.info("Pack catalog mismatch - refetching once then retrying open");
 				try
@@ -316,9 +248,9 @@ public final class CloudPackService
 			}
 			log.warn("Pack open failed: {} {}", ex.getCode(), ex.getMessage());
 			session.noteLockFromApiException(ex);
-			if (isInsufficientCreditsError(ex))
+			if (ex.isInsufficientCredits())
 			{
-				applyInsufficientCreditsCorrection(ex);
+				applyInsufficientCreditsFix(ex);
 			}
 			String message = ex.isCatalogMismatch()
 				? "Pack catalog updated, try again."
@@ -332,11 +264,7 @@ public final class CloudPackService
 		}
 	}
 
-	/**
-	 * Drop optimistic credit inflation and sync to server authority after a pack open is refused
-	 * for insufficient funds (so the sidebar matches what the server will spend).
-	 */
-	private void applyInsufficientCreditsCorrection(CloudApiException ex)
+	private void applyInsufficientCreditsFix(CloudApiException ex)
 	{
 		Long serverCredits = ex == null ? null : ex.getServerCredits();
 		if (serverCredits != null)
@@ -346,10 +274,10 @@ public final class CloudPackService
 			stateService.replaceCloudEconomyCache(serverCredits, openedPacks, totalGained);
 			stateService.clearOptimisticCredits();
 		}
-		refreshCreditsFromServerQuietly();
+		refreshCreditsQuietly();
 	}
 
-	private void refreshCreditsFromServerQuietly()
+	private void refreshCreditsQuietly()
 	{
 		try
 		{
@@ -359,34 +287,6 @@ public final class CloudPackService
 		{
 			log.warn("Credit refresh after insufficient-credits failed", ex);
 		}
-	}
-
-	private static boolean isInsufficientCreditsError(CloudApiException ex)
-	{
-		if (ex == null)
-		{
-			return false;
-		}
-		String code = ex.getCode() == null ? "" : ex.getCode().trim().toLowerCase();
-		if (code.contains("insufficient")
-			|| code.contains("not_enough")
-			|| "payment_required".equals(code)
-			|| "insufficient_credits".equals(code))
-		{
-			return true;
-		}
-		String message = ex.getMessage() == null ? "" : ex.getMessage().toLowerCase();
-		return message.contains("not enough credit")
-			|| message.contains("insufficient credit");
-	}
-
-	/**
-	 * Last hiscores ranks (from pack-open), including values persisted from the previous session.
-	 * @return length-6 ranks, or null if none stored yet
-	 */
-	public int[] getLastSidebarRanks()
-	{
-		return stateService.getSidebarRanks();
 	}
 
 	private void absorbRanksFromPackOpen(JsonObject response)
@@ -409,7 +309,6 @@ public final class CloudPackService
 				return;
 			}
 			int n = el.getAsInt();
-			// 0 = unranked (clear cached positive rank); negatives are invalid.
 			if (n < 0)
 			{
 				return;
@@ -417,15 +316,5 @@ public final class CloudPackService
 			ranks[i] = n;
 		}
 		stateService.replaceSidebarRanks(ranks);
-	}
-
-	private void debugPackOpen(String message)
-	{
-		if (!stateService.isDebugChatEnabled() || message == null || message.isBlank())
-		{
-			return;
-		}
-		log.info("[TCG DEBUG] {}", message);
-		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, message);
 	}
 }

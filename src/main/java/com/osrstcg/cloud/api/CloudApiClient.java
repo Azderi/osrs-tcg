@@ -1,7 +1,6 @@
 package com.osrstcg.cloud.api;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -11,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
@@ -21,11 +21,15 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
-import com.osrstcg.cloud.activity.ActivitiesConfigResponse;
-import com.osrstcg.cloud.activity.ActivityConfigDto;
+import com.osrstcg.cloud.activity.ActivityConfigModels.ActivitiesConfigResponse;
+import com.osrstcg.cloud.activity.ActivityConfigModels.ActivityConfigDto;
 import com.osrstcg.cloud.catalog.LiveCardsResponse;
 import com.osrstcg.cloud.session.CloudTokenStore;
+import static com.osrstcg.cloud.api.JsonObjects.objectOrEmpty;
+import static com.osrstcg.cloud.api.JsonObjects.readBoolean;
+import static com.osrstcg.cloud.api.JsonObjects.readNumber;
 import static com.osrstcg.cloud.api.JsonObjects.text;
+import static com.osrstcg.cloud.api.JsonObjects.textTrimmed;
 import com.osrstcg.cloud.session.ProfileKeyHasher;
 import com.osrstcg.cloud.trade.TradeInboxItem;
 
@@ -41,9 +45,9 @@ public final class CloudApiClient
 	private final ProfileKeyHasher profileKeyHasher;
 	private volatile String cachedCatalogVersion;
 	private volatile Runnable staleRefreshHandler;
-	private volatile java.util.function.Consumer<CloudApiException> accountLockHandler;
-	private volatile java.util.function.Consumer<String> activitiesVersionListener;
-	/** Nesting depth for {@link #openConsentTraffic()} (migrate / create-profile after Yes). */
+	private volatile Consumer<CloudApiException> accountLockHandler;
+	private volatile Consumer<String> activitiesVersionCb;
+	/** Nesting depth for {@link #openConsentTraffic()} (create-profile after Yes). */
 	private final ThreadLocal<Integer> consentTrafficDepth = ThreadLocal.withInitial(() -> 0);
 
 	@Inject
@@ -65,7 +69,7 @@ public final class CloudApiClient
 
 	/**
 	 * Allows API calls while {@code cloudMigrated} is still false - only for the consent
-	 * action itself (pair / migrate / create profile after the user clicks Yes).
+	 * action itself (pair / create profile after the user clicks Yes).
 	 */
 	public AutoCloseable openConsentTraffic()
 	{
@@ -85,7 +89,7 @@ public final class CloudApiClient
 	}
 
 	/**
-	 * Blocks all cloud HTTP until the user has accepted migrate/create consent, except
+	 * Blocks all cloud HTTP until the user has accepted create-profile consent, except
 	 * while {@link #openConsentTraffic()} is open on this thread.
 	 */
 	private void requireCloudConsentAllowed() throws CloudApiException
@@ -103,16 +107,14 @@ public final class CloudApiClient
 		staleRefreshHandler = handler;
 	}
 
-	/** Invoked for HTTP errors whose code is {@code banned}, {@code account_banned}, or {@code quarantined}. */
-	public void setAccountLockHandler(java.util.function.Consumer<CloudApiException> handler)
+	public void setAccountLockHandler(Consumer<CloudApiException> handler)
 	{
 		accountLockHandler = handler;
 	}
 
-	/** Soft-header hook: notified with {@code X-Activities-Version} from any successful API response. */
-	public void setActivitiesVersionListener(java.util.function.Consumer<String> listener)
+	public void setActivitiesVersionListener(Consumer<String> listener)
 	{
-		activitiesVersionListener = listener;
+		activitiesVersionCb = listener;
 	}
 
 	public String getCachedCatalogVersion()
@@ -127,43 +129,16 @@ public final class CloudApiClient
 		return json;
 	}
 
-	/**
-	 * Pack catalog for the signed-in session. Sends the access JWT so the server can
-	 * include account-gated packs. Updates the cached catalog version.
-	 */
 	public JsonObject getPacks() throws CloudApiException, IOException
 	{
-		JsonObject json = requestAuthed("GET", "/api/v1/packs", null);
+		JsonObject json = requestAuthed("GET", "/packs", null);
 		cacheCatalogVersionFrom(json);
 		return json;
 	}
 
-	/**
-	 * Public live card catalog ({@code config/cards.live.json} as {@code { items, npcs }}).
-	 * Pass cached {@code X-Catalog-Version} / ETag for {@code If-None-Match}; {@code 304} →
-	 * {@link LiveCardsResponse#notModified()}.
-	 */
 	public LiveCardsResponse getLiveCards(String cachedCatalogVersion) throws CloudApiException, IOException
 	{
-		requireCloudConsentAllowed();
-		HttpUrl url = HttpUrl.parse(CloudEndpoints.apiUrl("/api/v1/catalog/cards/live"));
-		if (url == null)
-		{
-			throw new CloudApiException(0, "invalid_base_url", "Invalid API base URL: " + CloudEndpoints.API_BASE_URL);
-		}
-
-		Request.Builder b = new Request.Builder().url(url).get();
-		if (cachedCatalogVersion != null && !cachedCatalogVersion.isBlank())
-		{
-			String etag = cachedCatalogVersion.trim();
-			if (!etag.startsWith("\""))
-			{
-				etag = "\"" + etag + "\"";
-			}
-			b.header("If-None-Match", etag);
-		}
-
-		try (Response response = http.newCall(b.build()).execute())
+		try (Response response = getWithOptionalEtag("/catalog/cards/live", cachedCatalogVersion))
 		{
 			String versionHeader = response.header("X-Catalog-Version");
 			if (versionHeader != null && !versionHeader.isBlank())
@@ -175,20 +150,12 @@ public final class CloudApiClient
 			{
 				return LiveCardsResponse.notModified(versionHeader);
 			}
-			String text = readBody(response);
-			if (!response.isSuccessful())
-			{
-				throw httpError(response.code(), text);
-			}
+			String text = readSuccessfulBody(response);
 			JsonObject body = parseObject(text);
 			String version = versionHeader;
 			if (version == null || version.isBlank())
 			{
-				String etag = response.header("ETag");
-				if (etag != null)
-				{
-					version = etag.replace("\"", "").trim();
-				}
+				version = stripQuotes(response.header("ETag"));
 			}
 			if (version != null && !version.isBlank())
 			{
@@ -198,19 +165,15 @@ public final class CloudApiClient
 		}
 	}
 
-	/**
-	 * Lightweight public collection stats for {@code !tcg} (no auth, no card list).
-	 * {@code displayName} spaces are encoded as {@code _} to match SPA / album paths.
-	 */
 	public JsonObject getPublicPlayerStats(String displayName) throws CloudApiException, IOException
 	{
 		String name = displayName == null ? "" : displayName.trim();
 		String slug = name.replace(' ', '_');
 		String encoded = URLEncoder.encode(slug, StandardCharsets.UTF_8).replace("+", "%20");
-		return request("GET", "/api/v1/players/" + encoded + "/stats", null, false);
+		return request("GET", "/players/" + encoded + "/stats", null, false);
 	}
 
-	public void setCachedCatalogVersion(String catalogVersion)
+	private void setCachedCatalogVersion(String catalogVersion)
 	{
 		if (catalogVersion != null && !catalogVersion.isBlank())
 		{
@@ -220,10 +183,7 @@ public final class CloudApiClient
 
 	private void cacheCatalogVersionFrom(JsonObject json)
 	{
-		if (json != null && json.has("catalogVersion") && !json.get("catalogVersion").isJsonNull())
-		{
-			cachedCatalogVersion = json.get("catalogVersion").getAsString();
-		}
+		setCachedCatalogVersion(textTrimmed(json, "catalogVersion"));
 	}
 
 	public JsonObject pairStart(String displayName, String profileKeyHash, long accountHash)
@@ -233,7 +193,7 @@ public final class CloudApiClient
 		body.addProperty("displayName", displayName);
 		body.addProperty("profileKeyHash", profileKeyHash);
 		body.addProperty("accountHash", Long.toString(accountHash));
-		return request("POST", "/api/v1/auth/pair/start", body, false);
+		return request("POST", "/auth/pair/start", body, false);
 	}
 
 	public JsonObject refresh(String refreshToken, String profileKeyHash) throws CloudApiException, IOException
@@ -241,14 +201,9 @@ public final class CloudApiClient
 		JsonObject body = new JsonObject();
 		body.addProperty("refreshToken", refreshToken);
 		body.addProperty("profileKeyHash", profileKeyHash);
-		return request("POST", "/api/v1/auth/refresh", body, false);
+		return request("POST", "/auth/refresh", body, false);
 	}
 
-	/**
-	 * Mints a one-time web login code for the current plugin session.
-	 *
-	 * @param next optional allowlisted SPA path; may be null
-	 */
 	public JsonObject webCode(String next) throws CloudApiException, IOException
 	{
 		JsonObject body = new JsonObject();
@@ -256,27 +211,23 @@ public final class CloudApiClient
 		{
 			body.addProperty("next", next.trim());
 		}
-		return requestAuthed("POST", "/api/v1/auth/web-code", body);
+		return requestAuthed("POST", "/auth/web-code", body);
 	}
 
 	public JsonObject getStats() throws CloudApiException, IOException
 	{
-		return requestAuthed("GET", "/api/v1/me/stats", null);
+		return requestAuthed("GET", "/me/stats", null);
 	}
 
 	public JsonObject getState() throws CloudApiException, IOException
 	{
-		return requestAuthed("GET", "/api/v1/me/state", null);
+		return requestAuthed("GET", "/me/state", null);
 	}
 
-	/**
-	 * Keyset page of owned card instances ({@code GET /me/cards}).
-	 * Pass {@code cursor} from the previous page's {@code nextCursor}, or null for the first page.
-	 */
 	public JsonObject getCardsPage(int limit, String cursor) throws CloudApiException, IOException
 	{
 		int pageLimit = Math.max(1, Math.min(limit, 500));
-		StringBuilder path = new StringBuilder("/api/v1/me/cards?limit=").append(pageLimit);
+		StringBuilder path = new StringBuilder("/me/cards?limit=").append(pageLimit);
 		if (cursor != null && !cursor.isBlank())
 		{
 			path.append("&cursor=").append(URLEncoder.encode(cursor.trim(), StandardCharsets.UTF_8));
@@ -284,28 +235,11 @@ public final class CloudApiClient
 		return requestAuthed("GET", path.toString(), null);
 	}
 
-	public JsonObject migrate(JsonObject body) throws CloudApiException, IOException
-	{
-		return requestAuthed("POST", "/api/v1/me/migrate", body);
-	}
-
-	/** Async migrate queue status ({@code GET /me/migrate}). */
-	public JsonObject getMigrateStatus() throws CloudApiException, IOException
-	{
-		return requestAuthed("GET", "/api/v1/me/migrate", null);
-	}
-
 	public JsonObject attest(JsonObject body) throws CloudApiException, IOException
 	{
-		return requestAuthed("POST", "/api/v1/credits/attest", body);
+		return requestAuthed("POST", "/credits/attest", body);
 	}
 
-	/**
-	 * Server-authoritative offline/retro credit settle from Jagex hiscores.
-	 * Call once after a successful cloud login ({@code snapshot=false}) or on logout
-	 * to absorb current hiscores into the baseline without paying ({@code snapshot=true}).
-	 * {@code displayName} must be the client's current sanitized RSN (same as attest).
-	 */
 	public JsonObject settleHiscores(String displayName, long accountHash, boolean snapshot)
 		throws CloudApiException, IOException
 	{
@@ -316,51 +250,23 @@ public final class CloudApiClient
 		{
 			body.addProperty("snapshot", true);
 		}
-		return requestAuthed("POST", "/api/v1/credits/settle-hiscores", body);
+		return requestAuthed("POST", "/credits/settle-hiscores", body);
 	}
 
-	/** @see #settleHiscores(String, long, boolean) */
 	public JsonObject settleHiscores(String displayName, long accountHash) throws CloudApiException, IOException
 	{
 		return settleHiscores(displayName, accountHash, false);
 	}
 
-	/** Cheap activity-config staleness check (public). */
 	public String getActivitiesVersion() throws CloudApiException, IOException
 	{
-		JsonObject json = request("GET", "/api/v1/config/activities/version", null, false);
-		if (json.has("version") && !json.get("version").isJsonNull())
-		{
-			return json.get("version").getAsString();
-		}
-		return "";
+		String version = text(request("GET", "/config/activities/version", null, false), "version");
+		return version == null ? "" : version;
 	}
 
-	/**
-	 * Full activity config (public). Pass cached version for {@code If-None-Match}; {@code 304} →
-	 * {@link ActivitiesConfigResponse#notModified()}.
-	 */
 	public ActivitiesConfigResponse getActivities(String cachedVersion) throws CloudApiException, IOException
 	{
-		requireCloudConsentAllowed();
-		HttpUrl url = HttpUrl.parse(CloudEndpoints.apiUrl("/api/v1/config/activities"));
-		if (url == null)
-		{
-			throw new CloudApiException(0, "invalid_base_url", "Invalid API base URL: " + CloudEndpoints.API_BASE_URL);
-		}
-
-		Request.Builder b = new Request.Builder().url(url).get();
-		if (cachedVersion != null && !cachedVersion.isBlank())
-		{
-			String etag = cachedVersion.trim();
-			if (!etag.startsWith("\""))
-			{
-				etag = "\"" + etag + "\"";
-			}
-			b.header("If-None-Match", etag);
-		}
-
-		try (Response response = http.newCall(b.build()).execute())
+		try (Response response = getWithOptionalEtag("/config/activities", cachedVersion))
 		{
 			notifyActivitiesVersion(response.header("X-Activities-Version"));
 			if (response.code() == 304)
@@ -388,65 +294,9 @@ public final class CloudApiClient
 
 	public JsonObject openPack(JsonObject body) throws CloudApiException, IOException
 	{
-		return requestAuthed("POST", "/api/v1/packs/open", body);
+		return requestAuthed("POST", "/packs/open", body);
 	}
 
-	/**
-	 * Server-authoritative sell of owned card instances.
-	 * Body: {@code instanceIds[]} + {@code accountHash} (plugin sessions).
-	 */
-	public JsonObject sellCards(List<String> instanceIds, long accountHash) throws CloudApiException, IOException
-	{
-		JsonObject body = new JsonObject();
-		JsonArray ids = new JsonArray();
-		if (instanceIds != null)
-		{
-			for (String id : instanceIds)
-			{
-				if (id != null && !id.isBlank())
-				{
-					ids.add(id.trim());
-				}
-			}
-		}
-		body.add("instanceIds", ids);
-		body.addProperty("accountHash", Long.toString(accountHash));
-		return requestAuthed("POST", "/api/v1/cards/sell", body);
-	}
-
-	/**
-	 * Absolute URL for a web-relative asset path
-	 * or passthrough for already-absolute {@code http(s)} URLs.
-	 */
-	public String resolvePublicUrl(String pathOrUrl)
-	{
-		if (pathOrUrl == null)
-		{
-			return "";
-		}
-		String raw = pathOrUrl.trim();
-		if (raw.isEmpty())
-		{
-			return "";
-		}
-		if (raw.startsWith("/api/"))
-		{
-			return CloudEndpoints.apiUrl(raw);
-		}
-		return CloudEndpoints.webUrl(pathOrUrl);
-	}
-
-	public static String resolvePublicUrl(String webBaseUrl, String pathOrUrl)
-	{
-		return CloudEndpoints.resolvePublicUrl(webBaseUrl, pathOrUrl);
-	}
-
-	/**
-	 * Attach the raw Jagex {@code accountHash} required on plugin-session trade mutators.
-	 * Web SPA sessions omit this field; do not use for web-only accept.
-	 *
-	 * @throws IllegalArgumentException when {@code accountHash} is unset ({@code -1})
-	 */
 	public static JsonObject withPluginAccountHash(JsonObject body, long accountHash)
 	{
 		if (accountHash == -1L)
@@ -462,27 +312,12 @@ public final class CloudApiClient
 	{
 		JsonObject body = withPluginAccountHash(new JsonObject(), accountHash);
 		body.addProperty("partnerDisplayName", partnerDisplayName);
-		return requestAuthed("POST", "/api/v1/trades", body);
-	}
-
-	/**
-	 * Cancel / decline a pending trade. Plugin sessions must include {@code accountHash}.
-	 * Allowed while quarantined so escrow/locks can be freed.
-	 */
-	public JsonObject cancelTrade(String tradeId, long accountHash) throws CloudApiException, IOException
-	{
-		JsonObject body = withPluginAccountHash(new JsonObject(), accountHash);
-		return requestAuthed("POST", "/api/v1/trades/" + tradeId + "/cancel", body);
-	}
-
-	public JsonObject getTradeInbox(long accountHash) throws CloudApiException, IOException
-	{
-		return getTradeInbox(accountHash, null);
+		return requestAuthed("POST", "/trades", body);
 	}
 
 	public JsonObject getTradeInbox(long accountHash, Long sinceRevision) throws CloudApiException, IOException
 	{
-		String path = "/api/v1/me/trades/inbox?accountHash=" + accountHash;
+		String path = "/me/trades/inbox?accountHash=" + accountHash;
 		if (sinceRevision != null)
 		{
 			path += "&sinceRevision=" + sinceRevision;
@@ -493,7 +328,7 @@ public final class CloudApiClient
 	public JsonObject ackTradeNotify(String tradeId, long accountHash) throws CloudApiException, IOException
 	{
 		JsonObject body = withPluginAccountHash(new JsonObject(), accountHash);
-		return requestAuthed("POST", "/api/v1/me/trades/" + tradeId + "/ack-notify", body);
+		return requestAuthed("POST", "/me/trades/" + tradeId + "/ack-notify", body);
 	}
 
 	public List<TradeInboxItem> parseInbox(JsonObject response)
@@ -510,14 +345,13 @@ public final class CloudApiClient
 				continue;
 			}
 			JsonObject o = el.getAsJsonObject();
-			if (!o.has("tradeId"))
+			String tradeId = text(o, "tradeId");
+			if (tradeId == null)
 			{
 				continue;
 			}
-			out.add(new TradeInboxItem(
-				o.get("tradeId").getAsString(),
-				o.has("fromDisplayName") ? o.get("fromDisplayName").getAsString() : "",
-				o.has("notified") && o.get("notified").getAsBoolean()));
+			String from = text(o, "fromDisplayName");
+			out.add(new TradeInboxItem(tradeId, from == null ? "" : from, readBoolean(o, "notified")));
 		}
 		return out;
 	}
@@ -533,14 +367,7 @@ public final class CloudApiClient
 			text(tokens, "refreshToken"),
 			text(tokens, "accountId"),
 			text(tokens, "status"));
-		// Some auth responses include migration state - adopt it so a lost local flag recovers.
-		if (tokens.has("migratedAt") && !tokens.get("migratedAt").isJsonNull()
-			&& !tokens.get("migratedAt").getAsString().isBlank())
-		{
-			tokenStore.setMigrated(true);
-		}
-		else if (tokens.has("migrated") && !tokens.get("migrated").isJsonNull()
-			&& tokens.get("migrated").getAsBoolean())
+		if (textTrimmed(tokens, "migratedAt") != null || readBoolean(tokens, "migrated"))
 		{
 			tokenStore.setMigrated(true);
 		}
@@ -605,13 +432,7 @@ public final class CloudApiClient
 		throws CloudApiException, IOException
 	{
 		requireCloudConsentAllowed();
-		HttpUrl url = HttpUrl.parse(CloudEndpoints.apiUrl(pathAndQuery));
-		if (url == null)
-		{
-			throw new CloudApiException(0, "invalid_base_url", "Invalid API base URL: " + CloudEndpoints.API_BASE_URL);
-		}
-
-		Request.Builder b = new Request.Builder().url(url);
+		Request.Builder b = new Request.Builder().url(requireApiUrl(pathAndQuery));
 		if (authed)
 		{
 			String access = tokenStore.getAccessToken();
@@ -621,9 +442,9 @@ public final class CloudApiClient
 			}
 			b.header("Authorization", "Bearer " + access);
 		}
-		if ("GET".equals(method) || "HEAD".equals(method))
+		if ("GET".equals(method))
 		{
-			b.method(method, null);
+			b.get();
 		}
 		else
 		{
@@ -649,7 +470,7 @@ public final class CloudApiClient
 		CloudApiException ex = exceptionFromHttpBody(status, body);
 		if (ex.isAccountBanned() || ex.isAccountQuarantined())
 		{
-			java.util.function.Consumer<CloudApiException> handler = accountLockHandler;
+			Consumer<CloudApiException> handler = accountLockHandler;
 			if (handler != null)
 			{
 				try
@@ -665,47 +486,27 @@ public final class CloudApiClient
 		return ex;
 	}
 
-	/**
-	 * Builds a {@link CloudApiException} from an HTTP error body.
-	 * Prefers JSON {@code error.code}/{@code error.message}; otherwise maps status codes and
-	 * strips gateway HTML (nginx 429 pages) into a short chat-safe line.
-	 */
 	private static CloudApiException exceptionFromHttpBody(int status, String body)
 	{
 		String code = "http_error";
 		String message = body == null ? "" : body;
-		Long serverCredits = null;
 		JsonObject json = parseObject(body);
-		if (json.has("error") && json.get("error").isJsonObject())
+		JsonObject err = objectOrEmpty(json, "error");
+		String parsedCode = textTrimmed(err, "code");
+		if (parsedCode != null)
 		{
-			JsonObject err = json.getAsJsonObject("error");
-			if (err.has("code") && !err.get("code").isJsonNull())
-			{
-				String parsedCode = err.get("code").getAsString();
-				if (parsedCode != null && !parsedCode.isBlank())
-				{
-					code = parsedCode.trim();
-				}
-			}
-			if (err.has("message") && !err.get("message").isJsonNull())
-			{
-				String parsedMessage = err.get("message").getAsString();
-				if (parsedMessage != null && !parsedMessage.isBlank())
-				{
-					message = parsedMessage;
-				}
-			}
+			code = parsedCode;
 		}
-		if (json.has("credits") && !json.get("credits").isJsonNull() && json.get("credits").isJsonPrimitive())
+		String parsedMessage = text(err, "message");
+		if (parsedMessage != null && !parsedMessage.isBlank())
 		{
-			try
-			{
-				serverCredits = json.get("credits").getAsLong();
-			}
-			catch (RuntimeException ignored)
-			{
-				// leave null
-			}
+			message = parsedMessage;
+		}
+		Long serverCredits = null;
+		Double credits = readNumber(json, "credits");
+		if (credits != null)
+		{
+			serverCredits = Math.max(0L, Math.round(credits));
 		}
 		return new CloudApiException(status, code, CloudHttpErrorMapper.humanize(status, code, message), serverCredits);
 	}
@@ -716,7 +517,7 @@ public final class CloudApiClient
 		{
 			return;
 		}
-		java.util.function.Consumer<String> listener = activitiesVersionListener;
+		Consumer<String> listener = activitiesVersionCb;
 		if (listener != null)
 		{
 			try
@@ -742,6 +543,42 @@ public final class CloudApiClient
 			return t.substring(1, t.length() - 1);
 		}
 		return t;
+	}
+
+	private HttpUrl requireApiUrl(String pathAndQuery) throws CloudApiException
+	{
+		HttpUrl url = HttpUrl.parse(CloudEndpoints.apiUrl(pathAndQuery));
+		if (url == null)
+		{
+			throw new CloudApiException(0, "invalid_base_url", "Invalid API base URL: " + CloudEndpoints.API_BASE_URL);
+		}
+		return url;
+	}
+
+	private Response getWithOptionalEtag(String path, String cachedVersion) throws CloudApiException, IOException
+	{
+		requireCloudConsentAllowed();
+		Request.Builder b = new Request.Builder().url(requireApiUrl(path)).get();
+		if (cachedVersion != null && !cachedVersion.isBlank())
+		{
+			String etag = cachedVersion.trim();
+			if (!etag.startsWith("\""))
+			{
+				etag = "\"" + etag + "\"";
+			}
+			b.header("If-None-Match", etag);
+		}
+		return http.newCall(b.build()).execute();
+	}
+
+	private String readSuccessfulBody(Response response) throws CloudApiException, IOException
+	{
+		String text = readBody(response);
+		if (!response.isSuccessful())
+		{
+			throw httpError(response.code(), text);
+		}
+		return text;
 	}
 
 	private static String readBody(Response response) throws IOException

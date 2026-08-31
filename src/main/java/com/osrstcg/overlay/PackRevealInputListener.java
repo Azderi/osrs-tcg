@@ -1,13 +1,14 @@
 package com.osrstcg.overlay;
 
 import com.osrstcg.pack.PackRevealService;
-import com.osrstcg.pack.PackSafeModeService;
 import com.osrstcg.ui.SidebarRefresh;
+import com.osrstcg.util.TcgPluginGameMessages;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.input.KeyListener;
 import net.runelite.client.input.MouseListener;
 import net.runelite.client.input.MouseWheelListener;
@@ -18,21 +19,36 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 	private final PackRevealService revealService;
 	private final PackRevealOverlay overlay;
 	private final SidebarRefresh sidebarRefresh;
-	private final PackSafeModeService packSafeModeService;
+	private final ChatMessageManager chatMessageManager;
 
 	@Inject
 	public PackRevealInputListener(
 		PackRevealService revealService,
 		PackRevealOverlay overlay,
 		SidebarRefresh sidebarRefresh,
-		PackSafeModeService packSafeModeService)
+		ChatMessageManager chatMessageManager)
 	{
 		this.revealService = revealService;
 		this.overlay = overlay;
 		this.sidebarRefresh = sidebarRefresh;
-		this.packSafeModeService = packSafeModeService;
+		this.chatMessageManager = chatMessageManager;
 	}
 
+	private void forceCloseActiveReveal(String reasonMessage)
+	{
+		if (!revealService.isActive())
+		{
+			return;
+		}
+		if (reasonMessage != null && !reasonMessage.isBlank())
+		{
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, reasonMessage);
+		}
+		revealService.abortActiveReveal();
+		sidebarRefresh.refreshAfterPackRevealClose();
+	}
+
+	/** Consumes game input only while a pack reveal overlay is active. */
 	private boolean revealBlocksGameInput()
 	{
 		return revealService.isActive();
@@ -78,7 +94,6 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 
 		if (mouseEvent.getButton() == MouseEvent.BUTTON3)
 		{
-			// Freeze tip + context menu; do not advance the reveal.
 			overlay.pinCardInfoTipAt(mouseEvent.getPoint());
 			mouseEvent.consume();
 			return mouseEvent;
@@ -96,13 +111,12 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 			}
 			if (overlay.handleCloseButtonClick(mouseEvent.getPoint()))
 			{
-				packSafeModeService.forceCloseActiveReveal(
+				forceCloseActiveReveal(
 					"Pack reveal closed - your cards are in your collection.");
 				mouseEvent.consume();
 				return mouseEvent;
 			}
 			revealService.handleClick(mouseEvent.getPoint(), overlay.currentPackBounds(), overlay.currentCardBounds());
-			// Full sidebar refresh only when the reveal session ends (not on every card flip).
 			if (!revealService.isActive())
 			{
 				sidebarRefresh.refreshAfterPackRevealClose();
@@ -214,7 +228,7 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 		}
 		if (e.getKeyCode() == KeyEvent.VK_ESCAPE)
 		{
-			packSafeModeService.forceCloseActiveReveal(
+			forceCloseActiveReveal(
 				"Pack reveal closed - your cards are in your collection.");
 			e.consume();
 			return;

@@ -20,17 +20,10 @@ import net.runelite.api.events.InteractingChanged;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.Subscribe;
 
-/**
- * Awards kill credits from actual NPC deaths (including zero-loot kills), using the same engagement
- * signals as {@code monster-monitor}: player target + player damage within a short tick window.
- * Replaces credits tied to {@link net.runelite.client.plugins.loottracker.LootReceived}.
- * <p>
- * NPC kill exclusions come from server activity config ({@link ActivityConfigService}).
- */
 @Singleton
 public final class NpcKillCreditTracker
 {
-	private static final int INTERACTION_TIMEOUT_TICKS = 12;
+	private static final int INTERACT_TIMEOUT_TICKS = 12;
 
 	private final Client client;
 	private final ClientThread clientThread;
@@ -166,7 +159,7 @@ public final class NpcKillCreditTracker
 	{
 		int currentTick = client.getTickCount();
 		lastInteractionTicks.keySet().removeIf(npcIndex ->
-			(currentTick - lastInteractionTicks.get(npcIndex)) > INTERACTION_TIMEOUT_TICKS);
+			(currentTick - lastInteractionTicks.get(npcIndex)) > INTERACT_TIMEOUT_TICKS);
 	}
 
 	/** Enqueues an {@code npc_kill} attest event; optimistic credits equal combat level (1×). */
@@ -217,7 +210,7 @@ public final class NpcKillCreditTracker
 	private boolean isInteractionValid(int npcIndex)
 	{
 		Integer lastTick = lastInteractionTicks.get(npcIndex);
-		return lastTick != null && (client.getTickCount() - lastTick) <= INTERACTION_TIMEOUT_TICKS;
+		return lastTick != null && (client.getTickCount() - lastTick) <= INTERACT_TIMEOUT_TICKS;
 	}
 
 	private void cleanupAfterLogging(int npcIndex)

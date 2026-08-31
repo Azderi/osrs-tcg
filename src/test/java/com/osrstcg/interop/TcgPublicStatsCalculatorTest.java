@@ -74,7 +74,7 @@ public class TcgPublicStatsCalculatorTest
 		ownedBefore.put(new CardCollectionKey("Goblin", false), 2);
 		PackCardResult pull = new PackCardResult(
 			"Dragon", true, "id-1", "Rare", 50L, null, null, null, null, null, null, null,
-			null, null, "pack", null, null);
+			null, null, null, null);
 
 		CloudSidebarCollectionStats next = CloudSidebarCollectionStats.withOptimisticPackPulls(
 			base, ownedBefore, List.of(pull));

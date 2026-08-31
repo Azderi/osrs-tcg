@@ -14,7 +14,7 @@ import net.runelite.client.util.Text;
 @Singleton
 public class TcgTradeMenuHandler
 {
-	static final String TRADE_REQUEST_MENU_OPTION = "TCG trade request";
+	static final String TRADE_REQ_MENU_OPTION = "TCG trade request";
 
 	private final Client client;
 	private final TradeCloudService tradeCloudService;
@@ -43,7 +43,7 @@ public class TcgTradeMenuHandler
 			return;
 		}
 		client.getMenu().createMenuEntry(-1)
-			.setOption(TRADE_REQUEST_MENU_OPTION)
+			.setOption(TRADE_REQ_MENU_OPTION)
 			.setTarget(target)
 			.setType(MenuAction.RUNELITE)
 			.onClick(e -> tradeCloudService.sendTradeRequest(playerName));
@@ -51,7 +51,7 @@ public class TcgTradeMenuHandler
 
 	public void onMenuOptionClicked(MenuOptionClicked event)
 	{
-		if (event == null || !TRADE_REQUEST_MENU_OPTION.equals(event.getMenuOption()))
+		if (event == null || !TRADE_REQ_MENU_OPTION.equals(event.getMenuOption()))
 		{
 			return;
 		}

@@ -21,17 +21,10 @@ import net.runelite.client.events.PluginMessage;
 import com.osrstcg.state.TcgStateService;
 
 /**
- * Read-only {@link PluginMessage} API: owned collection status for sibling plugins.
- * Sibling plugins copy the string constants - they cannot import this class across Hub classloaders.
- * <p>
- * Query: post {@code new PluginMessage(NAMESPACE, QUERY)} → reply {@link #REPLY} with status keys.
- * Push: {@link #CHANGED} with the same payload after collection mutations.
- * <p>
- * Payload keys: {@link #KEY_OWNED_NAMES}, {@link #KEY_OWNED_FOIL_NAMES}, {@link #KEY_OWNED_ITEM_IDS},
- * {@link #KEY_OWNED_NPC_IDS}, {@link #KEY_GROUP_KEY}.
- * Item/NPC id lists are flat distinct catalog ids (parent + {@code tcg.variants}) matched by owned
- * card name, including beta copies. {@link #KEY_OWNED_FOIL_NAMES} lists distinct names with at least
- * one foil copy. {@link #KEY_GROUP_KEY} is the shared group join code (or null when not in a group).
+ * Read-only {@link PluginMessage} API for sibling plugins (not an open HTTP proxy).
+ * Query: {@code new PluginMessage(NAMESPACE, QUERY)} → {@link #REPLY}.
+ * Push: {@link #CHANGED} after collection mutations.
+ * Payload: owned names, foil names, item/NPC ids, and {@link #KEY_GROUP_KEY}.
  */
 @Slf4j
 @Singleton
@@ -97,7 +90,6 @@ public class OwnedCardNamesApiService
 		post(REPLY, snapshotPayload());
 	}
 
-	/** Re-broadcast current status. */
 	public void broadcastChanged()
 	{
 		if (!started.get())
@@ -190,7 +182,6 @@ public class OwnedCardNamesApiService
 		return distinctOwnedNames(collection, false);
 	}
 
-	/** Distinct card names that have at least one foil copy. */
 	static List<String> distinctOwnedFoilNames(CollectionState collection)
 	{
 		return distinctOwnedNames(collection, true);

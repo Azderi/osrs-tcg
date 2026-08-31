@@ -5,18 +5,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
-/**
- * Normalizes category strings for matching and UI: splits {@code &} compounds, case-fold keys, title-cased labels.
- */
 public final class CategoryTagUtil
 {
 	private CategoryTagUtil()
 	{
 	}
 
-	/**
-	 * Splits a raw tag on {@code '&'} into trimmed non-empty pieces.
-	 */
 	public static List<String> expandCompoundParts(String raw)
 	{
 		if (raw == null)
@@ -49,9 +43,6 @@ public final class CategoryTagUtil
 		return singleTagPart.trim().toLowerCase(Locale.ROOT);
 	}
 
-	/**
-	 * Each whitespace-separated word: first character upper case, remainder lower case ({@link Locale#ROOT}).
-	 */
 	public static String toDisplayLabel(String canonicalKey)
 	{
 		if (canonicalKey == null || canonicalKey.isEmpty())

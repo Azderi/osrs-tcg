@@ -4,6 +4,7 @@ import com.osrstcg.catalog.BoosterPackDefinition;
 import com.osrstcg.catalog.CardDefinition;
 import com.osrstcg.catalog.CollectionSetCompletionUtil;
 import com.osrstcg.state.CardCollectionKey;
+import com.osrstcg.ui.collection.CollectionListModel;
 import com.osrstcg.ui.layout.PackCloseSnapshot;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -22,7 +23,6 @@ public final class ShopProgress
 	{
 	}
 
-	/** Distinct card names with at least one foil copy owned. */
 	public static Set<String> foilCollectedNamesFromOwned(Map<CardCollectionKey, Integer> owned)
 	{
 		Set<String> foilNames = new HashSet<>();
@@ -48,12 +48,6 @@ public final class ShopProgress
 		return foilNames;
 	}
 
-	/**
-	 * Shop progress: Standard (empty category) = distinct names in the roll pool; regional = distinct names in the full
-	 * catalog that match {@link BoosterPackDefinition#cardMatchesRegion}.
-	 * {@code owned} should exclude beta copies.
-	 * Returns {@code [standardOwned, foilOwned, total]}.
-	 */
 	public static int[] ownedTotal(
 		BoosterPackDefinition booster,
 		List<CardDefinition> allCards,
@@ -124,34 +118,7 @@ public final class ShopProgress
 		List<CardDefinition> allCards,
 		List<CardDefinition> rollPool)
 	{
-		List<String> filters = booster.getCategoryFilters();
-		Set<String> eligible = new HashSet<>();
-		if (filters.isEmpty())
-		{
-			for (CardDefinition c : rollPool)
-			{
-				if (c == null || c.getName() == null || c.getName().trim().isEmpty())
-				{
-					continue;
-				}
-				eligible.add(c.getName().trim());
-			}
-		}
-		else
-		{
-			for (CardDefinition c : allCards)
-			{
-				if (c == null || c.getName() == null || c.getName().trim().isEmpty())
-				{
-					continue;
-				}
-				if (BoosterPackDefinition.cardMatchesRegion(c, filters))
-				{
-					eligible.add(c.getName().trim());
-				}
-			}
-		}
-		return eligible;
+		return CollectionListModel.eligibleNamesForPack(booster, allCards, rollPool);
 	}
 
 	public static List<BoosterShopRow> computeRows(

@@ -1,15 +1,67 @@
 package com.osrstcg.notify;
 
+import com.osrstcg.catalog.RarityMath;
 import com.osrstcg.cloud.api.CloudEndpoints;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 public final class PullNotificationMessages
 {
+	public static final String PLUGIN_TITLE = "OSRS TCG";
+
 	private PullNotificationMessages()
 	{
 	}
 
-	/** Absolute inspect URL for a pack-open card UUID, or empty when missing. */
+	public static final class PackPull
+	{
+		public final String cardName;
+		public final boolean newForCollection;
+		public final boolean foil;
+		public final RarityMath.Tier tier;
+		public final String instanceId;
+		public final boolean notificationEligible;
+
+		public PackPull(
+			String cardName,
+			boolean newForCollection,
+			boolean foil,
+			RarityMath.Tier tier,
+			String instanceId,
+			boolean notificationEligible)
+		{
+			this.cardName = cardName;
+			this.newForCollection = newForCollection;
+			this.foil = foil;
+			this.tier = tier;
+			this.instanceId = instanceId;
+			this.notificationEligible = notificationEligible;
+		}
+	}
+
+	public static final class PackSummarySections
+	{
+		public final List<String> newCards;
+		public final List<String> duplicates;
+
+		PackSummarySections(List<String> newCards, List<String> duplicates)
+		{
+			this.newCards = newCards;
+			this.duplicates = duplicates;
+		}
+	}
+
+	static boolean isBlank(String value)
+	{
+		return value == null || value.trim().isEmpty();
+	}
+
+	static String playerLabel(String name)
+	{
+		return isBlank(name) ? "Unknown player" : name.trim();
+	}
+
 	public static String inspectUrl(String instanceId)
 	{
 		if (instanceId == null || instanceId.isBlank())
@@ -19,35 +71,16 @@ public final class PullNotificationMessages
 		return CloudEndpoints.webUrl("/inspect/" + instanceId.trim());
 	}
 
-	public static String collectionMessage(String playerName, String cardName, boolean newForCollection, boolean foil)
-	{
-		return collectionMessage(playerName, cardName, newForCollection, foil, null);
-	}
-
 	public static String collectionMessage(
 		String playerName, String cardName, boolean newForCollection, boolean foil, String inspectUrl)
 	{
-		String who = playerName == null || playerName.trim().isEmpty() ? "Unknown player" : playerName.trim();
 		String card = cardName == null ? "" : cardName.trim();
-		String duplicatePrefix = newForCollection ? "" : "duplicate ";
-		String foilSuffix = foil ? " (foil)" : "";
-		String body = who + " just added " + duplicatePrefix + card + foilSuffix + " to their collection!";
+		String body = playerLabel(playerName) + " just added " + (newForCollection ? "" : "duplicate ") + card
+			+ (foil ? " (foil)" : "") + " to their collection!";
 		return appendInspectLink(body, inspectUrl);
 	}
 
-	public static String dinkCollectionMessage(String cardName, boolean newForCollection, boolean foil)
-	{
-		return dinkCollectionMessage(cardName, newForCollection, foil, null);
-	}
-
-	public static String dinkCollectionMessage(
-		String cardName, boolean newForCollection, boolean foil, String inspectUrl)
-	{
-		return collectionMessage("%USERNAME%", cardName, newForCollection, foil, inspectUrl);
-	}
-
-	/** Append a Discord markdown inspect link when {@code inspectUrl} is non-blank. */
-	public static String appendInspectLink(String message, String inspectUrl)
+	private static String appendInspectLink(String message, String inspectUrl)
 	{
 		if (message == null)
 		{
@@ -60,12 +93,93 @@ public final class PullNotificationMessages
 		return message + "\n[Inspect card](" + inspectUrl.trim() + ")";
 	}
 
-	public static String dinkPackSummaryMessage(List<String> newCards, List<String> duplicates)
+	public static boolean hasEligiblePull(List<PackPull> pulls)
 	{
-		StringBuilder message = new StringBuilder("%USERNAME% opened a booster pack!");
-		appendCardSection(message, "New cards", newCards);
-		appendCardSection(message, "Duplicates", duplicates);
+		if (pulls == null || pulls.isEmpty())
+		{
+			return false;
+		}
+		for (PackPull pull : pulls)
+		{
+			if (pull != null && pull.notificationEligible)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public static PackPull highestTierPull(List<PackPull> pulls)
+	{
+		if (pulls == null || pulls.isEmpty())
+		{
+			return null;
+		}
+		PackPull best = null;
+		for (PackPull pull : pulls)
+		{
+			if (pull == null || pull.tier == null)
+			{
+				continue;
+			}
+			if (best == null || pull.tier.ordinal() > best.tier.ordinal())
+			{
+				best = pull;
+			}
+		}
+		return best == null ? pulls.get(0) : best;
+	}
+
+	public static String summaryLine(PackPull pull)
+	{
+		String displayName = pull.cardName.trim() + (pull.foil ? " (foil)" : "");
+		if (pull.notificationEligible)
+		{
+			displayName = "**" + displayName + "**";
+		}
+		String inspectUrl = inspectUrl(pull.instanceId);
+		if (!inspectUrl.isEmpty())
+		{
+			displayName = displayName + " — [Inspect](" + inspectUrl + ")";
+		}
+		return displayName;
+	}
+
+	public static PackSummarySections buildSummarySections(List<PackPull> pulls)
+	{
+		List<String> newCards = new ArrayList<>();
+		List<String> duplicates = new ArrayList<>();
+		if (pulls == null || pulls.isEmpty())
+		{
+			return new PackSummarySections(newCards, duplicates);
+		}
+		List<PackPull> sorted = new ArrayList<>(pulls);
+		sorted.sort(Comparator.comparingInt(PullNotificationMessages::tierRank).reversed());
+		for (PackPull pull : sorted)
+		{
+			if (pull == null || pull.cardName == null || pull.cardName.trim().isEmpty())
+			{
+				continue;
+			}
+			(pull.newForCollection ? newCards : duplicates).add(summaryLine(pull));
+		}
+		return new PackSummarySections(newCards, duplicates);
+	}
+
+	public static String packSummaryMessage(String opener, PackSummarySections sections)
+	{
+		StringBuilder message = new StringBuilder(playerLabel(opener)).append(" opened a booster pack!");
+		if (sections != null)
+		{
+			appendCardSection(message, "New cards", sections.newCards);
+			appendCardSection(message, "Duplicates", sections.duplicates);
+		}
 		return message.toString();
+	}
+
+	private static int tierRank(PackPull pull)
+	{
+		return pull == null || pull.tier == null ? -1 : pull.tier.ordinal();
 	}
 
 	private static void appendCardSection(StringBuilder message, String heading, List<String> cards)

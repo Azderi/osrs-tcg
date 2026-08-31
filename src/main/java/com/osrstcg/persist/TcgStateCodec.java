@@ -67,14 +67,12 @@ public class TcgStateCodec
 		List<OwnedCardInstance> rows = parseCollectionRows(stored);
 		CollectionState coll = CollectionState.copyOf(rows);
 
-		boolean debug = Boolean.TRUE.equals(stored.debugLogging);
 		double packZoom = stored.packRevealOverlayScale == null
 			? 1.0d
 			: PackRevealZoomUtil.clamp(stored.packRevealOverlayScale);
 		SkillCreditBaseline skillBaseline = parseSkillCreditBaseline(stored.skillCreditBaseline);
 
 		long totalGained = stored.totalCreditsGained == null ? 0L : Math.max(0L, stored.totalCreditsGained);
-		// 0 = missing/legacy; caller may stamp "now" on first schema-5 persist.
 		long createdAt = stored.profileCreatedAtUnix == null ? 0L : Math.max(0L, stored.profileCreatedAtUnix);
 		long savedAt = stored.profileSavedAtUnix == null ? 0L : Math.max(0L, stored.profileSavedAtUnix);
 		long cloudRevision = stored.cloudRevision == null ? 0L : Math.max(0L, stored.cloudRevision);
@@ -88,12 +86,10 @@ public class TcgStateCodec
 				loadedSchema, TcgState.CURRENT_SCHEMA_VERSION);
 		}
 
-		// Always materialize the current schema (upgrades older profiles).
 		return new TcgState(
 			TcgState.CURRENT_SCHEMA_VERSION,
 			new EconomyState(stored.credits, stored.openedPacks),
 			coll,
-			debug,
 			packZoom,
 			skillBaseline,
 			totalGained,
@@ -130,8 +126,8 @@ public class TcgStateCodec
 			String id = row.id == null || row.id.trim().isEmpty() ? null : row.id.trim();
 			String by = row.pulledBy == null ? "" : row.pulledBy;
 			long at = row.pulledAt <= 0L ? 0L : row.pulledAt;
-			rows.add(new OwnedCardInstance(id, row.cardName.trim(), row.foil, by, at, row.locked,
-				row.condition, Boolean.TRUE.equals(row.beta), row.source));
+			rows.add(new OwnedCardInstance(id, row.cardName.trim(), row.foil, by, at,
+				Boolean.TRUE.equals(row.beta)));
 		}
 		return rows;
 	}
@@ -146,7 +142,6 @@ public class TcgStateCodec
 		serialized.cardEntries = CardEntrySerializer.buildProfileEntries(
 			s.getCollectionState().getOwnedInstances());
 
-		serialized.debugLogging = s.isDebugLogging();
 		serialized.packRevealOverlayScale = s.getPackRevealOverlayScale();
 		serialized.skillCreditBaseline = serializeSkillCreditBaseline(s.getSkillCreditBaseline());
 		serialized.totalCreditsGained = s.getTotalCreditsGained();
@@ -175,7 +170,6 @@ public class TcgStateCodec
 		{
 			return SkillCreditBaseline.missing();
 		}
-		// Empty placeholder written during schema upgrade.
 		if (stored.skillXp == null || stored.skillXp.isEmpty())
 		{
 			return SkillCreditBaseline.absent();
@@ -229,7 +223,6 @@ public class TcgStateCodec
 		SerializedSkillCreditBaseline out = new SerializedSkillCreditBaseline();
 		if (!b.isPresent())
 		{
-			// Persist schema fields for missing/absent baselines (upgrade older profiles).
 			out.skillXp = new LinkedHashMap<>();
 			out.uncreditedXpBySkill = new LinkedHashMap<>();
 			return out;
@@ -247,7 +240,6 @@ public class TcgStateCodec
 		private long openedPacks;
 		private List<CardEntry> cardEntries;
 		private List<SerializedInstance> cardInstances;
-		private Boolean debugLogging;
 		private Double packRevealOverlayScale;
 		private SerializedSkillCreditBaseline skillCreditBaseline;
 		private Long totalCreditsGained;
@@ -255,7 +247,6 @@ public class TcgStateCodec
 		private Long profileSavedAtUnix;
 		private Long cloudRevision;
 		private String cloudStateHash;
-		/** Last pack-open hiscores ranks (length 6); omitted when unknown. */
 		private int[] sidebarRanks;
 	}
 
@@ -263,11 +254,9 @@ public class TcgStateCodec
 	{
 		private Map<String, Integer> skillXp;
 		private Map<String, Long> uncreditedXpBySkill;
-		/** Legacy single-pool remainder; read-only for migration. */
 		private Long uncreditedXp;
 	}
 
-	/** Legacy schema: one row per owned copy. */
 	private static class SerializedInstance
 	{
 		private String id;
@@ -275,9 +264,6 @@ public class TcgStateCodec
 		private boolean foil;
 		private String pulledBy;
 		private long pulledAt;
-		private boolean locked;
-		private Double condition;
 		private Boolean beta;
-		private String source;
 	}
 }

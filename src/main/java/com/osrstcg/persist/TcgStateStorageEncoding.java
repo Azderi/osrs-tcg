@@ -13,8 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * Local saves: gzip-compress JSON (fast deflate) and Base64-encode with {@code RLTCG_v3:}.
- * Legacy {@code RLTCG_v2:} blobs (gzip + XOR + Base64) are decoded for migrate upload reads only;
- * {@link #encodeLegacyV2} emits v2 for cloud migrate {@code profileBlob} upload.
+ * Legacy {@code RLTCG_v2:} blobs (gzip + XOR + Base64) are still decoded for old on-disk saves.
  */
 @Slf4j
 public final class TcgStateStorageEncoding
@@ -39,23 +38,6 @@ public final class TcgStateStorageEncoding
 			byte[] utf8 = Objects.requireNonNullElse(plainJson, "").getBytes(StandardCharsets.UTF_8);
 			byte[] compressed = gzipCompress(utf8);
 			return STORAGE_PREFIX_V3 + Base64.getEncoder().encodeToString(compressed);
-		}
-		catch (IOException ex)
-		{
-			log.warn("OSRS TCG state compression failed", ex);
-			return "";
-		}
-	}
-
-	/** Cloud migrate upload only — server still requires {@code RLTCG_v2:} with XOR. */
-	public static String encodeLegacyV2(String plainJson)
-	{
-		try
-		{
-			byte[] utf8 = Objects.requireNonNullElse(plainJson, "").getBytes(StandardCharsets.UTF_8);
-			byte[] compressed = gzipCompress(utf8);
-			xorWithSalt(compressed);
-			return STORAGE_PREFIX_V2 + Base64.getEncoder().encodeToString(compressed);
 		}
 		catch (IOException ex)
 		{

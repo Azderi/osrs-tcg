@@ -31,7 +31,6 @@ public class PackOpenCoordinator
 	private final PackRevealService packRevealService;
 	private final CloudPackService cloudPackService;
 	private final PackCatalogService packCatalogService;
-	private final PackSafeModeService packSafeModeService;
 	private final PullNotificationService pullNotificationService;
 	private final TcgStateService stateService;
 	private final CloudSessionService cloudSessionService;
@@ -44,7 +43,6 @@ public class PackOpenCoordinator
 		PackRevealService packRevealService,
 		CloudPackService cloudPackService,
 		PackCatalogService packCatalogService,
-		PackSafeModeService packSafeModeService,
 		PullNotificationService pullNotificationService,
 		TcgStateService stateService,
 		CloudSessionService cloudSessionService,
@@ -55,7 +53,6 @@ public class PackOpenCoordinator
 		this.packRevealService = packRevealService;
 		this.cloudPackService = cloudPackService;
 		this.packCatalogService = packCatalogService;
-		this.packSafeModeService = packSafeModeService;
 		this.pullNotificationService = pullNotificationService;
 		this.stateService = stateService;
 		this.cloudSessionService = cloudSessionService;
@@ -69,7 +66,6 @@ public class PackOpenCoordinator
 	{
 		SidebarRefresh panel = sidebarRefreshProvider.get();
 		open(booster, new UiHooks(
-			false,
 			true,
 			true,
 			null,
@@ -79,12 +75,11 @@ public class PackOpenCoordinator
 			invokeLater));
 	}
 
-	/** Shop buy button: optional in-flight guard, safe-mode check, resume on the EDT. */
+	/** Shop buy button: optional in-flight guard, resume on the EDT. */
 	public void openFromShop(BoosterPackDefinition booster, AtomicBoolean inFlight, Runnable beginFreeze,
 		Runnable clearFreeze, Runnable refresh, Consumer<Runnable> invokeLater)
 	{
 		open(booster, new UiHooks(
-			true,
 			false,
 			false,
 			inFlight,
@@ -104,18 +99,8 @@ public class PackOpenCoordinator
 		{
 			if (ui.chatWhenBusy)
 			{
-				TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-					"[OSRS TCG] Finish the current pack reveal first.");
-			}
-			ui.refresh.run();
-			return;
-		}
-		if (ui.checkSafeMode && packSafeModeService.isPackOpeningBlocked())
-		{
-			String blockMessage = packSafeModeService.packOpeningBlockMessage();
-			if (blockMessage != null)
-			{
-				TcgPluginGameMessages.queueGameMessage(chatMessageManager, "[OSRS TCG] " + blockMessage);
+				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+					"Finish the current pack reveal first.");
 			}
 			ui.refresh.run();
 			return;
@@ -128,11 +113,9 @@ public class PackOpenCoordinator
 		ui.beginFreeze.run();
 		HashSet<CardCollectionKey> preOwned = new HashSet<>(
 			stateService.getState().getCollectionState().getOwnedCards().keySet());
-		boolean showScrollWheelHint = stateService.getState().getEconomyState().getOpenedPacks() == 0L;
-		String boosterTitle = booster.getName();
 		String boosterPackId = booster.getId() == null ? "" : booster.getId().trim();
 		int expectedCards = Math.max(1, packCatalogService.getCache().getPackSize());
-		packRevealService.beginPendingReveal(boosterTitle, boosterPackId, showScrollWheelHint, false, expectedCards);
+		packRevealService.beginPendingReveal(boosterPackId, false, expectedCards);
 		ui.refresh.run();
 		scheduler.execute(() ->
 		{
@@ -161,7 +144,7 @@ public class PackOpenCoordinator
 			ui.clearFreeze.run();
 			if (result.isSuccess() && result.getPulls() != null && !result.getPulls().isEmpty())
 			{
-				pullNotificationService.announceAllCollectionAdds(result.getPulls(), preOwned);
+				pullNotificationService.postAllCollectionAdds(result.getPulls(), preOwned);
 			}
 			ui.refresh.run();
 			return;
@@ -173,7 +156,7 @@ public class PackOpenCoordinator
 			if (!cloudSessionService.isAccountLocked()
 				&& result.getMessage() != null && !result.getMessage().isEmpty())
 			{
-				TcgPluginGameMessages.queueGameMessage(chatMessageManager, "[OSRS TCG] " + result.getMessage());
+				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, result.getMessage());
 			}
 			ui.refresh.run();
 			return;
@@ -181,8 +164,8 @@ public class PackOpenCoordinator
 
 		if (ui.announceCreditsOnSuccess)
 		{
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager, String.format(Locale.US,
-				"[OSRS TCG] Opened pack for %s credits. New balance: %s. Pulled %s cards.",
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, String.format(Locale.US,
+				"Opened pack for %s credits. New balance: %s. Pulled %s cards.",
 				NumberFormatting.format(result.getPackPrice()), NumberFormatting.format(result.getCreditsAfter()),
 				NumberFormatting.format(result.getPulls().size())));
 		}
@@ -190,14 +173,13 @@ public class PackOpenCoordinator
 		{
 			packRevealService.abortPendingReveal();
 			ui.clearFreeze.run();
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager, "[OSRS TCG] Pack open returned no cards.");
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, "Pack open returned no cards.");
 		}
 		ui.refresh.run();
 	}
 
 	private static final class UiHooks
 	{
-		final boolean checkSafeMode;
 		final boolean announceCreditsOnSuccess;
 		final boolean chatWhenBusy;
 		final AtomicBoolean inFlight;
@@ -206,11 +188,10 @@ public class PackOpenCoordinator
 		final Runnable refresh;
 		final Consumer<Runnable> invokeLater;
 
-		UiHooks(boolean checkSafeMode, boolean announceCreditsOnSuccess, boolean chatWhenBusy,
+		UiHooks(boolean announceCreditsOnSuccess, boolean chatWhenBusy,
 			AtomicBoolean inFlight, Runnable beginFreeze, Runnable clearFreeze, Runnable refresh,
 			Consumer<Runnable> invokeLater)
 		{
-			this.checkSafeMode = checkSafeMode;
 			this.announceCreditsOnSuccess = announceCreditsOnSuccess;
 			this.chatWhenBusy = chatWhenBusy;
 			this.inFlight = inFlight;

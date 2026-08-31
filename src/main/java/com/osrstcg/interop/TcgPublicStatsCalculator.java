@@ -19,9 +19,6 @@ import com.osrstcg.catalog.RollPoolFilter;
 import com.osrstcg.state.TcgStateService;
 import com.osrstcg.ui.layout.PackCloseSnapshot;
 
-/**
- * Computes the same collection overview numbers as the plugin panel (roll pool, owned map, score rules).
- */
 @Singleton
 public class TcgPublicStatsCalculator
 {
@@ -60,11 +57,6 @@ public class TcgPublicStatsCalculator
 				cloud.getFoilOwned(),
 				false);
 		}
-		return compute(owned, openedPacks, false);
-	}
-
-	TcgPublicStats compute(Map<CardCollectionKey, Integer> owned, long openedPacks, boolean customRates)
-	{
 		List<CardDefinition> all = cardDatabase.getCards();
 		List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(all);
 		CloudSidebarCollectionStats overview = computeLocalOverview(owned, all, rollPool);
@@ -78,13 +70,9 @@ public class TcgPublicStatsCalculator
 			openedPacks,
 			overview.getTotalCardsOwned(),
 			overview.getFoilOwned(),
-			customRates);
+			false);
 	}
 
-	/**
-	 * Local collection overview using the same rules as the sidebar fallback (roll pool, score).
-	 * Used to detect drift vs server inbox {@code stats}.
-	 */
 	public CloudSidebarCollectionStats computeLocalSidebarStats()
 	{
 		Map<CardCollectionKey, Integer> owned;
@@ -97,9 +85,6 @@ public class TcgPublicStatsCalculator
 		return computeLocalOverview(owned, all, rollPool);
 	}
 
-	/**
-	 * Sidebar overview: prefer the snapshot's cloud/local stats when present, otherwise compute locally.
-	 */
 	public static CloudSidebarCollectionStats resolveOverview(
 		PackCloseSnapshot snap,
 		List<CardDefinition> allCards,
@@ -112,9 +97,6 @@ public class TcgPublicStatsCalculator
 		return computeLocalOverview(snap == null ? null : snap.owned, allCards, rollPool);
 	}
 
-	/**
-	 * Shared local overview math for the sidebar and public stats (roll pool filter + score rules).
-	 */
 	public static CloudSidebarCollectionStats computeLocalOverview(
 		Map<CardCollectionKey, Integer> owned,
 		List<CardDefinition> allCards,

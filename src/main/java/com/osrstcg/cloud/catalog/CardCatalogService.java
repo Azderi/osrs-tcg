@@ -7,33 +7,25 @@ import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 import com.osrstcg.catalog.CardDatabase;
 import com.osrstcg.catalog.CardDefinition;
-import com.osrstcg.state.TcgStateService;
+import com.osrstcg.util.AtomicFiles;
 import java.io.IOException;
 import java.io.Reader;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.RuneLite;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
 
-/**
- * Fetches the live card catalog from {@code GET /api/v1/catalog/cards/live}
- * ({@code { items, npcs }}). Persists a disk cache under {@code ~/.runelite/OSRS-TCG/catalog/}
- * for offline / pre-login use.
- */
 @Slf4j
 @Singleton
 public final class CardCatalogService
@@ -48,26 +40,21 @@ public final class CardCatalogService
 	private final CloudApiClient api;
 	private final Gson gson;
 	private final CardDatabase cardDatabase;
-	private final Provider<TcgStateService> stateService;
 	private final ScheduledExecutorService scheduler;
 	private final AtomicBoolean loginFetchAttempted = new AtomicBoolean(false);
 	private final AtomicReference<Runnable> changeListener = new AtomicReference<>(null);
 	private final AtomicReference<String> cachedCatalogVersion = new AtomicReference<>(null);
-	/** Snapshot kept while Overview debug mode is on. */
-	private final AtomicReference<List<CardDefinition>> debugPinnedCatalog = new AtomicReference<>(null);
 
 	@Inject
 	CardCatalogService(
 		CloudApiClient api,
 		Gson gson,
 		CardDatabase cardDatabase,
-		Provider<TcgStateService> stateService,
 		ScheduledExecutorService scheduler)
 	{
 		this.api = api;
 		this.gson = gson;
 		this.cardDatabase = cardDatabase;
-		this.stateService = stateService;
 		this.scheduler = scheduler;
 	}
 
@@ -76,13 +63,9 @@ public final class CardCatalogService
 		changeListener.set(listener);
 	}
 
-	/**
-	 * Load disk cache into {@link CardDatabase} if present (no network). Safe to call on plugin start.
-	 * Custom foil art is not applied from disk - only pack-pull paths carry foil art.
-	 */
 	public void loadDiskCacheIfPresent()
 	{
-		deleteObsoleteCardArtOverlayCache();
+		deleteStaleCardArtCache();
 		Path live = diskCacheDir().resolve(LIVE_CACHE_FILE);
 		if (Files.isRegularFile(live))
 		{
@@ -123,17 +106,11 @@ public final class CardCatalogService
 		}
 	}
 
-	/**
-	 * Background fetch. Does not consume the login fetch gate.
-	 */
 	public CompletableFuture<Void> prefetchAsync()
 	{
 		return CompletableFuture.runAsync(this::fetchAndApply, scheduler);
 	}
 
-	/**
-	 * Exactly once after cloud session is established.
-	 */
 	public CompletableFuture<Void> refreshOnLogin()
 	{
 		if (!loginFetchAttempted.compareAndSet(false, true))
@@ -143,57 +120,11 @@ public final class CardCatalogService
 		return CompletableFuture.runAsync(this::fetchAndApply, scheduler);
 	}
 
-	/** Logout - allow a fresh fetch on the next login. Keeps in-memory / disk catalog. */
 	public void resetLoginFetchGate()
 	{
 		loginFetchAttempted.set(false);
 	}
 
-	/** Drop the debug pin when leaving Overview debug mode. */
-	public void clearDebugCatalogPin()
-	{
-		debugPinnedCatalog.set(null);
-	}
-
-	/**
-	 * Ensure card definitions are available for debug tools ({@code ::tcg-complete} / {@code ::tcg-give}).
-	 * Order: memory → debug pin → disk cache → live public catalog fetch (sync).
-	 */
-	public synchronized void ensureCachedCatalogForDebug()
-	{
-		if (cardDatabase.size() > 0)
-		{
-			rememberDebugPinFromMemory();
-			return;
-		}
-		List<CardDefinition> pinned = debugPinnedCatalog.get();
-		if (pinned != null && !pinned.isEmpty())
-		{
-			cardDatabase.replaceCards(new ArrayList<>(pinned), "debug pin");
-			return;
-		}
-		loadDiskCacheIfPresent();
-		if (cardDatabase.size() > 0)
-		{
-			rememberDebugPinFromMemory();
-			return;
-		}
-		fetchAndApply();
-		if (cardDatabase.size() > 0)
-		{
-			rememberDebugPinFromMemory();
-		}
-	}
-
-	private void rememberDebugPinFromMemory()
-	{
-		if (cardDatabase.size() > 0)
-		{
-			debugPinnedCatalog.set(List.copyOf(cardDatabase.getCards()));
-		}
-	}
-
-	/** Force refetch. */
 	public CompletableFuture<Void> refreshNow()
 	{
 		loginFetchAttempted.set(true);
@@ -241,10 +172,6 @@ public final class CardCatalogService
 				cachedCatalogVersion.set(response.getCatalogVersion());
 			}
 			cardDatabase.replaceCards(parsed, "GET /api/v1/catalog/cards/live");
-			if (stateService.get().isDebugLogging())
-			{
-				rememberDebugPinFromMemory();
-			}
 			notifyChanged();
 		}
 		catch (Exception ex)
@@ -258,8 +185,7 @@ public final class CardCatalogService
 		}
 	}
 
-	/** Drop stale global overlay cache so it cannot re-apply art into CardDatabase. */
-	private void deleteObsoleteCardArtOverlayCache()
+	private void deleteStaleCardArtCache()
 	{
 		Path dir = diskCacheDir();
 		try
@@ -299,19 +225,9 @@ public final class CardCatalogService
 	{
 		Path dir = diskCacheDir();
 		Path target = dir.resolve(LIVE_CACHE_FILE);
-		Path tmp = dir.resolve(LIVE_CACHE_FILE + ".tmp");
 		try
 		{
-			Files.createDirectories(dir);
-			Files.writeString(tmp, json, StandardCharsets.UTF_8);
-			try
-			{
-				Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-			}
-			catch (java.nio.file.AtomicMoveNotSupportedException ex)
-			{
-				Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
-			}
+			AtomicFiles.writeString(target, json, StandardCharsets.UTF_8);
 			if (version != null && !version.isBlank())
 			{
 				Files.writeString(dir.resolve(LIVE_VERSION_FILE), version.trim(), StandardCharsets.UTF_8);
@@ -320,14 +236,6 @@ public final class CardCatalogService
 		catch (Exception ex)
 		{
 			log.debug("Card catalog disk cache write failed", ex);
-			try
-			{
-				Files.deleteIfExists(tmp);
-			}
-			catch (Exception ignored)
-			{
-				// ignore
-			}
 		}
 	}
 
@@ -354,10 +262,6 @@ public final class CardCatalogService
 		return Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG", "catalog");
 	}
 
-	/**
-	 * Removes the on-disk catalog cache. In-memory cards are kept;
-	 * call {@link #refreshNow()} afterward to repopulate disk from the live host.
-	 */
 	public void deleteDiskCache()
 	{
 		cachedCatalogVersion.set(null);

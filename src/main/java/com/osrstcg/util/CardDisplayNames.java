@@ -3,10 +3,6 @@ package com.osrstcg.util;
 import com.osrstcg.catalog.CardDefinition;
 import com.osrstcg.state.PackCardResult;
 
-/**
- * Resolve a player-facing card title. Storage identity may be {@code npc:{id}}; UI should prefer
- * pull/catalog display names.
- */
 public final class CardDisplayNames
 {
 	private CardDisplayNames()
@@ -29,9 +25,6 @@ public final class CardDisplayNames
 		return null;
 	}
 
-	/**
-	 * Title for pack reveal / tips: pull display name, then catalog display name, then identity keys.
-	 */
 	public static String titleForPull(PackCardResult pull, CardDefinition catalog)
 	{
 		String pullDisplay = pull == null ? null : pull.getDisplayName();
@@ -42,7 +35,6 @@ public final class CardDisplayNames
 		return title == null || title.isBlank() ? "Unknown Card" : title;
 	}
 
-	/** Tip / list title when a materialized definition is available. */
 	public static String titleForDefinition(CardDefinition def, PackCardResult pull)
 	{
 		String defDisplay = def == null ? null : def.getDisplayName();

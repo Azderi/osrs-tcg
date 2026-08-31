@@ -1,9 +1,5 @@
 package com.osrstcg.config;
 
-/**
- * Sliding window for credits/h on the credits infobox.
- * {@link #PERSISTENT} keeps all gains until a manual overlay reset.
- */
 public enum CreditsPerHourWindow
 {
 	MINUTES_15("15 min", 15L * 60L * 1000L),
@@ -21,17 +17,9 @@ public enum CreditsPerHourWindow
 		this.windowMs = windowMs;
 	}
 
-	/**
-	 * @return window length in ms, or {@code null} for {@link #PERSISTENT}
-	 */
 	public Long getWindowMs()
 	{
 		return windowMs;
-	}
-
-	public boolean isPersistent()
-	{
-		return windowMs == null;
 	}
 
 	@Override

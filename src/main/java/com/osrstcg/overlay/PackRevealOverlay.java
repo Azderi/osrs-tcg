@@ -3,7 +3,6 @@ package com.osrstcg.overlay;
 import com.osrstcg.OsrsTcgConfig;
 import com.osrstcg.cloud.api.CloudEndpoints;
 import com.osrstcg.cloud.catalog.PackCatalogService;
-import com.osrstcg.cloud.catalog.PackImageUrls;
 import com.osrstcg.catalog.BoosterPackDefinition;
 import com.osrstcg.catalog.CardDefinition;
 import com.osrstcg.state.PackCardResult;
@@ -21,7 +20,6 @@ import com.osrstcg.ui.tip.CardInfoTipModel;
 import com.osrstcg.ui.tip.CardInfoTipPainter;
 import com.osrstcg.util.OsrsWiki;
 import com.osrstcg.util.PackRevealZoomUtil;
-import com.osrstcg.util.TcgPluginGameMessages;
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -36,13 +34,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
-import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
@@ -51,20 +49,12 @@ import net.runelite.client.util.LinkBrowser;
 @Singleton
 public class PackRevealOverlay extends Overlay
 {
-	/** Hovered revealed card scales up slightly (centered). */
 	private static final double HOVER_CARD_SCALE = 1.072d;
-	/** Sealed pack grows slightly when hovered (PACK_READY). */
 	private static final double PACK_IMAGE_HOVER_MAX_SCALE = 1.085d;
-	/** Per-step lerp at {@value #HOVER_LERP_REFERENCE_HZ} Hz; converted to wall-clock in {@link #advanceHoverLerpFactor()}. */
 	private static final double HOVER_LERP = 0.22d;
 	private static final double HOVER_LERP_REFERENCE_HZ = 60.0d;
 	private static final double HOVER_LERP_MAX_DT_SEC = 0.05d;
-	/** Clamped when applied so the layout never collapses or overflows wildly. */
-	static final double PACK_REVEAL_ZOOM_MIN = PackRevealZoomUtil.MIN;
-	static final double PACK_REVEAL_ZOOM_MAX = PackRevealZoomUtil.MAX;
-	/** Max rarity glow alpha when a card is fully hovered (no glow when not hovered). */
 	private static final float HOVER_RARITY_GLOW_ALPHA = 0.30f;
-	/** Tucks the apex sealed-pack glow slightly inside the letterboxed art rect (px per edge). */
 	private static final int PACK_SEALED_GLOW_INSET = 2;
 
 	private final Client client;
@@ -74,64 +64,33 @@ public class PackRevealOverlay extends Overlay
 	private final PackRevealSoundService packRevealSoundService;
 	private final TcgStateService tcgStateService;
 	private final OsrsTcgConfig config;
-	private final ChatMessageManager chatMessageManager;
 
 	private static final boolean[] EMPTY_BOOL = new boolean[0];
 	private static final SlotFaceCache[] EMPTY_SLOT_CACHE = new SlotFaceCache[0];
 
-	/**
-	 * Preferred zoom for this reveal ({@link Double#NaN} = auto: largest of 1×/2× that fits).
-	 * Wheel sets an explicit preference; applied size is still capped by what fits the canvas.
-	 */
 	private volatile double sessionPackZoomMultiplier = Double.NaN;
-	/** Last applied zoom mul - used to invalidate face caches when auto zoom switches. */
 	private double lastAppliedZoomMul = Double.NaN;
 
-	/** 0 = base size, 1 = full {@link #PACK_IMAGE_HOVER_MAX_SCALE} for sealed pack. */
 	private double packHoverLift;
-	/** Per-card 0 = base, 1 = full {@link #HOVER_CARD_SCALE} during reveal. */
 	private double[] cardHoverLift = new double[0];
-	/**
-	 * Canvas-space pointer from {@link PackRevealInputListener} (same as {@link java.awt.event.MouseEvent#getPoint()}
-	 * for clicks). {@link Client#getMouseCanvasPosition()} can disagree with that space while the reveal input listener
-	 * is consuming mouse events, so hover hit-testing prefers this when set.
-	 */
 	private volatile boolean revealHoverFromListener;
 	private volatile int revealHoverCanvasX;
 	private volatile int revealHoverCanvasY;
-	/** Rising edge for {@link PackRevealSoundService#playApexPackHoverOneShot()} (sealed apex pack). */
 	private boolean apexPackPointerWasInside;
-	/** Single-threaded client thread scratch for pointer reads (avoid per-frame allocations). */
 	private final int[] pointerScratch = new int[2];
-	/** Used to call {@link PackRevealSoundService#hardStop()} only on active→inactive transition. */
-	private boolean packRevealSoundActiveLastFrame;
-	/** Wall-clock source for time-based hover lerp. */
+	private boolean packRevealSoundActivePrev;
 	private long lastHoverDynamicsNanos;
 
-	/**
-	 * Per-slot face raster prewarm during deal/reveal.
-	 */
 	private boolean[] facePrewarmDone = EMPTY_BOOL;
 	private boolean[] facePrewarmScheduled = EMPTY_BOOL;
-	/** Reused FoilFx / WearFx / CardFaceDrawRequest per reveal slot. */
 	private SlotFaceCache[] slotFaceCache = EMPTY_SLOT_CACHE;
-	/**
-	 * Identity of the currently painted visible batch (seed names + art paths). When the next deal page
-	 * or placeholder→pull swap changes cards in the same slot indices, face prewarm / slot FX must reset
-	 * or flips keep showing card backs from a stale scheduled bake.
-	 */
 	private String lastVisibleFaceIdentity = "";
 
-	/** Face-up pack card under cursor for {@link CardInfoTipModel} (−1 = none). */
 	private int tipCardIndex = -1;
 	private long tipHoverStartedAtMs;
 	private int tipCursorX;
 	private int tipCursorY;
 	private CardInfoTipModel.Content tipContent;
-	/**
-	 * Right-click freezes the tip in place. Tip dismisses when the pointer leaves the tip panel
-	 * plus {@link #TIP_PIN_DISMISS_PAD_PX}.
-	 */
 	private boolean tipPinned;
 	private boolean tipPinBoundsReady;
 	private int tipPinnedPanelX;
@@ -143,14 +102,12 @@ public class PackRevealOverlay extends Overlay
 	private final Rectangle tipPanelBounds = new Rectangle();
 	private final Rectangle closeButtonBounds = new Rectangle();
 	private final Map<String, Rectangle> tipActionBounds = new HashMap<>();
-	/** Grace zone outside the frozen tip before auto-hide. */
 	private static final int TIP_PIN_DISMISS_PAD_PX = 48;
 
 	@Inject
 	public PackRevealOverlay(Client client, PackRevealService revealService, CardImageCacheService imageCacheService,
 		PackCatalogService packCatalogService, PackRevealSoundService packRevealSoundService,
-		TcgStateService tcgStateService, OsrsTcgConfig config,
-		ChatMessageManager chatMessageManager)
+		TcgStateService tcgStateService, OsrsTcgConfig config)
 	{
 		this.client = client;
 		this.revealService = revealService;
@@ -159,16 +116,11 @@ public class PackRevealOverlay extends Overlay
 		this.packRevealSoundService = packRevealSoundService;
 		this.tcgStateService = tcgStateService;
 		this.config = config;
-		this.chatMessageManager = chatMessageManager;
 		setPosition(OverlayPosition.DYNAMIC);
-		// Above other plugin overlays (infoboxes, XP drops, etc.) while the reveal is active.
 		setLayer(OverlayLayer.ALWAYS_ON_TOP);
 		setPriority(Overlay.PRIORITY_HIGHEST);
 	}
 
-	/**
-	 * Keeps hover hit-testing aligned with {@link java.awt.event.MouseEvent#getPoint()} used for pack/card clicks.
-	 */
 	public void setRevealHoverCanvasPoint(Point canvasPoint)
 	{
 		if (canvasPoint == null)
@@ -192,7 +144,7 @@ public class PackRevealOverlay extends Overlay
 		Optional<PackRevealService.RevealPaintSnapshot> snapOpt = revealService.capturePaintFrame();
 		if (snapOpt.isEmpty())
 		{
-			if (packRevealSoundActiveLastFrame)
+			if (packRevealSoundActivePrev)
 			{
 				ForkJoinPool.commonPool().execute(() ->
 				{
@@ -202,26 +154,25 @@ public class PackRevealOverlay extends Overlay
 					}
 					catch (Exception ignored)
 					{
-						// best-effort; avoid blocking the client thread on audio line teardown
 					}
 				});
 			}
-			packRevealSoundActiveLastFrame = false;
-			persistSessionPackZoomIfNeeded();
+			packRevealSoundActivePrev = false;
+			persistPackZoomIfNeeded();
 			resetHoverAnimations();
 			closeButtonBounds.setBounds(0, 0, 0, 0);
 			clearSlotCaches();
 			return null;
 		}
 		PackRevealService.RevealPaintSnapshot snap = snapOpt.get();
-		packRevealSoundActiveLastFrame = true;
+		packRevealSoundActivePrev = true;
 
-		Rectangle canvas = new Rectangle(0, 0, client.getCanvasWidth(), client.getCanvasHeight());
+		Rectangle canvas = fullCanvas();
 		PackRevealDrawUtil.drawDim(graphics, canvas);
 
 		List<PackRevealService.RevealCard> cards = snap.getCards();
 		int cardCount = cards.size();
-		invalidateFaceSlotsIfVisibleCardsChanged(cards);
+		invalidateFaceSlotsIfChanged(cards);
 		PackRevealService.Phase phase = snap.getPhase();
 		PackRevealLayout.ViewportLayout layout = computeViewportLayout(canvas, cardCount, phase);
 		if (phase != PackRevealService.Phase.PACK_READY)
@@ -247,7 +198,7 @@ public class PackRevealOverlay extends Overlay
 				{
 					float glowAlpha = (float) (HOVER_RARITY_GLOW_ALPHA * Math.max(0.22d, packHoverLift));
 					Rectangle packGlowRect = PackRevealDrawUtil.uniformInset(
-						packImageDrawRect(packScaled, snap.getBoosterPackId()),
+						PackRevealDrawUtil.fittedImageRect(packScaled, packArtForPackId(snap.getBoosterPackId())),
 						PACK_SEALED_GLOW_INSET);
 					PackRevealDrawUtil.drawGlow(graphics, packGlowRect, RarityMath.Tier.GODLY.getColor(), glowAlpha);
 				}
@@ -257,15 +208,11 @@ public class PackRevealOverlay extends Overlay
 				apexPackPointerWasInside = false;
 			}
 			drawPackImage(graphics, packScaled, 1.0f, snap.getBoosterPackId());
-			paintRevealChrome(graphics, canvas, snap, null);
-			clearCardInfoTip();
-			return null;
+			return finishEarlyPhase(graphics, canvas, snap);
 		}
 
 		if (phase == PackRevealService.Phase.PACK_FADING || phase == PackRevealService.Phase.AWAITING_PULLS)
 		{
-			// Stationary deal pile under the pack (placeholders or real pulls) as the pack fades out.
-			// AWAITING_PULLS is only used when pack size was unknown (no placeholders) after fade.
 			if (cardCount > 0)
 			{
 				drawDealPhase(graphics, canvas, cards, layout, cardCount, 0L);
@@ -277,19 +224,14 @@ public class PackRevealOverlay extends Overlay
 			{
 				drawPackImage(graphics, packBounds, packAlpha, snap.getBoosterPackId());
 			}
-			paintRevealChrome(graphics, canvas, snap, null);
-			clearCardInfoTip();
-			return null;
+			return finishEarlyPhase(graphics, canvas, snap);
 		}
 
 		if (phase == PackRevealService.Phase.CARD_DEAL)
 		{
 			drawDealPhase(graphics, canvas, cards, layout, cardCount, snap.getPhaseElapsedMs());
-			// Final slot size (not mid-flight rects) - same bounds used once cards land.
 			prewarmNextRevealFace(cards, PackRevealLayout.layoutCardSlots(canvas, cardCount, layout));
-			paintRevealChrome(graphics, canvas, snap, null);
-			clearCardInfoTip();
-			return null;
+			return finishEarlyPhase(graphics, canvas, snap);
 		}
 
 		List<Rectangle> bounds = PackRevealLayout.layoutCardSlots(canvas, cardCount, layout);
@@ -312,7 +254,6 @@ public class PackRevealOverlay extends Overlay
 			float glowAlpha;
 			if (flipProgress > 0f && flipProgress < 1f)
 			{
-				// Fade glow out to edge-on, then back in as the face comes around.
 				glowAlpha = HOVER_RARITY_GLOW_ALPHA * flipFade;
 			}
 			else if (faceUp)
@@ -337,15 +278,7 @@ public class PackRevealOverlay extends Overlay
 				PackRevealDrawUtil.drawGlow(graphics, glowRect, card.getRarityColor(), glowAlpha);
 			}
 			drawFlippingCard(graphics, i, r, card, flipProgress);
-		}
-		for (int i : drawOrder)
-		{
-			PackRevealService.RevealCard card = cards.get(i);
-			RevealCardVisual visual = revealCardVisual(i, bounds.get(i), snap);
-			Rectangle r = visual.rect;
-			boolean faceUp = visual.faceUp;
-			double lift = visual.lift;
-			if (faceUp && visual.flipProgress >= 1f)
+			if (faceUp && flipProgress >= 1f)
 			{
 				if (card.isNew() && shouldShowNewBadge(card, revealService.getPreOwnedFoilNames()))
 				{
@@ -363,12 +296,6 @@ public class PackRevealOverlay extends Overlay
 		return null;
 	}
 
-	/**
-	 * Face draw parameters for one pulled card, including the deterministic wear/foil FX seeded from the
-	 * pull provenance so the reveal matches the website's inspect view for the same instance.
-	 * The server does not send {@code beta} on a pull, so an absent condition simply means no wear.
-	 * FoilFx / WearFx lists are reused per slot so sparkle/wear seeds are not rebuilt every frame.
-	 */
 	private CardFaceDrawRequest cachedFaceRequest(int index, PackRevealService.RevealCard card, BufferedImage art,
 		int width, int height)
 	{
@@ -382,7 +309,7 @@ public class PackRevealOverlay extends Overlay
 			&& slot.height == height
 			&& slot.artId == artId
 			&& slot.wearWanted == wearWanted
-			&& java.util.Objects.equals(slot.artPath, artPath))
+			&& Objects.equals(slot.artPath, artPath))
 		{
 			return slot.request;
 		}
@@ -444,7 +371,6 @@ public class PackRevealOverlay extends Overlay
 		return !preOwnedFoilNames.contains(name.trim().toLowerCase(Locale.ROOT));
 	}
 
-	/** Banded detail URL, or foil art path when this pull should render foil bleed. */
 	private static String artPathFor(PackRevealService.RevealCard card)
 	{
 		if (card == null)
@@ -461,10 +387,6 @@ public class PackRevealOverlay extends Overlay
 		return def == null ? null : def.getImageUrl();
 	}
 
-	/**
-	 * Queues a few face rasters onto a background pool while cards are dealing / waiting to flip.
-	 * Never rasterizes foil/wear on the client thread.
-	 */
 	private void prewarmNextRevealFace(List<PackRevealService.RevealCard> cards, List<Rectangle> slotBounds)
 	{
 		if (cards == null || slotBounds == null || cards.isEmpty() || slotBounds.size() < cards.size())
@@ -493,8 +415,7 @@ public class PackRevealOverlay extends Overlay
 			String artPath = artPathFor(card);
 			ensureSlotFaceCache(i);
 			SlotFaceCache slot = slotFaceCache[i];
-			// Slot reused across deal pages - don't treat a prior card's bake as done.
-			if (facePrewarmDone[i] && slot != null && java.util.Objects.equals(slot.artPath, artPath)
+			if (facePrewarmDone[i] && slot != null && Objects.equals(slot.artPath, artPath)
 				&& SharedCardRenderer.isFaceCached(slot.width, slot.height, slot.request))
 			{
 				continue;
@@ -508,7 +429,6 @@ public class PackRevealOverlay extends Overlay
 			BufferedImage art = expectsArt ? imageCacheService.getCached(artPath) : null;
 			if (expectsArt && art == null)
 			{
-				// Art still loading - retry prewarm once bytes are in memory; never bake "Loading artwork...".
 				facePrewarmScheduled[i] = false;
 				facePrewarmDone[i] = false;
 				continue;
@@ -542,7 +462,6 @@ public class PackRevealOverlay extends Overlay
 		ForkJoinPool.commonPool().execute(() -> SharedCardRenderer.prewarmFace(width, height, req));
 	}
 
-	/** Storage identity for wear seeds - must match website (cardName / npc:{id}), not display title. */
 	private static String seedNameFor(PackRevealService.RevealCard card)
 	{
 		if (card.getPull() != null && card.getPull().getCardName() != null
@@ -553,11 +472,7 @@ public class PackRevealOverlay extends Overlay
 		return "";
 	}
 
-	/**
-	 * When the visible deal page changes (or placeholders become real pulls), slot indices reuse the same
-	 * cache entries. Clear per-slot FX / prewarm flags so the new faces can bake.
-	 */
-	private void invalidateFaceSlotsIfVisibleCardsChanged(List<PackRevealService.RevealCard> cards)
+	private void invalidateFaceSlotsIfChanged(List<PackRevealService.RevealCard> cards)
 	{
 		String identity = visibleFaceIdentity(cards);
 		if (identity.equals(lastVisibleFaceIdentity))
@@ -695,10 +610,6 @@ public class PackRevealOverlay extends Overlay
 		}
 	}
 
-	/**
-	 * Draws a card with a horizontal Y-flip squash matching website inspect
-	 * ({@code rotateY} over 550ms). Texture swaps after 90°.
-	 */
 	private void drawFlippingCard(Graphics2D graphics, int index, Rectangle r, PackRevealService.RevealCard card,
 		float flipProgress)
 	{
@@ -725,24 +636,21 @@ public class PackRevealOverlay extends Overlay
 				BufferedImage linked = expectsArt ? imageCacheService.getCached(artPath) : null;
 				if (expectsArt && linked == null)
 				{
-					SharedCardRenderer.drawCardBack(g2, r, card.getPull().isFoil(), card.getRarityColor(),
-						cardBackImage());
+					drawRevealCardBack(g2, r, card);
 				}
 				else
 				{
 					CardFaceDrawRequest req = cachedFaceRequest(index, card, linked, r.width, r.height);
 					if (!SharedCardRenderer.drawCardFaceIfCached(g2, r, req))
 					{
-						SharedCardRenderer.drawCardBack(g2, r, card.getPull().isFoil(), card.getRarityColor(),
-							cardBackImage());
+						drawRevealCardBack(g2, r, card);
 						scheduleFacePrewarm(index, r.width, r.height, req);
 					}
 				}
 			}
 			else
 			{
-				SharedCardRenderer.drawCardBack(g2, r, card.getPull().isFoil(), card.getRarityColor(),
-					cardBackImage());
+				drawRevealCardBack(g2, r, card);
 			}
 		}
 		finally
@@ -775,8 +683,9 @@ public class PackRevealOverlay extends Overlay
 			{
 				return null;
 			}
-			Rectangle canvas = new Rectangle(0, 0, client.getCanvasWidth(), client.getCanvasHeight());
-			PackRevealLayout.ViewportLayout layout = computeViewportLayout(canvas, revealService.getCards().size());
+			Rectangle canvas = fullCanvas();
+			int n = revealService.getCards().size();
+			PackRevealLayout.ViewportLayout layout = computeViewportLayout(canvas, n, revealService.getPhase());
 			Rectangle packBase = layout.packRect(canvas);
 			return packDrawRect(packBase);
 		}
@@ -794,83 +703,49 @@ public class PackRevealOverlay extends Overlay
 			{
 				return List.of();
 			}
-			Rectangle canvas = new Rectangle(0, 0, client.getCanvasWidth(), client.getCanvasHeight());
+			Rectangle canvas = fullCanvas();
 			int n = revealService.getCards().size();
-			List<Rectangle> bases = PackRevealLayout.layoutCardSlots(canvas, n, computeViewportLayout(canvas, n));
+			List<Rectangle> bases = PackRevealLayout.layoutCardSlots(canvas, n, computeViewportLayout(canvas, n, phase));
 			return withCardHoverVisualScale(bases);
 		}
 	}
 
-	/**
-	 * Face-up reveal card under the canvas pointer, or {@code null} when none / still face-down.
-	 */
-	public PackRevealService.RevealCard faceUpCardAt(Point canvasPoint)
+	private int faceUpCardIndexAt(Point canvasPoint)
 	{
 		if (canvasPoint == null)
 		{
-			return null;
+			return -1;
 		}
-		synchronized (revealService)
+		List<Rectangle> bounds = currentCardBounds();
+		if (bounds.isEmpty())
 		{
-			List<Rectangle> bounds = currentCardBounds();
-			List<PackRevealService.RevealCard> cards = revealService.getCards();
-			if (bounds.isEmpty() || cards.isEmpty())
-			{
-				return null;
-			}
-			for (int i = 0; i < bounds.size() && i < cards.size(); i++)
-			{
-				Rectangle r = bounds.get(i);
-				if (r != null && r.contains(canvasPoint) && revealService.isCardRevealed(i))
-				{
-					return cards.get(i);
-				}
-			}
-			return null;
+			return -1;
 		}
+		for (int i = 0; i < bounds.size(); i++)
+		{
+			Rectangle r = bounds.get(i);
+			if (r != null && r.contains(canvasPoint) && revealService.isCardRevealed(i))
+			{
+				return i;
+			}
+		}
+		return -1;
 	}
 
-	/** Wiki article title for a reveal card (pull {@code wikiPage}, else catalog definition). */
-	public static String wikiPageFor(PackRevealService.RevealCard card)
+	private Dimension finishEarlyPhase(Graphics2D graphics, Rectangle canvas, PackRevealService.RevealPaintSnapshot snap)
 	{
-		if (card == null)
-		{
-			return null;
-		}
-		PackCardResult pull = card.getPull();
-		if (pull != null && pull.getWikiPage() != null && !pull.getWikiPage().isBlank())
-		{
-			return pull.getWikiPage().trim();
-		}
-		if (card.getDefinition() != null && card.getDefinition().getWikiPage() != null
-			&& !card.getDefinition().getWikiPage().isBlank())
-		{
-			return card.getDefinition().getWikiPage().trim();
-		}
+		paintRevealChrome(graphics, canvas, snap, null);
+		clearCardInfoTip();
 		return null;
 	}
 
-	private void paintScrollHintOnTop(Graphics2D g, Rectangle canvas, PackRevealService.RevealPaintSnapshot snap)
+	private void drawRevealCardBack(Graphics2D g2, Rectangle r, PackRevealService.RevealCard card)
 	{
-		if (!snap.isShowScrollWheelOverlayHint())
-		{
-			return;
-		}
-		PackRevealDrawUtil.drawScrollWheelHint(g, canvas);
+		SharedCardRenderer.drawCardBack(g2, r, card.getPull().isFoil(), cardBackImage());
 	}
 
 	private void paintRevealChrome(Graphics2D graphics, Rectangle canvas, PackRevealService.RevealPaintSnapshot snap,
 		List<PackRevealService.RevealCard> cards)
-	{
-		paintScrollHintOnTop(graphics, canvas, snap);
-		paintCloseButton(graphics, canvas);
-		if (cards != null)
-		{
-			paintCardInfoTip(graphics, canvas, cards);
-		}
-	}
-
-	private void paintCloseButton(Graphics2D g, Rectangle canvas)
 	{
 		PackRevealDrawUtil.layoutCloseButton(canvas, closeButtonBounds);
 		boolean hover = false;
@@ -879,23 +754,17 @@ public class PackRevealOverlay extends Overlay
 			Point p = new Point(pointerScratch[0], pointerScratch[1]);
 			hover = closeButtonBounds.contains(p) && !cardInfoTipCoversPoint(p);
 		}
-		PackRevealDrawUtil.drawCloseButton(g, closeButtonBounds, hover);
+		PackRevealDrawUtil.drawCloseButton(graphics, closeButtonBounds, hover);
+		if (cards != null)
+		{
+			paintCardInfoTip(graphics, canvas, cards);
+		}
 	}
 
-	/**
-	 * @return true when the click should close the reveal (same path as Esc / Safe-mode dismiss)
-	 */
 	public boolean handleCloseButtonClick(Point canvasPoint)
 	{
-		if (canvasPoint == null || closeButtonBounds.width <= 0)
-		{
-			return false;
-		}
-		if (!closeButtonBounds.contains(canvasPoint))
-		{
-			return false;
-		}
-		return !cardInfoTipCoversPoint(canvasPoint);
+		return canvasPoint != null && closeButtonBounds.width > 0
+			&& closeButtonBounds.contains(canvasPoint) && !cardInfoTipCoversPoint(canvasPoint);
 	}
 
 	private boolean cardInfoTipCoversPoint(Point p)
@@ -939,11 +808,11 @@ public class PackRevealOverlay extends Overlay
 		return revealPointer(pointerScratch) && r.contains(pointerScratch[0], pointerScratch[1]);
 	}
 
-	private void persistSessionPackZoomIfNeeded()
+	private void persistPackZoomIfNeeded()
 	{
 		if (!Double.isNaN(sessionPackZoomMultiplier))
 		{
-			persistPackRevealScale(sessionPackZoomMultiplier);
+			tcgStateService.setPackRevealOverlayScale(sessionPackZoomMultiplier);
 		}
 	}
 
@@ -972,35 +841,26 @@ public class PackRevealOverlay extends Overlay
 		tipActionBounds.clear();
 	}
 
-	/**
-	 * Right-click on a face-up card: freeze the card tip and append context-menu actions
-	 * (Inspect / Open wiki page) when available.
-	 *
-	 * @return true when the tip was pinned
-	 */
 	public boolean pinCardInfoTipAt(Point canvasPoint)
 	{
-		PackRevealService.RevealCard card = faceUpCardAt(canvasPoint);
-		String wikiPage = wikiPageFor(card);
-		String instanceId = CardInfoTipModel.instanceIdFor(card);
-		if (card == null || canvasPoint == null || (wikiPage == null && instanceId == null))
+		if (canvasPoint == null)
 		{
 			return false;
 		}
-		int index = -1;
+		PackRevealService.RevealCard card;
+		int index;
 		synchronized (revealService)
 		{
-			List<PackRevealService.RevealCard> cards = revealService.getCards();
-			for (int i = 0; i < cards.size(); i++)
+			index = faceUpCardIndexAt(canvasPoint);
+			if (index < 0)
 			{
-				if (cards.get(i) == card)
-				{
-					index = i;
-					break;
-				}
+				return false;
 			}
+			card = revealService.getCards().get(index);
 		}
-		if (index < 0)
+		String wikiPage = CardInfoTipModel.wikiPageFor(card);
+		String instanceId = CardInfoTipModel.instanceIdFor(card);
+		if (wikiPage == null && instanceId == null)
 		{
 			return false;
 		}
@@ -1014,7 +874,6 @@ public class PackRevealOverlay extends Overlay
 		tipPinAnchorY = canvasPoint.y;
 		tipCursorX = canvasPoint.x;
 		tipCursorY = canvasPoint.y;
-		// Skip hover delay / fade so the menu appears immediately.
 		tipHoverStartedAtMs = System.currentTimeMillis() - CardInfoTipModel.DELAY_MS - CardInfoTipModel.FADE_IN_MS;
 		tipActionBounds.clear();
 		tipPanelBounds.setBounds(0, 0, 0, 0);
@@ -1026,11 +885,6 @@ public class PackRevealOverlay extends Overlay
 		return tipPinned;
 	}
 
-	/**
-	 * Left-click while the tip is pinned. Opens inspect/wiki when an action row is hit; otherwise dismisses.
-	 *
-	 * @return true when the click was fully consumed (do not advance the reveal)
-	 */
 	public boolean handlePinnedTipClick(Point canvasPoint)
 	{
 		if (!tipPinned || canvasPoint == null)
@@ -1059,14 +913,9 @@ public class PackRevealOverlay extends Overlay
 			}
 			return true;
 		}
-		// Click on the tip body dismisses without advancing; click elsewhere dismisses and continues.
 		return onTip;
 	}
 
-	/**
-	 * Arms the website-style info tip for settled face-up cards only (180 ms delay).
-	 * Hover tip sits in the top-right of the canvas; the right-click context menu still pins near the cursor.
-	 */
 	private void updateCardInfoTip(List<PackRevealService.RevealCard> cards, List<Rectangle> bases,
 		PackRevealService.RevealPaintSnapshot snap, Rectangle canvas)
 	{
@@ -1150,7 +999,6 @@ public class PackRevealOverlay extends Overlay
 		else
 		{
 			float fadeT = Math.min(1f, (elapsed - CardInfoTipModel.DELAY_MS) / (float) CardInfoTipModel.FADE_IN_MS);
-			// Ease-out: 1 - (1-t)^2
 			float eased = 1f - (1f - fadeT) * (1f - fadeT);
 			alpha = eased;
 			yOffset = 4f * (1f - eased);
@@ -1205,7 +1053,6 @@ public class PackRevealOverlay extends Overlay
 		return true;
 	}
 
-	/** One-shot premium hum per reveal when a qualifying card is still face-down after the pack opens. */
 	private void tryPlayMythicHum(PackRevealService.Phase phase, PackRevealService.RevealPaintSnapshot snap)
 	{
 		boolean humWanted = phase != PackRevealService.Phase.PACK_READY && snap.hasUnrevealedMythic();
@@ -1278,10 +1125,6 @@ public class PackRevealOverlay extends Overlay
 		resetHoverAnimations();
 	}
 
-	/**
-	 * Lerp factor for elapsed wall time since the last hover update. Matches {@link #HOVER_LERP} per frame at
-	 * {@link #HOVER_LERP_REFERENCE_HZ} so feel is unchanged at 60 FPS but hover no longer slows when FPS drops.
-	 */
 	private double advanceHoverLerpFactor()
 	{
 		long now = System.nanoTime();
@@ -1324,33 +1167,15 @@ public class PackRevealOverlay extends Overlay
 		return out;
 	}
 
-	/**
-	 * Preferred zoom mul: session wheel choice, else the persisted scale from state
-	 * (clamped to discrete levels). Applied size is still capped by canvas fit.
-	 */
 	private double preferredZoomMultiplier()
 	{
 		if (!Double.isNaN(sessionPackZoomMultiplier))
 		{
 			return sessionPackZoomMultiplier;
 		}
-		return readPersistedPackRevealScale();
-	}
-
-	private double readPersistedPackRevealScale()
-	{
 		return PackRevealZoomUtil.clamp(tcgStateService.getState().getPackRevealOverlayScale());
 	}
 
-	private void persistPackRevealScale(double multiplier)
-	{
-		tcgStateService.setPackRevealOverlayScale(multiplier);
-	}
-
-	/**
-	 * Wheel steps size preference through {@link PackRevealZoomUtil#LEVELS}. Layout still uses the
-	 * largest preferred level that fits the canvas.
-	 */
 	public void nudgeSessionPackZoom(int wheelRotation)
 	{
 		if (wheelRotation == 0)
@@ -1359,27 +1184,8 @@ public class PackRevealOverlay extends Overlay
 		}
 		double base = preferredZoomMultiplier();
 		sessionPackZoomMultiplier = PackRevealZoomUtil.nudge(base, wheelRotation);
-		persistPackRevealScale(sessionPackZoomMultiplier);
+		tcgStateService.setPackRevealOverlayScale(sessionPackZoomMultiplier);
 		invalidateFaceSizes();
-		debugPackZoomChange();
-	}
-
-	private void debugPackZoomChange()
-	{
-		if (!tcgStateService.isDebugChatEnabled())
-		{
-			return;
-		}
-		Rectangle canvas = new Rectangle(0, 0, client.getCanvasWidth(), client.getCanvasHeight());
-		int cardCount = Math.max(1, revealService.getCards().size());
-		PackRevealService.Phase phase = revealService.getPhase();
-		PackRevealLayout.ZoomMetrics m = PackRevealLayout.measureZoom(canvas, cardCount, phase, preferredZoomMultiplier(), this::noteAppliedZoom);
-		String message = String.format(Locale.US,
-			"Pack zoom mul=%.3f applied=%.3f fit=%.3f contain=%.3f cover=%.3f scaleW=%.3f scaleH=%.3f "
-				+ "canvas=%dx%d cards=%dx%d phase=%s",
-			m.zoomMul, m.appliedS, m.fitS, m.containS, m.coverS, m.scaleW, m.scaleH,
-			canvas.width, canvas.height, m.cardW, m.cardH, phase);
-		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, message);
 	}
 
 	private void ensureCardHoverLength(int n)
@@ -1406,15 +1212,14 @@ public class PackRevealOverlay extends Overlay
 		}
 	}
 
-
-	private PackRevealLayout.ViewportLayout computeViewportLayout(Rectangle canvas, int cardCount)
-	{
-		return computeViewportLayout(canvas, cardCount, revealService.getPhase());
-	}
-
 	private PackRevealLayout.ViewportLayout computeViewportLayout(Rectangle canvas, int cardCount, PackRevealService.Phase phase)
 	{
 		return PackRevealLayout.computeViewportLayout(canvas, cardCount, phase, preferredZoomMultiplier(), this::noteAppliedZoom);
+	}
+
+	private Rectangle fullCanvas()
+	{
+		return new Rectangle(0, 0, client.getCanvasWidth(), client.getCanvasHeight());
 	}
 
 	private void noteAppliedZoom(double zoomMul)
@@ -1446,33 +1251,23 @@ public class PackRevealOverlay extends Overlay
 		{
 			PackRevealService.RevealCard card = cards.get(i);
 			Rectangle r = rects.get(i);
-			PackRevealDrawUtil.drawGlow(graphics, r, card.getRarityColor(), 0f);
-			SharedCardRenderer.drawCardBack(graphics, r, card.getPull().isFoil(), card.getRarityColor(),
+			SharedCardRenderer.drawCardBack(graphics, r, card.getPull().isFoil(),
 				cardBackImage());
 		}
-	}
-
-	/**
-	 * Pixel rect where pack PNG (or card-back fallback) is drawn inside {@code bounds}; matches drawImageFit.
-	 */
-	private Rectangle packImageDrawRect(Rectangle bounds, String boosterPackId)
-	{
-		return PackRevealDrawUtil.fittedImageRect(bounds, packArtForPackId(boosterPackId));
 	}
 
 	private void drawPackImage(Graphics2D g, Rectangle bounds, float alpha, String boosterPackId)
 	{
 		BufferedImage packArt = packArtForPackId(boosterPackId);
+		g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0f, Math.min(1f, alpha))));
 		if (packArt != null)
 		{
-			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0f, Math.min(1f, alpha))));
 			PackRevealDrawUtil.drawImageFit(g, packArt, bounds);
-			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
-			return;
 		}
-
-		g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0f, Math.min(1f, alpha))));
-		SharedCardRenderer.drawCardBack(g, bounds, false, Color.WHITE, cardBackImage());
+		else
+		{
+			SharedCardRenderer.drawCardBack(g, bounds, false, cardBackImage());
+		}
 		g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
 	}
 
@@ -1488,17 +1283,12 @@ public class PackRevealOverlay extends Overlay
 			return null;
 		}
 		BoosterPackDefinition pack = packCatalogService.getCache().get(boosterPackId).orElse(null);
-		String imagePath = PackImageUrls.revealSleevePath(pack);
+		String imagePath = pack == null ? null : pack.revealSleevePath();
 		if (imagePath == null)
 		{
 			return null;
 		}
 		return imageCacheService.getCached(imagePath);
-	}
-
-	static double clampPackRevealZoomMultiplier(double value)
-	{
-		return PackRevealZoomUtil.clamp(value);
 	}
 
 	private static final class SlotFaceCache

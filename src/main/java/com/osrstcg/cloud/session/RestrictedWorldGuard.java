@@ -8,10 +8,6 @@ import javax.inject.Singleton;
 import net.runelite.api.Client;
 import net.runelite.api.WorldType;
 
-/**
- * Worlds where TCG credit gains and cloud sync must not run
- * (temporary / special game modes).
- */
 @Singleton
 public final class RestrictedWorldGuard
 {
@@ -34,7 +30,6 @@ public final class RestrictedWorldGuard
 		this.client = client;
 	}
 
-	/** True when the current world blocks credit gains and cloud traffic. */
 	public boolean isRestricted()
 	{
 		return isRestricted(client == null ? null : client.getWorldType());
@@ -56,7 +51,6 @@ public final class RestrictedWorldGuard
 		return false;
 	}
 
-	/** Human-readable blocked types present on this world (for tooltips / logs). */
 	public String describeBlockedTypes()
 	{
 		EnumSet<WorldType> types = client == null ? null : client.getWorldType();

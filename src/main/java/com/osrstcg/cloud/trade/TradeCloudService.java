@@ -20,24 +20,11 @@ import com.osrstcg.cloud.api.CloudApiException;
 import com.osrstcg.cloud.api.CloudEndpoints;
 import com.osrstcg.cloud.session.CloudSessionService;
 
-/**
- * Single cloud timer: trade inbox + piggybacked sidebar stats, with collection
- * reconcile when local counts disagree with inbox overview (or sync markers diverge).
- * Next delay comes only from {@code pollAfterMs}. World hops must not restart
- * a faster fixed schedule - {@link #start()} is idempotent while already running.
- */
 @Slf4j
 @Singleton
 public final class TradeCloudService
 {
-	/** Default when the server omits pollAfterMs (matches low-load floor). */
 	private static final long DEFAULT_POLL_MS = 15_000L;
-	/**
-	 * Floor only for missing/invalid success values; server {@code pollAfterMs} is otherwise
-	 * authoritative (no client max). Error backoff still uses this as a lower bound.
-	 */
-	private static final long MIN_POLL_MS = 15_000L;
-	private static final long BACKOFF_INITIAL_MS = 15_000L;
 	private static final long BACKOFF_MAX_MS = 180_000L;
 	private static final long AUTH_RETRY_MS = 60_000L;
 
@@ -52,7 +39,6 @@ public final class TradeCloudService
 	private final AtomicBoolean running = new AtomicBoolean(false);
 	private final AtomicBoolean polling = new AtomicBoolean(false);
 	private final AtomicBoolean forceAgain = new AtomicBoolean(false);
-	/** First inbox poll after {@link #start()} broadcasts pending trades in chat. */
 	private final AtomicBoolean broadcastPendingOnLogin = new AtomicBoolean(false);
 	private final AtomicLong lastRevision = new AtomicLong(-1L);
 	private final AtomicLong lastGoodPollAfterMs = new AtomicLong(DEFAULT_POLL_MS);
@@ -75,11 +61,6 @@ public final class TradeCloudService
 		this.scheduler = scheduler;
 	}
 
-	/**
-	 * Start inbox polling. Idempotent while already running so world hops do not reset
-	 * {@code sinceRevision} or force a faster timer. Fresh start (after logout) triggers an
-	 * immediate poll; subsequent delays come from server {@code pollAfterMs}.
-	 */
 	public void start()
 	{
 		synchronized (scheduleLock)
@@ -110,10 +91,6 @@ public final class TradeCloudService
 		}
 	}
 
-	/**
-	 * Immediate inbox poll (e.g. after pack / attest / trade create). Next delay still
-	 * comes from the server {@code pollAfterMs} on the following successful response.
-	 */
 	public void requestForcedRefresh()
 	{
 		synchronized (scheduleLock)
@@ -132,7 +109,6 @@ public final class TradeCloudService
 		}
 	}
 
-	/** Keep {@code sinceRevision} aligned after pack / attest RPC responses. */
 	public void noteRevision(long revision)
 	{
 		if (revision >= 0L)
@@ -160,7 +136,7 @@ public final class TradeCloudService
 	{
 		if (!session.isReady())
 		{
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager, "[OSRS TCG] Cloud offline - cannot trade.");
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, "Cloud offline - cannot trade.");
 			return;
 		}
 		if (partnerDisplayName == null || partnerDisplayName.trim().isEmpty())
@@ -170,8 +146,8 @@ public final class TradeCloudService
 		long accountHash = client.getAccountHash();
 		if (accountHash == -1L)
 		{
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-				"[OSRS TCG] Waiting for account - try again in a moment.");
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+				"Waiting for account - try again in a moment.");
 			return;
 		}
 		final String partner = partnerDisplayName.trim();
@@ -182,12 +158,16 @@ public final class TradeCloudService
 				JsonObject result = api.createTrade(partner, accountHash);
 				applyEconomyFieldsFromRpc(result);
 				String url = result.has("url") ? result.get("url").getAsString() : null;
-				TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-					"[OSRS TCG] Trade request sent to " + partner
+				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+					"Trade request sent to " + partner
 						+ (url == null || url.isEmpty() ? "." : " - finish on the website."));
 				if (url != null && !url.isEmpty())
 				{
-					openUrl(CloudEndpoints.rewriteToWebBase(url));
+					String browseUrl = CloudEndpoints.rewriteToWebBase(url);
+					if (browseUrl != null && !browseUrl.isBlank())
+					{
+						LinkBrowser.browse(browseUrl);
+					}
 				}
 				notifyListener();
 				requestForcedRefresh();
@@ -198,64 +178,14 @@ public final class TradeCloudService
 			}
 			catch (IllegalArgumentException ex)
 			{
-				TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-					"[OSRS TCG] Trade failed: account hash missing - try relogging.");
+				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+					"Trade failed: account hash missing - try relogging.");
 			}
 			catch (Exception ex)
 			{
 				log.warn("Trade create failed", ex);
-				TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-					"[OSRS TCG] Trade failed - cloud error.");
-			}
-		});
-	}
-
-	/**
-	 * Cancel a pending trade (plugin). Allowed while quarantined - frees escrow/locks.
-	 */
-	public void cancelTrade(String tradeId)
-	{
-		if (!session.isReady())
-		{
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager, "[OSRS TCG] Cloud offline - cannot cancel trade.");
-			return;
-		}
-		if (tradeId == null || tradeId.isBlank())
-		{
-			return;
-		}
-		long accountHash = client.getAccountHash();
-		if (accountHash == -1L)
-		{
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-				"[OSRS TCG] Waiting for account - try again in a moment.");
-			return;
-		}
-		final String id = tradeId.trim();
-		scheduler.execute(() ->
-		{
-			try
-			{
-				JsonObject result = api.cancelTrade(id, accountHash);
-				applyEconomyFieldsFromRpc(result);
-				TcgPluginGameMessages.queueGameMessage(chatMessageManager, "[OSRS TCG] Trade cancelled.");
-				notifyListener();
-				requestForcedRefresh();
-			}
-			catch (CloudApiException ex)
-			{
-				queueTradeFailure(ex);
-			}
-			catch (IllegalArgumentException ex)
-			{
-				TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-					"[OSRS TCG] Trade failed: account hash missing - try relogging.");
-			}
-			catch (Exception ex)
-			{
-				log.warn("Trade cancel failed", ex);
-				TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-					"[OSRS TCG] Trade cancel failed - cloud error.");
+				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+					"Trade failed - cloud error.");
 			}
 		});
 	}
@@ -267,8 +197,8 @@ public final class TradeCloudService
 			return;
 		}
 		String mapped = TradeMutationErrors.messageFor(ex);
-		TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-			"[OSRS TCG] " + (mapped == null ? "Trade failed." : mapped));
+		TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+			mapped == null ? "Trade failed." : mapped);
 	}
 
 	private void scheduleNextLocked(long delayMs)
@@ -297,7 +227,7 @@ public final class TradeCloudService
 		{
 			nextDelayMs = poll();
 			backoffMs.set(0L);
-			lastGoodPollAfterMs.set(resolveSuccessPollMs(nextDelayMs));
+			lastGoodPollAfterMs.set(nextDelayMs <= 0L ? DEFAULT_POLL_MS : nextDelayMs);
 			nextDelayMs = lastGoodPollAfterMs.get();
 		}
 		catch (CloudApiException ex)
@@ -307,7 +237,7 @@ public final class TradeCloudService
 		}
 		catch (Exception e)
 		{
-			nextDelayMs = delayForTransientError();
+			nextDelayMs = nextBackoffDelayMs();
 			log.debug("Trade inbox poll failed", e);
 		}
 		finally
@@ -331,21 +261,14 @@ public final class TradeCloudService
 		}
 	}
 
-	/**
-	 * @return {@code pollAfterMs} from the server (or default when omitted)
-	 */
 	private long poll() throws Exception
 	{
-		if (!session.isReady())
-		{
-			return lastGoodPollAfterMs.get();
-		}
-		long hash = client.getAccountHash();
-		if (hash == -1L)
+		if (!session.isReady() || client.getAccountHash() == -1L)
 		{
 			return lastGoodPollAfterMs.get();
 		}
 
+		long hash = client.getAccountHash();
 		long knownRevision = lastRevision.get();
 		Long since = knownRevision >= 0L ? knownRevision : null;
 		JsonObject response = api.getTradeInbox(hash, since);
@@ -361,9 +284,8 @@ public final class TradeCloudService
 		{
 			JsonObject stats = response.getAsJsonObject("stats");
 			session.applySidebarStats(stats);
-			session.maybeReconcileCollectionFromInbox(stats);
+			session.reconcileCollectionFromInbox(stats);
 		}
-		// statsUnchanged == true → keep cached sidebar stats; do not clear them.
 
 		if (response.has("revision") && !response.get("revision").isJsonNull())
 		{
@@ -377,7 +299,11 @@ public final class TradeCloudService
 		{
 			if (loginBroadcast || !item.isNotified())
 			{
-				queuePendingTradeRequestMessage(item.getFromDisplayName());
+				String fromLabel = item.getFromDisplayName() == null || item.getFromDisplayName().isBlank()
+					? "someone"
+					: item.getFromDisplayName().trim();
+				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+					"You have a pending trade request from " + fromLabel + ". Check the sidebar!");
 				if (!item.isNotified())
 				{
 					try
@@ -398,22 +324,12 @@ public final class TradeCloudService
 		return pollAfterMs;
 	}
 
-	private void queuePendingTradeRequestMessage(String fromDisplayName)
-	{
-		String fromLabel = fromDisplayName == null || fromDisplayName.isBlank()
-			? "someone"
-			: fromDisplayName.trim();
-		TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-			"[OSRS TCG] You have a pending trade request from " + fromLabel + ". Check the sidebar!");
-	}
-
 	private void applyEconomyFieldsFromRpc(JsonObject response)
 	{
 		if (response == null)
 		{
 			return;
 		}
-		// Do not pass through arbitrary "status" into account status.
 		if (response.has("credits") || response.has("openedPacks") || response.has("totalCreditsGained"))
 		{
 			JsonObject economy = new JsonObject();
@@ -450,68 +366,34 @@ public final class TradeCloudService
 	{
 		if (ex.isUnauthorized())
 		{
-			// requestAuthed already attempted refresh; avoid tight-looping inbox.
 			try
 			{
 				session.ensureSession();
 			}
 			catch (Exception ignored)
 			{
-				// ensureSession is synchronized and self-contained
 			}
 			return AUTH_RETRY_MS;
 		}
 		if (ex.isRateLimited() || ex.isServerError())
 		{
-			long next = backoffMs.get();
-			if (next <= 0L)
-			{
-				next = BACKOFF_INITIAL_MS;
-			}
-			else
-			{
-				next = Math.min(BACKOFF_MAX_MS, next * 2L);
-			}
-			backoffMs.set(next);
-			return Math.max(MIN_POLL_MS, next);
+			return nextBackoffDelayMs();
 		}
-		return Math.max(MIN_POLL_MS, lastGoodPollAfterMs.get());
+		return Math.max(DEFAULT_POLL_MS, lastGoodPollAfterMs.get());
 	}
 
-	private long delayForTransientError()
+	private long nextBackoffDelayMs()
 	{
 		long next = backoffMs.get();
 		if (next <= 0L)
 		{
-			next = BACKOFF_INITIAL_MS;
+			next = DEFAULT_POLL_MS;
 		}
 		else
 		{
 			next = Math.min(BACKOFF_MAX_MS, next * 2L);
 		}
 		backoffMs.set(next);
-		return Math.max(MIN_POLL_MS, next);
-	}
-
-	/**
-	 * Server {@code pollAfterMs} is authoritative (no client max). Non-positive values
-	 * fall back to the default floor.
-	 */
-	private static long resolveSuccessPollMs(long pollAfterMs)
-	{
-		if (pollAfterMs <= 0L)
-		{
-			return DEFAULT_POLL_MS;
-		}
-		return pollAfterMs;
-	}
-
-	private static void openUrl(String url)
-	{
-		if (url == null || url.isBlank())
-		{
-			return;
-		}
-		LinkBrowser.browse(url);
+		return Math.max(DEFAULT_POLL_MS, next);
 	}
 }

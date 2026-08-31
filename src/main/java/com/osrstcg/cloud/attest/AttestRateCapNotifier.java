@@ -16,15 +16,10 @@ import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.chat.ChatMessageManager;
 
-/**
- * Player-facing warnings when {@code POST /credits/attest} returns rate-cap rejects or quarantine.
- * Throttled so chat is not spammed across many capped batches.
- */
 @Slf4j
 @Singleton
 public final class AttestRateCapNotifier
 {
-	/** At most one rate-cap chat warning per this window. */
 	static final long RATE_CAP_THROTTLE_MS = 3L * 60_000L;
 
 	private static final String RATE_CAP_PREFIX = "rate_cap";
@@ -35,30 +30,24 @@ public final class AttestRateCapNotifier
 	@Inject
 	AttestRateCapNotifier(ChatMessageManager chatMessageManager)
 	{
-		this(body -> TcgPluginGameMessages.queueGameMessage(chatMessageManager, body));
+		this(body -> TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, body));
 	}
 
-	/** Package-visible for unit tests. */
 	AttestRateCapNotifier(Consumer<String> chatSink)
 	{
 		this.chatSink = chatSink == null ? body -> { } : chatSink;
 	}
 
-	/** Call on logout / account switch so the next session can warn again. */
 	public void reset()
 	{
 		lastRateCapWarnAtMs.set(0L);
 	}
 
-	/**
-	 * Inspect a successful attest JSON body. Applies economy elsewhere - this only notifies.
-	 */
 	public void onAttestResponse(JsonObject response)
 	{
 		onAttestResponse(response, System.currentTimeMillis());
 	}
 
-	/** Package-visible for tests (injectable clock). */
 	void onAttestResponse(JsonObject response, long nowMs)
 	{
 		if (response == null)
@@ -84,7 +73,6 @@ public final class AttestRateCapNotifier
 		if (quarantined)
 		{
 			log.warn("Credit attest response quarantined=true");
-			// Full-sidebar lock is handled by CloudSessionService.enterAccountQuarantined().
 		}
 	}
 
@@ -246,7 +234,6 @@ public final class AttestRateCapNotifier
 				}
 				catch (RuntimeException ignored)
 				{
-					// skip
 				}
 			}
 		}

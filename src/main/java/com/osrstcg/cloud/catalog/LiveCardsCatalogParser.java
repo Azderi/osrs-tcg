@@ -123,7 +123,8 @@ public final class LiveCardsCatalogParser
 			category.add("NPC");
 		}
 
-		Long id = numberLong(raw, "id");
+		Double idNumber = JsonObjects.readNumber(raw, "id");
+		Long id = idNumber == null ? null : Math.round(idNumber);
 		String cardName = name;
 		if (npc && itemNames.contains(name))
 		{
@@ -159,17 +160,19 @@ public final class LiveCardsCatalogParser
 		{
 			card.setWikiPage(wikiPage);
 		}
-		Long score = numberLong(tcg, "score");
-		if (score != null)
+		Double scoreNumber = JsonObjects.readNumber(tcg, "score");
+		if (scoreNumber != null)
 		{
-			card.setScore(score);
+			card.setScore(Math.round(scoreNumber));
 		}
-		Long foilScore = numberLong(tcg, "foilScore");
+		Double foilScoreNumber = JsonObjects.readNumber(tcg, "foilScore");
+		Long foilScore = foilScoreNumber == null ? null : Math.round(foilScoreNumber);
 		if (foilScore != null && foilScore >= 0L)
 		{
 			card.setFoilScore(foilScore);
 		}
-		Long overrideFoilScore = numberLong(tcg, "overrideFoilScore");
+		Double overrideFoilScoreNumber = JsonObjects.readNumber(tcg, "overrideFoilScore");
+		Long overrideFoilScore = overrideFoilScoreNumber == null ? null : Math.round(overrideFoilScoreNumber);
 		if (overrideFoilScore != null && overrideFoilScore >= 0L && card.getFoilScore() == null)
 		{
 			card.setFoilScore(overrideFoilScore);
@@ -202,7 +205,8 @@ public final class LiveCardsCatalogParser
 			{
 				continue;
 			}
-			Long variantId = numberLong(el.getAsJsonObject(), "id");
+			Double variantIdNumber = JsonObjects.readNumber(el.getAsJsonObject(), "id");
+			Long variantId = variantIdNumber == null ? null : Math.round(variantIdNumber);
 			if (variantId == null || !seen.add(variantId))
 			{
 				continue;
@@ -232,21 +236,5 @@ public final class LiveCardsCatalogParser
 			}
 		}
 		return out;
-	}
-
-	private static Long numberLong(JsonObject o, String key)
-	{
-		if (o == null || !o.has(key) || o.get(key).isJsonNull())
-		{
-			return null;
-		}
-		try
-		{
-			return Math.round(o.get(key).getAsDouble());
-		}
-		catch (RuntimeException ex)
-		{
-			return null;
-		}
 	}
 }

@@ -1,92 +1,44 @@
 package com.osrstcg.ui.welcome;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonSyntaxException;
-import com.google.gson.reflect.TypeToken;
 import java.awt.Color;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.lang.reflect.Type;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import lombok.extern.slf4j.Slf4j;
 
 /**
- * Loads welcome-tab paragraphs from bundled {@code /com/osrstcg/welcome/Welcome.json}.
+ * Hardcoded welcome-tab paragraphs (previously loaded from Welcome.json).
  */
 @Singleton
-@Slf4j
 public class WelcomeContent
 {
-	private static final Type PARAGRAPH_LIST_TYPE = new TypeToken<List<WelcomeParagraph>>() { }.getType();
 	private static final Color DEFAULT_COLOR = new Color(0xBBBBBB);
 
-	private final Gson gson;
-	private List<WelcomeParagraph> paragraphs = Collections.emptyList();
-	private boolean loaded;
+	private static final List<WelcomeParagraph> PARAGRAPHS = List.of(
+		new WelcomeParagraph("Welcome to OSRS TCG", "#e8c458", 20, true),
+		new WelcomeParagraph(
+			"Play OSRS to earn credits, buy booster packs, collect cards, and trade with other players.",
+			"#FFFFFF", 16, false),
+		new WelcomeParagraph(
+			"Card scores are not meant to accurately reflect the in-gamevalue, usefulness of the items or difficulty of the monster and boss encounters.",
+			"#BBBBBB", 16, false),
+		new WelcomeParagraph(
+			"One copy of each card you owned before migrating is imported and kept as a beta card. Beta cards cannot be traded or sold and do not count towards your collection stats. Cards from packs after migrating are normal and can be traded.",
+			"#FFFF00", 16, false),
+		new WelcomeParagraph("Disclaimer", "#e8c458", 20, true),
+		new WelcomeParagraph(
+			"OSRS TCG is a fan-made minigame for fun. Cards have no real-world or in-game value.\n\nDo not buy or sell cards for money, bonds, gold, or items. Trade at your own risk.",
+			"#BBBBBB", 16, false)
+	);
 
 	@Inject
-	public WelcomeContent(Gson gson)
+	public WelcomeContent()
 	{
-		this.gson = gson;
 	}
 
-	public synchronized void load()
+	public List<WelcomeParagraph> getParagraphs()
 	{
-		if (loaded)
-		{
-			return;
-		}
-		loaded = true;
-		try (Reader reader = openClasspathReader("/com/osrstcg/welcome/Welcome.json"))
-		{
-			if (reader == null)
-			{
-				log.warn("Welcome.json resource missing from plugin classpath");
-				paragraphs = Collections.emptyList();
-				return;
-			}
-			List<WelcomeParagraph> parsed = gson.fromJson(reader, PARAGRAPH_LIST_TYPE);
-			if (parsed == null || parsed.isEmpty())
-			{
-				paragraphs = Collections.emptyList();
-				return;
-			}
-			List<WelcomeParagraph> clean = new ArrayList<>(parsed.size());
-			for (WelcomeParagraph p : parsed)
-			{
-				if (p == null)
-				{
-					continue;
-				}
-				String text = p.getText();
-				if (text == null || text.isBlank())
-				{
-					continue;
-				}
-				clean.add(p);
-			}
-			paragraphs = Collections.unmodifiableList(clean);
-			log.info("Loaded {} welcome paragraphs from Welcome.json", paragraphs.size());
-		}
-		catch (IOException | JsonSyntaxException ex)
-		{
-			log.warn("Failed reading Welcome.json from classpath", ex);
-			paragraphs = Collections.emptyList();
-		}
-	}
-
-	public synchronized List<WelcomeParagraph> getParagraphs()
-	{
-		load();
-		return paragraphs;
+		return PARAGRAPHS;
 	}
 
 	public static Color resolveColor(String raw)
@@ -133,15 +85,5 @@ public class WelcomeContent
 	public static int resolveFontSize(Integer size)
 	{
 		return size == null ? 0 : size;
-	}
-
-	private Reader openClasspathReader(String resourcePath)
-	{
-		InputStream stream = getClass().getResourceAsStream(resourcePath);
-		if (stream == null)
-		{
-			return null;
-		}
-		return new InputStreamReader(stream, StandardCharsets.UTF_8);
 	}
 }

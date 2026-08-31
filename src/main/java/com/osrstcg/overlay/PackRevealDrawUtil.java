@@ -1,10 +1,10 @@
 package com.osrstcg.overlay;
 
 import com.osrstcg.ui.SharedCardRenderer;
+import com.osrstcg.ui.card.CardColorMath;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
-import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.GradientPaint;
 import java.awt.Graphics2D;
@@ -17,7 +17,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import net.runelite.client.ui.FontManager;
 
-/** Shared dim/glow/badge/fit drawing for the pack-reveal overlay. */
 final class PackRevealDrawUtil
 {
 	static final int CLOSE_BUTTON_SIZE = 26;
@@ -34,7 +33,6 @@ final class PackRevealDrawUtil
 
 	private static final int GLOW_CACHE_MAX = 24;
 	private static final int GLOW_LAYERS = 6;
-	/** Peak opacity of the innermost baked glow layer (before hover alpha is applied). */
 	private static final float GLOW_LAYER_ALPHA = 0.58f;
 	private static final float GLOW_MAX_EXPAND = 28f;
 	private static final Map<String, BufferedImage> GLOW_CACHE = Collections.synchronizedMap(
@@ -145,21 +143,6 @@ final class PackRevealDrawUtil
 		}
 	}
 
-	static void drawScrollWheelHint(Graphics2D g, Rectangle canvas)
-	{
-		String text = "Scroll to adjust card scale";
-		Font font = FontManager.getRunescapeBoldFont();
-		g.setFont(font);
-		FontMetrics fm = g.getFontMetrics(font);
-		int tw = fm.stringWidth(text);
-		int x = canvas.x + (canvas.width - tw) / 2;
-		int y = canvas.y + Math.max(28, PackRevealLayout.VIEWPORT_EDGE_PAD + 8) + fm.getAscent();
-		g.setColor(new Color(0, 0, 0, 220));
-		g.drawString(text, x + 2, y + 2);
-		g.setColor(new Color(0xFF, 0xF5, 0xDC));
-		g.drawString(text, x, y);
-	}
-
 	static Rectangle scaleRectCentered(Rectangle r, double scale)
 	{
 		int nw = Math.max(1, (int) Math.round(r.width * scale));
@@ -193,9 +176,6 @@ final class PackRevealDrawUtil
 		drawGlow(g, r, color, alpha, GLOW_MAX_EXPAND, GLOW_LAYERS, baseArc);
 	}
 
-	/**
-	 * @param maxExpand outer halo reach in pixels (smaller = tighter around {@code r})
-	 */
 	static void drawGlow(Graphics2D g, Rectangle r, Color color, float alpha, float maxExpand, int layers, int baseArc)
 	{
 		Color glow = color == null ? Color.WHITE : color;
@@ -263,8 +243,7 @@ final class PackRevealDrawUtil
 
 	static Color withAlpha(Color color, float alpha)
 	{
-		int a = Math.max(0, Math.min(255, (int) Math.round(alpha * 255f)));
-		return new Color(color.getRed(), color.getGreen(), color.getBlue(), a);
+		return CardColorMath.withAlpha(color == null ? Color.WHITE : color, alpha);
 	}
 
 	static Rectangle fittedImageRect(Rectangle bounds, BufferedImage image)

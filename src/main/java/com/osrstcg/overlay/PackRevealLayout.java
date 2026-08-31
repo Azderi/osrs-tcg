@@ -8,24 +8,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.DoubleConsumer;
 
-/**
- * Viewport / grid geometry for the pack-reveal overlay. Zoom preference is supplied by the overlay;
- * applied size is the largest discrete level that still fits the canvas.
- */
 final class PackRevealLayout
 {
 	static final double CARD_SIZE_SCALE = 0.805d * 1.25d;
 	static final int BASE_CARD_W = (int) Math.round(SharedCardRenderer.DEFAULT_CARD_WIDTH * CARD_SIZE_SCALE);
 	static final int BASE_CARD_H = (int) Math.round(SharedCardRenderer.DEFAULT_CARD_HEIGHT * CARD_SIZE_SCALE);
-	/** Sealed pack sprite bounds (before native layout scale). */
 	static final int BASE_PACK_W = 396;
 	static final int BASE_PACK_H = 545;
 	static final int BASE_CARD_GAP = 24;
-	/** Inset from the canvas edge when measuring available fit space. */
 	static final int VIEWPORT_EDGE_PAD = 8;
-	/**
-	 * Classic fixed clients are short (~503px). Prefer filling height on those canvases.
-	 */
 	static final int SMALL_CANVAS_HEIGHT_PX = 560;
 	static final double MIN_OVERLAY_SCALE = 0.28d;
 	static final int CLASSIC_CANVAS_W = 765;
@@ -46,42 +37,22 @@ final class PackRevealLayout
 	static ViewportLayout computeViewportLayout(Rectangle canvas, int cardCount, PackRevealService.Phase phase,
 		double preferredZoomMul, DoubleConsumer onAppliedZoom)
 	{
-		ZoomMetrics m = measureZoom(canvas, cardCount, phase, preferredZoomMul, onAppliedZoom);
-		return new ViewportLayout(m.packW, m.packH, m.cardW, m.cardH, m.gap);
-	}
-
-	static ZoomMetrics measureZoom(Rectangle canvas, int cardCount, PackRevealService.Phase phase,
-		double preferredZoomMul, DoubleConsumer onAppliedZoom)
-	{
 		int edge = viewportEdgePad(canvas);
 		int availW = Math.max(80, canvas.width - 2 * edge);
 		int availH = Math.max(80, canvas.height - 2 * edge);
-		int gridW = naturalGridWidth(cardCount);
-		int gridH = naturalGridHeight(cardCount);
 		boolean packOnly = isPackSizedPhase(phase);
-		double needW = packOnly ? BASE_PACK_W : Math.max(BASE_PACK_W, gridW);
-		double needH = packOnly ? BASE_PACK_H : Math.max(BASE_PACK_H, gridH);
-		double scaleW = availW / needW;
-		double scaleH = availH / needH;
-		double containS = Math.min(scaleW, scaleH);
-		double coverS = Math.max(scaleW, scaleH);
-		double fitS = defaultFitScale(canvas, scaleH, containS);
-		fitS = Math.max(MIN_OVERLAY_SCALE, Math.min(1.0d, fitS));
-
 		double zoomMul = PackRevealZoomUtil.largestFittingAtMost(preferredZoomMul,
 			level -> nativeLayoutFits(availW, availH, cardCount, packOnly, level));
 		if (onAppliedZoom != null)
 		{
 			onAppliedZoom.accept(zoomMul);
 		}
-
-		double s = NATIVE_LAYOUT_SCALE * zoomMul;
-		int packW = PackRevealZoomUtil.scalePx(NATIVE_PACK_W, zoomMul);
-		int packH = PackRevealZoomUtil.scalePx(NATIVE_PACK_H, zoomMul);
-		int cardW = PackRevealZoomUtil.scalePx(NATIVE_CARD_W, zoomMul);
-		int cardH = PackRevealZoomUtil.scalePx(NATIVE_CARD_H, zoomMul);
-		int gap = PackRevealZoomUtil.scalePx(NATIVE_CARD_GAP, zoomMul);
-		return new ZoomMetrics(zoomMul, s, fitS, containS, coverS, scaleW, scaleH, packW, packH, cardW, cardH, gap);
+		return new ViewportLayout(
+			PackRevealZoomUtil.scalePx(NATIVE_PACK_W, zoomMul),
+			PackRevealZoomUtil.scalePx(NATIVE_PACK_H, zoomMul),
+			PackRevealZoomUtil.scalePx(NATIVE_CARD_W, zoomMul),
+			PackRevealZoomUtil.scalePx(NATIVE_CARD_H, zoomMul),
+			PackRevealZoomUtil.scalePx(NATIVE_CARD_GAP, zoomMul));
 	}
 
 	static boolean isPackSizedPhase(PackRevealService.Phase phase)
@@ -169,7 +140,6 @@ final class PackRevealLayout
 		return (bottomCount > 0) ? (cardH * 2) + gap : cardH;
 	}
 
-	/** Whether classic-native layout × {@code mul} fits in the available canvas. */
 	private static boolean nativeLayoutFits(int availW, int availH, int cardCount, boolean packOnly, double mul)
 	{
 		int packW = PackRevealZoomUtil.scalePx(NATIVE_PACK_W, mul);
@@ -188,7 +158,6 @@ final class PackRevealLayout
 		return needW <= availW && needH <= availH;
 	}
 
-	/** Classic-fixed fit scale. */
 	private static double classicNativeLayoutScale()
 	{
 		Rectangle canvas = new Rectangle(0, 0, CLASSIC_CANVAS_W, CLASSIC_CANVAS_H);
@@ -206,7 +175,6 @@ final class PackRevealLayout
 		return Math.max(MIN_OVERLAY_SCALE, Math.min(1.0d, fitS));
 	}
 
-	/** On short canvases (classic fixed), fill height by default; otherwise contain. */
 	private static double defaultFitScale(Rectangle canvas, double scaleH, double containS)
 	{
 		if (canvas != null && canvas.height <= SMALL_CANVAS_HEIGHT_PX)
@@ -238,39 +206,6 @@ final class PackRevealLayout
 			int x = canvas.x + (canvas.width - packW) / 2;
 			int y = canvas.y + (canvas.height - packH) / 2;
 			return new Rectangle(x, y, packW, packH);
-		}
-	}
-
-	static final class ZoomMetrics
-	{
-		final double zoomMul;
-		final double appliedS;
-		final double fitS;
-		final double containS;
-		final double coverS;
-		final double scaleW;
-		final double scaleH;
-		final int packW;
-		final int packH;
-		final int cardW;
-		final int cardH;
-		final int gap;
-
-		ZoomMetrics(double zoomMul, double appliedS, double fitS, double containS, double coverS,
-			double scaleW, double scaleH, int packW, int packH, int cardW, int cardH, int gap)
-		{
-			this.zoomMul = zoomMul;
-			this.appliedS = appliedS;
-			this.fitS = fitS;
-			this.containS = containS;
-			this.coverS = coverS;
-			this.scaleW = scaleW;
-			this.scaleH = scaleH;
-			this.packW = packW;
-			this.packH = packH;
-			this.cardW = cardW;
-			this.cardH = cardH;
-			this.gap = gap;
 		}
 	}
 }

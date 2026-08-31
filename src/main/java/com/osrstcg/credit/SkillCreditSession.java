@@ -18,7 +18,7 @@ final class SkillCreditSession
 	boolean skillLevelsInitialized;
 	boolean skillXpInitialized;
 	long pendingSlayerXpToAttest;
-	long slayerOptimisticRemainder;
+	long slayerXpRemainder;
 
 	void resetTracking()
 	{
@@ -32,14 +32,14 @@ final class SkillCreditSession
 	{
 		Arrays.fill(uncreditedXpBySkill, 0L);
 		pendingSlayerXpToAttest = 0L;
-		slayerOptimisticRemainder = 0L;
+		slayerXpRemainder = 0L;
 	}
 
 	void restoreUncreditedXp(SkillCreditBaseline saved)
 	{
 		Arrays.fill(uncreditedXpBySkill, 0L);
 		pendingSlayerXpToAttest = 0L;
-		slayerOptimisticRemainder = 0L;
+		slayerXpRemainder = 0L;
 
 		if (saved == null || !saved.isPresent())
 		{
@@ -144,13 +144,13 @@ final class SkillCreditSession
 			uncreditedByName);
 	}
 
-	void snapshotSkillBaselinesIfLoggedIn(Client client)
+	void snapshotBaselinesIfLoggedIn(Client client)
 	{
-		snapshotSkillExperiencesIfLoggedIn(client);
+		snapshotXpIfLoggedIn(client);
 		snapshotSkillLevelsIfLoggedIn(client);
 	}
 
-	void snapshotSkillExperiencesIfLoggedIn(Client client)
+	void snapshotXpIfLoggedIn(Client client)
 	{
 		if (client == null || client.getGameState() != GameState.LOGGED_IN)
 		{
