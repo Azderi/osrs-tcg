@@ -30,7 +30,7 @@ import net.runelite.client.ui.ColorScheme;
  * a 7px rim (padding, not a stroked border), 11px outer radius. Banded faces use five flat-filled
  * bands as CSS grid rows {@code 10/40/10/30/10}. Foil instances with catalog {@code foilImagePath}
  * use the full-bleed art layout from {@code AlbumCardFace}.
- * Foil tint/sheen and wear are composited by {@link CardFxPainter}; sparkles are drawn live.</p>
+ * Wear is composited by {@link CardFxPainter}; foil sparkles are drawn live.</p>
  *
  * <p>Type uses bundled RuneScape fonts ({@code runescape_bold.ttf} for title/tier/score/foil bleed,
  * {@code runescape.ttf} for banded examine) at the site's {@code 15.625px} card root.</p>
@@ -223,11 +223,6 @@ public final class SharedCardRenderer
 		finally
 		{
 			g2.dispose();
-		}
-
-		if (req.isFoil() && req.isDrawFoilOverlays() && req.getFoilFx() != null)
-		{
-			CardFxPainter.drawFoil(face, geo.outerRadius, geo.scale, req.getFoilFx());
 		}
 
 		WearFx wear = req.getWear();

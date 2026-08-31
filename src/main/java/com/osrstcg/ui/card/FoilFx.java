@@ -7,9 +7,8 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Deterministic foil tint + sparkle layout. Literal port of
- * {@code osrs-tcg-front/src/album/foilFx.js}: same FNV seed as {@link WearFx} with an empty
- * {@code pulledBy}. Sparkle/tint hues follow rarity; sheen stays cream/cyan in {@link CardFxPainter}.
+ * Deterministic foil sparkle layout. Same FNV seed as {@link WearFx} with an empty
+ * {@code pulledBy}. Sparkle hues follow rarity.
  */
 public final class FoilFx
 {
@@ -84,63 +83,17 @@ public final class FoilFx
 	}
 
 	private final int seed;
-	private final double tintHue;
-	/** 0–1; CSS {@code --foil-tint-s}. */
-	private final double tintSat;
-	/** 0–1; CSS {@code --foil-tint-s-mid}. */
-	private final double tintSatMid;
-	/** 0–1; CSS {@code --foil-tint-s-end}. */
-	private final double tintSatEnd;
-	private final double tintAngle;
 	private final List<Sparkle> sparkles;
 
-	private FoilFx(
-		int seed,
-		double tintHue,
-		double tintSat,
-		double tintSatMid,
-		double tintSatEnd,
-		double tintAngle,
-		List<Sparkle> sparkles)
+	private FoilFx(int seed, List<Sparkle> sparkles)
 	{
 		this.seed = seed;
-		this.tintHue = tintHue;
-		this.tintSat = tintSat;
-		this.tintSatMid = tintSatMid;
-		this.tintSatEnd = tintSatEnd;
-		this.tintAngle = tintAngle;
 		this.sparkles = Collections.unmodifiableList(sparkles);
 	}
 
 	public int getSeed()
 	{
 		return seed;
-	}
-
-	public double getTintHue()
-	{
-		return tintHue;
-	}
-
-	public double getTintSat()
-	{
-		return tintSat;
-	}
-
-	public double getTintSatMid()
-	{
-		return tintSatMid;
-	}
-
-	public double getTintSatEnd()
-	{
-		return tintSatEnd;
-	}
-
-	/** CSS gradient angle in degrees (0 = up, increasing clockwise). */
-	public double getTintAngle()
-	{
-		return tintAngle;
 	}
 
 	public List<Sparkle> getSparkles()
@@ -200,26 +153,7 @@ public final class FoilFx
 			sparkles.add(new Sparkle(x, y, size, delay, duration, hue, sat, light));
 		}
 
-		double tintHue;
-		double tintSat;
-		double tintSatMid;
-		double tintSatEnd;
-		if (silver)
-		{
-			tintHue = 0.0d;
-			tintSat = (6.0d + rand.next() * 8.0d) / 100.0d;
-			tintSatMid = (8.0d + rand.next() * 10.0d) / 100.0d;
-			tintSatEnd = (5.0d + rand.next() * 8.0d) / 100.0d;
-		}
-		else
-		{
-			tintHue = wrapHue(baseHue - 16.0d + rand.next() * 32.0d);
-			tintSat = 0.85d;
-			tintSatMid = 0.90d;
-			tintSatEnd = 0.80d;
-		}
-		double tintAngle = 110.0d + rand.next() * 40.0d;
-		return new FoilFx(seed, tintHue, tintSat, tintSatMid, tintSatEnd, tintAngle, sparkles);
+		return new FoilFx(seed, sparkles);
 	}
 
 	static RarityMath.Tier resolveTier(String tierLabel, Color tierColor)

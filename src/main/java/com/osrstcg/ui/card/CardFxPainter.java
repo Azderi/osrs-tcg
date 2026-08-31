@@ -22,9 +22,8 @@ import java.awt.image.Kernel;
  * ({@code color-dodge}, {@code soft-light}, {@code multiply}, {@code luminosity}) and the
  * {@code saturate/contrast/brightness} filter with direct pixel math on an offscreen ARGB raster.
  *
- * <p>Foil tint/sheen blend directly onto the opaque face ({@code color-dodge} / {@code soft-light}).
- * Wear blend modes are also applied onto the face so multiply dirt/stains etch into the art the way
- * they read in inspect.</p>
+ * <p>Wear blend modes are applied onto the face so multiply dirt/stains etch into the art the way
+ * they read in inspect. Foil sparkles are drawn live (not baked into the face raster).</p>
  *
  * <p>All geometry constants mirror {@code .album-card__foil-*} and {@code .card-inspect__wear*}
  * in {@code osrs-tcg-front/src/index.css}.</p>
@@ -284,18 +283,6 @@ public final class CardFxPainter
 	}
 
 	// ------------------------------------------------------------------ foil
-
-	/**
-	 * Inspect-style foil tint + sheen (no sparkles). Sparkles are drawn live via
-	 * {@link #drawAnimatedSparkles}.
-	 *
-	 * @param cornerRadius outer card radius in px
-	 * @param scale        {@code width / 180}
-	 */
-	public static void drawFoil(BufferedImage face, double cornerRadius, double scale, FoilFx fx)
-	{
-		FoilPainter.drawFoil(face, cornerRadius, scale, fx);
-	}
 
 	/**
 	 * Live foil sparkles matching {@code .album-card__sparkle} / {@code album-foil-sparkle}:
