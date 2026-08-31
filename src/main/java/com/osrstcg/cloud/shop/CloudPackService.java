@@ -84,7 +84,7 @@ public final class CloudPackService
 		}
 		if (!session.isReady())
 		{
-			String reason = session.needsProfileCreate()
+			String reason = session.needsCloudConsent()
 				? "Create a profile before opening packs."
 				: "Cloud offline - cannot open packs.";
 			return PackOpenResult.failed(reason, creditsBefore, booster.getPrice());

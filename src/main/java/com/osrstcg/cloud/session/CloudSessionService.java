@@ -24,6 +24,7 @@ import com.osrstcg.cloud.activity.ActivityConfigService;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
 import com.osrstcg.cloud.api.CloudConnectionState;
+import com.osrstcg.cloud.api.JsonObjects;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
 import com.osrstcg.cloud.catalog.CardCatalogService;
 import com.osrstcg.cloud.catalog.PackCatalogService;
@@ -33,6 +34,10 @@ import com.osrstcg.cloud.trade.TradeCloudService;
 @Singleton
 public final class CloudSessionService
 {
+	private static final String WAITING_FOR_ACCOUNT = "Waiting for account";
+	private static final String WAITING_FOR_DISPLAY_NAME = "Waiting for display name";
+	private static final String CONSENT_WAITING_STATUS = "Create a profile";
+
 	private final Client client;
 	private final CloudApiClient api;
 	private final CloudTokenStore tokens;
@@ -57,7 +62,6 @@ public final class CloudSessionService
 	private final AtomicReference<Runnable> statusListener = new AtomicReference<>(null);
 	private final AtomicBoolean hiscoresSettledThisLogin = new AtomicBoolean(false);
 	private final AtomicBoolean hiscoresSettleRetryScheduled = new AtomicBoolean(false);
-	private final AtomicBoolean forceStatePullOnce = new AtomicBoolean(false);
 	private final AtomicBoolean accountBanned = new AtomicBoolean(false);
 	private final AtomicBoolean accountQuarantined = new AtomicBoolean(false);
 	private final List<Runnable> accountLockCleanups = new CopyOnWriteArrayList<>();
@@ -101,13 +105,13 @@ public final class CloudSessionService
 		this.collectionPager = new CloudCollectionPager(api);
 		this.collectionSync = new CloudCollectionSyncService(
 			this, api, tokens, stateService, creditAttestQueueProvider,
-			publicStatsCalculator, collectionPager, forceStatePullOnce);
+			publicStatsCalculator, collectionPager);
 		this.hiscoresSettle = new HiscoresSettleService(
 			client, api, tokens, restrictedWorldGuard, scheduler, chatMessageManager, tradeCloudProvider,
 			collectionSync::applySidebarStats, hiscoresSettledThisLogin, hiscoresSettleRetryScheduled,
 			this::needsCloudConsent, this::isAccountLocked);
 		this.profileConsent = new CloudProfileConsentService(
-			this, collectionSync, client, api, tokens, profileKeyHasher, stateService,
+			this, collectionSync, hiscoresSettle, client, api, tokens, profileKeyHasher, stateService,
 			chatMessageManager, packCatalogService, cardCatalogService, activityConfigService);
 		api.setStaleRefreshHandler(this::handleStaleRefresh);
 		api.setAccountLockHandler(this::noteLockFromApiException);
@@ -115,13 +119,10 @@ public final class CloudSessionService
 
 	private void handleStaleRefresh()
 	{
-		packCatalogService.clear();
-		cardCatalogService.resetLoginFetchGate();
-		activityConfigService.stopQuietPoll();
-		hiscoresSettle.clearGate();
+		clearLoginFetchGates();
 		if (needsCloudConsent())
 		{
-			setState(CloudConnectionState.DISCONNECTED, consentWaitingMessage());
+			setState(CloudConnectionState.DISCONNECTED, CONSENT_WAITING_STATUS);
 		}
 		else
 		{
@@ -295,17 +296,9 @@ public final class CloudSessionService
 		{
 			return;
 		}
-		if (response.has("banned") && !response.get("banned").isJsonNull()
-			&& response.get("banned").getAsBoolean())
-		{
-			enterAccountBanned();
-			return;
-		}
-		if (response.has("quarantined") && !response.get("quarantined").isJsonNull()
-			&& response.get("quarantined").getAsBoolean())
-		{
-			enterAccountQuarantined();
-		}
+		applyAccountLockFlags(
+			JsonObjects.readBoolean(response, "banned"),
+			JsonObjects.readBoolean(response, "quarantined"));
 	}
 
 	public void noteLockFromApiException(CloudApiException ex)
@@ -314,12 +307,17 @@ public final class CloudSessionService
 		{
 			return;
 		}
-		if (ex.isAccountBanned())
+		applyAccountLockFlags(ex.isAccountBanned(), ex.isAccountQuarantined());
+	}
+
+	private void applyAccountLockFlags(boolean banned, boolean quarantined)
+	{
+		if (banned)
 		{
 			enterAccountBanned();
 			return;
 		}
-		if (ex.isAccountQuarantined())
+		if (quarantined)
 		{
 			enterAccountQuarantined();
 		}
@@ -330,21 +328,9 @@ public final class CloudSessionService
 		return tokens.getAccessToken() != null && !needsCloudConsent() && !isAccountLocked();
 	}
 
-	/** True until Create profile is accepted; no cloud HTTP except the consent action itself. */
 	public boolean needsCloudConsent()
 	{
 		return !tokens.isMigrated();
-	}
-
-	/** Show Create profile until cloud consent is accepted. */
-	public boolean needsProfileCreate()
-	{
-		return needsCloudConsent();
-	}
-
-	private String consentWaitingMessage()
-	{
-		return "Create a profile";
 	}
 
 	public void setStatusListener(Runnable listener)
@@ -355,7 +341,7 @@ public final class CloudSessionService
 	public boolean isWaitingForGameIdentity()
 	{
 		String message = statusMessage.get();
-		return "Waiting for display name".equals(message) || "Waiting for account".equals(message);
+		return WAITING_FOR_DISPLAY_NAME.equals(message) || WAITING_FOR_ACCOUNT.equals(message);
 	}
 
 	public synchronized void ensureSession()
@@ -371,7 +357,7 @@ public final class CloudSessionService
 				isAccountBanned() ? ACCOUNT_BANNED_STATUS : ACCOUNT_QUARANTINED_STATUS);
 			return;
 		}
-		if (restrictedWorldGuard != null && restrictedWorldGuard.isRestricted())
+		if (isRestrictedWorld())
 		{
 			enterRestrictedWorld();
 			return;
@@ -384,20 +370,19 @@ public final class CloudSessionService
 		long accountHash = client.getAccountHash();
 		if (accountHash == -1L)
 		{
-			setState(CloudConnectionState.DISCONNECTED, "Waiting for account");
+			setState(CloudConnectionState.DISCONNECTED, WAITING_FOR_ACCOUNT);
 			return;
 		}
-		// No cloud API until the user accepts Create profile.
 		if (needsCloudConsent())
 		{
-			setState(CloudConnectionState.DISCONNECTED, consentWaitingMessage());
+			setState(CloudConnectionState.DISCONNECTED, CONSENT_WAITING_STATUS);
 			return;
 		}
 		String displayName = resolveDisplayName();
 		boolean needsDisplayName = !tokens.hasRefreshToken();
-		if (needsDisplayName && (displayName == null || displayName.isEmpty()))
+		if (needsDisplayName && displayNameMissing(displayName))
 		{
-			setState(CloudConnectionState.DISCONNECTED, "Waiting for display name");
+			setState(CloudConnectionState.DISCONNECTED, WAITING_FOR_DISPLAY_NAME);
 			return;
 		}
 		String profileHash = profileKeyHasher.currentProfileKeyHash();
@@ -430,9 +415,9 @@ public final class CloudSessionService
 
 			if (!tokens.hasRefreshToken())
 			{
-				if (displayName == null || displayName.isEmpty())
+				if (displayNameMissing(displayName))
 				{
-					setState(CloudConnectionState.DISCONNECTED, "Waiting for display name");
+					setState(CloudConnectionState.DISCONNECTED, WAITING_FOR_DISPLAY_NAME);
 					return;
 				}
 				pairSession(displayName, profileHash, accountHash);
@@ -484,7 +469,6 @@ public final class CloudSessionService
 		return name == null || name.isEmpty() ? null : name;
 	}
 
-	/** Pair/refresh if needed and accept cloud consent. Call off the EDT. */
 	public synchronized void createProfile() throws Exception
 	{
 		profileConsent.createProfile();
@@ -500,10 +484,7 @@ public final class CloudSessionService
 	{
 		accountBanned.set(false);
 		accountQuarantined.set(false);
-		packCatalogService.clear();
-		cardCatalogService.resetLoginFetchGate();
-		activityConfigService.stopQuietPoll();
-		hiscoresSettle.clearGate();
+		clearLoginFetchGates();
 		stateService.clearCloudCollectionStatsCache();
 		stateService.clearCloudGroupKey();
 		setState(CloudConnectionState.DISCONNECTED, "Disconnected");
@@ -512,11 +493,6 @@ public final class CloudSessionService
 	public void snapshotHiscoresOnLogout()
 	{
 		hiscoresSettle.snapshotOnLogout();
-	}
-
-	public void settleHiscoresAfterCloudLogin()
-	{
-		hiscoresSettle.settleAfterCloudLogin();
 	}
 
 	public void applySidebarStats(JsonObject stats)
@@ -532,11 +508,6 @@ public final class CloudSessionService
 	public void refreshCreditsFromServer() throws Exception
 	{
 		collectionSync.refreshCreditsFromServer();
-	}
-
-	public boolean forceRefreshCollectionState()
-	{
-		return collectionSync.forceRefreshCollectionState();
 	}
 
 	void pairSession(String displayName, String profileHash, long accountHash)
@@ -563,5 +534,18 @@ public final class CloudSessionService
 		{
 			listener.run();
 		}
+	}
+
+	private void clearLoginFetchGates()
+	{
+		packCatalogService.clear();
+		cardCatalogService.resetLoginFetchGate();
+		activityConfigService.stopQuietPoll();
+		hiscoresSettle.clearGate();
+	}
+
+	private static boolean displayNameMissing(String displayName)
+	{
+		return displayName == null || displayName.isEmpty();
 	}
 }

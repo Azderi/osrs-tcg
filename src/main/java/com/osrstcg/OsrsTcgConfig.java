@@ -19,12 +19,19 @@ public interface OsrsTcgConfig extends Config
 	)
 	String generalSection = "general";
 
+	@ConfigSection(
+		name = "Credits",
+		description = "Credits display and notifications.",
+		position = 5
+	)
+	String creditsSection = "credits";
+
 	@ConfigItem(
 		keyName = "creditsInfobox",
 		name = "Credits infobox",
 		description = "Show your credits on screen. Alt+drag to move. Shift+right-click to open packs "
 			+ "or reset Credits/h.",
-		section = generalSection,
+		section = creditsSection,
 		position = 0
 	)
 	default boolean creditsInfobox()
@@ -36,7 +43,7 @@ public interface OsrsTcgConfig extends Config
 		keyName = "creditsPerHour",
 		name = "Credits per hour",
 		description = "Show credits/h on the credits infobox. Shift+right-click the infobox to reset.",
-		section = generalSection,
+		section = creditsSection,
 		position = 1
 	)
 	default boolean creditsPerHour()
@@ -49,7 +56,7 @@ public interface OsrsTcgConfig extends Config
 		name = "Credits/h window",
 		description = "Sliding window for credits/h. Persistent keeps all gains until Shift+right-click "
 			+ "Reset on the credits infobox.",
-		section = generalSection,
+		section = creditsSection,
 		position = 2
 	)
 	default CreditsPerHourWindow creditsPerHourWindow()
@@ -61,7 +68,7 @@ public interface OsrsTcgConfig extends Config
 		keyName = "creditNotifications",
 		name = "Credit notifications",
 		description = "Chat when you have the amount of credits you set.",
-		section = generalSection,
+		section = creditsSection,
 		position = 3
 	)
 	default boolean creditNotifications()
@@ -73,19 +80,19 @@ public interface OsrsTcgConfig extends Config
 		keyName = "creditNotificationAmount",
 		name = "Notification amount",
 		description = "Credit threshold for notifications.",
-		section = generalSection,
+		section = creditsSection,
 		position = 4
 	)
 	default int creditNotificationAmount()
 	{
 		return 2500;
 	}
-	
+
 	@ConfigItem(
 		keyName = "runeliteNotifications",
-		name = "Runelite notifications",
-		description = "Enable certain notifications to be sent through RuneLite's default notification service as well.",
-		section = generalSection,
+		name = "RuneLite notifications",
+		description = "Also send credit notifications through RuneLite's notification service.",
+		section = creditsSection,
 		position = 5
 	)
 	default boolean runeliteNotifications()
@@ -98,19 +105,26 @@ public interface OsrsTcgConfig extends Config
 		name = "Compact shop",
 		description = "Hide pack thumbnails in the shop so more packs fit on the sidebar.",
 		section = generalSection,
-		position = 6
+		position = 0
 	)
 	default boolean compactShop()
 	{
 		return false;
 	}
 
+	@ConfigSection(
+		name = "Pack opening",
+		description = "Pack reveal overlay and sounds.",
+		position = 7
+	)
+	String packOpeningSection = "packOpening";
+
 	@ConfigItem(
 		keyName = "enableSounds",
 		name = "Enable pack opening sounds",
 		description = "Play sounds when opening packs.",
-		section = generalSection,
-		position = 7
+		section = packOpeningSection,
+		position = 0
 	)
 	default boolean enableSounds()
 	{
@@ -121,8 +135,8 @@ public interface OsrsTcgConfig extends Config
 		keyName = "showGradeWear",
 		name = "Show grade wear",
 		description = "Show condition wear effects on cards in the pack opening overlay.",
-		section = generalSection,
-		position = 8
+		section = packOpeningSection,
+		position = 1
 	)
 	default boolean showGradeWear()
 	{
@@ -133,8 +147,8 @@ public interface OsrsTcgConfig extends Config
 		keyName = "packRarityHighlight",
 		name = "Rarity Highlight",
 		description = "Show rarity when hovering unflipped pack cards.",
-		section = generalSection,
-		position = 9
+		section = packOpeningSection,
+		position = 2
 	)
 	default boolean packRarityHighlight()
 	{
@@ -146,8 +160,8 @@ public interface OsrsTcgConfig extends Config
 		name = "Rarity Text",
 		description = "Show the rarity name above unflipped pack cards on hover. Helps colour blind users "
 			+ "tell rarities apart without relying on the highlight colour.",
-		section = generalSection,
-		position = 10
+		section = packOpeningSection,
+		position = 3
 	)
 	default boolean packRarityText()
 	{
@@ -159,7 +173,7 @@ public interface OsrsTcgConfig extends Config
 		name = "Sidebar hiscores ranks",
 		description = "Show your hiscores rank under overview stats after opening a pack.",
 		section = generalSection,
-		position = 12
+		position = 1
 	)
 	default boolean showSidebarRanks()
 	{
@@ -171,23 +185,11 @@ public interface OsrsTcgConfig extends Config
 		name = "Chat prefix colour",
 		description = "Colour of the [OSRS TCG] chat tag.",
 		section = generalSection,
-		position = 13
+		position = 2
 	)
 	default Color chatPrefixColor()
 	{
 		return new Color(0xC4, 0x94, 0x1A);
-	}
-
-	@ConfigItem(
-		keyName = "debugMessages",
-		name = "Debug messages",
-		description = "Chat debug messages",
-		section = generalSection,
-		position = 14
-	)
-	default boolean debugMessages()
-	{
-		return false;
 	}
 
 	@ConfigSection(
@@ -325,6 +327,25 @@ public interface OsrsTcgConfig extends Config
 		position = 10
 	)
 	default boolean dinkNotifications()
+	{
+		return false;
+	}
+
+	@ConfigSection(
+		name = "Debug",
+		description = "Developer and troubleshooting options.",
+		position = 15
+	)
+	String debugSection = "debug";
+
+	@ConfigItem(
+		keyName = "debugMessages",
+		name = "Debug messages",
+		description = "Chat debug messages",
+		section = debugSection,
+		position = 0
+	)
+	default boolean debugMessages()
 	{
 		return false;
 	}

@@ -252,8 +252,7 @@ public final class ShopTab
 
 	private void applyBuyButtonEnabledState(long credits)
 	{
-		boolean needsProfileCreate = cloudSessionService.needsProfileCreate();
-		boolean consentPending = needsProfileCreate;
+		boolean consentPending = cloudSessionService.needsCloudConsent();
 		boolean revealBusy = packRevealService.isActive();
 		int n = Math.min(buyButtons.size(), buyPrices.size());
 		for (int i = 0; i < n; i++)
@@ -261,7 +260,7 @@ public final class ShopTab
 			JButton buy = buyButtons.get(i);
 			int price = buyPrices.get(i);
 			buy.setEnabled(!revealBusy && !consentPending && credits >= price);
-			if (needsProfileCreate)
+			if (consentPending)
 			{
 				buy.setToolTipText("Create a profile before opening packs.");
 			}

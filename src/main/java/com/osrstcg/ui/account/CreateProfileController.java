@@ -77,7 +77,7 @@ public final class CreateProfileController
 
 	public void createProfile()
 	{
-		if (cloudSessionService.isRestrictedWorld() || !cloudSessionService.needsProfileCreate())
+		if (cloudSessionService.isRestrictedWorld() || !cloudSessionService.needsCloudConsent())
 		{
 			afterUi.run();
 			return;
@@ -293,7 +293,7 @@ public final class CreateProfileController
 		{
 			return;
 		}
-		boolean pending = cloudSessionService.needsProfileCreate();
+		boolean pending = cloudSessionService.needsCloudConsent();
 		boolean busy = inFlight.get();
 		createProfileButton.setEnabled(pending && !busy);
 		createProfileButton.setText(busy ? "Creating…" : "Create profile");

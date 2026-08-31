@@ -120,7 +120,7 @@ public final class SidebarChrome
 		}
 		CloudConnectionState state = cloudSessionService.getConnectionState();
 		String message = cloudSessionService.getStatusMessage();
-		boolean needsProfileCreate = cloudSessionService.needsProfileCreate();
+		boolean consentPending = cloudSessionService.needsCloudConsent();
 		boolean restrictedWorld = cloudSessionService.isRestrictedWorld();
 		boolean accountLocked = cloudSessionService.isAccountLocked();
 
@@ -151,7 +151,7 @@ public final class SidebarChrome
 				? "Credits disabled on this world type"
 				: message;
 		}
-		else if (needsProfileCreate && state != CloudConnectionState.CONNECTING)
+		else if (consentPending && state != CloudConnectionState.CONNECTING)
 		{
 			color = connectingYellow;
 			tooltip = "Create an OSRS TCG profile to connect to cloud";

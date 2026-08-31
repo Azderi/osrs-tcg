@@ -13,15 +13,12 @@ import com.osrstcg.cloud.catalog.CardCatalogService;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.state.TcgStateService;
 
-/**
- * Create-profile consent and adopting an already-migrated server account.
- * Local save upload / {@code POST /me/migrate} is handled outside the plugin.
- */
 @Slf4j
 final class CloudProfileConsentService
 {
 	private final CloudSessionService session;
 	private final CloudCollectionSyncService collectionSync;
+	private final HiscoresSettleService hiscoresSettle;
 	private final Client client;
 	private final CloudApiClient api;
 	private final CloudTokenStore tokens;
@@ -35,6 +32,7 @@ final class CloudProfileConsentService
 	CloudProfileConsentService(
 		CloudSessionService session,
 		CloudCollectionSyncService collectionSync,
+		HiscoresSettleService hiscoresSettle,
 		Client client,
 		CloudApiClient api,
 		CloudTokenStore tokens,
@@ -47,6 +45,7 @@ final class CloudProfileConsentService
 	{
 		this.session = session;
 		this.collectionSync = collectionSync;
+		this.hiscoresSettle = hiscoresSettle;
 		this.client = client;
 		this.api = api;
 		this.tokens = tokens;
@@ -58,7 +57,6 @@ final class CloudProfileConsentService
 		this.activityConfigService = activityConfigService;
 	}
 
-	/** Pair/refresh if needed, set local consent, then finish cloud setup. Call off the EDT. */
 	void createProfile() throws Exception
 	{
 		if (client.getGameState() != GameState.LOGGED_IN)
@@ -129,7 +127,7 @@ final class CloudProfileConsentService
 		{
 			return;
 		}
-		session.settleHiscoresAfterCloudLogin();
+		hiscoresSettle.settleAfterCloudLogin();
 		if (session.isAccountLocked())
 		{
 			return;

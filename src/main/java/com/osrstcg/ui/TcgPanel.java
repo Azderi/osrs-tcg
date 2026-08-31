@@ -874,7 +874,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		boolean inWorld = isClientInGameWorld();
 		boolean restrictedWorld = cloudSessionService.isRestrictedWorld();
 		boolean showCreateProfile = inWorld && !restrictedWorld
-			&& cloudSessionService.needsProfileCreate();
+			&& cloudSessionService.needsCloudConsent();
 
 		footerPanel.setVisible(true);
 		sidebarNoticeView.restoreOpenAccountPanelButtonToFooter();

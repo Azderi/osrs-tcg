@@ -5,15 +5,11 @@ import com.osrstcg.state.TcgState;
 import com.osrstcg.interop.TcgPublicStatsCalculator;
 import com.osrstcg.state.TcgStateService;
 import com.google.gson.JsonObject;
-import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Provider;
 import lombok.extern.slf4j.Slf4j;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
 
-/**
- * {@code /me/state} collection pages, reconcile, and sidebar stats.
- */
 @Slf4j
 final class CloudCollectionSyncService
 {
@@ -24,7 +20,6 @@ final class CloudCollectionSyncService
 	private final Provider<CreditAttestQueue> creditAttestQueueProvider;
 	private final TcgPublicStatsCalculator publicStatsCalculator;
 	private final CloudCollectionPager pager;
-	private final AtomicBoolean forceStatePullOnce;
 
 	CloudCollectionSyncService(
 		CloudSessionService session,
@@ -33,8 +28,7 @@ final class CloudCollectionSyncService
 		TcgStateService stateService,
 		Provider<CreditAttestQueue> creditAttestQueueProvider,
 		TcgPublicStatsCalculator publicStatsCalculator,
-		CloudCollectionPager pager,
-		AtomicBoolean forceStatePullOnce)
+		CloudCollectionPager pager)
 	{
 		this.session = session;
 		this.api = api;
@@ -43,7 +37,6 @@ final class CloudCollectionSyncService
 		this.creditAttestQueueProvider = creditAttestQueueProvider;
 		this.publicStatsCalculator = publicStatsCalculator;
 		this.pager = pager;
-		this.forceStatePullOnce = forceStatePullOnce;
 	}
 
 	void applySidebarStats(JsonObject stats)
@@ -137,27 +130,6 @@ final class CloudCollectionSyncService
 		stateService.clearOptimisticCredits();
 	}
 
-	boolean forceRefreshCollectionState()
-	{
-		if (!session.isReady())
-		{
-			return false;
-		}
-		try
-		{
-			forceStatePullOnce.set(true);
-			JsonObject stats = api.getStats();
-			applySidebarStats(stats);
-			reconcileCollectionWithCloud(stats);
-			return true;
-		}
-		catch (Exception e)
-		{
-			log.warn("Forced collection refresh failed", e);
-			return false;
-		}
-	}
-
 	void refreshLocalCacheFromCloud() throws Exception
 	{
 		JsonObject stats = api.getStats();
@@ -178,9 +150,7 @@ final class CloudCollectionSyncService
 		String localHash = local.getCloudStateHash();
 		String localCollHash = stateService.getCloudCollectionHash();
 		String serverCollHash = server.collectionHash;
-		boolean force = forceStatePullOnce.compareAndSet(true, false);
-		boolean collectionChanged = force
-			|| (!serverCollHash.isEmpty() && !serverCollHash.equalsIgnoreCase(localCollHash))
+		boolean collectionChanged = (!serverCollHash.isEmpty() && !serverCollHash.equalsIgnoreCase(localCollHash))
 			|| (serverCollHash.isEmpty() && server.revision > localRevision);
 
 		if (!collectionChanged)
@@ -193,8 +163,7 @@ final class CloudCollectionSyncService
 			return;
 		}
 
-		String reason = force ? "forced"
-			: (serverCollHash.isEmpty() && server.revision > localRevision) ? "legacy revision behind"
+		String reason = (serverCollHash.isEmpty() && server.revision > localRevision) ? "legacy revision behind"
 			: "collection hash mismatch";
 		log.info("Requesting collection sync from server ({}; local collHash={}, server collHash={})",
 			reason, localCollHash, serverCollHash);
