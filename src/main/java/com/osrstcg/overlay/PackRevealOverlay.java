@@ -198,7 +198,7 @@ public class PackRevealOverlay extends Overlay
 				{
 					float glowAlpha = (float) (HOVER_RARITY_GLOW_ALPHA * Math.max(0.22d, packHoverLift));
 					Rectangle packGlowRect = PackRevealDrawUtil.uniformInset(
-						packImageDrawRect(packScaled, snap.getBoosterPackId()),
+						PackRevealDrawUtil.fittedImageRect(packScaled, packArtForPackId(snap.getBoosterPackId())),
 						PACK_SEALED_GLOW_INSET);
 					PackRevealDrawUtil.drawGlow(graphics, packGlowRect, RarityMath.Tier.GODLY.getColor(), glowAlpha);
 				}
@@ -208,9 +208,7 @@ public class PackRevealOverlay extends Overlay
 				apexPackPointerWasInside = false;
 			}
 			drawPackImage(graphics, packScaled, 1.0f, snap.getBoosterPackId());
-			paintRevealChrome(graphics, canvas, snap, null);
-			clearCardInfoTip();
-			return null;
+			return finishEarlyPhase(graphics, canvas, snap);
 		}
 
 		if (phase == PackRevealService.Phase.PACK_FADING || phase == PackRevealService.Phase.AWAITING_PULLS)
@@ -226,18 +224,14 @@ public class PackRevealOverlay extends Overlay
 			{
 				drawPackImage(graphics, packBounds, packAlpha, snap.getBoosterPackId());
 			}
-			paintRevealChrome(graphics, canvas, snap, null);
-			clearCardInfoTip();
-			return null;
+			return finishEarlyPhase(graphics, canvas, snap);
 		}
 
 		if (phase == PackRevealService.Phase.CARD_DEAL)
 		{
 			drawDealPhase(graphics, canvas, cards, layout, cardCount, snap.getPhaseElapsedMs());
 			prewarmNextRevealFace(cards, PackRevealLayout.layoutCardSlots(canvas, cardCount, layout));
-			paintRevealChrome(graphics, canvas, snap, null);
-			clearCardInfoTip();
-			return null;
+			return finishEarlyPhase(graphics, canvas, snap);
 		}
 
 		List<Rectangle> bounds = PackRevealLayout.layoutCardSlots(canvas, cardCount, layout);
@@ -642,24 +636,21 @@ public class PackRevealOverlay extends Overlay
 				BufferedImage linked = expectsArt ? imageCacheService.getCached(artPath) : null;
 				if (expectsArt && linked == null)
 				{
-					SharedCardRenderer.drawCardBack(g2, r, card.getPull().isFoil(),
-						cardBackImage());
+					drawRevealCardBack(g2, r, card);
 				}
 				else
 				{
 					CardFaceDrawRequest req = cachedFaceRequest(index, card, linked, r.width, r.height);
 					if (!SharedCardRenderer.drawCardFaceIfCached(g2, r, req))
 					{
-						SharedCardRenderer.drawCardBack(g2, r, card.getPull().isFoil(),
-							cardBackImage());
+						drawRevealCardBack(g2, r, card);
 						scheduleFacePrewarm(index, r.width, r.height, req);
 					}
 				}
 			}
 			else
 			{
-				SharedCardRenderer.drawCardBack(g2, r, card.getPull().isFoil(),
-					cardBackImage());
+				drawRevealCardBack(g2, r, card);
 			}
 		}
 		finally
@@ -719,15 +710,6 @@ public class PackRevealOverlay extends Overlay
 		}
 	}
 
-	public PackRevealService.RevealCard faceUpCardAt(Point canvasPoint)
-	{
-		synchronized (revealService)
-		{
-			int i = faceUpCardIndexAt(canvasPoint);
-			return i < 0 ? null : revealService.getCards().get(i);
-		}
-	}
-
 	private int faceUpCardIndexAt(Point canvasPoint)
 	{
 		if (canvasPoint == null)
@@ -748,6 +730,18 @@ public class PackRevealOverlay extends Overlay
 			}
 		}
 		return -1;
+	}
+
+	private Dimension finishEarlyPhase(Graphics2D graphics, Rectangle canvas, PackRevealService.RevealPaintSnapshot snap)
+	{
+		paintRevealChrome(graphics, canvas, snap, null);
+		clearCardInfoTip();
+		return null;
+	}
+
+	private void drawRevealCardBack(Graphics2D g2, Rectangle r, PackRevealService.RevealCard card)
+	{
+		SharedCardRenderer.drawCardBack(g2, r, card.getPull().isFoil(), cardBackImage());
 	}
 
 	private void paintRevealChrome(Graphics2D graphics, Rectangle canvas, PackRevealService.RevealPaintSnapshot snap,
@@ -1260,11 +1254,6 @@ public class PackRevealOverlay extends Overlay
 			SharedCardRenderer.drawCardBack(graphics, r, card.getPull().isFoil(),
 				cardBackImage());
 		}
-	}
-
-	private Rectangle packImageDrawRect(Rectangle bounds, String boosterPackId)
-	{
-		return PackRevealDrawUtil.fittedImageRect(bounds, packArtForPackId(boosterPackId));
 	}
 
 	private void drawPackImage(Graphics2D g, Rectangle bounds, float alpha, String boosterPackId)

@@ -15,7 +15,7 @@ public final class CardEntrySerializer
 
 	public static List<CardEntry> buildProfileEntries(List<OwnedCardInstance> instances)
 	{
-		return buildEntries(instances, true, false);
+		return buildEntries(instances, true);
 	}
 
 	public static List<OwnedCardInstance> expandToInstances(List<CardEntry> entries)
@@ -66,8 +66,7 @@ public final class CardEntrySerializer
 
 	private static List<CardEntry> buildEntries(
 		List<OwnedCardInstance> instances,
-		boolean includeLocked,
-		boolean filterDebugProvenance)
+		boolean includeLocked)
 	{
 		if (instances == null || instances.isEmpty())
 		{
@@ -78,10 +77,6 @@ public final class CardEntrySerializer
 		for (OwnedCardInstance inst : instances)
 		{
 			if (inst == null || inst.getCardName() == null || inst.getCardName().trim().isEmpty())
-			{
-				continue;
-			}
-			if (filterDebugProvenance && OwnedCardInstance.hasDebugPullMetadata(inst.getPulledByUsername()))
 			{
 				continue;
 			}

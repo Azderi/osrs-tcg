@@ -352,7 +352,7 @@ public class PackRevealService
 		{
 			packRevealSoundService.playCardFlip();
 		}
-		announcePartyMythicPullsForCurrentBatchUnrevealed();
+		announcePartyPullsForUnrevealed(true);
 		if (hasUnrevealedPremiumAudio(visibleCards(), revealedByIndex))
 		{
 			packRevealSoundService.playMythicReveal();
@@ -366,10 +366,7 @@ public class PackRevealService
 		{
 			flipStartedAtMs[i] = 0L;
 		}
-		if ((batchOffset + visibleCount()) % 5 == 0)
-		{
-			pullNotificationService.notifyPackAtEnd(List.copyOf(visibleCards()));
-		}
+		notifyPackAtEndIfBatchBoundary();
 		phase = Phase.WAIT_CLOSE;
 		phaseStartedAt = System.currentTimeMillis();
 	}
@@ -633,7 +630,7 @@ public class PackRevealService
 		{
 			return List.of();
 		}
-		announcePartyMythicPullsForAllStillUnrevealed();
+		announcePartyPullsForUnrevealed(false);
 		announceRemainingCollectionAddsToChat();
 		List<RevealCard> snapshot = List.copyOf(cards);
 		packRevealSoundService.hardStop();
@@ -718,25 +715,25 @@ public class PackRevealService
 		return -1;
 	}
 
-	private void announcePartyMythicPullsForCurrentBatchUnrevealed()
+	private void announcePartyPullsForUnrevealed(boolean currentBatchOnly)
 	{
-		for (int i = 0; i < revealedByIndex.length; i++)
+		if (currentBatchOnly)
 		{
-			if (revealedByIndex[i])
+			for (int i = 0; i < revealedByIndex.length; i++)
 			{
-				continue;
+				if (revealedByIndex[i])
+				{
+					continue;
+				}
+				int absIndex = batchOffset + i;
+				if (absIndex < 0 || absIndex >= cards.size())
+				{
+					continue;
+				}
+				notifyPullAndMarkPosted(cards.get(absIndex), absIndex);
 			}
-			int absIndex = batchOffset + i;
-			if (absIndex < 0 || absIndex >= cards.size())
-			{
-				continue;
-			}
-			notifyPullAndMarkPosted(cards.get(absIndex), absIndex);
+			return;
 		}
-	}
-
-	private void announcePartyMythicPullsForAllStillUnrevealed()
-	{
 		for (int absIndex = 0; absIndex < cards.size(); absIndex++)
 		{
 			if (isAbsolutelyRevealed(absIndex))
@@ -744,6 +741,14 @@ public class PackRevealService
 				continue;
 			}
 			notifyPullAndMarkPosted(cards.get(absIndex), absIndex);
+		}
+	}
+
+	private void notifyPackAtEndIfBatchBoundary()
+	{
+		if ((batchOffset + visibleCount()) % 5 == 0)
+		{
+			pullNotificationService.notifyPackAtEnd(List.copyOf(visibleCards()));
 		}
 	}
 
@@ -843,10 +848,7 @@ public class PackRevealService
 
 	private void enterWaitCloseAfterBatchFullyRevealed()
 	{
-		if ((batchOffset + visibleCount()) % 5 == 0)
-		{
-			pullNotificationService.notifyPackAtEnd(List.copyOf(visibleCards()));
-		}
+		notifyPackAtEndIfBatchBoundary();
 		phase = Phase.WAIT_CLOSE;
 		phaseStartedAt = System.currentTimeMillis();
 	}

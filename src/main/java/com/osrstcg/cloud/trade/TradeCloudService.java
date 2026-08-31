@@ -186,53 +186,6 @@ public final class TradeCloudService
 		});
 	}
 
-	public void cancelTrade(String tradeId)
-	{
-		if (!session.isReady())
-		{
-			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, "Cloud offline - cannot cancel trade.");
-			return;
-		}
-		if (tradeId == null || tradeId.isBlank())
-		{
-			return;
-		}
-		long accountHash = client.getAccountHash();
-		if (accountHash == -1L)
-		{
-			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
-				"Waiting for account - try again in a moment.");
-			return;
-		}
-		final String id = tradeId.trim();
-		scheduler.execute(() ->
-		{
-			try
-			{
-				JsonObject result = api.cancelTrade(id, accountHash);
-				applyEconomyFieldsFromRpc(result);
-				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, "Trade cancelled.");
-				notifyListener();
-				requestForcedRefresh();
-			}
-			catch (CloudApiException ex)
-			{
-				queueTradeFailure(ex);
-			}
-			catch (IllegalArgumentException ex)
-			{
-				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
-					"Trade failed: account hash missing - try relogging.");
-			}
-			catch (Exception ex)
-			{
-				log.warn("Trade cancel failed", ex);
-				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
-					"Trade cancel failed - cloud error.");
-			}
-		});
-	}
-
 	private void queueTradeFailure(CloudApiException ex)
 	{
 		if (ex != null && (ex.isAccountBanned() || ex.isAccountQuarantined() || session.isAccountLocked()))

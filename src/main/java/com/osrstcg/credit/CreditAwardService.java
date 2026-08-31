@@ -389,11 +389,6 @@ public class CreditAwardService
 		{
 			return false;
 		}
-		if (skill == Skill.HITPOINTS)
-		{
-			attestXpWithoutCreditBucket(xpGained, skill.getName());
-			return false;
-		}
 		if (skill == Skill.SLAYER)
 		{
 			return attestSlayerXp(xpGained, skill.getName());

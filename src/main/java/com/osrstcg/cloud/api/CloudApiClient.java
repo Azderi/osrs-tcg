@@ -124,12 +124,16 @@ public final class CloudApiClient
 
 	public JsonObject getHealth() throws CloudApiException, IOException
 	{
-		return fetchWithCatalogVersionFromBody(request("GET", "/health", null, false));
+		JsonObject json = request("GET", "/health", null, false);
+		cacheCatalogVersionFrom(json);
+		return json;
 	}
 
 	public JsonObject getPacks() throws CloudApiException, IOException
 	{
-		return fetchWithCatalogVersionFromBody(requestAuthed("GET", "/packs", null));
+		JsonObject json = requestAuthed("GET", "/packs", null);
+		cacheCatalogVersionFrom(json);
+		return json;
 	}
 
 	public LiveCardsResponse getLiveCards(String cachedCatalogVersion) throws CloudApiException, IOException
@@ -180,12 +184,6 @@ public final class CloudApiClient
 	private void cacheCatalogVersionFrom(JsonObject json)
 	{
 		setCachedCatalogVersion(textTrimmed(json, "catalogVersion"));
-	}
-
-	private JsonObject fetchWithCatalogVersionFromBody(JsonObject json)
-	{
-		cacheCatalogVersionFrom(json);
-		return json;
 	}
 
 	public JsonObject pairStart(String displayName, String profileKeyHash, long accountHash)
@@ -315,12 +313,6 @@ public final class CloudApiClient
 		JsonObject body = withPluginAccountHash(new JsonObject(), accountHash);
 		body.addProperty("partnerDisplayName", partnerDisplayName);
 		return requestAuthed("POST", "/trades", body);
-	}
-
-	public JsonObject cancelTrade(String tradeId, long accountHash) throws CloudApiException, IOException
-	{
-		JsonObject body = withPluginAccountHash(new JsonObject(), accountHash);
-		return requestAuthed("POST", "/trades/" + tradeId + "/cancel", body);
 	}
 
 	public JsonObject getTradeInbox(long accountHash, Long sinceRevision) throws CloudApiException, IOException
@@ -579,7 +571,7 @@ public final class CloudApiClient
 		return http.newCall(b.build()).execute();
 	}
 
-	private static String readSuccessfulBody(Response response) throws CloudApiException, IOException
+	private String readSuccessfulBody(Response response) throws CloudApiException, IOException
 	{
 		String text = readBody(response);
 		if (!response.isSuccessful())
