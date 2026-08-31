@@ -27,9 +27,7 @@ import com.osrstcg.state.TcgStateService;
 @Slf4j
 public class CreditAwardService
 {
-	/** Ignore bogus fake XP drop payloads. */
 	private static final int FAKE_XP_DROP_SANITY_CAP = 20_000_000;
-	/** Suppress credit awards while stats settle after login or a world hop. */
 	private static final int CREDIT_AWARD_COOLDOWN_TICKS = 3;
 	private static final Set<Skill> COMBAT_SKILLS = EnumSet.of(
 		Skill.ATTACK,
@@ -48,7 +46,6 @@ public class CreditAwardService
 	private boolean creditAwardCooldownActive;
 	private int creditAwardCooldownUntilTick;
 	private boolean pendingStatsSettleAfterLoginOrHop;
-	/** When true, restore uncredited XP from the persisted snapshot after settle (login / logout). */
 	private boolean restoreUncreditedXpFromPersistedBaseline;
 	private GameState lastObservedGameState;
 
@@ -63,10 +60,6 @@ public class CreditAwardService
 		this.chatMessageManager = chatMessageManager;
 	}
 
-	/**
-	 * Call when the RuneScape profile (or persisted plugin state) changes.
-	 * Keeps the persisted skill snapshot for live-session tracking only; offline/retro credits are server hiscores settle.
-	 */
 	public void resetExperienceCreditBaseline()
 	{
 		skills.resetTracking();
@@ -80,13 +73,8 @@ public class CreditAwardService
 		{
 			clearUncreditedXpPool("profile change");
 		}
-		// Do not snapshot live client stats here - wait for the settle cooldown so live baselines are clean.
 	}
 
-	/**
-	 * After a disk save restore: keep restored collection/economy, and set this profile's skill credit
-	 * baselines to the character's current stats.
-	 */
 	public void rebaseExperienceCreditBaselineToCurrentStats()
 	{
 		skills.resetTracking();
@@ -98,7 +86,6 @@ public class CreditAwardService
 		debugAward("Set skill credit baselines to current stats after disk save restore");
 	}
 
-	/** Flush live skill XP / uncredited pool into profile state before a checkpoint (logout, unload, etc.). */
 	public void flushSkillBaselineForPersist()
 	{
 		if (!isCreditTrackingAllowed())
@@ -109,16 +96,11 @@ public class CreditAwardService
 		persistSkillBaselineToState();
 	}
 
-	/** Whether XP / level / kill credit tracking is active (false when banned or quarantined). */
 	public boolean isCreditTrackingAllowed()
 	{
 		return !session.isAccountLocked();
 	}
 
-	/**
-	 * Clears in-memory credit tracking when the server locks the account. Pending attests are
-	 * discarded separately by {@link com.osrstcg.cloud.session.CloudSessionService}.
-	 */
 	public void stopCreditTrackingForAccountLock()
 	{
 		clearUncreditedXpPool("account locked");
@@ -131,7 +113,6 @@ public class CreditAwardService
 		}
 	}
 
-	/** @return true if a 1000 XP credit chunk was awarded (panel should refresh) */
 	public boolean onStatChanged(StatChanged event)
 	{
 		if (!isCreditTrackingAllowed())
@@ -167,7 +148,6 @@ public class CreditAwardService
 
 		int previous = skills.lastKnownLevels.get(skill);
 
-		// Skill levels cannot decrease; ignore transient drops.
 		if (current <= previous)
 		{
 			return xpChunkAwarded;
@@ -178,7 +158,6 @@ public class CreditAwardService
 		return xpChunkAwarded;
 	}
 
-	/** @return true if a 1000 XP credit chunk was awarded (panel should refresh) */
 	public boolean onFakeXpDrop(FakeXpDrop event)
 	{
 		if (!isCreditTrackingAllowed())
@@ -227,7 +206,6 @@ public class CreditAwardService
 		return applyXpGain(xp, skill);
 	}
 
-	/** Call when the plugin is enabled mid-session so stats are not credited against empty baselines. */
 	public void onPluginStarted()
 	{
 		if (client == null)
@@ -287,7 +265,6 @@ public class CreditAwardService
 
 		if (pendingStatsSettleAfterLoginOrHop)
 		{
-			// Tracking was already reset at login screen / hop; realign to post-login ticks only.
 			beginCreditAwardCooldown();
 		}
 	}
@@ -326,10 +303,6 @@ public class CreditAwardService
 		}
 	}
 
-	/**
-	 * After the post-login/hop settle window: restore leftover uncredited XP chunk remainder and
-	 * snapshot live skill XP/levels for in-session attest.
-	 */
 	private void captureSkillBaselinesAfterLoginSettle()
 	{
 		SkillCreditBaseline saved = stateService.getState().getSkillCreditBaseline();
@@ -385,7 +358,6 @@ public class CreditAwardService
 		return totalReward;
 	}
 
-	/** @return true if a 1000 XP credit chunk was awarded */
 	private boolean trackXpGainFromStatChanged(Skill skill, int currentXp)
 	{
 		if (isOverallSkill(skill))
@@ -400,7 +372,6 @@ public class CreditAwardService
 		}
 
 		int previousXp = skills.previousSkillXp[skillIndex];
-		// Skill XP cannot decrease; never lower the baseline.
 		if (currentXp < previousXp)
 		{
 			debugAward(String.format(
@@ -440,7 +411,6 @@ public class CreditAwardService
 		return xpChunkAwarded;
 	}
 
-	/** @return true if optimistic XP credits were applied */
 	private boolean applyXpGain(long xpGained, Skill skill)
 	{
 		if (xpGained <= 0L || skill == null)
@@ -467,9 +437,6 @@ public class CreditAwardService
 		return awarded;
 	}
 
-	/**
-	 * Hitpoints XP is attested but never fills the credit remainder.
-	 */
 	private void attestXpWithoutCreditBucket(long xpGained, String source)
 	{
 		if (xpGained <= 0L)
@@ -492,10 +459,6 @@ public class CreditAwardService
 			NumberFormatting.format(XpCreditMath.XP_PER_CREDIT_CHUNK)));
 	}
 
-	/**
-	 * Always enqueue Slayer XP (any amount) so boss kills under 1000 XP still attest;
-	 * optimistic credits use the 100 XP bucket (server owns the true remainder).
-	 */
 	private boolean attestSlayerXp(long xpGained, String source)
 	{
 		if (xpGained <= 0L)
@@ -535,7 +498,6 @@ public class CreditAwardService
 		return credits > 0L;
 	}
 
-	/** @return true if optimistic credits were applied from XP chunks */
 	private boolean awardCreditsFromUncreditedXp(Skill skill)
 	{
 		if (skill == null)
@@ -572,9 +534,6 @@ public class CreditAwardService
 		return credits > 0L;
 	}
 
-	/**
-	 * Writes the current in-memory skill baselines into profile state.
-	 */
 	private void persistSkillBaselineToState()
 	{
 		if (!isCreditTrackingAllowed() || !skills.skillXpInitialized)
@@ -608,7 +567,6 @@ public class CreditAwardService
 		creditAwardCooldownUntilTick = client.getTickCount() + CREDIT_AWARD_COOLDOWN_TICKS;
 	}
 
-	/** Whether NPC-kill / activity credit awards should be suppressed right now (settle window after login/hop). */
 	public boolean isCreditAwardOnCooldown()
 	{
 		if (!creditAwardCooldownActive || client == null)
@@ -622,7 +580,6 @@ public class CreditAwardService
 			return false;
 		}
 
-		// Cooldown armed before the tick counter reset.
 		if (creditAwardCooldownUntilTick - tick > CREDIT_AWARD_COOLDOWN_TICKS)
 		{
 			return false;

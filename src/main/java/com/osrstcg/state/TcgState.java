@@ -2,7 +2,10 @@ package com.osrstcg.state;
 
 import com.osrstcg.util.PackRevealZoomUtil;
 import java.util.Arrays;
+import lombok.AccessLevel;
+import lombok.Getter;
 
+@Getter
 public final class TcgState
 {
 	public static final int CURRENT_SCHEMA_VERSION = 6;
@@ -14,21 +17,12 @@ public final class TcgState
 	private final boolean debugLogging;
 	private final double packRevealOverlayScale;
 	private final SkillCreditBaseline skillCreditBaseline;
-	/** Lifetime credits awarded (not reduced by spending). */
 	private final long totalCreditsGained;
-	/** Unix epoch seconds when this profile was first created; 0 if unknown/legacy. */
 	private final long profileCreatedAtUnix;
-	/** Unix epoch seconds of the most recent successful persist; 0 if never saved. */
 	private final long profileSavedAtUnix;
-	/** Last applied cloud {@code economy.revision}; 0 if never synced. */
 	private final long cloudRevision;
-	/** Last applied cloud {@code economy.stateHash}; empty if never synced. */
 	private final String cloudStateHash;
-	/**
-	 * Last hiscores ranks from pack-open (length {@link #SIDEBAR_RANK_COUNT}), or null.
-	 * Order: completionPct, foilCompletionPct, openedPacks, collectionScore, totalCardsOwned, foilOwned.
-	 * {@code 0} in a slot means unranked (hidden in the sidebar).
-	 */
+	@Getter(AccessLevel.NONE)
 	private final int[] sidebarRanks;
 
 	public TcgState(int schemaVersion, EconomyState economyState, CollectionState collectionState,
@@ -82,10 +76,6 @@ public final class TcgState
 		return System.currentTimeMillis() / 1000L;
 	}
 
-	/**
-	 * @return defensive copy of length-{@link #SIDEBAR_RANK_COUNT} ranks, or null.
-	 * {@code 0} means unranked for that slot; negative values reject the whole array.
-	 */
 	public static int[] copyRanks(int[] ranks)
 	{
 		if (ranks == null || ranks.length != SIDEBAR_RANK_COUNT)
@@ -102,62 +92,6 @@ public final class TcgState
 		return Arrays.copyOf(ranks, SIDEBAR_RANK_COUNT);
 	}
 
-	public int getSchemaVersion()
-	{
-		return schemaVersion;
-	}
-
-	public EconomyState getEconomyState()
-	{
-		return economyState;
-	}
-
-	public CollectionState getCollectionState()
-	{
-		return collectionState;
-	}
-
-	public boolean isDebugLogging()
-	{
-		return debugLogging;
-	}
-
-	public double getPackRevealOverlayScale()
-	{
-		return packRevealOverlayScale;
-	}
-
-	public SkillCreditBaseline getSkillCreditBaseline()
-	{
-		return skillCreditBaseline;
-	}
-
-	public long getTotalCreditsGained()
-	{
-		return totalCreditsGained;
-	}
-
-	public long getProfileCreatedAtUnix()
-	{
-		return profileCreatedAtUnix;
-	}
-
-	public long getProfileSavedAtUnix()
-	{
-		return profileSavedAtUnix;
-	}
-
-	public long getCloudRevision()
-	{
-		return cloudRevision;
-	}
-
-	public String getCloudStateHash()
-	{
-		return cloudStateHash;
-	}
-
-	/** @return defensive copy of cached hiscores ranks, or null */
 	public int[] getSidebarRanks()
 	{
 		return sidebarRanks == null ? null : Arrays.copyOf(sidebarRanks, sidebarRanks.length);
@@ -182,88 +116,61 @@ public final class TcgState
 
 	public TcgState withCredits(long newCredits)
 	{
-		return copy(new EconomyState(newCredits, economyState.getOpenedPacks()), collectionState,
-			debugLogging, packRevealOverlayScale, skillCreditBaseline,
-			totalCreditsGained, profileCreatedAtUnix, profileSavedAtUnix, cloudRevision, cloudStateHash,
-			sidebarRanks);
+		return copy(new EconomyState(newCredits, economyState.getOpenedPacks()), collectionState, debugLogging, packRevealOverlayScale, skillCreditBaseline, totalCreditsGained, profileCreatedAtUnix, profileSavedAtUnix, cloudRevision, cloudStateHash, sidebarRanks);
 	}
 
 	public TcgState withOpenedPacks(long openedPacks)
 	{
-		return copy(new EconomyState(economyState.getCredits(), openedPacks), collectionState,
-			debugLogging, packRevealOverlayScale, skillCreditBaseline,
-			totalCreditsGained, profileCreatedAtUnix, profileSavedAtUnix, cloudRevision, cloudStateHash,
-			sidebarRanks);
+		return copy(new EconomyState(economyState.getCredits(), openedPacks), collectionState, debugLogging, packRevealOverlayScale, skillCreditBaseline, totalCreditsGained, profileCreatedAtUnix, profileSavedAtUnix, cloudRevision, cloudStateHash, sidebarRanks);
 	}
 
 	public TcgState withCollection(CollectionState newCollectionState)
 	{
-		return copy(economyState, newCollectionState, debugLogging, packRevealOverlayScale,
-			skillCreditBaseline, totalCreditsGained, profileCreatedAtUnix,
-			profileSavedAtUnix, cloudRevision, cloudStateHash, sidebarRanks);
+		return copy(economyState, newCollectionState, debugLogging, packRevealOverlayScale, skillCreditBaseline, totalCreditsGained, profileCreatedAtUnix, profileSavedAtUnix, cloudRevision, cloudStateHash, sidebarRanks);
 	}
 
 	public TcgState withDebugLogging(boolean enabled)
 	{
-		return copy(economyState, collectionState, enabled, packRevealOverlayScale,
-			skillCreditBaseline, totalCreditsGained, profileCreatedAtUnix,
-			profileSavedAtUnix, cloudRevision, cloudStateHash, sidebarRanks);
+		return copy(economyState, collectionState, enabled, packRevealOverlayScale, skillCreditBaseline, totalCreditsGained, profileCreatedAtUnix, profileSavedAtUnix, cloudRevision, cloudStateHash, sidebarRanks);
 	}
 
 	public TcgState withPackRevealOverlayScale(double multiplier)
 	{
-		return copy(economyState, collectionState, debugLogging, multiplier,
-			skillCreditBaseline, totalCreditsGained, profileCreatedAtUnix,
-			profileSavedAtUnix, cloudRevision, cloudStateHash, sidebarRanks);
+		return copy(economyState, collectionState, debugLogging, multiplier, skillCreditBaseline, totalCreditsGained, profileCreatedAtUnix, profileSavedAtUnix, cloudRevision, cloudStateHash, sidebarRanks);
 	}
 
 	public TcgState withSkillCreditBaseline(SkillCreditBaseline baseline)
 	{
-		return copy(economyState, collectionState, debugLogging, packRevealOverlayScale,
-			baseline == null ? SkillCreditBaseline.absent() : baseline,
-			totalCreditsGained, profileCreatedAtUnix, profileSavedAtUnix, cloudRevision, cloudStateHash,
-			sidebarRanks);
+		return copy(economyState, collectionState, debugLogging, packRevealOverlayScale, baseline == null ? SkillCreditBaseline.absent() : baseline, totalCreditsGained, profileCreatedAtUnix, profileSavedAtUnix, cloudRevision, cloudStateHash, sidebarRanks);
 	}
 
 	public TcgState withTotalCreditsGained(long gained)
 	{
-		return copy(economyState, collectionState, debugLogging, packRevealOverlayScale,
-			skillCreditBaseline, gained, profileCreatedAtUnix,
-			profileSavedAtUnix, cloudRevision, cloudStateHash, sidebarRanks);
+		return copy(economyState, collectionState, debugLogging, packRevealOverlayScale, skillCreditBaseline, gained, profileCreatedAtUnix, profileSavedAtUnix, cloudRevision, cloudStateHash, sidebarRanks);
 	}
 
 	public TcgState withProfileCreatedAtUnix(long unixSeconds)
 	{
-		return copy(economyState, collectionState, debugLogging, packRevealOverlayScale,
-			skillCreditBaseline, totalCreditsGained, unixSeconds,
-			profileSavedAtUnix, cloudRevision, cloudStateHash, sidebarRanks);
+		return copy(economyState, collectionState, debugLogging, packRevealOverlayScale, skillCreditBaseline, totalCreditsGained, unixSeconds, profileSavedAtUnix, cloudRevision, cloudStateHash, sidebarRanks);
 	}
 
 	public TcgState withProfileSavedAtUnix(long unixSeconds)
 	{
-		return copy(economyState, collectionState, debugLogging, packRevealOverlayScale,
-			skillCreditBaseline, totalCreditsGained, profileCreatedAtUnix,
-			unixSeconds, cloudRevision, cloudStateHash, sidebarRanks);
+		return copy(economyState, collectionState, debugLogging, packRevealOverlayScale, skillCreditBaseline, totalCreditsGained, profileCreatedAtUnix, unixSeconds, cloudRevision, cloudStateHash, sidebarRanks);
 	}
 
 	public TcgState withCloudSyncMarkers(long revision, String stateHash)
 	{
-		return copy(economyState, collectionState, debugLogging, packRevealOverlayScale,
-			skillCreditBaseline, totalCreditsGained, profileCreatedAtUnix,
-			profileSavedAtUnix, revision, stateHash, sidebarRanks);
+		return copy(economyState, collectionState, debugLogging, packRevealOverlayScale, skillCreditBaseline, totalCreditsGained, profileCreatedAtUnix, profileSavedAtUnix, revision, stateHash, sidebarRanks);
 	}
 
 	public TcgState withEconomy(EconomyState nextEconomy, long totalGained)
 	{
-		return copy(nextEconomy == null ? EconomyState.empty() : nextEconomy, collectionState,
-			debugLogging, packRevealOverlayScale, skillCreditBaseline,
-			totalGained, profileCreatedAtUnix, profileSavedAtUnix, cloudRevision, cloudStateHash, sidebarRanks);
+		return copy(nextEconomy == null ? EconomyState.empty() : nextEconomy, collectionState, debugLogging, packRevealOverlayScale, skillCreditBaseline, totalGained, profileCreatedAtUnix, profileSavedAtUnix, cloudRevision, cloudStateHash, sidebarRanks);
 	}
 
 	public TcgState withSidebarRanks(int[] ranks)
 	{
-		return copy(economyState, collectionState, debugLogging, packRevealOverlayScale,
-			skillCreditBaseline, totalCreditsGained, profileCreatedAtUnix,
-			profileSavedAtUnix, cloudRevision, cloudStateHash, ranks);
+		return copy(economyState, collectionState, debugLogging, packRevealOverlayScale, skillCreditBaseline, totalCreditsGained, profileCreatedAtUnix, profileSavedAtUnix, cloudRevision, cloudStateHash, ranks);
 	}
 }

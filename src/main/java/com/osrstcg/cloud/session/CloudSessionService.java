@@ -55,16 +55,11 @@ public final class CloudSessionService
 		new AtomicReference<>(CloudConnectionState.DISCONNECTED);
 	private final AtomicReference<String> statusMessage = new AtomicReference<>("Disconnected");
 	private final AtomicReference<Runnable> statusListener = new AtomicReference<>(null);
-	/** At most one hiscores settle attempt outcome per cloud login (retries for 503 use a separate flag). */
 	private final AtomicBoolean hiscoresSettledThisLogin = new AtomicBoolean(false);
 	private final AtomicBoolean hiscoresSettleRetryScheduled = new AtomicBoolean(false);
-	/** When true, next collection reconcile always pulls {@code /me/state}. */
 	private final AtomicBoolean forceStatePullOnce = new AtomicBoolean(false);
-	/** Server banned this account for the current login; cleared on logout. */
 	private final AtomicBoolean accountBanned = new AtomicBoolean(false);
-	/** Server quarantined this account for the current login; cleared on logout. */
 	private final AtomicBoolean accountQuarantined = new AtomicBoolean(false);
-	/** Run after ban/quarantine lock; registered by plugin startup to avoid Guice cycles. */
 	private final List<Runnable> accountLockCleanups = new CopyOnWriteArrayList<>();
 
 	public static final String ACCOUNT_BANNED_STATUS =
@@ -118,7 +113,6 @@ public final class CloudSessionService
 		api.setAccountLockHandler(this::noteLockFromApiException);
 	}
 
-	/** Invoked when a mid-session refresh finds revoked credentials - no auto re-pair. */
 	private void handleStaleRefresh()
 	{
 		packCatalogService.clear();
@@ -145,16 +139,11 @@ public final class CloudSessionService
 		return statusMessage.get();
 	}
 
-	/** Paired/refreshed with a usable access token (consent may still be pending). */
 	public boolean isSessionActive()
 	{
 		return connectionState.get() == CloudConnectionState.CONNECTED && tokens.getAccessToken() != null;
 	}
 
-	/**
-	 * Cloud gameplay ready: session active, migrated (consent accepted), not on a blocked world type,
-	 * and not account-banned/quarantined.
-	 */
 	public boolean isReady()
 	{
 		return isSessionActive()
@@ -164,11 +153,6 @@ public final class CloudSessionService
 			&& !stateService.isDebugLogging();
 	}
 
-	/**
-	 * True when credit events may be buffered with optimistic local credits even if the
-	 * session is offline ({@link #isReady()} false). Requires consent; excluded when
-	 * banned/quarantined, on a restricted world, or while a debug-tainted save is still loaded.
-	 */
 	public boolean canCollectAttests()
 	{
 		return !needsCloudConsent()
@@ -177,10 +161,6 @@ public final class CloudSessionService
 			&& !stateService.isDebugLogging();
 	}
 
-	/**
-	 * Soft status while a consented client is offline and waiting for the 10-minute reconnect timer.
-	 * No-op unless currently {@link CloudConnectionState#ERROR} or disconnected with collect allowed.
-	 */
 	public void noteOfflineReconnectScheduled()
 	{
 		if (!canCollectAttests() || isReady())
@@ -200,33 +180,21 @@ public final class CloudSessionService
 		return restrictedWorldGuard != null && restrictedWorldGuard.isRestricted();
 	}
 
-	/**
-	 * True after the server reports {@code banned: true} (e.g. attest). Cleared on logout.
-	 * Tokens are kept so the account panel can still open.
-	 */
 	public boolean isAccountBanned()
 	{
 		return accountBanned.get();
 	}
 
-	/**
-	 * True after the server reports {@code quarantined: true} (e.g. attest). Cleared on logout.
-	 * Tokens are kept so the account panel can still open.
-	 */
 	public boolean isAccountQuarantined()
 	{
 		return accountQuarantined.get();
 	}
 
-	/** Banned or quarantined for this login - full sidebar lock, no cloud gameplay. */
 	public boolean isAccountLocked()
 	{
 		return isAccountBanned() || isAccountQuarantined();
 	}
 
-	/**
-	 * True when the website account panel can be opened (active session, or locked with tokens retained).
-	 */
 	public boolean canOpenAccountPanel()
 	{
 		if (tokens.getAccessToken() == null || needsCloudConsent() || isRestrictedWorld())
@@ -236,9 +204,6 @@ public final class CloudSessionService
 		return isSessionActive() || isAccountLocked();
 	}
 
-	/**
-	 * Mark the sidebar as paused on a blocked world type (yellow). Does not clear tokens.
-	 */
 	public void enterRestrictedWorld()
 	{
 		hiscoresSettle.clearGate();
@@ -250,19 +215,11 @@ public final class CloudSessionService
 		setState(CloudConnectionState.DISCONNECTED, message);
 	}
 
-	/**
-	 * Lock the plugin for this login after the server reports a ban. Stops cloud traffic, keeps
-	 * tokens for {@code webCode} / account panel, and shows a red disconnected status until logout.
-	 */
 	public void enterAccountBanned()
 	{
 		enterAccountLock(accountBanned, ACCOUNT_BANNED_STATUS, "banned");
 	}
 
-	/**
-	 * Lock the plugin for this login after the server reports quarantine. Same full-sidebar treatment
-	 * as a ban (account panel still available). Ban takes precedence if already banned.
-	 */
 	public void enterAccountQuarantined()
 	{
 		if (isAccountBanned())
@@ -301,11 +258,6 @@ public final class CloudSessionService
 		}
 	}
 
-	/**
-	 * Register cleanup to run when the account is banned or quarantined (e.g. stop credit tracking).
-	 * Registered from {@link com.osrstcg.OsrsTcgPlugin} startup to avoid a Guice cycle with
-	 * {@link com.osrstcg.credit.CreditAwardService}.
-	 */
 	public void registerAccountLockCleanup(Runnable cleanup)
 	{
 		if (cleanup != null)
@@ -337,7 +289,6 @@ public final class CloudSessionService
 		packCatalogService.clear();
 	}
 
-	/** Apply ban/quarantine locks from an attest (or similar) JSON body. */
 	public void noteAttestBanFlags(JsonObject response)
 	{
 		if (response == null)
@@ -357,7 +308,6 @@ public final class CloudSessionService
 		}
 	}
 
-	/** Lock from HTTP {@code banned} / {@code account_banned} / {@code quarantined} error codes (pack open, attest, etc.). */
 	public void noteLockFromApiException(CloudApiException ex)
 	{
 		if (ex == null)
@@ -375,21 +325,12 @@ public final class CloudSessionService
 		}
 	}
 
-	/**
-	 * True when an access token is still available for a teardown attest flush
-	 * (logout / shutdown / unload). Unlike {@link #isReady()}, does not require
-	 * {@link CloudConnectionState#CONNECTED} so a final flush can run even if the
-	 * UI already marked the session disconnected.
-	 */
 	public boolean canAttestFlush()
 	{
 		return tokens.getAccessToken() != null && !needsCloudConsent() && !isAccountLocked();
 	}
 
-	/**
-	 * True until the user accepts Create profile.
-	 * While true, no cloud API traffic should run (except the consent action itself).
-	 */
+	/** True until Create profile is accepted; no cloud HTTP except the consent action itself. */
 	public boolean needsCloudConsent()
 	{
 		return !tokens.isMigrated();
@@ -411,10 +352,6 @@ public final class CloudSessionService
 		statusListener.set(listener);
 	}
 
-	/**
-	 * True when login happened but account hash / display name are not readable yet.
-	 * Callers should retry {@link #ensureSession()} on a later game tick.
-	 */
 	public boolean isWaitingForGameIdentity()
 	{
 		String message = statusMessage.get();
@@ -457,7 +394,6 @@ public final class CloudSessionService
 			return;
 		}
 		String displayName = resolveDisplayName();
-		// Refresh / resume only needs account hash + tokens. Display name is required to pair.
 		boolean needsDisplayName = !tokens.hasRefreshToken();
 		if (needsDisplayName && (displayName == null || displayName.isEmpty()))
 		{
@@ -508,7 +444,6 @@ public final class CloudSessionService
 			{
 				return;
 			}
-			// Prefer settle before CONNECTED so status listeners starting attest see last_settle_at.
 			hiscoresSettle.settleAfterCloudLogin();
 			if (isAccountLocked())
 			{
@@ -539,7 +474,6 @@ public final class CloudSessionService
 		}
 	}
 
-	/** @return sanitized local player name, or null if not ready yet after login */
 	String resolveDisplayName()
 	{
 		if (client.getLocalPlayer() == null || client.getLocalPlayer().getName() == null)
@@ -585,13 +519,6 @@ public final class CloudSessionService
 		hiscoresSettle.settleAfterCloudLogin();
 	}
 
-	/**
-	 * Apply economy / sidebar fields from a {@code /me/stats}-shaped object, an inbox {@code stats}
-	 * payload, or pack/attest RPC responses that include the same fields. Missing fields are left
-	 * unchanged so partial responses do not wipe the cache.
-	 * <p>
-	 * Collection overview fields ({@code uniqueOwned}, {@code collectionScore}, …) exclude beta cards.
-	 */
 	public void applySidebarStats(JsonObject stats)
 	{
 		collectionSync.applySidebarStats(stats);

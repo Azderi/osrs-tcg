@@ -14,9 +14,6 @@ import java.util.List;
 import java.util.Map;
 import net.runelite.client.ui.FontManager;
 
-/**
- * Canvas painter for {@link CardInfoTipModel} matching {@code .card-info-tip*} on the website.
- */
 public final class CardInfoTipPainter
 {
 	private static final Color BG = new Color(18, 18, 18, 245);
@@ -80,8 +77,6 @@ public final class CardInfoTipPainter
 		int innerW = Math.max(titleW, rowsW);
 		int width = PAD_X * 2 + Math.max(1, innerW);
 
-		// Top pad only here; bottom pad is skipped when the tip ends with an action row so the
-		// menu option isn't followed by a large empty strip under the last item.
 		int height = PAD_Y + titleFm.getHeight();
 		if (!rows.isEmpty())
 		{
@@ -94,7 +89,7 @@ public final class CardInfoTipPainter
 				{
 					if (!sawAction && hasDetail)
 					{
-						height += ROW_GAP + 1; // separator
+						height += ROW_GAP + 1;
 					}
 					sawAction = true;
 					height += rowFm.getHeight() + ACTION_PAD_Y * 2;
@@ -124,13 +119,6 @@ public final class CardInfoTipPainter
 		return new Dimension(width, height);
 	}
 
-	/**
-	 * @param alpha 0..1 entrance fade
-	 * @param yOffset px downward offset that eases to 0
-	 * @param hoverX canvas hover x for action highlight, or {@code null}
-	 * @param hoverY canvas hover y for action highlight, or {@code null}
-	 * @param outActionBounds receives hit boxes keyed by {@link CardInfoTipModel.Row#getActionId()}
-	 */
 	public static void paint(Graphics2D g, int x, int y, Content content, Color titleColor, float alpha, float yOffset,
 		Integer hoverX, Integer hoverY, Map<String, Rectangle> outActionBounds)
 	{
@@ -237,7 +225,6 @@ public final class CardInfoTipPainter
 		}
 	}
 
-	/** Backward-compatible paint without action hit-testing. */
 	public static void paint(Graphics2D g, int x, int y, Content content, Color titleColor, float alpha, float yOffset)
 	{
 		paint(g, x, y, content, titleColor, alpha, yOffset, null, null, null);

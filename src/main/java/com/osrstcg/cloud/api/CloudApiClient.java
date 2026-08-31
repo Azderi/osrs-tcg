@@ -103,13 +103,11 @@ public final class CloudApiClient
 		staleRefreshHandler = handler;
 	}
 
-	/** Invoked for HTTP errors whose code is {@code banned}, {@code account_banned}, or {@code quarantined}. */
 	public void setAccountLockHandler(java.util.function.Consumer<CloudApiException> handler)
 	{
 		accountLockHandler = handler;
 	}
 
-	/** Soft-header hook: notified with {@code X-Activities-Version} from any successful API response. */
 	public void setActivitiesVersionListener(java.util.function.Consumer<String> listener)
 	{
 		activitiesVersionListener = listener;
@@ -127,10 +125,6 @@ public final class CloudApiClient
 		return json;
 	}
 
-	/**
-	 * Pack catalog for the signed-in session. Sends the access JWT so the server can
-	 * include account-gated packs. Updates the cached catalog version.
-	 */
 	public JsonObject getPacks() throws CloudApiException, IOException
 	{
 		JsonObject json = requestAuthed("GET", "/api/v1/packs", null);
@@ -138,11 +132,6 @@ public final class CloudApiClient
 		return json;
 	}
 
-	/**
-	 * Public live card catalog ({@code config/cards.live.json} as {@code { items, npcs }}).
-	 * Pass cached {@code X-Catalog-Version} / ETag for {@code If-None-Match}; {@code 304} →
-	 * {@link LiveCardsResponse#notModified()}.
-	 */
 	public LiveCardsResponse getLiveCards(String cachedCatalogVersion) throws CloudApiException, IOException
 	{
 		try (Response response = getWithOptionalEtag("/api/v1/catalog/cards/live", cachedCatalogVersion))
@@ -180,10 +169,6 @@ public final class CloudApiClient
 		}
 	}
 
-	/**
-	 * Lightweight public collection stats for {@code !tcg} (no auth, no card list).
-	 * {@code displayName} spaces are encoded as {@code _} to match SPA / album paths.
-	 */
 	public JsonObject getPublicPlayerStats(String displayName) throws CloudApiException, IOException
 	{
 		String name = displayName == null ? "" : displayName.trim();
@@ -226,11 +211,6 @@ public final class CloudApiClient
 		return request("POST", "/api/v1/auth/refresh", body, false);
 	}
 
-	/**
-	 * Mints a one-time web login code for the current plugin session.
-	 *
-	 * @param next optional allowlisted SPA path; may be null
-	 */
 	public JsonObject webCode(String next) throws CloudApiException, IOException
 	{
 		JsonObject body = new JsonObject();
@@ -251,10 +231,6 @@ public final class CloudApiClient
 		return requestAuthed("GET", "/api/v1/me/state", null);
 	}
 
-	/**
-	 * Keyset page of owned card instances ({@code GET /me/cards}).
-	 * Pass {@code cursor} from the previous page's {@code nextCursor}, or null for the first page.
-	 */
 	public JsonObject getCardsPage(int limit, String cursor) throws CloudApiException, IOException
 	{
 		int pageLimit = Math.max(1, Math.min(limit, 500));
@@ -271,12 +247,6 @@ public final class CloudApiClient
 		return requestAuthed("POST", "/api/v1/credits/attest", body);
 	}
 
-	/**
-	 * Server-authoritative offline/retro credit settle from Jagex hiscores.
-	 * Call once after a successful cloud login ({@code snapshot=false}) or on logout
-	 * to absorb current hiscores into the baseline without paying ({@code snapshot=true}).
-	 * {@code displayName} must be the client's current sanitized RSN (same as attest).
-	 */
 	public JsonObject settleHiscores(String displayName, long accountHash, boolean snapshot)
 		throws CloudApiException, IOException
 	{
@@ -290,13 +260,11 @@ public final class CloudApiClient
 		return requestAuthed("POST", "/api/v1/credits/settle-hiscores", body);
 	}
 
-	/** @see #settleHiscores(String, long, boolean) */
 	public JsonObject settleHiscores(String displayName, long accountHash) throws CloudApiException, IOException
 	{
 		return settleHiscores(displayName, accountHash, false);
 	}
 
-	/** Cheap activity-config staleness check (public). */
 	public String getActivitiesVersion() throws CloudApiException, IOException
 	{
 		JsonObject json = request("GET", "/api/v1/config/activities/version", null, false);
@@ -307,10 +275,6 @@ public final class CloudApiClient
 		return "";
 	}
 
-	/**
-	 * Full activity config (public). Pass cached version for {@code If-None-Match}; {@code 304} →
-	 * {@link ActivitiesConfigResponse#notModified()}.
-	 */
 	public ActivitiesConfigResponse getActivities(String cachedVersion) throws CloudApiException, IOException
 	{
 		try (Response response = getWithOptionalEtag("/api/v1/config/activities", cachedVersion))
@@ -344,10 +308,6 @@ public final class CloudApiClient
 		return requestAuthed("POST", "/api/v1/packs/open", body);
 	}
 
-	/**
-	 * Server-authoritative sell of owned card instances.
-	 * Body: {@code instanceIds[]} + {@code accountHash} (plugin sessions).
-	 */
 	public JsonObject sellCards(List<String> instanceIds, long accountHash) throws CloudApiException, IOException
 	{
 		JsonObject body = new JsonObject();
@@ -367,10 +327,6 @@ public final class CloudApiClient
 		return requestAuthed("POST", "/api/v1/cards/sell", body);
 	}
 
-	/**
-	 * Absolute URL for a web-relative asset path
-	 * or passthrough for already-absolute {@code http(s)} URLs.
-	 */
 	public String resolvePublicUrl(String pathOrUrl)
 	{
 		if (pathOrUrl == null)
@@ -394,12 +350,6 @@ public final class CloudApiClient
 		return CloudEndpoints.resolvePublicUrl(webBaseUrl, pathOrUrl);
 	}
 
-	/**
-	 * Attach the raw Jagex {@code accountHash} required on plugin-session trade mutators.
-	 * Web SPA sessions omit this field; do not use for web-only accept.
-	 *
-	 * @throws IllegalArgumentException when {@code accountHash} is unset ({@code -1})
-	 */
 	public static JsonObject withPluginAccountHash(JsonObject body, long accountHash)
 	{
 		if (accountHash == -1L)
@@ -418,10 +368,6 @@ public final class CloudApiClient
 		return requestAuthed("POST", "/api/v1/trades", body);
 	}
 
-	/**
-	 * Cancel / decline a pending trade. Plugin sessions must include {@code accountHash}.
-	 * Allowed while quarantined so escrow/locks can be freed.
-	 */
 	public JsonObject cancelTrade(String tradeId, long accountHash) throws CloudApiException, IOException
 	{
 		JsonObject body = withPluginAccountHash(new JsonObject(), accountHash);
@@ -486,7 +432,6 @@ public final class CloudApiClient
 			text(tokens, "refreshToken"),
 			text(tokens, "accountId"),
 			text(tokens, "status"));
-		// Some auth responses include migration state - adopt it so a lost local flag recovers.
 		if (tokens.has("migratedAt") && !tokens.get("migratedAt").isJsonNull()
 			&& !tokens.get("migratedAt").getAsString().isBlank())
 		{
@@ -618,11 +563,6 @@ public final class CloudApiClient
 		return ex;
 	}
 
-	/**
-	 * Builds a {@link CloudApiException} from an HTTP error body.
-	 * Prefers JSON {@code error.code}/{@code error.message}; otherwise maps status codes and
-	 * strips gateway HTML (nginx 429 pages) into a short chat-safe line.
-	 */
 	private static CloudApiException exceptionFromHttpBody(int status, String body)
 	{
 		String code = "http_error";
@@ -697,7 +637,6 @@ public final class CloudApiClient
 		return t;
 	}
 
-	/** Caller must close the returned response. */
 	private Response getWithOptionalEtag(String path, String cachedVersion) throws CloudApiException, IOException
 	{
 		requireCloudConsentAllowed();

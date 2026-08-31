@@ -71,6 +71,26 @@ public final class PackCatalogService
 		return current.getPacks();
 	}
 
+	public static BoosterPackDefinition findById(List<BoosterPackDefinition> packs, String packId)
+	{
+		if (packId == null || packId.isBlank() || packs == null)
+		{
+			return null;
+		}
+		for (BoosterPackDefinition pack : packs)
+		{
+			if (pack == null)
+			{
+				continue;
+			}
+			if (packId.equals(pack.getCollectionKey()) || packId.equals(pack.getId()))
+			{
+				return pack;
+			}
+		}
+		return null;
+	}
+
 	public String requireCatalogVersion()
 	{
 		String version = getCache().getCatalogVersion();

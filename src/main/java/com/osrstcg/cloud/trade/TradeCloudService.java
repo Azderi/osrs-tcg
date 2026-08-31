@@ -20,20 +20,10 @@ import com.osrstcg.cloud.api.CloudApiException;
 import com.osrstcg.cloud.api.CloudEndpoints;
 import com.osrstcg.cloud.session.CloudSessionService;
 
-/**
- * Single cloud timer: trade inbox + piggybacked sidebar stats, with collection
- * reconcile when local counts disagree with inbox overview (or sync markers diverge).
- * Next delay comes only from {@code pollAfterMs}. World hops must not restart
- * a faster fixed schedule - {@link #start()} is idempotent while already running.
- */
 @Slf4j
 @Singleton
 public final class TradeCloudService
 {
-	/**
-	 * Default when the server omits pollAfterMs, and lower bound for error backoff.
-	 * Server {@code pollAfterMs} is otherwise authoritative (no client max).
-	 */
 	private static final long DEFAULT_POLL_MS = 15_000L;
 	private static final long BACKOFF_MAX_MS = 180_000L;
 	private static final long AUTH_RETRY_MS = 60_000L;
@@ -49,7 +39,6 @@ public final class TradeCloudService
 	private final AtomicBoolean running = new AtomicBoolean(false);
 	private final AtomicBoolean polling = new AtomicBoolean(false);
 	private final AtomicBoolean forceAgain = new AtomicBoolean(false);
-	/** First inbox poll after {@link #start()} broadcasts pending trades in chat. */
 	private final AtomicBoolean broadcastPendingOnLogin = new AtomicBoolean(false);
 	private final AtomicLong lastRevision = new AtomicLong(-1L);
 	private final AtomicLong lastGoodPollAfterMs = new AtomicLong(DEFAULT_POLL_MS);
@@ -72,11 +61,6 @@ public final class TradeCloudService
 		this.scheduler = scheduler;
 	}
 
-	/**
-	 * Start inbox polling. Idempotent while already running so world hops do not reset
-	 * {@code sinceRevision} or force a faster timer. Fresh start (after logout) triggers an
-	 * immediate poll; subsequent delays come from server {@code pollAfterMs}.
-	 */
 	public void start()
 	{
 		synchronized (scheduleLock)
@@ -107,10 +91,6 @@ public final class TradeCloudService
 		}
 	}
 
-	/**
-	 * Immediate inbox poll (e.g. after pack / attest / trade create). Next delay still
-	 * comes from the server {@code pollAfterMs} on the following successful response.
-	 */
 	public void requestForcedRefresh()
 	{
 		synchronized (scheduleLock)
@@ -129,7 +109,6 @@ public final class TradeCloudService
 		}
 	}
 
-	/** Keep {@code sinceRevision} aligned after pack / attest RPC responses. */
 	public void noteRevision(long revision)
 	{
 		if (revision >= 0L)
@@ -207,9 +186,6 @@ public final class TradeCloudService
 		});
 	}
 
-	/**
-	 * Cancel a pending trade (plugin). Allowed while quarantined - frees escrow/locks.
-	 */
 	public void cancelTrade(String tradeId)
 	{
 		if (!session.isReady())
@@ -328,9 +304,6 @@ public final class TradeCloudService
 		}
 	}
 
-	/**
-	 * @return {@code pollAfterMs} from the server (or default when omitted)
-	 */
 	private long poll() throws Exception
 	{
 		if (!session.isReady())
@@ -360,7 +333,6 @@ public final class TradeCloudService
 			session.applySidebarStats(stats);
 			session.maybeReconcileCollectionFromInbox(stats);
 		}
-		// statsUnchanged == true → keep cached sidebar stats; do not clear them.
 
 		if (response.has("revision") && !response.get("revision").isJsonNull())
 		{
@@ -410,7 +382,6 @@ public final class TradeCloudService
 		{
 			return;
 		}
-		// Do not pass through arbitrary "status" into account status.
 		if (response.has("credits") || response.has("openedPacks") || response.has("totalCreditsGained"))
 		{
 			JsonObject economy = new JsonObject();
@@ -447,14 +418,12 @@ public final class TradeCloudService
 	{
 		if (ex.isUnauthorized())
 		{
-			// requestAuthed already attempted refresh; avoid tight-looping inbox.
 			try
 			{
 				session.ensureSession();
 			}
 			catch (Exception ignored)
 			{
-				// ensureSession is synchronized and self-contained
 			}
 			return AUTH_RETRY_MS;
 		}
@@ -490,10 +459,6 @@ public final class TradeCloudService
 		return Math.max(DEFAULT_POLL_MS, next);
 	}
 
-	/**
-	 * Server {@code pollAfterMs} is authoritative (no client max). Non-positive values
-	 * fall back to the default floor.
-	 */
 	private static long resolveSuccessPollMs(long pollAfterMs)
 	{
 		if (pollAfterMs <= 0L)

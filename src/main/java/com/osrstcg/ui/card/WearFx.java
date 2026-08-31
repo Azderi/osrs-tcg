@@ -3,15 +3,11 @@ package com.osrstcg.ui.card;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.Value;
 
-/**
- * Deterministic wear layers for the card inspect view. Literal port of
- * {@code FNV-1a seed and the mulberry32 draw order are
- * byte-identical to the website, so the same {@code (name, pulledBy, pulledAt, condition)} yields
- * the same scratches and stains in the plugin and in the browser.
- *
- * <p>Any change here must preserve the exact number and order of {@link Mulberry32#next()} calls.</p>
- */
+@Getter
 public final class WearFx
 {
 	public enum SpotShape
@@ -23,9 +19,6 @@ public final class WearFx
 		SPLOTCH
 	}
 
-	/**
-	 * mulberry32 with JS {@code Math.imul} / {@code >>>} semantics expressed in 32-bit Java ints.
-	 */
 	public static final class Mulberry32
 	{
 		private int a;
@@ -35,7 +28,6 @@ public final class WearFx
 			this.a = seed == 0 ? 0x9E3779B9 : seed;
 		}
 
-		/** Next value in {@code [0, 1)}. */
 		public double next()
 		{
 			a = a + 0x6D2B79F5;
@@ -45,123 +37,33 @@ public final class WearFx
 		}
 	}
 
-	/** A single hairline abrasion. {@code x}/{@code y} are percent of card size, {@code len} percent of width. */
-	public static final class Scratch
+	@Value
+	public static class Scratch
 	{
-		private final double x;
-		private final double y;
-		private final double len;
-		private final double angle;
-		private final double opacity;
-
-		Scratch(double x, double y, double len, double angle, double opacity)
-		{
-			this.x = x;
-			this.y = y;
-			this.len = len;
-			this.angle = angle;
-			this.opacity = opacity;
-		}
-
-		public double getX()
-		{
-			return x;
-		}
-
-		public double getY()
-		{
-			return y;
-		}
-
-		public double getLen()
-		{
-			return len;
-		}
-
-		public double getAngle()
-		{
-			return angle;
-		}
-
-		public double getOpacity()
-		{
-			return opacity;
-		}
+		double x;
+		double y;
+		double len;
+		double angle;
+		double opacity;
 	}
 
-	/**
-	 * A dirt stain. {@code x}/{@code y} are percent of card size (centered), {@code w}/{@code h} percent
-	 * of card width/height, {@code borderRadius} the eight CSS corner percentages
-	 * (horizontal TL, TR, BR, BL then vertical TL, TR, BR, BL).
-	 */
-	public static final class Spot
+	@Value
+	public static class Spot
 	{
-		private final double x;
-		private final double y;
-		private final double w;
-		private final double h;
-		private final double rotate;
-		private final double[] borderRadius;
-		private final double blur;
-		private final SpotShape shape;
-		private final double opacity;
-
-		Spot(double x, double y, double w, double h, double rotate, double[] borderRadius, double blur, SpotShape shape, double opacity)
-		{
-			this.x = x;
-			this.y = y;
-			this.w = w;
-			this.h = h;
-			this.rotate = rotate;
-			this.borderRadius = borderRadius;
-			this.blur = blur;
-			this.shape = shape;
-			this.opacity = opacity;
-		}
-
-		public double getX()
-		{
-			return x;
-		}
-
-		public double getY()
-		{
-			return y;
-		}
-
-		public double getW()
-		{
-			return w;
-		}
-
-		public double getH()
-		{
-			return h;
-		}
-
-		public double getRotate()
-		{
-			return rotate;
-		}
+		double x;
+		double y;
+		double w;
+		double h;
+		double rotate;
+		@Getter(AccessLevel.NONE)
+		double[] borderRadius;
+		double blur;
+		SpotShape shape;
+		double opacity;
 
 		public double[] getBorderRadius()
 		{
 			return borderRadius.clone();
-		}
-
-		public double getBlur()
-		{
-			return blur;
-		}
-
-		public SpotShape getShape()
-		{
-			return shape;
-		}
-
-		public double getOpacity()
-		{
-			return opacity;
 		}
 	}
 
@@ -193,62 +95,6 @@ public final class WearFx
 		this.spots = Collections.unmodifiableList(spots);
 	}
 
-	public int getSeed()
-	{
-		return seed;
-	}
-
-	public CardGrade getGrade()
-	{
-		return grade;
-	}
-
-	public double getIntensity()
-	{
-		return intensity;
-	}
-
-	public double getFade()
-	{
-		return fade;
-	}
-
-	public double getScratchMix()
-	{
-		return scratchMix;
-	}
-
-	public double getDirtMix()
-	{
-		return dirtMix;
-	}
-
-	public double getEdgeMix()
-	{
-		return edgeMix;
-	}
-
-	public boolean isShowEdges()
-	{
-		return showEdges;
-	}
-
-	public boolean isShowScratches()
-	{
-		return showScratches;
-	}
-
-	public List<Scratch> getScratches()
-	{
-		return scratches;
-	}
-
-	public List<Spot> getSpots()
-	{
-		return spots;
-	}
-
-	/** FNV-1a 32-bit, matching {@code hashStringToSeed} (UTF-16 code units). */
 	public static int hashStringToSeed(String str)
 	{
 		int h = 0x811C9DC5;
@@ -264,10 +110,6 @@ public final class WearFx
 		return h;
 	}
 
-	/**
-	 * {@code hash("name|pulledBy|pulledAt")}, or {@code fallback} when all three are empty/zero.
-	 * The seed string must stay byte-identical to the site's.
-	 */
 	public static int wearSeedFromPull(String cardName, String pulledBy, Long pulledAt, int fallback)
 	{
 		String name = cardName == null ? "" : cardName.trim();
@@ -281,11 +123,6 @@ public final class WearFx
 		return h == 0 ? 1 : h;
 	}
 
-	/**
-	 * Wear for one instance, or {@code null} when the grade is unknown (no condition) or S (beta / mint).
-	 *
-	 * @param condition 0.01–100, or {@code null} when absent (beta / migrated instances)
-	 */
 	public static WearFx wearFxFromCondition(Double condition, Long pulledAt, boolean beta, String cardName, String pulledBy)
 	{
 		CardGrade grade = CardGrade.gradeFromVariant(beta, condition);
@@ -304,7 +141,6 @@ public final class WearFx
 		int seed = wearSeedFromPull(cardName, pulledBy, pulledAt, fallback);
 		Mulberry32 rand = new Mulberry32(seed);
 
-		// Wear profile mix: 0 = dirt-heavy, 1 = scratch-heavy. Inversely shared budget.
 		double profile = rand.next();
 		boolean showScratches = grade != CardGrade.A && grade != CardGrade.S;
 		boolean showEdges = showScratches;
@@ -363,7 +199,6 @@ public final class WearFx
 		return new WearFx(seed, grade, intensity, fade, scratchMix, dirtMix, edgeMix, showEdges, showScratches, scratches, spots);
 	}
 
-	/** {@code Math.round(Number(condition) * 100) || 1}. */
 	private static int conditionFallbackSeed(Double condition)
 	{
 		if (condition == null || condition.isNaN() || condition.isInfinite())
@@ -398,7 +233,6 @@ public final class WearFx
 		}
 	}
 
-	/** Eight CSS corner percentages, drawn in template order so the RNG stream matches the site. */
 	private static double[] organicBorderRadius(Mulberry32 rand)
 	{
 		double[] corners = new double[8];

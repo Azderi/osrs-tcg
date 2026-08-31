@@ -17,20 +17,8 @@ import java.awt.image.ConvolveOp;
 import java.awt.image.DataBufferInt;
 import java.awt.image.Kernel;
 
-/**
- * Foil and wear compositing for the card face, approximating the website's CSS blend modes
- * ({@code color-dodge}, {@code soft-light}, {@code multiply}, {@code luminosity}) and the
- * {@code saturate/contrast/brightness} filter with direct pixel math on an offscreen ARGB raster.
- *
- * <p>Wear blend modes are applied onto the face so multiply dirt/stains etch into the art the way
- * they read in inspect. Foil sparkles are drawn live (not baked into the face raster).</p>
- *
- * <p>All geometry constants mirror {@code .album-card__foil-*} and {@code .card-inspect__wear*}
- * in {@code osrs-tcg-front/src/index.css}.</p>
- */
 public final class CardFxPainter
 {
-	/** Root font size of {@code .album-card} in design px; {@code 1em} for CSS values below. */
 	static final double CARD_EM_PX = 12.5d;
 	private static final double BEZIER_K = 0.5522847498307936d;
 
@@ -68,13 +56,6 @@ public final class CardFxPainter
 
 	// ------------------------------------------------------------------ blending
 
-	/**
-	 * Composites {@code layer} onto {@code base} with a CSS {@code mix-blend-mode}.
-	 *
-	 * @param writeIntoTransparent when {@code true}, empty base pixels receive the source (isolated-group
-	 *                             backdrop). When {@code false}, transparent base is skipped so FX stay
-	 *                             clipped to the opaque card silhouette.
-	 */
 	public static void blend(BufferedImage base, BufferedImage layer, BlendMode mode, double opacity,
 		boolean writeIntoTransparent)
 	{
@@ -131,7 +112,6 @@ public final class CardFxPainter
 		}
 	}
 
-	/** Clip to opaque card pixels (final FX → face). */
 	public static void blend(BufferedImage base, BufferedImage layer, BlendMode mode, double opacity)
 	{
 		blend(base, layer, mode, opacity, false);
@@ -233,10 +213,6 @@ public final class CardFxPainter
 
 	// ------------------------------------------------------------------ whole-card filter
 
-	/**
-	 * {@code saturate(1 - fade*0.72) contrast(1 - fade*0.08) brightness(1 - fade*0.06)} -
-	 * the filter the site puts on {@code .card-inspect__card.has-wear .album-card}.
-	 */
 	public static void applyWearFilter(BufferedImage base, double fade)
 	{
 		if (base == null || fade <= 0.0d)
@@ -284,29 +260,52 @@ public final class CardFxPainter
 
 	// ------------------------------------------------------------------ foil
 
-	/**
-	 * Live foil sparkles matching {@code .album-card__sparkle} / {@code album-foil-sparkle}:
-	 * centered circles at {@code (x%, y%)} of the full card (including gold frame),
-	 * diameter {@code size * scale}, color {@code hsl(hue, sat, light)}, soft glow ≈ {@code 0 0 0.25em}.
-	 *
-	 * @param scale  {@code width / 180} (design width 180px at scale 1)
-	 * @param timeSec shared animation clock in seconds (same for every sparkle on the card)
-	 */
 	public static void drawAnimatedSparkles(Graphics2D g, int x, int y, int w, int h, double cornerRadius,
 		double scale, FoilFx fx, double timeSec)
 	{
-		FoilPainter.drawAnimatedSparkles(g, x, y, w, h, cornerRadius, scale, fx, timeSec);
+		if (g == null || fx == null || w < 2 || h < 2)
+		{
+			return;
+		}
+		Graphics2D g2 = (Graphics2D) g.create();
+		try
+		{
+			g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+			g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+			Shape card = new RoundRectangle2D.Double(x, y, w, h, cornerRadius * 2.0d, cornerRadius * 2.0d);
+			g2.clip(card);
+
+			double glow = 0.25d * CARD_EM_PX * scale;
+			for (FoilFx.Sparkle s : fx.getSparkles())
+			{
+				FoilSparkleAnimation.Sample anim = FoilSparkleAnimation.sample(s.getDelay(), s.getDuration(), timeSec);
+				if (anim.getOpacity() <= 0.001d)
+				{
+					continue;
+				}
+				double d = Math.max(0.5d, s.getSize() * scale * anim.getScale());
+				double cx = x + s.getX() / 100.0d * w;
+				double cy = y + s.getY() / 100.0d * h;
+				Color core = CardColorMath.hsla(s.getHue(), s.getSat(), s.getLight(), anim.getOpacity());
+				double outer = d / 2.0d + glow;
+				float coreFrac = (float) Math.max(0.05d, Math.min(0.9d, (d / 2.0d) / outer));
+				float midFrac = coreFrac + (1f - coreFrac) * 0.3f;
+				g2.setPaint(new RadialGradientPaint(
+					new Point2D.Double(cx, cy), (float) outer,
+					new float[]{0f, coreFrac, midFrac, 1f},
+					new Color[]{core, core, alpha(core, anim.getOpacity() * 0.28d), alpha(core, 0.0d)},
+					MultipleGradientPaint.CycleMethod.NO_CYCLE));
+				g2.fill(new java.awt.geom.Ellipse2D.Double(cx - outer, cy - outer, outer * 2.0d, outer * 2.0d));
+			}
+		}
+		finally
+		{
+			g2.dispose();
+		}
 	}
 
 	// ------------------------------------------------------------------ wear
 
-	/**
-	 * Wear layers in CSS paint order: color wash → grime → edges → scratches → spots.
-	 * Call {@link #applyWearFilter} on the face (and foil) first.
-	 *
-	 * <p>Unlike foil, wear blend modes are applied directly onto the card face. Scratches already
-	 * matched the site with this path; isolating the wear group flattened multiply dirt/stains.</p>
-	 */
 	public static void drawWear(BufferedImage face, double cornerRadius, WearFx wear)
 	{
 		if (face == null || wear == null)
@@ -391,10 +390,6 @@ public final class CardFxPainter
 		g.fill(new Rectangle2D.Double(0, 0, w, h));
 	}
 
-	/**
-	 * Inset dual box-shadow (white ring over black) approximated per pixel from the distance to the
-	 * nearest edge, using the logistic approximation of a Gaussian shadow profile.
-	 */
 	private static void applyEdges(BufferedImage face, int w, int h, WearFx wear)
 	{
 		double i = wear.getIntensity();
@@ -492,7 +487,6 @@ public final class CardFxPainter
 		double sigma = blur / 2.0d;
 		for (int d = 0; d < size; d++)
 		{
-			// 1 - Phi(d/sigma), logistic approximation of the Gaussian CDF: 0.5 at the edge, ~0.03 at d = blur.
 			lut[d] = peakAlpha * 2.0d / (1.0d + Math.exp(1.702d * d / sigma));
 		}
 		return lut;
@@ -675,7 +669,6 @@ public final class CardFxPainter
 			tx);
 	}
 
-	/** Approximate CSS {@code filter: blur(Npx)} for organic stains; radius drives pass count. */
 	private static BufferedImage softenLayer(BufferedImage layer, double blurPx)
 	{
 		int passes = Math.max(1, (int) Math.round(Math.max(0.2d, blurPx)));
@@ -695,10 +688,6 @@ public final class CardFxPainter
 
 	// ------------------------------------------------------------------ shapes / paints
 
-	/**
-	 * CSS {@code linear-gradient(angleDeg, …)} over a background box scaled by {@code sizeFactor} and
-	 * centered on the element ({@code background-position: 50% 50%}).
-	 */
 	public static LinearGradientPaint cssLinearGradient(int w, int h, double angleDeg, double sizeFactor,
 		float[] fractions, Color[] colors)
 	{
@@ -716,10 +705,6 @@ public final class CardFxPainter
 			fractions, colors, MultipleGradientPaint.CycleMethod.NO_CYCLE);
 	}
 
-	/**
-	 * CSS {@code border-radius} with eight percentages: horizontal TL/TR/BR/BL then vertical TL/TR/BR/BL,
-	 * including the overlap scale-down rule.
-	 */
 	public static Shape borderRadiusShape(double w, double h, double[] radiiPercent)
 	{
 		double htl = radiiPercent[0] / 100.0d * w;
@@ -767,10 +752,6 @@ public final class CardFxPainter
 		return sum <= 0.0d ? 1.0d : Math.min(1.0d, side / sum);
 	}
 
-	/**
-	 * A CSS {@code transparent} gradient stop keeps its neighbour's hue because browsers interpolate
-	 * premultiplied; AWT does not, so transparent stops must carry the adjacent color.
-	 */
 	static Color transparent(Color c)
 	{
 		return alpha(c, 0.0d);

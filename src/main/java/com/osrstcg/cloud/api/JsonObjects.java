@@ -2,11 +2,55 @@ package com.osrstcg.cloud.api;
 
 import com.google.gson.JsonObject;
 
-/** Shared Gson field readers for cloud JSON payloads. */
 public final class JsonObjects
 {
 	private JsonObjects()
 	{
+	}
+
+	public static String blankToNull(String value)
+	{
+		if (value == null || value.isBlank())
+		{
+			return null;
+		}
+		return value.trim();
+	}
+
+	public static JsonObject objectOrEmpty(JsonObject root, String key)
+	{
+		if (root != null && key != null && root.has(key) && root.get(key).isJsonObject())
+		{
+			return root.getAsJsonObject(key);
+		}
+		return new JsonObject();
+	}
+
+	public static boolean readBoolean(JsonObject o, String key)
+	{
+		if (o == null || key == null || !o.has(key) || o.get(key).isJsonNull())
+		{
+			return false;
+		}
+		try
+		{
+			return o.get(key).getAsBoolean();
+		}
+		catch (RuntimeException ex)
+		{
+			return false;
+		}
+	}
+
+	public static Double readNullableDouble(JsonObject o, String key)
+	{
+		return readNumberKey(o, key);
+	}
+
+	public static long readLong(JsonObject o, String key, long fallback)
+	{
+		Double value = readNumberKey(o, key);
+		return value == null ? fallback : Math.round(value);
 	}
 
 	public static String text(JsonObject o, String key)
@@ -25,7 +69,6 @@ public final class JsonObjects
 		}
 	}
 
-	/** {@link #text} then trim; blank becomes {@code null}. */
 	public static String textTrimmed(JsonObject o, String key)
 	{
 		String value = text(o, key);

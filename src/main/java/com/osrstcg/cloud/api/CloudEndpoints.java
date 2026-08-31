@@ -1,14 +1,9 @@
 package com.osrstcg.cloud.api;
 
-/**
- * Hardcoded production cloud endpoints.
- */
 public final class CloudEndpoints
 {
-	/** API root including version prefix - all API calls join under this (including health). */
 	public static final String API_BASE_URL = "https://api.osrs-tcg.net/api/v1";
 
-	/** Public website root for login, trades, album, and static card images. */
 	public static final String WEB_BASE_URL = "https://osrs-tcg.net";
 
 	private static final String API_V1_PREFIX = "/api/v1";
@@ -17,10 +12,6 @@ public final class CloudEndpoints
 	{
 	}
 
-	/**
-	 * Absolute URL under {@link #API_BASE_URL}.
-	 * Accepts {@code /api/v1/...} or a path relative to the base.
-	 */
 	public static String apiUrl(String pathAndQuery)
 	{
 		if (pathAndQuery == null || pathAndQuery.isBlank())
@@ -50,23 +41,16 @@ public final class CloudEndpoints
 		}
 		else if (path.startsWith(API_V1_PREFIX + "?"))
 		{
-			path = "/" + path.substring(API_V1_PREFIX.length()); // → "/?..."
+			path = "/" + path.substring(API_V1_PREFIX.length());
 		}
 		return trimTrailingSlash(API_BASE_URL) + path;
 	}
 
-	/**
-	 * Absolute URL for a web-relative asset/path, or passthrough for already-absolute http(s) URLs.
-	 */
 	public static String webUrl(String pathOrUrl)
 	{
 		return resolvePublicUrl(WEB_BASE_URL, pathOrUrl);
 	}
 
-	/**
-	 * Rewrites an absolute URL onto {@link #WEB_BASE_URL} (keeps path + query).
-	 * Relative paths are joined to the web base.
-	 */
 	public static String rewriteToWebBase(String serverUrl)
 	{
 		if (serverUrl == null || serverUrl.isBlank())
@@ -92,9 +76,6 @@ public final class CloudEndpoints
 		return root + (raw.startsWith("/") ? raw : "/" + raw);
 	}
 
-	/**
-	 * Join {@code base} with a relative path, or return absolute http(s) URLs unchanged.
-	 */
 	public static String resolvePublicUrl(String baseUrl, String pathOrUrl)
 	{
 		if (pathOrUrl == null)

@@ -16,11 +16,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * Durable spill of unacked credit-attest raw events under
- * {@code ~/.runelite/OSRS-TCG/profiles/{sha256(accountHash)}/attest-pending.json}.
- * Survives client crashes between enqueue and successful upload.
- */
 @Slf4j
 @Singleton
 public final class CreditAttestSpillStore
@@ -35,7 +30,6 @@ public final class CreditAttestSpillStore
 		this(ProfileKeyHasher.profilesRoot());
 	}
 
-	/** Visible for tests: {@code profilesRoot} is the parent of per-account profile dirs. */
 	CreditAttestSpillStore(Path profilesRoot)
 	{
 		this.profilesRoot = profilesRoot;
@@ -47,9 +41,6 @@ public final class CreditAttestSpillStore
 		return id == null ? null : profilesRoot.resolve(id).resolve(SPILL_FILENAME);
 	}
 
-	/**
-	 * Load spilled events for {@code accountHash}. Missing or corrupt files yield an empty list.
-	 */
 	public List<JsonObject> load(long accountHash)
 	{
 		if (accountHash == -1L)
@@ -95,10 +86,6 @@ public final class CreditAttestSpillStore
 		}
 	}
 
-	/**
-	 * Persist {@code events} for {@code accountHash}. Empty or null lists delete the spill file.
-	 * Never throws to callers.
-	 */
 	public void save(long accountHash, List<JsonObject> events)
 	{
 		if (accountHash == -1L)
@@ -135,7 +122,6 @@ public final class CreditAttestSpillStore
 		}
 	}
 
-	/** Delete spill for {@code accountHash}. Never throws. */
 	public void delete(long accountHash)
 	{
 		if (accountHash == -1L)

@@ -26,14 +26,8 @@ public class TcgStateService
 	private final CreditsRateTracker creditsRateTracker;
 	private final Provider<OsrsTcgConfig> config;
 	private volatile TcgState state = TcgState.empty();
-	/**
-	 * In-memory cache of cloud collection overview (beta-excluded). Filled from {@code /me/stats}
-	 * / inbox stats; not persisted locally.
-	 */
 	private volatile CloudSidebarCollectionStats cloudCollectionStats;
-	/** Last applied server {@code collectionHash}; memory-only (not persisted). */
 	private volatile String cloudCollectionHash = "";
-	/** Shared group join code from {@code GET /me/state}; memory-only (not RSProfile config). */
 	private volatile String cloudGroupKey;
 	private final OptimisticCreditBuffer optimistic = new OptimisticCreditBuffer();
 	private final TcgStateNotifier notifier = new TcgStateNotifier();
@@ -51,7 +45,6 @@ public class TcgStateService
 		this.config = config;
 	}
 
-	/** Test / local harness constructor (no disk store). */
 	public TcgStateService(TcgState initialState)
 	{
 		this.stateStore = null;
@@ -61,9 +54,6 @@ public class TcgStateService
 		this.state = initialState == null ? TcgState.empty() : initialState;
 	}
 
-	/**
-	 * Loads persisted state for the current OSRS account.
-	 */
 	public synchronized TcgStateLoadResult load()
 	{
 		if (stateStore == null)
@@ -94,19 +84,12 @@ public class TcgStateService
 		}
 		if (strippedDebug)
 		{
-			// Memory-only until logout / unload / client close - no mid-session disk write.
 			notifyCollectionMutated();
 		}
-		// Schema placeholder upgrades stay in memory; next full checkpoint persists them.
 
 		return result;
 	}
 
-	/**
-	 * Ensures older profiles that omitted skillCreditBaseline are rewritten on disk.
-	 *
-	 * @return true if the loaded profile needs a schema placeholder written on next save
-	 */
 	private boolean ensureSkillCreditBaselineSchemaField()
 	{
 		SkillCreditBaseline baseline = state.getSkillCreditBaseline();
@@ -118,11 +101,6 @@ public class TcgStateService
 		return baseline.needsSchemaUpgradePersist();
 	}
 
-	/**
-	 * Stamps schema-5 profile metadata when missing.
-	 *
-	 * @return true if state was updated and should be persisted
-	 */
 	private boolean ensureProfileMetaSchemaFields()
 	{
 		boolean changed = false;
@@ -134,7 +112,6 @@ public class TcgStateService
 		return changed;
 	}
 
-	/** Replaces the persisted skill XP baseline in memory (does not save by itself). */
 	public synchronized void replaceSkillCreditBaseline(SkillCreditBaseline baseline)
 	{
 		SkillCreditBaseline next = baseline == null ? SkillCreditBaseline.absent() : baseline;
@@ -145,10 +122,6 @@ public class TcgStateService
 		state = state.withSkillCreditBaseline(next);
 	}
 
-	/**
-	 * Hash snapshot only. Used by {@code ::tcg-save} (explicit manual backup).
-	 * Routine collection changes do not write disk - see {@link #saveFullCheckpoint}.
-	 */
 	public synchronized boolean saveCheckpoint(TcgSaveTrigger trigger)
 	{
 		if (stateStore == null)
@@ -159,10 +132,6 @@ public class TcgStateService
 		return stateStore.saveCheckpoint(state, trigger == null ? TcgSaveTrigger.MANUAL : trigger);
 	}
 
-	/**
-	 * {@code tcg.save} + hash snapshot. Intended for logout, plugin unload, and client close only
-	 * (plus rare intentional resets / {@code ::tcg-save} full backups).
-	 */
 	public synchronized boolean saveFullCheckpoint(TcgSaveTrigger trigger)
 	{
 		if (stateStore == null)
@@ -173,10 +142,6 @@ public class TcgStateService
 		return stateStore.saveFullCheckpoint(state, trigger == null ? TcgSaveTrigger.LOGOUT : trigger);
 	}
 
-	/**
-	 * Broad state-change listener (collection, economy, sidebar stats, ranks).
-	 * Used by the plugin panel for EDT refresh.
-	 */
 	public void addCollectionChangeListener(Runnable listener)
 	{
 		notifier.addStateChangeListener(listener);
@@ -187,7 +152,6 @@ public class TcgStateService
 		notifier.removeStateChangeListener(listener);
 	}
 
-	/** Fires only when owned card instances change (not economy/stats-only updates). */
 	public void addOwnedCollectionListener(Runnable listener)
 	{
 		notifier.addOwnedCollectionListener(listener);
@@ -203,7 +167,6 @@ public class TcgStateService
 		notifier.notifyStateChangeListeners();
 	}
 
-	/** Collection instances changed - notify UI and owned-names interop. */
 	private void notifyCollectionMutated()
 	{
 		notifier.notifyCollectionMutated();
@@ -251,28 +214,21 @@ public class TcgStateService
 		return getAuthoritativeCredits() + optimistic.get();
 	}
 
-	/** Last known server-settled credits (excludes unacked optimistic gains). */
 	public synchronized long getAuthoritativeCredits()
 	{
 		return state.getEconomyState().getCredits();
 	}
 
-	/** Unacked optimistic gains awaiting attest acceptance. */
 	public synchronized long getPendingOptimisticCredits()
 	{
 		return optimistic.get();
 	}
 
-	/** Whether Settings → Debug messages is enabled (optimistic credit / attest chat). */
 	public boolean isDebugChatEnabled()
 	{
 		return config != null && config.get().debugMessages();
 	}
 
-	/**
-	 * Replace local economy display values from cloud authority (does not touch collection instances).
-	 * Preserves unacked optimistic credits so stale polls cannot wipe optimistic gains.
-	 */
 	public synchronized void replaceCloudEconomyCache(long credits, int openedPacks, long totalCreditsGained)
 	{
 		long pending = optimistic.get();
@@ -282,10 +238,6 @@ public class TcgStateService
 		notifyStateChangeListeners();
 	}
 
-	/**
-	 * Full replace of collection + economy from structured {@code GET /me/state}, preserving local UI prefs
-	 * and unacked optimistic credits.
-	 */
 	public synchronized void replaceFromCloudState(
 		CollectionState collection,
 		EconomyState economy,
@@ -304,16 +256,11 @@ public class TcgStateService
 			this.cloudCollectionStats = sidebarStats;
 		}
 		this.cloudCollectionHash = cloudCollectionHash == null ? "" : cloudCollectionHash.trim();
-		// Memory-only - disk backup waits for logout / unload / client close.
 		log.debug("Cloud state apply: serverCredits={} pendingOptimistic={} displayCredits={}",
 			nextEconomy.getCredits(), pending, getCredits());
 		notifyCollectionMutated();
 	}
 
-	/**
-	 * Update cloud sync markers after a local mutation that already matches the server
-	 * so inbox reconcile does not pull a full {@code /me/state}.
-	 */
 	public synchronized void applyCloudSyncMarkers(long revision, String stateHash)
 	{
 		long nextRevision = Math.max(0L, revision);
@@ -326,19 +273,11 @@ public class TcgStateService
 		state = state.withCloudSyncMarkers(nextRevision, nextHash);
 	}
 
-	/**
-	 * Cached hiscores ranks from the last pack-open that included them (persisted across sessions).
-	 * @return length-6 ranks, or null if none stored yet
-	 */
 	public int[] getSidebarRanks()
 	{
 		return state.getSidebarRanks();
 	}
 
-	/**
-	 * Persist sidebar ranks from a pack-open response (replaces prior cache).
-	 * @param ranks length-6 ranks ({@code 0} = unranked), or null to clear
-	 */
 	public synchronized void replaceSidebarRanks(int[] ranks)
 	{
 		int[] next = TcgState.copyRanks(ranks);
@@ -351,16 +290,12 @@ public class TcgStateService
 		notifyStateChangeListeners();
 	}
 
-	/**
-	 * Cache beta-excluded collection overview from cloud {@code /me/stats} (or inbox {@code stats}).
-	 */
 	public synchronized void replaceCloudCollectionStatsCache(CloudSidebarCollectionStats stats)
 	{
 		this.cloudCollectionStats = stats;
 		notifyStateChangeListeners();
 	}
 
-	/** @return cloud collection overview if a stats payload has been applied this session; else {@code null} */
 	public String getCloudCollectionHash()
 	{
 		String hash = cloudCollectionHash;
@@ -377,10 +312,6 @@ public class TcgStateService
 		this.cloudCollectionStats = null;
 	}
 
-	/**
-	 * Apply shared group join code from {@code GET /me/state}. Pass {@code null} when not in a group.
-	 * Notifies owned-names PluginMessage listeners when the value changes.
-	 */
 	public synchronized void replaceCloudGroupKey(String groupKey)
 	{
 		String next = groupKey == null || groupKey.isBlank() ? null : groupKey.trim();
@@ -392,7 +323,6 @@ public class TcgStateService
 		notifier.notifyOwnedCollectionListeners();
 	}
 
-	/** @return shared group join code if known this session; else {@code null} */
 	public String getCloudGroupKey()
 	{
 		return cloudGroupKey;
@@ -403,16 +333,11 @@ public class TcgStateService
 		replaceCloudGroupKey(null);
 	}
 
-	/** Drop unacked optimistic credit display. */
 	public synchronized void clearOptimisticCredits()
 	{
 		optimistic.clear();
 	}
 
-	/**
-	 * Wipe local collection/economy (keeping UI prefs) and clear cloud sync markers so the next
-	 * {@code /me/state} pull always replaces local progress.
-	 */
 	public synchronized void resetProgressForCloudResync()
 	{
 		optimistic.clear();
@@ -436,9 +361,6 @@ public class TcgStateService
 		notifyCollectionMutated();
 	}
 
-	/**
-	 * Optimistic credit gain while waiting for server attest ack. Not persisted; display-only until settled.
-	 */
 	public synchronized void addOptimisticCredits(long amount)
 	{
 		if (amount <= 0)
@@ -460,10 +382,6 @@ public class TcgStateService
 		}
 	}
 
-	/**
-	 * Clears unacked optimistic credits after a successful attest batch (accepted portion).
-	 * Clamps at zero so a later older-batch response cannot erase newer pending.
-	 */
 	public synchronized void clearOptimisticCredits(long amount)
 	{
 		if (amount <= 0 || optimistic.get() <= 0)
@@ -492,7 +410,6 @@ public class TcgStateService
 		notifyCollectionMutated();
 	}
 
-	/** Batch-add instances in memory. Disk backup waits for logout/unload/close. */
 	public synchronized void addOwnedCardInstances(List<OwnedCardInstance> instances)
 	{
 		if (instances == null || instances.isEmpty())
@@ -503,7 +420,6 @@ public class TcgStateService
 		notifyCollectionMutated();
 	}
 
-	/** Snapshot of owned quantities before a bulk collection change. */
 	public synchronized Map<CardCollectionKey, Integer> copyOwnedCardsSnapshot()
 	{
 		return new java.util.HashMap<>(state.getCollectionState().getOwnedCards());
@@ -528,9 +444,6 @@ public class TcgStateService
 		return state.isDebugLogging();
 	}
 
-	/**
-	 * @return true if the in-memory collection was mutated
-	 */
 	private boolean stripDebugProvenanceRowsIfDebugDisabled()
 	{
 		if (state.isDebugLogging())

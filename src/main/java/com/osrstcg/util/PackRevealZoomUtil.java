@@ -2,20 +2,12 @@ package com.osrstcg.util;
 
 import java.util.function.DoublePredicate;
 
-/**
- * Pack-reveal overlay zoom multipliers: classic-fit {@code 1×}, {@code 1.5×}, and exact {@code 2×}.
- * Layout picks the largest level ≤ preference that fits the canvas.
- */
 public final class PackRevealZoomUtil
 {
-	/** Classic-fixed fitted card size. */
 	public static final double NATIVE = 1.0d;
-	/** Mid step between {@link #NATIVE} and {@link #DOUBLE}. */
 	public static final double ONE_AND_HALF = 1.5d;
-	/** Exact pixel-double of {@link #NATIVE}. */
 	public static final double DOUBLE = 2.0d;
 
-	/** Ascending discrete zoom levels. */
 	public static final double[] LEVELS = {NATIVE, ONE_AND_HALF, DOUBLE};
 
 	public static final double MIN = NATIVE;
@@ -25,7 +17,6 @@ public final class PackRevealZoomUtil
 	{
 	}
 
-	/** Snaps to the nearest of {@link #LEVELS}. */
 	public static double clamp(double value)
 	{
 		if (Double.isNaN(value) || Double.isInfinite(value))
@@ -46,10 +37,6 @@ public final class PackRevealZoomUtil
 		return best;
 	}
 
-	/**
-	 * One wheel notch steps preference through {@link #LEVELS}: scroll up ({@code wheelRotation < 0})
-	 * zooms in, scroll down zooms out.
-	 */
 	public static double nudge(double current, int wheelRotation)
 	{
 		if (wheelRotation == 0)
@@ -68,9 +55,6 @@ public final class PackRevealZoomUtil
 		return LEVELS[idx];
 	}
 
-	/**
-	 * Largest level ≤ {@code preferred} for which {@code fits} is true (falls back to {@link #NATIVE}).
-	 */
 	public static double largestFittingAtMost(double preferred, DoublePredicate fits)
 	{
 		double pref = clamp(preferred);
@@ -89,7 +73,6 @@ public final class PackRevealZoomUtil
 		return best;
 	}
 
-	/** Scales a native (1×) pixel length by a discrete zoom mul. */
 	public static int scalePx(int nativePx, double mul)
 	{
 		double level = clamp(mul);

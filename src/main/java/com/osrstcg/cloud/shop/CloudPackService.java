@@ -26,6 +26,7 @@ import net.runelite.api.Client;
 import net.runelite.client.util.Text;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
+import com.osrstcg.cloud.api.CloudResponseSync;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.cloud.catalog.PackPullParser;
@@ -207,20 +208,7 @@ public final class CloudPackService
 			{
 				stateService.replaceCloudCollectionStatsCache(optimistic);
 			}
-			// Collection instances + economy already match this pack-open response. Adopt sync markers
-			// and inbox sinceRevision so the forced poll is cheap (statsUnchanged) and does not
-			// re-pull /me/state mid-reveal.
-			if (response.has("revision") && !response.get("revision").isJsonNull())
-			{
-				long revision = response.get("revision").getAsLong();
-				String stateHash = "";
-				if (response.has("stateHash") && !response.get("stateHash").isJsonNull())
-				{
-					stateHash = response.get("stateHash").getAsString();
-				}
-				stateService.applyCloudSyncMarkers(revision, stateHash);
-				tradeCloud.noteRevision(revision);
-			}
+			CloudResponseSync.applyRevision(response, stateService, tradeCloud);
 			tradeCloud.requestForcedRefresh();
 
 			if (partyAnnouncer != null)

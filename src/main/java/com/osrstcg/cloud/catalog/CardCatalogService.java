@@ -26,11 +26,6 @@ import net.runelite.client.RuneLite;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
 
-/**
- * Fetches the live card catalog from {@code GET /api/v1/catalog/cards/live}
- * ({@code { items, npcs }}). Persists a disk cache under {@code ~/.runelite/OSRS-TCG/catalog/}
- * for offline / pre-login use.
- */
 @Slf4j
 @Singleton
 public final class CardCatalogService
@@ -68,10 +63,6 @@ public final class CardCatalogService
 		changeListener.set(listener);
 	}
 
-	/**
-	 * Load disk cache into {@link CardDatabase} if present (no network). Safe to call on plugin start.
-	 * Custom foil art is not applied from disk - only pack-pull paths carry foil art.
-	 */
 	public void loadDiskCacheIfPresent()
 	{
 		deleteObsoleteCardArtOverlayCache();
@@ -115,17 +106,11 @@ public final class CardCatalogService
 		}
 	}
 
-	/**
-	 * Background fetch. Does not consume the login fetch gate.
-	 */
 	public CompletableFuture<Void> prefetchAsync()
 	{
 		return CompletableFuture.runAsync(this::fetchAndApply, scheduler);
 	}
 
-	/**
-	 * Exactly once after cloud session is established.
-	 */
 	public CompletableFuture<Void> refreshOnLogin()
 	{
 		if (!loginFetchAttempted.compareAndSet(false, true))
@@ -135,13 +120,11 @@ public final class CardCatalogService
 		return CompletableFuture.runAsync(this::fetchAndApply, scheduler);
 	}
 
-	/** Logout - allow a fresh fetch on the next login. Keeps in-memory / disk catalog. */
 	public void resetLoginFetchGate()
 	{
 		loginFetchAttempted.set(false);
 	}
 
-	/** Force refetch. */
 	public CompletableFuture<Void> refreshNow()
 	{
 		loginFetchAttempted.set(true);
@@ -202,7 +185,6 @@ public final class CardCatalogService
 		}
 	}
 
-	/** Drop stale global overlay cache so it cannot re-apply art into CardDatabase. */
 	private void deleteObsoleteCardArtOverlayCache()
 	{
 		Path dir = diskCacheDir();
@@ -280,10 +262,6 @@ public final class CardCatalogService
 		return Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG", "catalog");
 	}
 
-	/**
-	 * Removes the on-disk catalog cache. In-memory cards are kept;
-	 * call {@link #refreshNow()} afterward to repopulate disk from the live host.
-	 */
 	public void deleteDiskCache()
 	{
 		cachedCatalogVersion.set(null);

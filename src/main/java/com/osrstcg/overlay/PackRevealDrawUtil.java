@@ -17,7 +17,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import net.runelite.client.ui.FontManager;
 
-/** Shared dim/glow/badge/fit drawing for the pack-reveal overlay. */
 final class PackRevealDrawUtil
 {
 	static final int CLOSE_BUTTON_SIZE = 26;
@@ -34,7 +33,6 @@ final class PackRevealDrawUtil
 
 	private static final int GLOW_CACHE_MAX = 24;
 	private static final int GLOW_LAYERS = 6;
-	/** Peak opacity of the innermost baked glow layer (before hover alpha is applied). */
 	private static final float GLOW_LAYER_ALPHA = 0.58f;
 	private static final float GLOW_MAX_EXPAND = 28f;
 	private static final Map<String, BufferedImage> GLOW_CACHE = Collections.synchronizedMap(
@@ -178,9 +176,6 @@ final class PackRevealDrawUtil
 		drawGlow(g, r, color, alpha, GLOW_MAX_EXPAND, GLOW_LAYERS, baseArc);
 	}
 
-	/**
-	 * @param maxExpand outer halo reach in pixels (smaller = tighter around {@code r})
-	 */
 	static void drawGlow(Graphics2D g, Rectangle r, Color color, float alpha, float maxExpand, int layers, int baseArc)
 	{
 		Color glow = color == null ? Color.WHITE : color;

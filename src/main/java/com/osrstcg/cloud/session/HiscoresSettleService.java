@@ -13,16 +13,15 @@ import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.util.Text;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
+import com.osrstcg.cloud.api.JsonObjects;
 import com.osrstcg.cloud.trade.TradeCloudService;
 import javax.inject.Provider;
 
-/** Logout snapshot + login settle / retry / toast for Jagex hiscores credits. */
 @Slf4j
 final class HiscoresSettleService
 {
 	private static final long HISCORES_SETTLE_RETRY_DELAY_SEC = 30L;
 
-	/** Last sanitized RSN when local player is cleared (e.g. logout snapshot). */
 	private String lastDisplayName;
 
 	private final Client client;
@@ -227,7 +226,6 @@ final class HiscoresSettleService
 		}, HISCORES_SETTLE_RETRY_DELAY_SEC, TimeUnit.SECONDS);
 	}
 
-	/** @return sanitized local player name, or last cached name if the client already cleared it */
 	private String resolveDisplayName()
 	{
 		if (client.getLocalPlayer() != null && client.getLocalPlayer().getName() != null)
@@ -281,9 +279,9 @@ final class HiscoresSettleService
 		if (response.has("breakdown") && response.get("breakdown").isJsonObject())
 		{
 			JsonObject b = response.getAsJsonObject("breakdown");
-			long xp = readLong(b, "xpCredits");
-			long levels = readLong(b, "levelCredits");
-			long activities = readLong(b, "activityCredits");
+			long xp = JsonObjects.readLong(b, "xpCredits");
+			long levels = JsonObjects.readLong(b, "levelCredits");
+			long activities = JsonObjects.readLong(b, "activityCredits");
 			if (xp > 0L || levels > 0L || activities > 0L)
 			{
 				sb.append(" (");
@@ -315,21 +313,5 @@ final class HiscoresSettleService
 		}
 		sb.append('.');
 		return sb.toString();
-	}
-
-	private static long readLong(JsonObject obj, String key)
-	{
-		if (obj == null || !obj.has(key) || obj.get(key).isJsonNull())
-		{
-			return 0L;
-		}
-		try
-		{
-			return obj.get(key).getAsLong();
-		}
-		catch (Exception ignored)
-		{
-			return 0L;
-		}
 	}
 }

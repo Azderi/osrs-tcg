@@ -48,6 +48,7 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 		sidebarRefresh.refreshAfterPackRevealClose();
 	}
 
+	/** Consumes game input only while a pack reveal overlay is active. */
 	private boolean revealBlocksGameInput()
 	{
 		return revealService.isActive();
@@ -93,7 +94,6 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 
 		if (mouseEvent.getButton() == MouseEvent.BUTTON3)
 		{
-			// Freeze tip + context menu; do not advance the reveal.
 			overlay.pinCardInfoTipAt(mouseEvent.getPoint());
 			mouseEvent.consume();
 			return mouseEvent;
@@ -117,7 +117,6 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 				return mouseEvent;
 			}
 			revealService.handleClick(mouseEvent.getPoint(), overlay.currentPackBounds(), overlay.currentCardBounds());
-			// Full sidebar refresh only when the reveal session ends (not on every card flip).
 			if (!revealService.isActive())
 			{
 				sidebarRefresh.refreshAfterPackRevealClose();

@@ -19,17 +19,11 @@ import net.runelite.api.GameState;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.WorldChanged;
 
-/**
- * Connect / disconnect / restricted-world pause / offline reconnect timer / shutdown attest flush.
- * {@link com.osrstcg.OsrsTcgPlugin} keeps {@code @Subscribe} dispatch.
- */
 @Slf4j
 @Singleton
 public class CloudSessionCoordinator
 {
-	/** Minimum delay while consented-but-offline before retrying {@link #connect()}. */
 	private static final long CLOUD_RECONNECT_MIN_DELAY_MS = 5L * 60L * 1000L;
-	/** Maximum delay (inclusive upper bound via jitter) for offline reconnect attempts. */
 	private static final long CLOUD_RECONNECT_MAX_DELAY_MS = 15L * 60L * 1000L;
 
 	private final Client client;
@@ -92,7 +86,6 @@ public class CloudSessionCoordinator
 		cloudSessionService.setStatusListener(null);
 	}
 
-	/** Kicks off pairing/refresh + starts the attest queue and trade poll once connected. */
 	public void connect()
 	{
 		if (cloudSessionService.isAccountLocked())
@@ -145,7 +138,6 @@ public class CloudSessionCoordinator
 		});
 	}
 
-	/** Stop cloud traffic and show yellow status while on a blocked world type. */
 	public void pauseForRestrictedWorld()
 	{
 		cancelReconnect();
@@ -173,10 +165,6 @@ public class CloudSessionCoordinator
 		cloudSessionService.disconnectQuietly();
 	}
 
-	/**
-	 * After consent, while offline (and not banned/quarantined), retry {@link #connect()}
-	 * after a uniform delay in [{@link #CLOUD_RECONNECT_MIN_DELAY_MS}, {@link #CLOUD_RECONNECT_MAX_DELAY_MS}].
-	 */
 	public void scheduleReconnectIfNeeded()
 	{
 		if (client.getGameState() != GameState.LOGGED_IN
@@ -236,7 +224,6 @@ public class CloudSessionCoordinator
 		}
 	}
 
-	/** Retry pairing until local player identity is ready. */
 	public void onLoggedInGameTick()
 	{
 		if (client.getGameState() != GameState.LOGGED_IN)
@@ -304,7 +291,6 @@ public class CloudSessionCoordinator
 		SwingUtilities.invokeLater(sidebarRefresh::refresh);
 	}
 
-	/** Best-effort coalesce→attest drain used from ClientShutdown's waited Future. */
 	public void flushAttestsForShutdown()
 	{
 		try

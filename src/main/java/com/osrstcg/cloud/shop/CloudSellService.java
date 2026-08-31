@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
+import com.osrstcg.cloud.api.CloudResponseSync;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
 import com.osrstcg.cloud.session.CloudSessionService;
 import com.osrstcg.cloud.trade.TradeCloudService;
@@ -123,17 +124,7 @@ public final class CloudSellService
 			if (lastResponse != null)
 			{
 				session.applySidebarStats(lastResponse);
-				if (lastResponse.has("revision") && !lastResponse.get("revision").isJsonNull())
-				{
-					long revision = lastResponse.get("revision").getAsLong();
-					String stateHash = "";
-					if (lastResponse.has("stateHash") && !lastResponse.get("stateHash").isJsonNull())
-					{
-						stateHash = lastResponse.get("stateHash").getAsString();
-					}
-					stateService.applyCloudSyncMarkers(revision, stateHash);
-					tradeCloud.noteRevision(revision);
-				}
+				CloudResponseSync.applyRevision(lastResponse, stateService, tradeCloud);
 			}
 			tradeCloud.requestForcedRefresh();
 

@@ -10,11 +10,8 @@ import java.awt.Point;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import lombok.Value;
 
-/**
- * Content + positioning for the website {@code CardInfoTip} / {@code cardInfoRows} hover panel.
- * See {@code SharedDocs/plugin/pack-reveal-card-info-tip.md}.
- */
 public final class CardInfoTipModel
 {
 	public static final int DELAY_MS = 180;
@@ -26,13 +23,13 @@ public final class CardInfoTipModel
 
 	public static final String ACTION_OPEN_WIKI = "open-wiki";
 
-	public static final class Row
+	@Value
+	public static class Row
 	{
-		private final String label;
-		private final String value;
-		private final String actionId;
-		/** Optional value paint color. */
-		private final Color valueColor;
+		String label;
+		String value;
+		String actionId;
+		Color valueColor;
 
 		public Row(String label, String value)
 		{
@@ -52,30 +49,9 @@ public final class CardInfoTipModel
 			this.valueColor = valueColor;
 		}
 
-		/** Full-width clickable menu row. */
 		public static Row action(String label, String actionId)
 		{
 			return new Row(label, "", actionId, null);
-		}
-
-		public String getLabel()
-		{
-			return label;
-		}
-
-		public String getValue()
-		{
-			return value;
-		}
-
-		public String getActionId()
-		{
-			return actionId;
-		}
-
-		public Color getValueColor()
-		{
-			return valueColor;
 		}
 
 		public boolean isAction()
@@ -84,25 +60,16 @@ public final class CardInfoTipModel
 		}
 	}
 
-	public static final class Content
+	@Value
+	public static class Content
 	{
-		private final String title;
-		private final List<Row> rows;
+		String title;
+		List<Row> rows;
 
 		public Content(String title, List<Row> rows)
 		{
 			this.title = title == null || title.isBlank() ? "Card" : title;
 			this.rows = Collections.unmodifiableList(new ArrayList<>(rows == null ? List.of() : rows));
-		}
-
-		public String getTitle()
-		{
-			return title;
-		}
-
-		public List<Row> getRows()
-		{
-			return rows;
 		}
 	}
 
@@ -110,9 +77,6 @@ public final class CardInfoTipModel
 	{
 	}
 
-	/**
-	 * Port of {@code cardInfoTipPosition}: prefer below/right of cursor, flip when near edges, clamp to pad.
-	 */
 	public static Point position(int cursorX, int cursorY, int tipW, int tipH, int canvasW, int canvasH)
 	{
 		int w = Math.max(1, tipW);
@@ -133,7 +97,6 @@ public final class CardInfoTipModel
 		return new Point(left, top);
 	}
 
-	/** Anchor the tip to the top-right of the canvas (pack reveal hover). */
 	public static Point topRight(int tipW, int tipH, int canvasW, int canvasH)
 	{
 		int w = Math.max(1, tipW);
@@ -148,16 +111,11 @@ public final class CardInfoTipModel
 		return new Point(left, top);
 	}
 
-	/** Face-up pack pull tip: title + grade only. */
 	public static Content forPackRevealCard(PackRevealService.RevealCard card)
 	{
 		return forPackRevealCard(card, false);
 	}
 
-	/**
-	 * Face-up pack tip. When {@code includeContextMenuActions}, appends
-	 * {@link #ACTION_OPEN_WIKI} under Grade when a wiki page exists.
-	 */
 	public static Content forPackRevealCard(PackRevealService.RevealCard card, boolean includeContextMenuActions)
 	{
 		if (card == null)
@@ -181,10 +139,6 @@ public final class CardInfoTipModel
 		return new Content(title, rows);
 	}
 
-	/**
-	 * Append Artist credit only when foil art is present ({@code foilImagePath}) and a name is set.
-	 * Value is tinted with {@code artistColor} when valid.
-	 */
 	static void appendArtistRow(List<Row> rows, CardDefinition def)
 	{
 		if (rows == null || def == null)
@@ -204,9 +158,6 @@ public final class CardInfoTipModel
 		rows.add(new Row("Artist", name, normalizeArtistColor(def.getArtistColor())));
 	}
 
-	/**
-	 * Port of SPA {@code normalizeArtistColor}: {@code #RGB} / {@code #RRGGBB} → opaque AWT color, else null.
-	 */
 	static Color normalizeArtistColor(String raw)
 	{
 		if (raw == null)
@@ -275,7 +226,6 @@ public final class CardInfoTipModel
 		return null;
 	}
 
-	/** Grade from condition only - pack pulls never include score, beta, or pull metadata. */
 	static List<Row> packRevealRows(Double condition)
 	{
 		List<Row> rows = new ArrayList<>();

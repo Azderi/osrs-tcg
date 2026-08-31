@@ -25,23 +25,11 @@ import com.osrstcg.util.TcgPluginGameMessages;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * Queues raw credit events and coalesces them immediately before {@code POST /credits/attest}.
- * Unacked raw events are spilled under the current account's profile dir for crash recovery.
- * Flush triggers: server {@code attestAfterMs} (default ~60s); logout / shutdown / sell drain;
- * pack open when authoritative credits are below that pack's price; early flush near ~80 coalesced
- * events; large XP spikes.
- *
- * @see CreditAttestCoalescer
- * @see CreditAttestSpillStore
- */
 @Slf4j
 @Singleton
 public final class CreditAttestQueue
 {
-	/** Default / floor when the server omits attestAfterMs; positive server values are authoritative. */
 	private static final long DEFAULT_ATTEST_AFTER_MS = 60_000L;
-	/** Optional early flush when a single xp_chunk is this large (still coalesced first). */
 	private static final long LARGE_XP_SPIKE_DELTA = 50_000L;
 	private final CloudSessionService session;
 	private final TradeCloudService tradeCloud;
@@ -53,9 +41,7 @@ public final class CreditAttestQueue
 	private final CreditAttestSpillStore spillStore;
 
 	private final Object lock = new Object();
-	/** Serializes coalesce→attest drains. */
 	private final Object flushGate = new Object();
-	/** Raw intake - never POSTed without {@link CreditAttestCoalescer#coalesce}. */
 	private final List<JsonObject> pendingRaw = new ArrayList<>();
 	private final AtomicReference<Runnable> economyListener = new AtomicReference<>(null);
 	private final AtomicBoolean earlyFlushScheduled = new AtomicBoolean(false);
@@ -64,11 +50,8 @@ public final class CreditAttestQueue
 	private final AttestRejectRequeuer rejectRequeuer;
 	private final CreditAttestPoster poster;
 	private final CreditAttestScheduler attestScheduler;
-	/** Last account hash seen while logged in - used if client clears hash before teardown flush. */
 	private volatile long lastAccountHash = -1L;
-	/** Last sanitized RSN seen while logged in - used if local player clears before teardown flush. */
 	private volatile String lastDisplayName;
-	/** Account hash for which {@link #spillStore} was already loaded into {@link #pendingRaw}. */
 	private volatile long spillLoadedForAccountHash = -1L;
 
 	@Inject
@@ -123,7 +106,6 @@ public final class CreditAttestQueue
 		economyListener.set(listener);
 	}
 
-	/** Idempotent while already scheduled so world hops do not reset the attest timer. */
 	public void start()
 	{
 		attestScheduler.start();
@@ -140,10 +122,6 @@ public final class CreditAttestQueue
 		}
 	}
 
-	/**
-	 * Server {@code attestAfterMs} is authoritative (no client max). Non-positive
-	 * values fall back to the previous good delay or the default floor.
-	 */
 	private static long resolveAttestAfterMs(long ms, long fallbackMs)
 	{
 		if (ms <= 0L)
@@ -183,7 +161,6 @@ public final class CreditAttestQueue
 		lastGoodAttestAfterMs.set(resolveAttestAfterMs(parsed != null ? parsed : 0L, fallback));
 	}
 
-	/** Drop unsent attest events. Does not touch optimistic display credits. */
 	public void discardPending()
 	{
 		long hash;
@@ -221,7 +198,6 @@ public final class CreditAttestQueue
 			{
 				return;
 			}
-			// Hitpoints is tracked but never grants optimistic credits.
 			if (CreditAttestCoalescer.isHitpointsSkillName(skill))
 			{
 				optimisticCredits = 0L;
@@ -273,21 +249,11 @@ public final class CreditAttestQueue
 		}
 	}
 
-	/**
-	 * Schedule a pending-attest drain on the plugin scheduler (non-blocking).
-	 * Safe to call from the client thread. Pack open / logout / shutdown that must finish
-	 * before continuing should use {@link #flushBlocking()}.
-	 */
 	public void flushNow()
 	{
 		scheduler.execute(() -> flushSafe(false));
 	}
 
-	/**
-	 * Drain pending attests on the calling thread (blocking HTTP).
-	 * Use from pack buy, logout, and ClientShutdown waited futures - not from ClientThread.
-	 * Allows a best-effort POST while a token still exists even if the UI marked the session offline.
-	 */
 	public boolean flushBlocking()
 	{
 		return flushSafe(true);
@@ -321,7 +287,6 @@ public final class CreditAttestQueue
 		return lastAccountHash;
 	}
 
-	/** @return sanitized local player name, or last cached name if the client already cleared it */
 	String resolveDisplayName()
 	{
 		if (client.getLocalPlayer() != null && client.getLocalPlayer().getName() != null)
@@ -336,10 +301,6 @@ public final class CreditAttestQueue
 		return lastDisplayName;
 	}
 
-	/**
-	 * Load crash-recovery spill into {@link #pendingRaw} once per account hash.
-	 * Safe to call from enqueue / start; IO runs outside {@link #lock}.
-	 */
 	private void ensureSpillLoaded()
 	{
 		long hash = resolveAccountHash();
@@ -384,7 +345,6 @@ public final class CreditAttestQueue
 		}
 	}
 
-	/** Snapshot {@link #pendingRaw} under lock and persist (delete when empty). */
 	private void persistSpillFromPending()
 	{
 		long hash;
@@ -452,7 +412,6 @@ public final class CreditAttestQueue
 		}
 		else if (!session.isReady())
 		{
-			// Offline buffer: keep pending + spill; do not spam the API while disconnected.
 			return false;
 		}
 		ensureSpillLoaded();
@@ -491,7 +450,6 @@ public final class CreditAttestQueue
 					continue;
 				}
 
-				// Hitpoints XP alone is not worth a round-trip; hold until something else joins.
 				if (CreditAttestCoalescer.isHitpointsXpOnly(coalesced))
 				{
 					synchronized (lock)
@@ -532,7 +490,6 @@ public final class CreditAttestQueue
 					{
 						synchronized (lock)
 						{
-							// Preserve order: failed batch then remaining coalesced, then any new raw.
 							pendingRaw.addAll(0, coalesced);
 							pendingRaw.addAll(0, batch);
 						}
@@ -541,16 +498,11 @@ public final class CreditAttestQueue
 					}
 				}
 			}
-			// Drain finished (or pending emptied mid-loop) - drop spill when nothing remains.
 			persistSpillFromPending();
 			return changed;
 		}
 	}
 
-	/**
-	 * Prefer summed {@code accepted[]} credit amounts when present; otherwise clear the batch estimate
-	 * minus optimistic stamped on rejected events that were requeued (still pending).
-	 */
 	static long resolveOptimisticClearAmount(
 		JsonObject response,
 		List<JsonObject> batch,
@@ -576,7 +528,6 @@ public final class CreditAttestQueue
 		return Math.max(0L, batchOptimisticEstimate - holdBack);
 	}
 
-	/** @return sum of accepted credit amounts, or {@code -1} when the array is missing/unusable */
 	private static long sumAcceptedCredits(JsonObject response)
 	{
 		if (response == null || !response.has("accepted") || !response.get("accepted").isJsonArray())

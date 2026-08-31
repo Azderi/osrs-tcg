@@ -8,24 +8,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.DoubleConsumer;
 
-/**
- * Viewport / grid geometry for the pack-reveal overlay. Zoom preference is supplied by the overlay;
- * applied size is the largest discrete level that still fits the canvas.
- */
 final class PackRevealLayout
 {
 	static final double CARD_SIZE_SCALE = 0.805d * 1.25d;
 	static final int BASE_CARD_W = (int) Math.round(SharedCardRenderer.DEFAULT_CARD_WIDTH * CARD_SIZE_SCALE);
 	static final int BASE_CARD_H = (int) Math.round(SharedCardRenderer.DEFAULT_CARD_HEIGHT * CARD_SIZE_SCALE);
-	/** Sealed pack sprite bounds (before native layout scale). */
 	static final int BASE_PACK_W = 396;
 	static final int BASE_PACK_H = 545;
 	static final int BASE_CARD_GAP = 24;
-	/** Inset from the canvas edge when measuring available fit space. */
 	static final int VIEWPORT_EDGE_PAD = 8;
-	/**
-	 * Classic fixed clients are short (~503px). Prefer filling height on those canvases.
-	 */
 	static final int SMALL_CANVAS_HEIGHT_PX = 560;
 	static final double MIN_OVERLAY_SCALE = 0.28d;
 	static final int CLASSIC_CANVAS_W = 765;
@@ -169,7 +160,6 @@ final class PackRevealLayout
 		return (bottomCount > 0) ? (cardH * 2) + gap : cardH;
 	}
 
-	/** Whether classic-native layout × {@code mul} fits in the available canvas. */
 	private static boolean nativeLayoutFits(int availW, int availH, int cardCount, boolean packOnly, double mul)
 	{
 		int packW = PackRevealZoomUtil.scalePx(NATIVE_PACK_W, mul);
@@ -188,7 +178,6 @@ final class PackRevealLayout
 		return needW <= availW && needH <= availH;
 	}
 
-	/** Classic-fixed fit scale. */
 	private static double classicNativeLayoutScale()
 	{
 		Rectangle canvas = new Rectangle(0, 0, CLASSIC_CANVAS_W, CLASSIC_CANVAS_H);
@@ -206,7 +195,6 @@ final class PackRevealLayout
 		return Math.max(MIN_OVERLAY_SCALE, Math.min(1.0d, fitS));
 	}
 
-	/** On short canvases (classic fixed), fill height by default; otherwise contain. */
 	private static double defaultFitScale(Rectangle canvas, double scaleH, double containS)
 	{
 		if (canvas != null && canvas.height <= SMALL_CANVAS_HEIGHT_PX)

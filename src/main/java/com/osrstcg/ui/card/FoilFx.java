@@ -5,81 +5,25 @@ import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import lombok.Getter;
+import lombok.Value;
 
-/**
- * Deterministic foil sparkle layout. Same FNV seed as {@link WearFx} with an empty
- * {@code pulledBy}. Sparkle hues follow rarity.
- */
+@Getter
 public final class FoilFx
 {
 	public static final int DEFAULT_SPARKLE_COUNT = 22;
 
-	/** {@code x}/{@code y} are percent of card size; {@code size} is design px (multiply by card scale). */
-	public static final class Sparkle
+	@Value
+	public static class Sparkle
 	{
-		private final double x;
-		private final double y;
-		private final double size;
-		private final double delay;
-		private final double duration;
-		private final double hue;
-		/** 0–1 saturation for {@link CardColorMath#hsla}. */
-		private final double sat;
-		/** 0–1 lightness for {@link CardColorMath#hsla}. */
-		private final double light;
-
-		Sparkle(double x, double y, double size, double delay, double duration,
-			double hue, double sat, double light)
-		{
-			this.x = x;
-			this.y = y;
-			this.size = size;
-			this.delay = delay;
-			this.duration = duration;
-			this.hue = hue;
-			this.sat = sat;
-			this.light = light;
-		}
-
-		public double getX()
-		{
-			return x;
-		}
-
-		public double getY()
-		{
-			return y;
-		}
-
-		public double getSize()
-		{
-			return size;
-		}
-
-		public double getDelay()
-		{
-			return delay;
-		}
-
-		public double getDuration()
-		{
-			return duration;
-		}
-
-		public double getHue()
-		{
-			return hue;
-		}
-
-		public double getSat()
-		{
-			return sat;
-		}
-
-		public double getLight()
-		{
-			return light;
-		}
+		double x;
+		double y;
+		double size;
+		double delay;
+		double duration;
+		double hue;
+		double sat;
+		double light;
 	}
 
 	private final int seed;
@@ -91,30 +35,6 @@ public final class FoilFx
 		this.sparkles = Collections.unmodifiableList(sparkles);
 	}
 
-	public int getSeed()
-	{
-		return seed;
-	}
-
-	public List<Sparkle> getSparkles()
-	{
-		return sparkles;
-	}
-
-	public static FoilFx foilFxFromPulledAt(Long pulledAt, String cardName)
-	{
-		return foilFxFromPulledAt(pulledAt, DEFAULT_SPARKLE_COUNT, cardName, null, null);
-	}
-
-	public static FoilFx foilFxFromPulledAt(Long pulledAt, int count, String cardName)
-	{
-		return foilFxFromPulledAt(pulledAt, count, cardName, null, null);
-	}
-
-	/**
-	 * @param tierLabel catalog / pull tier label
-	 * @param tierColor rarity color; white / near-gray with no label → Common silver path
-	 */
 	public static FoilFx foilFxFromPulledAt(
 		Long pulledAt, int count, String cardName, String tierLabel, Color tierColor)
 	{
@@ -129,7 +49,6 @@ public final class FoilFx
 		List<Sparkle> sparkles = new ArrayList<>(safeCount);
 		for (int i = 0; i < safeCount; i++)
 		{
-			// Layout RNG order must stay: x, y, size, delay, duration, then color draws.
 			double x = 6.0d + rand.next() * 88.0d;
 			double y = 8.0d + rand.next() * 84.0d;
 			double size = 1.2d + rand.next() * 2.8d;
@@ -164,7 +83,6 @@ public final class FoilFx
 		{
 			return fromLabel;
 		}
-		// White / missing chroma → Common (silver foil).
 		if (hueFromColor(tierColor) == null)
 		{
 			return RarityMath.Tier.COMMON;
@@ -198,7 +116,6 @@ public final class FoilFx
 		}
 	}
 
-	/** @return hue degrees 0..360, or null for near-gray / invalid */
 	static Double hueFromColor(Color color)
 	{
 		if (color == null)

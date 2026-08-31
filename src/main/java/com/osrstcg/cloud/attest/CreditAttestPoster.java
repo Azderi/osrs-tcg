@@ -9,7 +9,10 @@ import java.util.List;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 
-/** Posts a coalesced attest batch with retry. */
+/**
+ * POSTs XP/kill/activity evidence for credit earn; not game automation.
+ * accountHash/displayName bind the OSRS account, not credentials.
+ */
 @Slf4j
 final class CreditAttestPoster
 {

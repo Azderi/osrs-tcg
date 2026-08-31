@@ -36,44 +36,16 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 
-/**
- * Loads and caches card/pack artwork from the production web/API hosts ({@link CloudEndpoints}).
- * Relative paths are joined to the web base;
- * {@code /api/...} artwork paths use the API host.
- * <p>
- * Disk layout under {@code ~/.runelite/OSRS-TCG/}:
- * <ul>
- *   <li>{@code images-v4/} - card detail / foil / artwork (SHA-256 of stable URL identity)</li>
- *   <li>{@code packs/} - pack {@code image}/{@code thumbnail} assets by basename, plus
- *       pack-reveal {@code cardback.png}</li>
- * </ul>
- * Memory holds a downscaled decode; disk keeps the original download bytes.
- * <p>
- * Signed artwork URLs ({@code /artwork/files/:id?token=…}) rotate {@code token} on every pack
- * open. Cache keys strip that query so the same ULID hits disk/memory across pulls while HTTP
- * still uses the fresh signed URL.
- */
 @Slf4j
 @Singleton
 public class CardImageCacheService
 {
 	private static final String USER_AGENT =
 		"osrs-tcg (https://github.com/Azderi/osrs-tcg)";
-	/** Max decoded images kept in heap; evicted entries remain on disk. */
 	private static final int MEMORY_CACHE_MAX_ENTRIES = 256;
-	/**
-	 * Longest edge kept in the memory cache for banded detail icons. Cards are drawn ~100–180px
-	 * wide; full detail PNGs in the disk cache otherwise cause large GC pauses while decoding.
-	 */
 	private static final int MAX_MEMORY_IMAGE_EDGE_PX = 130;
-	/** Foil bleed faces need higher fidelity when cover-cropped into the inner well. */
 	private static final int MAX_MEMORY_FULL_ART_EDGE_PX = 520;
-	/**
-	 * Sealed pack sleeves on the reveal overlay are ~400×545 design (up to 2× zoom). Keep enough
-	 * resolution that {@code image} does not look like the shop {@code thumbnail}.
-	 */
 	private static final int MAX_MEMORY_PACK_SLEEVE_EDGE_PX = 1100;
-	/** Cap concurrent disk/network decodes. */
 	private static final int MAX_IN_FLIGHT_LOADS = 4;
 	private static final AtomicInteger IMAGE_LOADER_SEQ = new AtomicInteger();
 	private static final ThreadFactory IMAGE_LOADER_THREAD_FACTORY = r ->
@@ -86,10 +58,8 @@ public class CardImageCacheService
 	private final OkHttpClient okHttpClient;
 	private final CloudTokenStore tokenStore;
 	private final Semaphore loadPermits = new Semaphore(MAX_IN_FLIGHT_LOADS);
-	/** Dedicated pool for blocking ImageIO/HTTP. */
 	private final ExecutorService imageLoadExecutor = Executors.newFixedThreadPool(
 		MAX_IN_FLIGHT_LOADS, IMAGE_LOADER_THREAD_FACTORY);
-	/** Memory keys are {@link #cacheIdentity(String)}, not the raw signed fetch URL. */
 	private final Map<String, BufferedImage> memoryCache = Collections.synchronizedMap(
 		new LinkedHashMap<String, BufferedImage>(MEMORY_CACHE_MAX_ENTRIES + 1, 0.75f, true)
 		{
@@ -100,18 +70,8 @@ public class CardImageCacheService
 			}
 		});
 	private final Map<String, CompletableFuture<BufferedImage>> loadingFutures = new ConcurrentHashMap<>();
-	/**
-	 * Cache identities that recently failed to load, with failure timestamp.
-	 * Used so paint paths skip immediate re-fetch; entries expire so transient CDN/deploy
-	 * 404s (e.g. pack thumbnails referenced before assets are published) can recover.
-	 */
 	private final ConcurrentHashMap<String, Long> failedAtMs = new ConcurrentHashMap<>();
-	/** Default cooldown after a failed card/detail image load. */
 	private static final long FAIL_COOLDOWN_MS = 60_000L;
-	/**
-	 * Pack sleeve/thumbnail assets are tiny and often race deploys; retry sooner so the shop
-	 * recovers without requiring a full client restart.
-	 */
 	private static final long PACK_FAIL_COOLDOWN_MS = 5_000L;
 
 	@Inject
@@ -126,10 +86,6 @@ public class CardImageCacheService
 		preloadAsync(urls);
 	}
 
-	/**
-	 * Starts background loads for each URL and completes when all have settled (cached or failed).
-	 * Safe to ignore the returned future when only warming the cache.
-	 */
 	public CompletableFuture<Void> preloadAsync(Collection<String> urls)
 	{
 		if (urls == null)
@@ -150,17 +106,11 @@ public class CardImageCacheService
 		return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new));
 	}
 
-	/** Absolute URL suitable for external embeds. */
 	public String resolveAbsoluteUrl(String pathOrUrl)
 	{
 		return normalizeUrl(pathOrUrl);
 	}
 
-	/**
-	 * Returns a cached image if present. Safe to call from overlay/UI paint paths:
-	 * only reads the memory cache and may kick off a background load - never blocks
-	 * on network/disk and never writes the cache on this thread.
-	 */
 	public BufferedImage getCached(String pathOrUrl)
 	{
 		if (pathOrUrl == null)
@@ -188,10 +138,6 @@ public class CardImageCacheService
 		return null;
 	}
 
-	/**
-	 * Starts (or joins) a background load. Returns an already-completed future when the image is
-	 * cached, {@code null} when the URL is empty / in fail cooldown, otherwise the in-flight future.
-	 */
 	private CompletableFuture<BufferedImage> ensureLoad(String rawUrl)
 	{
 		String fetchUrl = normalizeUrl(rawUrl);
@@ -230,8 +176,6 @@ public class CardImageCacheService
 			}, imageLoadExecutor)
 			.whenComplete((image, ex) ->
 			{
-				// Populate cache before removing the in-flight future so paint reads never
-				// observe "not loading" and "not cached" at the same time.
 				if (image != null)
 				{
 					failedAtMs.remove(key);
@@ -239,9 +183,6 @@ public class CardImageCacheService
 				}
 				else if (!isEphemeralAuthUrl(fetchUrl))
 				{
-					// Signed artwork tokens rotate; do not blacklist the stable art id forever
-					// after one expired-token miss. Other assets use a timed cooldown so
-					// transient 404s (CDN race on newly published pack art) can recover.
 					failedAtMs.put(key, System.currentTimeMillis());
 				}
 				loadingFutures.remove(key);
@@ -310,7 +251,6 @@ public class CardImageCacheService
 				{
 					return null;
 				}
-				// Persist under stable cache identity; fetch URL may include a rotating token.
 				persistBytesToDisk(cacheKey, bytes);
 				BufferedImage fromCache = tryLoadFromDisk(cacheKey, fetchUrl);
 				if (fromCache != null)
@@ -332,10 +272,6 @@ public class CardImageCacheService
 		return null;
 	}
 
-	/**
-	 * Keeps heap pressure low when the disk/network asset is a full-size detail PNG.
-	 * Disk cache retains the original; only the in-memory copy is scaled.
-	 */
 	private static BufferedImage downscaleForMemoryCache(BufferedImage source, int maxEdgePx)
 	{
 		if (source == null)
@@ -378,7 +314,6 @@ public class CardImageCacheService
 		}
 		if (lower.contains("/images/packs/"))
 		{
-			// Shop icons stay small; reveal sleeves use the full pack {@code image} asset.
 			if (lower.contains("thumbnail"))
 			{
 				return MAX_MEMORY_IMAGE_EDGE_PX;
@@ -397,17 +332,11 @@ public class CardImageCacheService
 		return Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG", "images-v4");
 	}
 
-	/** Pack sleeve + thumbnail downloads: {@code ~/.runelite/OSRS-TCG/packs/}. */
 	private Path packDiskCacheDir()
 	{
 		return Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG", "packs");
 	}
 
-	/**
-	 * Drops superseded image cache trees left behind by older plugin versions
-	 * ({@code images-v3}, {@code images-v2}, and {@code images} if present). Active caches are
-	 * {@code images-v4} and {@code packs/}.
-	 */
 	public void deleteObsoleteImageCacheDirs()
 	{
 		Path root = Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG");
@@ -453,24 +382,18 @@ public class CardImageCacheService
 		return diskCacheDir().resolve(TcgStateHash.hexOfUtf8(cacheKey) + ".png");
 	}
 
-	/** {@code true} when the absolute URL is a pack catalog sleeve or thumbnail. */
 	static boolean isPackAssetUrl(String normalizedUrl)
 	{
 		return normalizedUrl != null
 			&& normalizedUrl.toLowerCase(java.util.Locale.ROOT).contains("/images/packs/");
 	}
 
-	/** Website card-back PNG used during pack reveal. */
 	static boolean isCardBackUrl(String normalizedUrl)
 	{
 		return normalizedUrl != null
 			&& normalizedUrl.toLowerCase(java.util.Locale.ROOT).contains("/images/cardback");
 	}
 
-	/**
-	 * Safe basename for {@code OSRS-TCG/packs/}, or {@code null} when {@code url} is not a pack
-	 * sleeve/thumbnail or the pack-reveal card back.
-	 */
 	static String packDiskFileName(String normalizedUrl)
 	{
 		if (isCardBackUrl(normalizedUrl))
@@ -575,7 +498,6 @@ public class CardImageCacheService
 		}
 	}
 
-	/** Writes original download bytes (pack assets → {@code packs/}, others → {@code images-v4/}). */
 	private void persistBytesToDisk(String cacheKey, byte[] bytes)
 	{
 		if (bytes == null || bytes.length == 0)
@@ -593,25 +515,16 @@ public class CardImageCacheService
 		}
 	}
 
-	/**
-	 * Stable cache identity for an absolute URL. Strips rotating signed {@code token} query
-	 * params (and any query on {@code /artwork/files/}) so the same artwork ULID maps to one
-	 * disk/memory entry across pack opens.
-	 */
 	static String cacheIdentity(String absoluteUrl)
 	{
 		return ImageCacheIdentity.cacheIdentity(absoluteUrl);
 	}
 
-	/** {@code true} when HTTP auth is ephemeral (fresh {@code token} on each pack payload). */
 	static boolean isEphemeralAuthUrl(String absoluteUrl)
 	{
 		return ImageCacheIdentity.isEphemeralAuthUrl(absoluteUrl);
 	}
 
-	/**
-	 * Removes a single query parameter (case-insensitive name) while preserving other params.
-	 */
 	static String stripQueryParam(String absoluteUrl, String paramName)
 	{
 		return ImageCacheIdentity.stripQueryParam(absoluteUrl, paramName);
@@ -636,7 +549,6 @@ public class CardImageCacheService
 		{
 			return "https:" + raw;
 		}
-		// Accepted artist uploads live on the API host; static /images live on the web host.
 		if (raw.startsWith("/api/"))
 		{
 			return CloudEndpoints.apiUrl(raw);
@@ -644,7 +556,6 @@ public class CardImageCacheService
 		return CloudEndpoints.webUrl(raw);
 	}
 
-	/** True when the URL host is {@code osrs-tcg.net} or a subdomain (e.g. {@code api.}). */
 	static boolean isOsrsTcgNetUrl(String url)
 	{
 		HttpUrl parsed = HttpUrl.parse(url);

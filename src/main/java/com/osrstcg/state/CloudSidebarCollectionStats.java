@@ -29,15 +29,20 @@ public class CloudSidebarCollectionStats
 		{
 			return null;
 		}
+		Double uniqueOwned = JsonObjects.readNumber(stats, "uniqueOwned", "uniqueCardCount");
+		Double totalCardsOwned = JsonObjects.readNumber(stats, "totalCardsOwned", "cardCount");
+		Double foilOwned = JsonObjects.readNumber(stats, "foilOwned", "foilCount");
+		Double completionPct = JsonObjects.readNumber(stats, "completionPct", "completionPercent");
+		Double collectionScore = JsonObjects.readNumber(stats, "collectionScore", "score");
 		return new CloudSidebarCollectionStats(
-			readInt(stats, "uniqueOwned", "uniqueCardCount"),
-			readInt(stats, "uniqueFoilOwned"),
-			readInt(stats, "totalCardsOwned", "cardCount"),
-			readLong(stats, "foilOwned", "foilCount"),
-			readInt(stats, "totalCardPool"),
-			readDouble(stats, "completionPct", "completionPercent"),
-			readDouble(stats, "foilCompletionPct"),
-			readLong(stats, "collectionScore", "score"));
+			uniqueOwned == null ? 0 : (int) Math.round(uniqueOwned),
+			JsonObjects.readInt(stats, "uniqueFoilOwned"),
+			totalCardsOwned == null ? 0 : (int) Math.round(totalCardsOwned),
+			foilOwned == null ? 0L : Math.round(foilOwned),
+			JsonObjects.readInt(stats, "totalCardPool"),
+			completionPct == null ? 0.0d : completionPct,
+			JsonObjects.readDouble(stats, "foilCompletionPct"),
+			collectionScore == null ? 0L : Math.round(collectionScore));
 	}
 
 	/**
@@ -158,23 +163,5 @@ public class CloudSidebarCollectionStats
 		}
 		Integer n = owned.get(new CardCollectionKey(cardName, foil));
 		return n == null ? 0 : Math.max(0, n);
-	}
-
-	private static int readInt(JsonObject obj, String primary, String... aliases)
-	{
-		Double value = JsonObjects.readNumber(obj, primary, aliases);
-		return value == null ? 0 : (int) Math.round(value);
-	}
-
-	private static long readLong(JsonObject obj, String primary, String... aliases)
-	{
-		Double value = JsonObjects.readNumber(obj, primary, aliases);
-		return value == null ? 0L : Math.round(value);
-	}
-
-	private static double readDouble(JsonObject obj, String primary, String... aliases)
-	{
-		Double value = JsonObjects.readNumber(obj, primary, aliases);
-		return value == null ? 0.0d : value;
 	}
 }

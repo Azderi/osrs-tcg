@@ -74,7 +74,6 @@ public class TcgStateCodec
 		SkillCreditBaseline skillBaseline = parseSkillCreditBaseline(stored.skillCreditBaseline);
 
 		long totalGained = stored.totalCreditsGained == null ? 0L : Math.max(0L, stored.totalCreditsGained);
-		// 0 = missing/legacy; caller may stamp "now" on first schema-5 persist.
 		long createdAt = stored.profileCreatedAtUnix == null ? 0L : Math.max(0L, stored.profileCreatedAtUnix);
 		long savedAt = stored.profileSavedAtUnix == null ? 0L : Math.max(0L, stored.profileSavedAtUnix);
 		long cloudRevision = stored.cloudRevision == null ? 0L : Math.max(0L, stored.cloudRevision);
@@ -88,7 +87,6 @@ public class TcgStateCodec
 				loadedSchema, TcgState.CURRENT_SCHEMA_VERSION);
 		}
 
-		// Always materialize the current schema (upgrades older profiles).
 		return new TcgState(
 			TcgState.CURRENT_SCHEMA_VERSION,
 			new EconomyState(stored.credits, stored.openedPacks),
@@ -175,7 +173,6 @@ public class TcgStateCodec
 		{
 			return SkillCreditBaseline.missing();
 		}
-		// Empty placeholder written during schema upgrade.
 		if (stored.skillXp == null || stored.skillXp.isEmpty())
 		{
 			return SkillCreditBaseline.absent();
@@ -229,7 +226,6 @@ public class TcgStateCodec
 		SerializedSkillCreditBaseline out = new SerializedSkillCreditBaseline();
 		if (!b.isPresent())
 		{
-			// Persist schema fields for missing/absent baselines (upgrade older profiles).
 			out.skillXp = new LinkedHashMap<>();
 			out.uncreditedXpBySkill = new LinkedHashMap<>();
 			return out;
@@ -255,7 +251,6 @@ public class TcgStateCodec
 		private Long profileSavedAtUnix;
 		private Long cloudRevision;
 		private String cloudStateHash;
-		/** Last pack-open hiscores ranks (length 6); omitted when unknown. */
 		private int[] sidebarRanks;
 	}
 
@@ -263,11 +258,9 @@ public class TcgStateCodec
 	{
 		private Map<String, Integer> skillXp;
 		private Map<String, Long> uncreditedXpBySkill;
-		/** Legacy single-pool remainder; read-only for migration. */
 		private Long uncreditedXp;
 	}
 
-	/** Legacy schema: one row per owned copy. */
 	private static class SerializedInstance
 	{
 		private String id;

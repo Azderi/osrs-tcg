@@ -84,7 +84,7 @@ public class TcgChatStatsShareService
 		String foilPct = String.format(Locale.US, "%.2f%%", s.getFoilCompletionPct());
 		if (colored)
 		{
-			ChatMessageBuilder builder = TcgPluginGameMessages.prefixedBuilder()
+			ChatMessageBuilder builder = TcgPluginGameMessages.prefixBuilder()
 				.append(ChatColorType.NORMAL)
 				.append("Collection score: ")
 				.append(ChatColorType.HIGHLIGHT)

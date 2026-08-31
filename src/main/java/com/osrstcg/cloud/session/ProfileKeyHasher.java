@@ -7,6 +7,7 @@ import javax.inject.Singleton;
 import net.runelite.client.RuneLite;
 import net.runelite.client.config.ConfigManager;
 
+/** Hashes the local RSProfile key (not account credentials). */
 @Singleton
 public final class ProfileKeyHasher
 {
@@ -18,7 +19,6 @@ public final class ProfileKeyHasher
 		this.configManager = configManager;
 	}
 
-	/** 64-char hex SHA-256 of the current RSProfile key, or null if unavailable. */
 	public String currentProfileKeyHash()
 	{
 		String key = configManager.getRSProfileKey();
@@ -29,7 +29,6 @@ public final class ProfileKeyHasher
 		return sha256Hex(key);
 	}
 
-	/** 64-char hex SHA-256 of decimal {@code accountHash}, or null when unavailable. */
 	public static String accountDirName(long accountHash)
 	{
 		if (accountHash == -1L)
@@ -39,19 +38,16 @@ public final class ProfileKeyHasher
 		return sha256Hex(Long.toString(accountHash));
 	}
 
-	/** {@code ~/.runelite/OSRS-TCG}. */
 	public static Path tcgRoot()
 	{
 		return Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG");
 	}
 
-	/** {@code ~/.runelite/OSRS-TCG/profiles}. */
 	public static Path profilesRoot()
 	{
 		return tcgRoot().resolve("profiles");
 	}
 
-	/** Per-account profile dir {@code profiles/{sha256(accountHash)}}, or null when unavailable. */
 	public static Path profileDir(long accountHash)
 	{
 		String id = accountDirName(accountHash);

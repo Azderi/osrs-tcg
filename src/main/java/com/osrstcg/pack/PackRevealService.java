@@ -24,6 +24,8 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.Value;
 import com.osrstcg.catalog.CardImageCacheService;
 import com.osrstcg.catalog.RarityMath;
@@ -39,14 +41,7 @@ public class PackRevealService
 		IDLE,
 		PACK_READY,
 		PACK_FADING,
-		/**
-		 * Deal finished while server pulls are still outstanding - legacy hold used only when
-		 * no pack-size placeholders were seeded (empty card list after fade). Prefer holding in
-		 * {@link #CARD_DEAL} past the deal end so landed backs stay visible.
-		 */
 		AWAITING_PULLS,
-		/** Cards fly from a central pile into the 2+3 grid (current batch of up to
-		 * {@link #MAX_VISIBLE_REVEAL_CARDS}; may use placeholders until pulls land). */
 		CARD_DEAL,
 		CARD_REVEAL,
 		WAIT_CLOSE
@@ -62,17 +57,14 @@ public class PackRevealService
 		boolean isNew;
 	}
 
-	/**
-	 * Immutable snapshot of reveal state for one overlay paint. The overlay must not mix a captured card list with
-	 * live {@link #isCardRevealed(int)} calls across threads: after {@link #reset()}, the old list can still be
-	 * referenced while reveal flags are cleared, which briefly paints every slot face-down.
-	 */
+	@Getter
 	public static final class RevealPaintSnapshot
 	{
 		private final Phase phase;
 		private final List<RevealCard> cards;
+		@Getter(AccessLevel.NONE)
 		private final boolean[] revealedByIndex;
-		/** Eased flip progress 0..1 per slot (1 = face-up settled). */
+		@Getter(AccessLevel.NONE)
 		private final float[] flipProgressByIndex;
 		private final long phaseElapsedMs;
 		private final double packFadeProgress;
@@ -93,45 +85,11 @@ public class PackRevealService
 			this.apexPackOpen = apexPackOpen;
 		}
 
-		public Phase getPhase()
-		{
-			return phase;
-		}
-
-		public List<RevealCard> getCards()
-		{
-			return cards;
-		}
-
-		public long getPhaseElapsedMs()
-		{
-			return phaseElapsedMs;
-		}
-
-		public double getPackFadeProgress()
-		{
-			return packFadeProgress;
-		}
-
-		public String getBoosterPackId()
-		{
-			return boosterPackId;
-		}
-
-		public boolean isApexPackOpen()
-		{
-			return apexPackOpen;
-		}
-
 		public boolean isCardRevealed(int index)
 		{
 			return index >= 0 && index < revealedByIndex.length && revealedByIndex[index];
 		}
 
-		/**
-		 * Eased 0..1 Y-flip progress for this slot. {@code 0} = face-down resting, {@code 1} = face-up settled.
-		 * Mid-flip ({@code > 0} and {@code < 1}) should squash on X and swap texture after 90°.
-		 */
 		public float getFlipProgress(int index)
 		{
 			if (index < 0 || flipProgressByIndex == null || index >= flipProgressByIndex.length)
@@ -141,10 +99,6 @@ public class PackRevealService
 			return flipProgressByIndex[index];
 		}
 
-		/**
-		 * True while any face-down card still qualifies for premium reveal audio (hum / reveal chime).
-		 * @see PackRevealService#isPremiumRevealAudioPull(RevealCard)
-		 */
 		public boolean hasUnrevealedMythic()
 		{
 			for (int i = 0; i < cards.size(); i++)
@@ -166,15 +120,10 @@ public class PackRevealService
 
 	private static final long PACK_FADE_MS = 500L;
 
-	/** Milliseconds between each card starting its flight from the pile. */
 	public static final long PACK_DEAL_STAGGER_MS = 115L;
-	/** Duration of each card's flight from pile to slot. */
 	public static final long PACK_DEAL_FLIGHT_MS = 260L;
-	/** Max cards dealt / shown at once during pack reveal (classic 2+3 grid). */
 	public static final int MAX_VISIBLE_REVEAL_CARDS = 5;
-	/** Max wait for cloud pack-open after {@link #beginPendingReveal} before aborting the overlay. */
 	public static final long PENDING_PULLS_TIMEOUT_MS = 5_000L;
-	/** Game-chat body (no {@code [OSRS TCG]} prefix) when {@link #PENDING_PULLS_TIMEOUT_MS} elapses. */
 	public static final String PENDING_PULLS_TIMEOUT_MESSAGE =
 		"There was a problem opening the pack at this time. Try again later.";
 
@@ -185,36 +134,19 @@ public class PackRevealService
 	private final RevealCardResolver revealCardResolver;
 
 	private Phase phase = Phase.IDLE;
-	/** Full pack pulls (all batches). Overlay paint uses {@link #visibleCards()}. */
 	private List<RevealCard> cards = List.of();
-	/** Index into {@link #cards} for the first card of the current deal/reveal batch. */
 	private int batchOffset;
 	private int revealedCount;
-	/** Face-up flags for the current batch only (length {@link #visibleCount()}). */
 	private boolean[] revealedByIndex = new boolean[0];
-	/**
-	 * True when a collection-add chat line was already queued for that absolute pack slot
-	 * (length {@code cards.size()}, spans all batches for Esc abort).
-	 */
 	private boolean[] collectionChatPostedByIndex = new boolean[0];
-	/** Epoch ms when a Y-flip started for each current-batch slot; 0 = not flipping. */
 	private long[] flipStartedAtMs = new long[0];
-	/** Click-to-flip duration matching website {@code .card-inspect__flipper} (550ms). */
 	public static final int CARD_FLIP_MS = 550;
 	private long phaseStartedAt;
 	private String boosterPackId = "";
-	/** When true, sealed-pack overlay uses apex hover sound and Godly-tier glow. */
 	private boolean apexPackOpen;
-	/** True after {@link #beginPendingReveal} until {@link #supplyRevealPulls} or abort. */
 	private boolean awaitingServerPulls;
-	/** Wall-clock start of the current pending open; {@code 0} when not awaiting. */
 	private long pendingRevealStartedAtMs;
-	/**
-	 * Set when {@link #PENDING_PULLS_TIMEOUT_MS} elapses with no pulls; consumed by the overlay/UI
-	 * so chat + sidebar cleanup run once.
-	 */
 	private boolean pendingPullsTimedOut;
-	/** Card names (lowercase) with foil owned before the current pack open (overlay NEW badge only). */
 	private Set<String> preOwnedFoilNames = Set.of();
 
 	@Inject
@@ -229,14 +161,6 @@ public class PackRevealService
 		this.revealCardResolver = new RevealCardResolver(cardDatabase, cloudApiClient);
 	}
 
-	/**
-	 * Show the sealed-pack overlay immediately while the cloud pack RPC runs in the background.
-	 * Seeds face-down placeholders so pack fade + deal can play before the response arrives.
-	 * Call {@link #supplyRevealPulls} when the response arrives, or {@link #abortPendingReveal} on failure.
-	 * Cloud pack opens supply {@code tierLabel}/{@code score}/{@code imagePath} on each pull;
-	 * those drive rarity chrome and score text. Legacy pulls without {@code tierLabel} fall
-	 * back to the catalog card's precomputed {@code tierLabel}.
-	 */
 	public synchronized void beginPendingReveal(String boosterTitle, String boosterPackId,
 		boolean apexPackOpen)
 	{
@@ -263,7 +187,6 @@ public class PackRevealService
 		this.phase = Phase.PACK_READY;
 	}
 
-	/** Kick off background loads for pack sleeve and card-back art. */
 	private void preloadRevealSleeve(String packId)
 	{
 		if (imageCacheService == null)
@@ -284,13 +207,6 @@ public class PackRevealService
 		imageCacheService.preload(urls);
 	}
 
-	/**
-	 * Bind server pulls into an in-progress pending reveal. Safe during
-	 * {@link Phase#PACK_READY}, {@link Phase#PACK_FADING}, {@link Phase#CARD_DEAL},
-	 * or {@link Phase#AWAITING_PULLS}.
-	 *
-	 * @return false if pulls were empty / invalid (caller should abort)
-	 */
 	public synchronized boolean supplyRevealPulls(List<PackCardResult> pulls, Set<CardCollectionKey> preOwnedCards)
 	{
 		return supplyRevealPulls(pulls, preOwnedCards, apexPackOpen);
@@ -340,31 +256,24 @@ public class PackRevealService
 			|| (phase == Phase.PACK_FADING && phaseStartedAt > 0L
 				&& (System.currentTimeMillis() - phaseStartedAt) >= PACK_FADE_MS))
 		{
-			// Pre-deal wait (no placeholders) or fade already finished - start spreading.
 			phase = Phase.CARD_DEAL;
 			phaseStartedAt = System.currentTimeMillis();
 		}
 		else if (phase == Phase.CARD_DEAL && phaseStartedAt > 0L
 			&& (System.currentTimeMillis() - phaseStartedAt) >= packDealPhaseTotalMs(visibleCount()))
 		{
-			// Deal animation already finished while waiting on the RPC - unlock reveal.
 			phase = Phase.CARD_REVEAL;
 			phaseStartedAt = System.currentTimeMillis();
 		}
-		// PACK_READY / PACK_FADING (in progress) / CARD_DEAL (in progress): keep phase under animation.
 		return true;
 	}
 
-	/** Cancel a pending / in-progress reveal when the pack RPC fails. */
 	public synchronized void abortPendingReveal()
 	{
 		packRevealSoundService.hardStop();
 		reset();
 	}
 
-	/**
-	 * Prefer server {@code tierLabel} for cloud pack pulls; otherwise local catalog display tier.
-	 */
 	public RarityMath.Tier tierForPackPull(PackCardResult pull, String catalogCardName)
 	{
 		return revealCardResolver.tierForPackPull(pull, catalogCardName);
@@ -400,7 +309,6 @@ public class PackRevealService
 		}
 
 		int batchSize = visibleCount();
-		// Fully revealed batch: advance to next deal or close the session.
 		if (click != null && batchSize > 0 && (allRevealSlotsFaceUp() || revealedCount >= batchSize))
 		{
 			advancePastWaitClose();
@@ -439,11 +347,6 @@ public class PackRevealService
 		}
 	}
 
-	/**
-	 * Space progression: open sealed pack, reveal current batch, then next batch or close.
-	 *
-	 * @return {@code true} if the reveal session ended ({@link #reset()})
-	 */
 	public synchronized boolean advanceFromKeyboard()
 	{
 		if (phase == Phase.IDLE)
@@ -464,7 +367,6 @@ public class PackRevealService
 		{
 			if (awaitingServerPulls || cards.isEmpty() || !hasResolvablePulls())
 			{
-				// Still waiting on the server - don't skip into placeholder / empty reveal.
 				return false;
 			}
 			forceRevealCurrentBatchAndWaitClose();
@@ -474,11 +376,6 @@ public class PackRevealService
 		return advancePastWaitClose();
 	}
 
-	/**
-	 * From {@link Phase#WAIT_CLOSE} (or equivalent “batch done”): deal the next batch or end the session.
-	 *
-	 * @return {@code true} if the reveal session ended
-	 */
 	private boolean advancePastWaitClose()
 	{
 		if (hasMoreBatches())
@@ -528,13 +425,11 @@ public class PackRevealService
 		{
 			if (cards.isEmpty())
 			{
-				// No pack-size placeholders - hold until supplyRevealPulls seeds cards + starts deal.
 				phase = Phase.AWAITING_PULLS;
 				phaseStartedAt = System.currentTimeMillis();
 			}
 			else
 			{
-				// Deal with real pulls or placeholders while the open RPC finishes.
 				phase = Phase.CARD_DEAL;
 				phaseStartedAt = System.currentTimeMillis();
 			}
@@ -544,7 +439,6 @@ public class PackRevealService
 		{
 			if (awaitingServerPulls || !hasResolvablePulls())
 			{
-				// Hold landed face-down cards (elapsed past deal end) until pulls arrive.
 				return;
 			}
 			phase = Phase.CARD_REVEAL;
@@ -556,7 +450,6 @@ public class PackRevealService
 		}
 	}
 
-	/** True when every slot has a non-empty card name (not a deal placeholder). */
 	private boolean hasResolvablePulls()
 	{
 		if (cards.isEmpty())
@@ -578,7 +471,6 @@ public class PackRevealService
 		return true;
 	}
 
-	/** Total time the overlay stays in {@link Phase#CARD_DEAL} before click-to-reveal begins. */
 	public static long packDealPhaseTotalMs(int cardCount)
 	{
 		if (cardCount <= 0)
@@ -593,9 +485,6 @@ public class PackRevealService
 		return phase != Phase.IDLE;
 	}
 
-	/**
-	 * Advances time-based transitions ({@link #tick()}), then returns immutable state for this paint frame.
-	 */
 	public synchronized Optional<RevealPaintSnapshot> capturePaintFrame()
 	{
 		tick();
@@ -604,7 +493,6 @@ public class PackRevealService
 		{
 			return Optional.empty();
 		}
-		// Pack chrome (sealed / fading) can paint before placeholders or server cards arrive.
 		if (cards.isEmpty()
 			&& phase != Phase.PACK_READY
 			&& phase != Phase.PACK_FADING
@@ -627,7 +515,6 @@ public class PackRevealService
 			apexPackOpen));
 	}
 
-	/** Settle any Y-flips whose 550ms animation has finished. */
 	private void completeFinishedFlipsLocked()
 	{
 		if (flipStartedAtMs.length == 0)
@@ -733,11 +620,6 @@ public class PackRevealService
 		return index >= 0 && index < revealedByIndex.length && revealedByIndex[index];
 	}
 
-	/**
-	 * True while any card in the current batch that qualifies for premium reveal audio (hum / reveal chime)
-	 * is still face-down (deal, click-to-reveal, or wait-to-close).
-	 * @see #isPremiumRevealAudioPull(RevealCard)
-	 */
 	public synchronized boolean hasUnrevealedMythic()
 	{
 		List<RevealCard> visible = visibleCards();
@@ -762,10 +644,6 @@ public class PackRevealService
 		return awaitingServerPulls;
 	}
 
-	/**
-	 * True once after a pending open hits {@link #PENDING_PULLS_TIMEOUT_MS} with no server pulls.
-	 * Clears the latch so chat/UI cleanup runs a single time.
-	 */
 	public synchronized boolean consumePendingPullsTimeout()
 	{
 		if (!pendingPullsTimedOut)
@@ -793,7 +671,6 @@ public class PackRevealService
 		preOwnedFoilNames = Set.of();
 	}
 
-	/** Foil card names owned before the current reveal (for overlay NEW badge suppression). */
 	public synchronized Set<String> getPreOwnedFoilNames()
 	{
 		return Set.copyOf(preOwnedFoilNames);
@@ -814,11 +691,6 @@ public class PackRevealService
 			.collect(Collectors.toUnmodifiableSet());
 	}
 
-	/**
-	 * Stops an active reveal (Esc / combat interrupt). Announces party highlights for every still-unrevealed
-	 * slot across remaining batches, then ensures every resolved pull has a collection-add chat line.
-	 * Cards are already in the collection from pack open. Skips all remaining deal screens.
-	 */
 	public synchronized List<RevealCard> abortActiveReveal()
 	{
 		if (!isActive())
@@ -833,7 +705,6 @@ public class PackRevealService
 		return snapshot;
 	}
 
-	/** Posts collection-add chat for any resolved pull that has not already been announced. */
 	private void announceRemainingCollectionAddsToChat()
 	{
 		for (int i = 0; i < cards.size(); i++)
@@ -901,7 +772,6 @@ public class PackRevealService
 		}
 	}
 
-	/** Party notify for face-down slots in the current batch only (Space skip within a page). */
 	private void announcePartyMythicPullsForCurrentBatchUnrevealed()
 	{
 		for (int i = 0; i < revealedByIndex.length; i++)
@@ -929,10 +799,6 @@ public class PackRevealService
 		}
 	}
 
-	/**
-	 * Party notify for every absolute pack slot that has not been face-up yet (Esc / interrupt).
-	 * Prior batches are treated as revealed; current batch uses {@link #revealedByIndex}; later batches are all pending.
-	 */
 	private void announcePartyMythicPullsForAllStillUnrevealed()
 	{
 		for (int absIndex = 0; absIndex < cards.size(); absIndex++)
@@ -969,10 +835,6 @@ public class PackRevealService
 		return false;
 	}
 
-	/**
-	 * Hum loop + {@code reveal.wav}: any Godly-tier card, or a foil whose display tier is one of the three highest
-	 * ({@link RarityMath.Tier#LEGENDARY}, {@link RarityMath.Tier#MYTHIC}, {@link RarityMath.Tier#GODLY}).
-	 */
 	private static boolean isPremiumRevealAudioPull(RevealCard card)
 	{
 		if (card == null)

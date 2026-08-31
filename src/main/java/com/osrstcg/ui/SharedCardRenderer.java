@@ -23,18 +23,6 @@ import java.awt.image.BufferedImage;
 import java.util.List;
 import net.runelite.client.ui.ColorScheme;
 
-/**
- * Draws a card face matching the website album/inspect view (banded layout or foil bleed).
- *
- * <p>All geometry is expressed at the 180×260 design size and multiplied by {@code s = width/180}:
- * a 7px rim (padding, not a stroked border), 11px outer radius. Banded faces use five flat-filled
- * bands as CSS grid rows {@code 10/40/10/30/10}. Foil instances with catalog {@code foilImagePath}
- * use the full-bleed art layout from {@code AlbumCardFace}.
- * Wear is composited by {@link CardFxPainter}; foil sparkles are drawn live.</p>
- *
- * <p>Type uses bundled RuneScape fonts ({@code runescape_bold.ttf} for title/tier/score/foil bleed,
- * {@code runescape.ttf} for banded examine) at the site's {@code 15.625px} card root.</p>
- */
 public final class SharedCardRenderer
 {
 	public static final int DEFAULT_CARD_WIDTH = 180;
@@ -52,15 +40,10 @@ public final class SharedCardRenderer
 	private static final Color BETA_BADGE_BORDER = new Color(0x3D7EFF);
 	private static final Color BETA_BADGE_TEXT = new Color(0xB8D4FF);
 
-	/** CSS grid rows on {@code .album-card__inner}: title / art / tier / examine / score. */
 	private static final int[] BAND_FRACTIONS = {10, 40, 10, 30, 10};
 	private static final float BANDED_TITLE_EM_MIN = 0.80f;
 	private static final int BANDED_TITLE_FIT_STEPS = 10;
 
-	/**
-	 * Website card-back asset. Resolved against {@code CloudEndpoints.WEB_BASE_URL} by
-	 * {@link com.osrstcg.catalog.CardImageCacheService}.
-	 */
 	public static final String CARD_BACK_PATH = "/images/Cardback_new.png";
 
 	private SharedCardRenderer()
@@ -69,26 +52,6 @@ public final class SharedCardRenderer
 
 	// ------------------------------------------------------------------ public API
 
-	/** Preferred entry point; see {@link CardFaceDrawRequest}. */
-	public static void drawCardFace(Graphics2D g, Rectangle bounds, CardFaceDrawRequest req)
-	{
-		if (g == null || bounds == null || req == null || bounds.width < 4 || bounds.height < 4)
-		{
-			return;
-		}
-
-		BufferedImage face = CardFaceCache.cachedFace(bounds.width, bounds.height, req);
-		if (face == null)
-		{
-			return;
-		}
-		paintCachedFace(g, bounds, req, face);
-	}
-
-	/**
-	 * Draws a cached face raster only. Returns {@code false} when the LRU has not been filled yet so
-	 * callers can paint a card back instead of rasterizing foil/wear on the client thread.
-	 */
 	public static boolean drawCardFaceIfCached(Graphics2D g, Rectangle bounds, CardFaceDrawRequest req)
 	{
 		if (g == null || bounds == null || req == null || bounds.width < 4 || bounds.height < 4)
@@ -125,16 +88,11 @@ public final class SharedCardRenderer
 		}
 	}
 
-	/** Draws the card back using a cached remote image when provided, else solid fill. */
 	public static void drawCardBack(Graphics2D g, Rectangle bounds, boolean foil, Color rarityColor)
 	{
 		drawCardBack(g, bounds, foil, rarityColor, null);
 	}
 
-	/**
-	 * @param cardBack remote/cached back from {@code CardImageCacheService}; may be {@code null}
-	 *                 (solid-color fallback — never throws)
-	 */
 	public static void drawCardBack(Graphics2D g, Rectangle bounds, boolean foil, Color rarityColor,
 		BufferedImage cardBack)
 	{
@@ -167,7 +125,6 @@ public final class SharedCardRenderer
 		}
 	}
 
-	/** Tier label (Common … Godly) from the accent color used on card frames. */
 	public static String tierLabelForRarityColor(Color color)
 	{
 		if (color == null)
@@ -184,10 +141,6 @@ public final class SharedCardRenderer
 		return RarityMath.Tier.COMMON.getLabel();
 	}
 
-	/**
-	 * Builds and caches a face raster at {@code w}×{@code h} if missing. Safe to call off the paint
-	 * path during pack deal so the first flip does not hitch on foil compositing.
-	 */
 	public static void prewarmFace(int w, int h, CardFaceDrawRequest req)
 	{
 		if (req == null || w < 4 || h < 4 || CardFaceCache.expectsArtButMissing(req))
@@ -197,7 +150,6 @@ public final class SharedCardRenderer
 		CardFaceCache.cachedFace(w, h, req);
 	}
 
-	/** True when {@link #drawCardFace} would hit the face LRU for this size + request. */
 	public static boolean isFaceCached(int w, int h, CardFaceDrawRequest req)
 	{
 		if (req == null || w < 4 || h < 4)
@@ -228,7 +180,6 @@ public final class SharedCardRenderer
 		WearFx wear = req.getWear();
 		if (wear != null)
 		{
-			// The site's filter sits on `.album-card`, which contains the foil layers but not the wear overlay.
 			CardFxPainter.applyWearFilter(face, wear.getFade());
 			CardFxPainter.drawWear(face, geo.outerRadius, wear);
 		}
@@ -256,7 +207,6 @@ public final class SharedCardRenderer
 
 		if (req.isFoil())
 		{
-			// `box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12)`
 			drawInsetRing(g2, geo, new Color(255, 255, 255, 31));
 		}
 
@@ -272,7 +222,6 @@ public final class SharedCardRenderer
 		String titleText = CardTextLayout.valueOrFallback(card == null ? null : card.getName(), "Unknown Card");
 		int titleMaxWidth = Math.max(8, geo.title.width - geo.bandPadX * 2);
 		Font titleFont = fitBandedTitleFont(g2, titleText, titleMaxWidth, geo.scale);
-		// Nudge title baseline slightly down within the band (top-aligned otherwise sits too high).
 		int titleNudgeY = Math.max(2, (int) Math.round(3.0d * geo.scale));
 		Rectangle titleBox = new Rectangle(
 			geo.title.x,
@@ -293,10 +242,6 @@ public final class SharedCardRenderer
 			CardFonts.bold(geo.scale), Color.WHITE, geo.bandPadX);
 	}
 
-	/**
-	 * Full-bleed foil face: rarity (or Godly gold) rim, cover-cropped art, title / examine / score
-	 * over art. No bands or tier label.
-	 */
 	private static void paintFullArt(Graphics2D g2, Geometry geo, CardFaceDrawRequest req)
 	{
 		CardDefinition card = req.getCard();
@@ -313,7 +258,6 @@ public final class SharedCardRenderer
 		g2.setColor(godlyRim ? FOIL_FRAME_GOLD : rarity);
 		g2.fill(outer);
 
-		// Foil rim highlight: inset ~1px rgba(255,255,255,0.18)
 		drawInsetRing(g2, geo, new Color(255, 255, 255, 46));
 
 		Shape well = new RoundRectangle2D.Double(
@@ -416,7 +360,6 @@ public final class SharedCardRenderer
 		g2.setStroke(new BasicStroke(1f));
 	}
 
-	/** Top→transparent (title) or bottom→transparent (score) black scrim. */
 	private static void paintVerticalScrim(Graphics2D g2, Rectangle rect, boolean fromTop)
 	{
 		if (rect.height <= 0 || rect.width <= 0)
@@ -456,7 +399,6 @@ public final class SharedCardRenderer
 	private static void drawStrokedShadowedString(Graphics2D g2, String text, int x, int y,
 		Color fill, float strokeWidth, double scale)
 	{
-		// CSS: -webkit-text-stroke + light drop shadow (no soft glow disk).
 		int drop = Math.max(1, (int) Math.round(1.0d * scale));
 		java.awt.font.GlyphVector gv = g2.getFont().createGlyphVector(g2.getFontRenderContext(), text);
 		Shape outline = gv.getOutline(x, y);
@@ -465,7 +407,6 @@ public final class SharedCardRenderer
 		g2.setColor(new Color(0, 0, 0, 179));
 		g2.fill(dropOutline);
 
-		// Centered stroke ≈ CSS -webkit-text-stroke outer extent.
 		g2.setColor(new Color(0, 0, 0, 235));
 		g2.setStroke(new BasicStroke(Math.max(1f, strokeWidth * 2f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
 		g2.draw(outline);
@@ -512,18 +453,12 @@ public final class SharedCardRenderer
 		}
 	}
 
-	/**
-	 * Full-name / full-score use CSS {@code text-shadow} only (no text-stroke). Approximate without
-	 * a soft blur disk - that read as a thick smudged stroke in AWT.
-	 */
 	private static void drawTitleScoreShadow(Graphics2D g2, String text, int x, int y, Color color, double scale)
 	{
 		int drop = Math.max(1, (int) Math.round(1.0d * scale));
-		// 0 1px 2px rgba(0,0,0,0.9)
 		g2.setColor(new Color(0, 0, 0, 230));
 		g2.drawString(text, x, y + drop);
 		g2.drawString(text, x + drop, y + drop);
-		// 0 0 4px ≈ tight 1px halo (4-neighbor), not a filled glow radius
 		g2.setColor(new Color(0, 0, 0, 242));
 		g2.drawString(text, x - 1, y);
 		g2.drawString(text, x + 1, y);
@@ -691,7 +626,6 @@ public final class SharedCardRenderer
 
 	// ------------------------------------------------------------------ geometry
 
-	/** Band rectangles at {@code s = width / 180}, matching the CSS grid on {@code .album-card__inner}. */
 	private static final class Geometry
 	{
 		private final int width;
@@ -765,7 +699,6 @@ public final class SharedCardRenderer
 		return Math.max(1.0d, 11.0d * width / (double) DEFAULT_CARD_WIDTH);
 	}
 
-	/** Corner arc diameter ({@code arcWidth} / {@code arcHeight}) matching card faces at this width. */
 	public static int outerArcDiameter(int width)
 	{
 		return Math.max(2, (int) Math.round(outerRadius(width) * 2.0d));

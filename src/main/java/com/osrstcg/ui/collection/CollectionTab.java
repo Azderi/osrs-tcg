@@ -163,7 +163,7 @@ public final class CollectionTab
 		PackCloseSnapshot snap = snapshotSupplier.get();
 		List<CardDefinition> allCards = cardDatabase.getCards();
 		List<BoosterPackDefinition> packs = collectionFilterPacks();
-		BoosterPackDefinition selectedPack = findPackById(packs, collectionPackFilterId);
+		BoosterPackDefinition selectedPack = PackCatalogService.findById(packs, collectionPackFilterId);
 		if (collectionPackFilterId != null && selectedPack == null)
 		{
 			collectionPackFilterId = null;
@@ -185,7 +185,7 @@ public final class CollectionTab
 		PackCloseSnapshot snap = snapshotSupplier.get();
 		List<CardDefinition> allCards = cardDatabase.getCards();
 		List<BoosterPackDefinition> packs = collectionFilterPacks();
-		BoosterPackDefinition selectedPack = findPackById(packs, collectionPackFilterId);
+		BoosterPackDefinition selectedPack = PackCatalogService.findById(packs, collectionPackFilterId);
 		if (collectionPackFilterId != null && selectedPack == null)
 		{
 			collectionPackFilterId = null;
@@ -414,26 +414,6 @@ public final class CollectionTab
 	{
 		render();
 		onRendered.run();
-	}
-
-	private static BoosterPackDefinition findPackById(List<BoosterPackDefinition> packs, String packId)
-	{
-		if (packId == null || packId.isBlank() || packs == null)
-		{
-			return null;
-		}
-		for (BoosterPackDefinition pack : packs)
-		{
-			if (pack == null)
-			{
-				continue;
-			}
-			if (packId.equals(pack.getCollectionKey()) || packId.equals(pack.getId()))
-			{
-				return pack;
-			}
-		}
-		return null;
 	}
 
 	private List<BoosterPackDefinition> collectionFilterPacks()

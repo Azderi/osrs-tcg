@@ -498,22 +498,6 @@ public final class ShopTab
 
 	private CardDefinition cardDefinitionForName(String cardName)
 	{
-		if (cardName == null)
-		{
-			return null;
-		}
-		String n = cardName.trim();
-		if (n.isEmpty())
-		{
-			return null;
-		}
-		for (CardDefinition c : cardDatabase.getCards())
-		{
-			if (c.getName() != null && c.getName().equals(n))
-			{
-				return c;
-			}
-		}
-		return null;
+		return cardDatabase.findByName(cardName).orElse(null);
 	}
 }
