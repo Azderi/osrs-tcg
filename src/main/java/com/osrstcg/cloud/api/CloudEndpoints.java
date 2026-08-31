@@ -1,6 +1,5 @@
 package com.osrstcg.cloud.api;
 
-/** Fixed production HTTPS endpoints. */
 public final class CloudEndpoints
 {
 	public static final String API_BASE_URL = "https://api.osrs-tcg.net/api/v1";
@@ -10,7 +9,6 @@ public final class CloudEndpoints
 	{
 	}
 
-	/** Join a path under {@link #API_BASE_URL}. Absolute {@code https://} URLs pass through. */
 	public static String apiUrl(String pathAndQuery)
 	{
 		if (pathAndQuery == null || pathAndQuery.isBlank())
@@ -21,7 +19,6 @@ public final class CloudEndpoints
 		return joined.isEmpty() ? API_BASE_URL : joined;
 	}
 
-	/** Join a path under {@link #WEB_BASE_URL}. Absolute {@code https://} URLs pass through. */
 	public static String webUrl(String pathOrUrl)
 	{
 		return joinHttps(WEB_BASE_URL, pathOrUrl);
@@ -53,10 +50,6 @@ public final class CloudEndpoints
 		return webUrl(raw);
 	}
 
-	/**
-	 * Rewrite an absolute {@code https://} URL onto {@link #WEB_BASE_URL} (keeps path + query),
-	 * or join a relative path to the web base.
-	 */
 	public static String rewriteToWebBase(String serverUrl)
 	{
 		if (serverUrl == null || serverUrl.isBlank())

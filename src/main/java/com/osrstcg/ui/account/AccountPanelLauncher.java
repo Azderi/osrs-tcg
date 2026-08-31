@@ -40,11 +40,6 @@ public final class AccountPanelLauncher
 		this.updateButtonState = updateButtonState;
 	}
 
-	public void open()
-	{
-		open("/me");
-	}
-
 	public void open(String next)
 	{
 		if (cloudSessionService.isRestrictedWorld()
@@ -148,16 +143,12 @@ public final class AccountPanelLauncher
 		return webBaseUrl + "/login?code=" + encodedCode + "&next=" + encodedNext;
 	}
 
-	private String fallbackWebLoginUrl(String code, String next)
-	{
-		return buildWebLoginUrl(CloudEndpoints.WEB_BASE_URL, code, next);
-	}
-
 	private String resolveWebLoginUrlOrFallback(JsonObject response, String next)
 	{
 		if (response != null && response.has("code") && !response.get("code").isJsonNull())
 		{
-			String fromCode = fallbackWebLoginUrl(response.get("code").getAsString(), next);
+			String fromCode = buildWebLoginUrl(
+				CloudEndpoints.WEB_BASE_URL, response.get("code").getAsString(), next);
 			if (fromCode != null && !fromCode.isEmpty())
 			{
 				return fromCode;

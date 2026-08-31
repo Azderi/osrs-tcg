@@ -43,9 +43,8 @@ public final class PackPullParser
 		String pulledBy = JsonObjects.text(c, "pulledBy");
 		Double pulledAtNumber = JsonObjects.readNumber(c, "pulledAt");
 		Long pulledAt = pulledAtNumber == null ? null : Math.max(0L, Math.round(pulledAtNumber));
-		String source = JsonObjects.text(c, "source");
 		return new PackCardResult(name.trim(), foil, instanceId, tierLabel, score, imagePath, foilImagePath,
-			artistName, artistColor, artistUrl, examine, condition, pulledBy, pulledAt, source, wikiPage,
+			artistName, artistColor, artistUrl, examine, condition, pulledBy, pulledAt, wikiPage,
 			displayName);
 	}
 }

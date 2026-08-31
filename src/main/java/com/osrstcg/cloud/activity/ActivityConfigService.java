@@ -328,7 +328,6 @@ public final class ActivityConfigService
 				return null;
 			}
 		}
-		// prefix (default)
 		return new CompiledActivityConfig.CompiledChatRule(
 			rule.activityId.trim(), rule.credits, rule.label, rule.value, null);
 	}

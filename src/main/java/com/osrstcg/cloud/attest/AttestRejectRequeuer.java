@@ -7,10 +7,6 @@ import java.util.ArrayList;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * Requeues retryable rejects without re-applying optimistic credits.
- * Handles {@code kill_amount_too_large} (split) and {@code settle_cooldown} (same event).
- */
 @Slf4j
 final class AttestRejectRequeuer
 {

@@ -66,12 +66,23 @@ public final class CloudApiException extends Exception
 		return "quarantined".equalsIgnoreCase(code);
 	}
 
-	/**
-	 * Refresh token can never succeed again (revoked, deleted account, or wrong profile binding).
-	 * Local credentials should be cleared so the create-profile / re-pair UI can take over.
-	 */
 	public boolean isStaleRefreshToken()
 	{
 		return "invalid_refresh_token".equals(code) || "profile_mismatch".equals(code);
+	}
+
+	public boolean isInsufficientCredits()
+	{
+		String normalizedCode = code == null ? "" : code.trim().toLowerCase();
+		if (normalizedCode.contains("insufficient")
+			|| normalizedCode.contains("not_enough")
+			|| "payment_required".equals(normalizedCode)
+			|| "insufficient_credits".equals(normalizedCode))
+		{
+			return true;
+		}
+		String message = getMessage() == null ? "" : getMessage().toLowerCase();
+		return message.contains("not enough credit")
+			|| message.contains("insufficient credit");
 	}
 }

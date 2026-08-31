@@ -62,27 +62,11 @@ public class TcgStateService
 		TcgStateLoadResult result = stateStore.load();
 		state = result.getState();
 		optimistic.clear();
-		if (shouldResetDebugTaintedSave())
-		{
-			log.info("OSRS TCG: loaded profile had debug mode enabled; resetting collection and economy.");
-			resetAll();
-			return new TcgStateLoadResult(
-				state,
-				result.getSource(),
-				result.isDiskLoadFailed(),
-				true);
-		}
-
-		boolean strippedDebug = stripDebugProvenanceIfDisabled();
 		boolean upgradedSkillBaseline = ensureSkillBaselineSchema();
 		ensureProfileMetaSchemaFields();
 		if (upgradedSkillBaseline)
 		{
 			state = state.withSkillCreditBaseline(SkillCreditBaseline.absent());
-		}
-		if (strippedDebug)
-		{
-			notifyCollectionMutated();
 		}
 
 		return result;
@@ -173,11 +157,6 @@ public class TcgStateService
 	public TcgState getState()
 	{
 		return state;
-	}
-
-	public boolean isDebugLogging()
-	{
-		return state.isDebugLogging();
 	}
 
 	public synchronized void setPackRevealOverlayScale(double multiplier)
@@ -371,26 +350,5 @@ public class TcgStateService
 		state = TcgState.empty();
 		saveFullCheckpoint(TcgSaveTrigger.RESET);
 		notifyCollectionMutated();
-	}
-
-	private boolean shouldResetDebugTaintedSave()
-	{
-		return state.isDebugLogging();
-	}
-
-	private boolean stripDebugProvenanceIfDisabled()
-	{
-		if (state.isDebugLogging())
-		{
-			return false;
-		}
-		CollectionState current = state.getCollectionState();
-		CollectionState next = current.withoutDebugProvenanceRows();
-		if (next == current)
-		{
-			return false;
-		}
-		state = state.withCollection(next);
-		return true;
 	}
 }

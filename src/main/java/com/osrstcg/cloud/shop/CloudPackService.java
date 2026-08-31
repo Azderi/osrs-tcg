@@ -8,6 +8,7 @@ import com.osrstcg.catalog.CardDatabase;
 import com.osrstcg.catalog.CardDefinition;
 import com.osrstcg.state.CardCollectionKey;
 import com.osrstcg.state.CloudSidebarCollectionStats;
+import com.osrstcg.state.OwnedCardInstance;
 import com.osrstcg.state.PackCardResult;
 import com.osrstcg.state.PackOpenResult;
 import com.osrstcg.catalog.CollectionSetCompletionUtil;
@@ -92,12 +93,9 @@ public final class CloudPackService
 
 		try
 		{
-			// Prefer live cache price (server-authoritative after login fetch).
 			BoosterPackDefinition priced = packCatalog.getCache().get(booster.getId()).orElse(booster);
 			int price = priced.getPrice();
 
-			// Flush pending attests only when settled credits cannot cover this pack; otherwise trust
-			// optimistic display credits and let the normal attest timer catch up.
 			if (stateService.getAuthoritativeCredits() < price)
 			{
 				attestQueue.flushBlocking();
@@ -150,7 +148,7 @@ public final class CloudPackService
 				: stateService.getState().getTotalCreditsGained();
 
 			List<PackCardResult> pulls = new ArrayList<>();
-			List<com.osrstcg.state.OwnedCardInstance> newInstances = new ArrayList<>();
+			List<OwnedCardInstance> newInstances = new ArrayList<>();
 			String localPulledBy = client.getLocalPlayer() == null
 				? ""
 				: Text.sanitize(client.getLocalPlayer().getName());
@@ -174,31 +172,21 @@ public final class CloudPackService
 					long pulledAt = pull.getPulledAtEpochMs() == null || pull.getPulledAtEpochMs() <= 0L
 						? now
 						: pull.getPulledAtEpochMs();
-					String source = pull.getSource() == null || pull.getSource().isBlank()
-						? "pack"
-						: pull.getSource();
-					// Same provenance for store + reveal so wear/foil seeds match the website inspect view.
-					PackCardResult normalized = pull.withProvenance(pulledBy, pulledAt, source);
-					newInstances.add(new com.osrstcg.state.OwnedCardInstance(
+					PackCardResult normalized = pull.withProvenance(pulledBy, pulledAt);
+					newInstances.add(new OwnedCardInstance(
 						normalized.getInstanceId(),
 						normalized.getCardName(),
 						normalized.isFoil(),
 						pulledBy,
-						pulledAt,
-						false,
-						normalized.getCondition(),
-						false,
-						source));
+						pulledAt));
 					pulls.add(normalized);
 				}
 			}
-			// One master write for the whole pack - avoid N× encode/save hitch mid-reveal.
 			stateService.addOwnedCardInstances(newInstances);
 
-			// Large packs return many cards but response openedPacks often only +1; derive from cards ÷ pack size.
 			int cardsPerPack = Math.max(1, packCatalog.getCache().getPackSize());
-			int previousOpenedPacks = (int) stateService.getState().getEconomyState().getOpenedPacks();
-			int openedPacks = previousOpenedPacks + (pulls.size() / cardsPerPack);
+			int openedPacks = (int) stateService.getState().getEconomyState().getOpenedPacks()
+				+ (pulls.size() / cardsPerPack);
 
 			stateService.replaceCloudEconomyCache(creditsAfter, openedPacks, totalGained);
 			absorbRanksFromPackOpen(response);
@@ -211,19 +199,16 @@ public final class CloudPackService
 			CloudResponseSync.applyRevision(response, stateService, tradeCloud);
 			tradeCloud.requestForcedRefresh();
 
-			if (partyAnnouncer != null)
+			Map<CardCollectionKey, Integer> ownedAfter;
+			synchronized (stateService)
 			{
-				Map<CardCollectionKey, Integer> ownedAfter;
-				synchronized (stateService)
-				{
-					ownedAfter = new HashMap<>(stateService.getState().getCollectionState().getOwnedCards());
-				}
-				List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(cardDatabase.getCards());
-				for (String category : CollectionSetCompletionUtil.newlyCompletedCategories(
-					ownedBefore, ownedAfter, rollPool))
-				{
-					partyAnnouncer.announceSetComplete(category);
-				}
+				ownedAfter = new HashMap<>(stateService.getState().getCollectionState().getOwnedCards());
+			}
+			List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(cardDatabase.getCards());
+			for (String category : CollectionSetCompletionUtil.newlyCompletedCategories(
+				ownedBefore, ownedAfter, rollPool))
+			{
+				partyAnnouncer.announceSetComplete(category);
 			}
 
 			boolean apex = response.has("apex") && response.get("apex").getAsBoolean();
@@ -263,7 +248,7 @@ public final class CloudPackService
 			}
 			log.warn("Pack open failed: {} {}", ex.getCode(), ex.getMessage());
 			session.noteLockFromApiException(ex);
-			if (isInsufficientCreditsError(ex))
+			if (ex.isInsufficientCredits())
 			{
 				applyInsufficientCreditsFix(ex);
 			}
@@ -279,10 +264,6 @@ public final class CloudPackService
 		}
 	}
 
-	/**
-	 * Drop optimistic credit inflation and sync to server authority after a pack open is refused
-	 * for insufficient funds (so the sidebar matches what the server will spend).
-	 */
 	private void applyInsufficientCreditsFix(CloudApiException ex)
 	{
 		Long serverCredits = ex == null ? null : ex.getServerCredits();
@@ -308,34 +289,6 @@ public final class CloudPackService
 		}
 	}
 
-	private static boolean isInsufficientCreditsError(CloudApiException ex)
-	{
-		if (ex == null)
-		{
-			return false;
-		}
-		String code = ex.getCode() == null ? "" : ex.getCode().trim().toLowerCase();
-		if (code.contains("insufficient")
-			|| code.contains("not_enough")
-			|| "payment_required".equals(code)
-			|| "insufficient_credits".equals(code))
-		{
-			return true;
-		}
-		String message = ex.getMessage() == null ? "" : ex.getMessage().toLowerCase();
-		return message.contains("not enough credit")
-			|| message.contains("insufficient credit");
-	}
-
-	/**
-	 * Last hiscores ranks (from pack-open), including values persisted from the previous session.
-	 * @return length-6 ranks, or null if none stored yet
-	 */
-	public int[] getLastSidebarRanks()
-	{
-		return stateService.getSidebarRanks();
-	}
-
 	private void absorbRanksFromPackOpen(JsonObject response)
 	{
 		if (response == null || !response.has("ranks") || !response.get("ranks").isJsonArray())
@@ -356,7 +309,6 @@ public final class CloudPackService
 				return;
 			}
 			int n = el.getAsInt();
-			// 0 = unranked (clear cached positive rank); negatives are invalid.
 			if (n < 0)
 			{
 				return;

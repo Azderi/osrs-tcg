@@ -21,12 +21,11 @@ public class PackCardResult
 	private final Double condition;
 	private final String pulledBy;
 	private final Long pulledAtEpochMs;
-	private final String source;
 	private final String wikiPage;
 
 	public PackCardResult(String cardName, boolean foil)
 	{
-		this(cardName, foil, null, null, 0L, null, null, null, null, null, null, null, null, null, null, null, null);
+		this(cardName, foil, null, null, 0L, null, null, null, null, null, null, null, null, null, null, null);
 	}
 
 	public PackCardResult(
@@ -44,7 +43,6 @@ public class PackCardResult
 		Double condition,
 		String pulledBy,
 		Long pulledAtEpochMs,
-		String source,
 		String wikiPage,
 		String displayName)
 	{
@@ -63,11 +61,10 @@ public class PackCardResult
 		this.condition = condition;
 		this.pulledBy = pulledBy;
 		this.pulledAtEpochMs = pulledAtEpochMs;
-		this.source = source;
 		this.wikiPage = JsonObjects.blankToNull(wikiPage);
 	}
 
-	public PackCardResult withProvenance(String pulledBy, long pulledAtEpochMs, String source)
+	public PackCardResult withProvenance(String pulledBy, long pulledAtEpochMs)
 	{
 		return new PackCardResult(
 			cardName,
@@ -84,7 +81,6 @@ public class PackCardResult
 			condition,
 			pulledBy,
 			pulledAtEpochMs,
-			source,
 			wikiPage,
 			displayName);
 	}

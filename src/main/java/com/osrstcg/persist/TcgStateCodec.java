@@ -67,7 +67,6 @@ public class TcgStateCodec
 		List<OwnedCardInstance> rows = parseCollectionRows(stored);
 		CollectionState coll = CollectionState.copyOf(rows);
 
-		boolean debug = Boolean.TRUE.equals(stored.debugLogging);
 		double packZoom = stored.packRevealOverlayScale == null
 			? 1.0d
 			: PackRevealZoomUtil.clamp(stored.packRevealOverlayScale);
@@ -91,7 +90,6 @@ public class TcgStateCodec
 			TcgState.CURRENT_SCHEMA_VERSION,
 			new EconomyState(stored.credits, stored.openedPacks),
 			coll,
-			debug,
 			packZoom,
 			skillBaseline,
 			totalGained,
@@ -128,8 +126,8 @@ public class TcgStateCodec
 			String id = row.id == null || row.id.trim().isEmpty() ? null : row.id.trim();
 			String by = row.pulledBy == null ? "" : row.pulledBy;
 			long at = row.pulledAt <= 0L ? 0L : row.pulledAt;
-			rows.add(new OwnedCardInstance(id, row.cardName.trim(), row.foil, by, at, row.locked,
-				row.condition, Boolean.TRUE.equals(row.beta), row.source));
+			rows.add(new OwnedCardInstance(id, row.cardName.trim(), row.foil, by, at,
+				Boolean.TRUE.equals(row.beta)));
 		}
 		return rows;
 	}
@@ -144,7 +142,6 @@ public class TcgStateCodec
 		serialized.cardEntries = CardEntrySerializer.buildProfileEntries(
 			s.getCollectionState().getOwnedInstances());
 
-		serialized.debugLogging = s.isDebugLogging();
 		serialized.packRevealOverlayScale = s.getPackRevealOverlayScale();
 		serialized.skillCreditBaseline = serializeSkillCreditBaseline(s.getSkillCreditBaseline());
 		serialized.totalCreditsGained = s.getTotalCreditsGained();
@@ -243,7 +240,6 @@ public class TcgStateCodec
 		private long openedPacks;
 		private List<CardEntry> cardEntries;
 		private List<SerializedInstance> cardInstances;
-		private Boolean debugLogging;
 		private Double packRevealOverlayScale;
 		private SerializedSkillCreditBaseline skillCreditBaseline;
 		private Long totalCreditsGained;
@@ -268,9 +264,6 @@ public class TcgStateCodec
 		private boolean foil;
 		private String pulledBy;
 		private long pulledAt;
-		private boolean locked;
-		private Double condition;
 		private Boolean beta;
-		private String source;
 	}
 }

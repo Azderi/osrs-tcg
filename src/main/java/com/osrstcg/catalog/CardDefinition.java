@@ -37,7 +37,6 @@ public class CardDefinition
 	@Deprecated
 	private Long overrideFoilScore;
 	private String examine;
-	private Boolean questItem;
 	private String wikiPage;
 
 	public long displayScore(boolean foil)

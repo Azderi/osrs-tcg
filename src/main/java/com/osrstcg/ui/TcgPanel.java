@@ -8,7 +8,6 @@ import com.osrstcg.catalog.RollPoolFilter;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.cloud.session.CloudSessionService;
-import com.osrstcg.cloud.shop.CloudPackService;
 import com.osrstcg.cloud.trade.TradeCloudService;
 import com.osrstcg.pack.PackOpenCoordinator;
 import com.osrstcg.pack.PackRevealService;
@@ -161,7 +160,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		TcgStateService stateService,
 		CardDatabase cardDatabase,
 		WelcomeContent welcomeContentCatalog,
-		CloudPackService cloudPackService,
 		PackRevealService packRevealService,
 		PackOpenCoordinator packOpenCoordinator,
 		PackCatalogService packCatalogService,
@@ -188,15 +186,15 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		this.openTradesButton = createOpenTradesButton();
 		this.welcomeTab = new WelcomeTab(welcomeContentCatalog);
 		this.overviewTab = new OverviewTab(
-			config, cloudPackService, this::liveSidebarContentWidth, TcgPanel.class);
+			config, stateService, this::liveSidebarContentWidth, TcgPanel.class);
 		this.accountLauncher = new AccountPanelLauncher(
 			cloudSessionService, cloudApiClient, scheduler, chatMessageManager,
 			this::updateManageAccountState);
-		this.openAccountPanelButton.addActionListener(e -> accountLauncher.open());
+		this.openAccountPanelButton.addActionListener(e -> accountLauncher.open("/me"));
 		this.createProfileController = new CreateProfileController(
 			cloudSessionService, scheduler, chatMessageManager,
 			this, this::refresh, this::selectOverviewAfterCreate,
-			accountLauncher::open, this::afterCreateProfileUi);
+			() -> accountLauncher.open("/me"), this::afterCreateProfileUi);
 		this.createProfileButton.addActionListener(e -> createProfileController.createProfile());
 		this.sidebarNoticeView = new SidebarNoticeView(
 			openAccountPanelButton, albumFooterWrap, cloudSessionService, this::updateManageAccountState);

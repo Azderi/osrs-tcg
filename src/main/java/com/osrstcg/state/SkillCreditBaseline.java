@@ -7,15 +7,6 @@ import java.util.Objects;
 import java.util.OptionalLong;
 import net.runelite.api.Skill;
 
-/**
- * Persisted skill XP snapshot for live-session credit tracking (uncredited XP remainder + last seen XP).
- * Offline/retro credits are awarded server-side via {@code POST /credits/settle-hiscores}.
- * <ul>
- *   <li>{@link #missing()} - older schema lacked the field; rewrite JSON on load</li>
- *   <li>{@link #absent()} - field present but no live capture yet</li>
- *   <li>{@link #of} - live capture from a prior session</li>
- * </ul>
- */
 public final class SkillCreditBaseline
 {
 	private static final SkillCreditBaseline MISSING = new SkillCreditBaseline(Kind.MISSING, Map.of(), Map.of());
@@ -39,13 +30,11 @@ public final class SkillCreditBaseline
 		this.uncreditedXpBySkill = uncreditedXpBySkill;
 	}
 
-	/** Older profile JSON omitted {@code skillCreditBaseline}; persist a placeholder on load. */
 	public static SkillCreditBaseline missing()
 	{
 		return MISSING;
 	}
 
-	/** Schema field exists (or was written) but no settled skill snapshot yet. */
 	public static SkillCreditBaseline absent()
 	{
 		return ABSENT;
@@ -112,13 +101,11 @@ public final class SkillCreditBaseline
 		return Collections.unmodifiableMap(copy);
 	}
 
-	/** True when a prior live capture exists (used for restoring uncredited XP remainder). */
 	public boolean isPresent()
 	{
 		return kind == Kind.PRESENT;
 	}
 
-	/** True when loaded JSON lacked the skill baseline field (schema upgrade needed on disk). */
 	public boolean needsSchemaUpgradePersist()
 	{
 		return kind == Kind.MISSING;

@@ -7,9 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- * Collection backed by individual {@link OwnedCardInstance} rows (quantities are aggregated for overview / album counts).
- */
 public final class CollectionState
 {
 	private final List<OwnedCardInstance> instances;
@@ -32,7 +29,6 @@ public final class CollectionState
 		this.ownedCards = Collections.unmodifiableMap(aggregateQuantities(copy, false));
 	}
 
-	/** Pre-built list + aggregate map (caller must ensure consistency). */
 	private CollectionState(List<OwnedCardInstance> instances, Map<CardCollectionKey, Integer> ownedCards)
 	{
 		this.instances = Collections.unmodifiableList(instances);
@@ -59,10 +55,6 @@ public final class CollectionState
 		return ownedCards;
 	}
 
-	/**
-	 * Quantities by name/foil excluding migrated {@link OwnedCardInstance#isBeta() beta} copies.
-	 * Used for shop pack progress and local overview (matches cloud stats, which omit beta).
-	 */
 	public Map<CardCollectionKey, Integer> getOwnedCardsExcludingBeta()
 	{
 		return aggregateQuantities(instances, true);
@@ -95,26 +87,6 @@ public final class CollectionState
 			nextOwned.merge(new CardCollectionKey(i.getCardName(), i.isFoil()), 1, Integer::sum);
 		}
 		return new CollectionState(next, nextOwned);
-	}
-
-	/**
-	 * Returns a collection with instances removed whose provenance is debug-marked ({@link OwnedCardInstance#hasDebugPullMetadata}).
-	 */
-	public CollectionState withoutDebugProvenanceRows()
-	{
-		List<OwnedCardInstance> next = new ArrayList<>();
-		for (OwnedCardInstance i : instances)
-		{
-			if (!OwnedCardInstance.hasDebugPullMetadata(i.getPulledByUsername()))
-			{
-				next.add(i);
-			}
-		}
-		if (next.size() == instances.size())
-		{
-			return this;
-		}
-		return new CollectionState(next);
 	}
 
 	private static Map<CardCollectionKey, Integer> aggregateQuantities(

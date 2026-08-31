@@ -15,17 +15,11 @@ public class BoosterPackDefinition
 	private String name;
 	@JsonAdapter(CategoryListTypeAdapter.class)
 	private List<String> category;
-	/** Shared album collection label; packs with the same value collapse to one filter. */
 	private String collectionName;
 	private int price;
-	/** Shop icon - web path or legacy classpath filename. */
 	private String thumbnail;
-	/** Full pack art for reveal overlay - web path. */
 	private String image;
 
-	/**
-	 * Album filter key: trimmed {@code collectionName} when set, otherwise pack {@code id}.
-	 */
 	public String getCollectionKey()
 	{
 		if (collectionName != null && !collectionName.isBlank())
@@ -88,7 +82,6 @@ public class BoosterPackDefinition
 		return false;
 	}
 
-	/** Category tags plus geographic regions, expanded/canonicalized like pack filters. */
 	static Set<String> cardPartKeys(CardDefinition card)
 	{
 		Set<String> cardPartKeys = new HashSet<>();

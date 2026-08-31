@@ -377,7 +377,7 @@ public class OsrsTcgPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onCollectionSetCompleteParty(TcgCollectionSetCompletePartyMessage message)
+	public void onTcgCollectionSetCompletePartyMessage(TcgCollectionSetCompletePartyMessage message)
 	{
 		tcgPartyInboundHandler.onCollectionSetComplete(message);
 	}
@@ -403,16 +403,6 @@ public class OsrsTcgPlugin extends Plugin
 	private void applyLoadedProfileState(TcgStateLoadResult loadResult)
 	{
 		creditAwardService.resetExperienceCreditBaseline();
-		if (loadResult != null && loadResult.isDebugResetOnLoad())
-		{
-			packRevealService.reset();
-			tcgPanel.clearPackRevealSidebarFreeze();
-			if (client != null)
-			{
-				TcgPluginGameMessages.queueOnClientThread(clientThread, chatMessageManager,
-					"This profile was saved with debug mode on; collection and credits were reset.");
-			}
-		}
 		tcgPanel.refresh();
 	}
 

@@ -115,14 +115,11 @@ public final class CloudPlayerStateParser
 			}
 			String instanceId = JsonObjects.text(card, "instanceId");
 			boolean foil = JsonObjects.readBoolean(card, "foil");
-			boolean locked = JsonObjects.readBoolean(card, "locked");
 			String pulledBy = JsonObjects.text(card, "pulledBy");
 			long pulledAt = Math.max(0L, JsonObjects.readLong(card, "pulledAt", 0L));
-			Double condition = JsonObjects.readNullableDouble(card, "condition");
 			boolean beta = JsonObjects.readBoolean(card, "beta");
-			String source = JsonObjects.text(card, "source");
 			out.add(new OwnedCardInstance(instanceId, name.trim(), foil,
-				pulledBy == null ? "" : pulledBy, pulledAt, locked, condition, beta, source));
+				pulledBy == null ? "" : pulledBy, pulledAt, beta));
 		}
 		return out;
 	}

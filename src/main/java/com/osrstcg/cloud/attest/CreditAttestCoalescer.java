@@ -30,7 +30,7 @@ public final class CreditAttestCoalescer
 
 	public static final String CLIENT_OPTIMISTIC_CREDITS = "_optimisticCredits";
 
-	private static final Set<String> COMBAT_SKILLS_BLOCK_XP = combatSkillSet(
+	private static final Set<String> COMBAT_SKILLS_BLOCK_XP = Set.of(
 		"ATTACK", "STRENGTH", "DEFENCE", "RANGED", "MAGIC");
 	private static final String HITPOINTS_SKILL_KEY = "HITPOINTS";
 
@@ -404,16 +404,6 @@ public final class CreditAttestCoalescer
 		JsonObject copy = event.deepCopy();
 		copy.remove(CLIENT_OPTIMISTIC_CREDITS);
 		return copy;
-	}
-
-	private static Set<String> combatSkillSet(String... names)
-	{
-		Set<String> set = new HashSet<>();
-		for (String name : names)
-		{
-			set.add(name);
-		}
-		return Set.copyOf(set);
 	}
 
 	private static long atOf(JsonObject event)

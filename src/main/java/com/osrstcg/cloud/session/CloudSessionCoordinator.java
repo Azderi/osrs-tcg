@@ -230,10 +230,6 @@ public class CloudSessionCoordinator
 		{
 			return;
 		}
-		if (stateService.isDebugLogging())
-		{
-			return;
-		}
 		if (cloudSessionService.isAccountLocked())
 		{
 			return;

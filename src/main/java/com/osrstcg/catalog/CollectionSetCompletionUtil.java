@@ -9,17 +9,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Detects when a primary-category "set" (all roll-pool cards sharing that album category) becomes fully collected.
- * Logic matches overview / album name collection (positive total quantity per card name, any foil mix).
- */
 public final class CollectionSetCompletionUtil
 {
 	private CollectionSetCompletionUtil()
 	{
 	}
 
-	/** Distinct card names with combined foil + non-foil quantity ≥ 1 (same rules as the sidebar overview). */
 	public static Set<String> collectedNamesFromOwned(Map<CardCollectionKey, Integer> owned)
 	{
 		if (owned == null || owned.isEmpty())
@@ -48,7 +43,6 @@ public final class CollectionSetCompletionUtil
 		return collectedNames;
 	}
 
-	/** True when at least one foil copy of {@code cardName} is owned. */
 	public static boolean hasFoilOwned(Map<CardCollectionKey, Integer> owned, String cardName)
 	{
 		if (owned == null || cardName == null)
@@ -59,9 +53,6 @@ public final class CollectionSetCompletionUtil
 		return n != null && n > 0;
 	}
 
-	/**
-	 * Primary category display labels for which every card in {@code rollPool} with that category is collected.
-	 */
 	public static Set<String> completedPrimaryCategoryNames(Map<CardCollectionKey, Integer> owned,
 		List<CardDefinition> rollPool)
 	{

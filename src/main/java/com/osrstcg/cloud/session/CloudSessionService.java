@@ -120,14 +120,8 @@ public final class CloudSessionService
 	private void handleStaleRefresh()
 	{
 		clearLoginFetchGates();
-		if (needsCloudConsent())
-		{
-			setState(CloudConnectionState.DISCONNECTED, CONSENT_WAITING_STATUS);
-		}
-		else
-		{
-			setState(CloudConnectionState.DISCONNECTED, "Disconnected");
-		}
+		setState(CloudConnectionState.DISCONNECTED,
+			needsCloudConsent() ? CONSENT_WAITING_STATUS : "Disconnected");
 	}
 
 	public CloudConnectionState getConnectionState()
@@ -147,19 +141,18 @@ public final class CloudSessionService
 
 	public boolean isReady()
 	{
-		return isSessionActive()
-			&& !needsCloudConsent()
-			&& !isRestrictedWorld()
-			&& !isAccountLocked()
-			&& !stateService.isDebugLogging();
+		return isSessionActive() && cloudGatesOpen();
 	}
 
 	public boolean canCollectAttests()
 	{
-		return !needsCloudConsent()
-			&& !isAccountLocked()
-			&& !isRestrictedWorld()
-			&& !stateService.isDebugLogging();
+		return cloudGatesOpen();
+	}
+
+	private boolean cloudGatesOpen()
+	{
+		return !needsCloudConsent() && !isAccountLocked()
+			&& !isRestrictedWorld();
 	}
 
 	public void noteOfflineReconnectScheduled()
@@ -178,7 +171,7 @@ public final class CloudSessionService
 
 	public boolean isRestrictedWorld()
 	{
-		return restrictedWorldGuard != null && restrictedWorldGuard.isRestricted();
+		return restrictedWorldGuard.isRestricted();
 	}
 
 	public boolean isAccountBanned()
@@ -209,7 +202,7 @@ public final class CloudSessionService
 	{
 		hiscoresSettle.clearGate();
 		activityConfigService.stopQuietPoll();
-		String detail = restrictedWorldGuard == null ? "" : restrictedWorldGuard.describeBlockedTypes();
+		String detail = restrictedWorldGuard.describeBlockedTypes();
 		String message = detail.isEmpty()
 			? RestrictedWorldGuard.STATUS_MESSAGE
 			: RestrictedWorldGuard.STATUS_MESSAGE + " (" + detail + ")";
@@ -346,11 +339,6 @@ public final class CloudSessionService
 
 	public synchronized void ensureSession()
 	{
-		if (stateService.isDebugLogging())
-		{
-			setState(CloudConnectionState.DISCONNECTED, "Debug mode");
-			return;
-		}
 		if (isAccountLocked())
 		{
 			setState(CloudConnectionState.DISCONNECTED,

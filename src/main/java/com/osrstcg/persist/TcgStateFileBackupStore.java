@@ -16,15 +16,11 @@ import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 
-/**
- * Single local save file per account: {@code tcg.save} under the profile directory.
- */
 @Singleton
 @Slf4j
 public class TcgStateFileBackupStore
 {
 	public static final String MASTER_FILENAME = "tcg.save";
-	/** Legacy RS-profile backup folder name under {@code backups/}. */
 	static final String LEGACY_DEFAULT_DIR = "default";
 	private static final Pattern ACCOUNT_DIR_NAME = Pattern.compile("^[a-fA-F0-9]{64}$");
 
@@ -41,7 +37,6 @@ public class TcgStateFileBackupStore
 		this.stateCodec = stateCodec;
 	}
 
-	/** Overwrites {@code tcg.save}. */
 	public boolean writeMaster(String encodedBlob)
 	{
 		if (encodedBlob == null || encodedBlob.isEmpty())
@@ -65,19 +60,15 @@ public class TcgStateFileBackupStore
 
 	long resolveAccountHashForIo()
 	{
-		if (client != null)
+		long hash = client.getAccountHash();
+		if (hash != -1L)
 		{
-			long hash = client.getAccountHash();
-			if (hash != -1L)
-			{
-				lastKnownAccountHash = hash;
-				return hash;
-			}
+			lastKnownAccountHash = hash;
+			return hash;
 		}
 		return lastKnownAccountHash;
 	}
 
-	/** Current account profile folder id (64-char hex), or null when no account hash is known. */
 	public String currentAccountDirName()
 	{
 		return ProfileKeyHasher.accountDirName(resolveAccountHashForIo());

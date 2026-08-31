@@ -51,7 +51,6 @@ public class LiveCardsCatalogParserDisplayNameTest
 			null,
 			null,
 			null,
-			null,
 			"Scorpia's offspring");
 
 		Assert.assertEquals("Scorpia's offspring", CardDisplayNames.titleForPull(pull, catalog));

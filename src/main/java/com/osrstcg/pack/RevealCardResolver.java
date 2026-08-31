@@ -135,7 +135,6 @@ final class RevealCardResolver
 			definition.setFoilScore(catalog.getFoilScore());
 			definition.setTierLabel(catalog.getTierLabel());
 			definition.setExamine(catalog.getExamine());
-			definition.setQuestItem(catalog.getQuestItem());
 			definition.setWikiPage(catalog.getWikiPage());
 		}
 		else

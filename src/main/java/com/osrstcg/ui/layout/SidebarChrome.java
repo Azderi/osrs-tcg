@@ -130,12 +130,7 @@ public final class SidebarChrome
 
 		Color color;
 		String tooltip;
-		if (stateService.isDebugLogging())
-		{
-			color = connectingYellow;
-			tooltip = "Cloud paused - debug mode";
-		}
-		else if (accountLocked)
+		if (accountLocked)
 		{
 			color = errorRed;
 			tooltip = message == null || message.isEmpty()

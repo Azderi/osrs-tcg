@@ -21,18 +21,10 @@ import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.util.Text;
 
-/**
- * Awards credits for activities that cannot use {@link NpcKillCreditTracker}.
- * Matchers and amounts come from server activity config ({@link ActivityConfigService}).
- */
 @Slf4j
 @Singleton
 public final class GameMessageCreditTracker
 {
-	/**
-	 * Boss KC / completion lines use {@link ChatMessageType#GAMEMESSAGE} by default, but
-	 * {@link ChatMessageType#SPAM} when the in-game "Filter out boss kill-count with spam-filter" setting is on.
-	 */
 	private static final Set<ChatMessageType> CREDIT_CHAT_TYPES = EnumSet.of(
 		ChatMessageType.GAMEMESSAGE,
 		ChatMessageType.SPAM);

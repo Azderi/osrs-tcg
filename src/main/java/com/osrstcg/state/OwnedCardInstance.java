@@ -7,27 +7,21 @@ import lombok.Getter;
 @Getter
 public final class OwnedCardInstance
 {
-	/** Prefix on pulledBy for debug give/pulls. */
-	public static final String DEBUG_PULL_METADATA_PREFIX = "DEBUG_";
-
 	private final String instanceId;
 	private final String cardName;
 	private final boolean foil;
 	private final String pulledByUsername;
 	private final long pulledAtEpochMs;
-	private final boolean locked;
-	private final Double condition;
 	private final boolean beta;
-	private final String source;
 
 	public OwnedCardInstance(String instanceId, String cardName, boolean foil, String pulledByUsername,
 		long pulledAtEpochMs)
 	{
-		this(instanceId, cardName, foil, pulledByUsername, pulledAtEpochMs, false, null, false, null);
+		this(instanceId, cardName, foil, pulledByUsername, pulledAtEpochMs, false);
 	}
 
 	public OwnedCardInstance(String instanceId, String cardName, boolean foil, String pulledByUsername,
-		long pulledAtEpochMs, boolean locked, Double condition, boolean beta, String source)
+		long pulledAtEpochMs, boolean beta)
 	{
 		this.instanceId = instanceId == null || instanceId.isEmpty()
 			? UUID.randomUUID().toString()
@@ -36,25 +30,7 @@ public final class OwnedCardInstance
 		this.foil = foil;
 		this.pulledByUsername = pulledByUsername == null ? "" : pulledByUsername;
 		this.pulledAtEpochMs = Math.max(0L, pulledAtEpochMs);
-		this.locked = locked;
-		this.condition = normalizeCondition(condition);
 		this.beta = beta;
-		this.source = source == null || source.isBlank() ? null : source.trim();
-	}
-
-	public static boolean hasDebugPullMetadata(String pulledByUsername)
-	{
-		return pulledByUsername != null && pulledByUsername.startsWith(DEBUG_PULL_METADATA_PREFIX);
-	}
-
-	private static Double normalizeCondition(Double value)
-	{
-		if (value == null || Double.isNaN(value) || Double.isInfinite(value))
-		{
-			return null;
-		}
-		double clamped = Math.max(0.01d, Math.min(100.0d, value));
-		return clamped;
 	}
 
 	@Override

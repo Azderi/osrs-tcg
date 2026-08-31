@@ -7,7 +7,6 @@ import javax.inject.Singleton;
 import net.runelite.client.RuneLite;
 import net.runelite.client.config.ConfigManager;
 
-/** Hashes the local RSProfile key (not account credentials). */
 @Singleton
 public final class ProfileKeyHasher
 {
@@ -26,7 +25,7 @@ public final class ProfileKeyHasher
 		{
 			return null;
 		}
-		return sha256Hex(key);
+		return TcgStateHash.hexOfUtf8(key);
 	}
 
 	public static String accountDirName(long accountHash)
@@ -35,7 +34,7 @@ public final class ProfileKeyHasher
 		{
 			return null;
 		}
-		return sha256Hex(Long.toString(accountHash));
+		return TcgStateHash.hexOfUtf8(Long.toString(accountHash));
 	}
 
 	public static Path tcgRoot()
@@ -46,10 +45,5 @@ public final class ProfileKeyHasher
 	public static Path profilesRoot()
 	{
 		return tcgRoot().resolve("profiles");
-	}
-
-	public static String sha256Hex(String value)
-	{
-		return TcgStateHash.hexOfUtf8(value);
 	}
 }

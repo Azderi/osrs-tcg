@@ -31,13 +31,13 @@ public final class CreditAttestQueue
 {
 	private static final long DEFAULT_ATTEST_AFTER_MS = 60_000L;
 	private static final long LARGE_XP_SPIKE_DELTA = 50_000L;
-	private final CloudSessionService session;
-	private final TradeCloudService tradeCloud;
-	private final TcgStateService stateService;
+	final CloudSessionService session;
+	final TradeCloudService tradeCloud;
+	final TcgStateService stateService;
 	private final Client client;
 	private final ChatMessageManager chatMessageManager;
 	private final ScheduledExecutorService scheduler;
-	private final AttestRateCapNotifier rateCapNotifier;
+	final AttestRateCapNotifier rateCapNotifier;
 	private final CreditAttestSpillStore spillStore;
 
 	private final Object lock = new Object();
@@ -79,26 +79,6 @@ public final class CreditAttestQueue
 		this.attestScheduler = new CreditAttestScheduler(
 			scheduler, running, lastGoodAttestAfterMs, earlyFlushScheduled, DEFAULT_ATTEST_AFTER_MS,
 			() -> flushSafe(false), running::get);
-	}
-
-	TcgStateService stateService()
-	{
-		return stateService;
-	}
-
-	TradeCloudService tradeCloud()
-	{
-		return tradeCloud;
-	}
-
-	CloudSessionService session()
-	{
-		return session;
-	}
-
-	AttestRateCapNotifier rateCapNotifier()
-	{
-		return rateCapNotifier;
 	}
 
 	public void setEconomyListener(Runnable listener)

@@ -8,11 +8,9 @@ import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import com.osrstcg.cloud.api.CloudApiClient;
 
-/** Paginates {@code GET /me/cards} when {@code GET /me/state} reports {@code cardsPaged}. */
 @Slf4j
 final class CloudCollectionPager
 {
-	/** Matches website {@code ALBUM_PAGE_LIMIT} / server default page size. */
 	static final int ME_CARDS_PAGE_LIMIT = 500;
 	static final int ME_CARDS_MAX_PAGES = 200;
 
@@ -23,10 +21,6 @@ final class CloudCollectionPager
 		this.api = api;
 	}
 
-	/**
-	 * Parse {@code GET /me/state} and, when {@code cardsPaged}, load instances via {@code GET /me/cards}.
-	 * Retries once if paging sees a revision change mid-fetch.
-	 */
 	CloudPlayerStateParser.ParsedCloudPlayerState loadCloudPlayerStateWithCards(JsonObject stateJson)
 		throws Exception
 	{
@@ -47,10 +41,6 @@ final class CloudCollectionPager
 		}
 	}
 
-	/**
-	 * {@code GET /me/state} returns an empty {@code cards} array when {@code cardsPaged} is true;
-	 * load instances via chunked {@code GET /me/cards} before applying local state.
-	 */
 	CloudPlayerStateParser.ParsedCloudPlayerState resolveCardsForState(
 		CloudPlayerStateParser.ParsedCloudPlayerState parsed) throws Exception
 	{

@@ -9,10 +9,6 @@ import java.util.List;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * POSTs XP/kill/activity evidence for credit earn; not game automation.
- * accountHash/displayName bind the OSRS account, not credentials.
- */
 @Slf4j
 final class CreditAttestPoster
 {
@@ -57,21 +53,21 @@ final class CreditAttestPoster
 
 		queue.debugCreditAttestSend(batch, batchOptimisticEstimate);
 
-		long creditsBefore = queue.stateService().getCredits();
-		long pendingBefore = queue.stateService().getPendingOptimisticCredits();
-		long revisionBefore = queue.tradeCloud().getLastRevision();
+		long creditsBefore = queue.stateService.getCredits();
+		long pendingBefore = queue.stateService.getPendingOptimisticCredits();
+		long revisionBefore = queue.tradeCloud.getLastRevision();
 
 		JsonObject response = attestWithRetry(body);
 		queue.noteAttestAfterMs(response);
 		AttestRejectRequeuer.RequeueResult requeueResult = requeuer.requeueRejectedEvents(response, batch);
-		queue.rateCapNotifier().onAttestResponse(response);
-		queue.session().noteAttestBanFlags(response);
+		queue.rateCapNotifier.onAttestResponse(response);
+		queue.session.noteAttestBanFlags(response);
 
 		long clearOptimistic = CreditAttestQueue.resolveOptimisticClearAmount(
 			response, batch, batchOptimisticEstimate, requeueResult);
 		if (clearOptimistic > 0L)
 		{
-			queue.stateService().clearOptimisticCredits(clearOptimistic);
+			queue.stateService.clearOptimisticCredits(clearOptimistic);
 		}
 
 		queue.debugCreditAttestResponse(response, clearOptimistic, pendingBefore);
@@ -83,17 +79,17 @@ final class CreditAttestPoster
 		{
 			long serverCredits = response.has("credits")
 				? response.get("credits").getAsLong()
-				: queue.stateService().getAuthoritativeCredits();
+				: queue.stateService.getAuthoritativeCredits();
 			log.debug(
 				"Credit attest economy: serverCredits={} pendingBefore={} clearOptimistic={} pendingAfter={} rejected={}",
 				serverCredits,
 				pendingBefore,
 				clearOptimistic,
-				queue.stateService().getPendingOptimisticCredits(),
+				queue.stateService.getPendingOptimisticCredits(),
 				CreditAttestQueue.formatRejectedReasons(response));
-			queue.session().applySidebarStats(response);
+			queue.session.applySidebarStats(response);
 			appliedEconomy = true;
-			if (queue.stateService().getCredits() != creditsBefore)
+			if (queue.stateService.getCredits() != creditsBefore)
 			{
 				changed = true;
 			}
@@ -110,7 +106,7 @@ final class CreditAttestPoster
 			{
 				changed = true;
 			}
-			queue.tradeCloud().noteRevision(revision);
+			queue.tradeCloud.noteRevision(revision);
 		}
 
 		if (appliedEconomy)
@@ -119,7 +115,7 @@ final class CreditAttestPoster
 		}
 		if (changed)
 		{
-			queue.tradeCloud().requestForcedRefresh();
+			queue.tradeCloud.requestForcedRefresh();
 		}
 		return changed;
 	}

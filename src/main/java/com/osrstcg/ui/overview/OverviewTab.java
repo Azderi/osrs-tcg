@@ -1,8 +1,8 @@
 package com.osrstcg.ui.overview;
 
 import com.osrstcg.OsrsTcgConfig;
-import com.osrstcg.cloud.shop.CloudPackService;
 import com.osrstcg.state.CloudSidebarCollectionStats;
+import com.osrstcg.state.TcgStateService;
 import com.osrstcg.ui.layout.PackCloseSnapshot;
 import com.osrstcg.ui.layout.SidebarLayout;
 import java.awt.BorderLayout;
@@ -27,26 +27,26 @@ public final class OverviewTab
 	private static final int STAT_GRID_GAP = 6;
 
 	private final OsrsTcgConfig config;
-	private final CloudPackService cloudPackService;
+	private final TcgStateService stateService;
 	private final IntSupplier contentWidth;
 	private final Class<?> imageResourceClass;
 	private JLabel creditsValueLabel;
 
 	public OverviewTab(
 		OsrsTcgConfig config,
-		CloudPackService cloudPackService,
+		TcgStateService stateService,
 		IntSupplier contentWidth,
 		Class<?> imageResourceClass)
 	{
 		this.config = config;
-		this.cloudPackService = cloudPackService;
+		this.stateService = stateService;
 		this.contentWidth = contentWidth;
 		this.imageResourceClass = imageResourceClass;
 	}
 
 	public void render(JPanel target, PackCloseSnapshot snap, CloudSidebarCollectionStats m)
 	{
-		int[] ranks = config.showSidebarRanks() ? cloudPackService.getLastSidebarRanks() : null;
+		int[] ranks = config.showSidebarRanks() ? stateService.getSidebarRanks() : null;
 		Integer totalCardsRank = rankAt(ranks, 4, m.getTotalCardsOwned() > 0);
 		Integer foilCardsRank = rankAt(ranks, 5, m.getFoilOwned() > 0L);
 		Integer completionRank = rankAt(ranks, 0, m.getCompletionPct() > 0.0d);

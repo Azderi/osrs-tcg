@@ -14,9 +14,6 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.config.ConfigManager;
 
-/**
- * {@code ::tcg-reset} — clears plugin config keys and restores defaults.
- */
 @Singleton
 public class TcgResetCommand
 {
@@ -60,10 +57,6 @@ public class TcgResetCommand
 		handleResetConfigCommand();
 	}
 
-	/**
-	 * Unsets every {@code osrstcg} profile + RSProfile config key (tokens, {@code cloudMigrated},
-	 * settings, legacy state blobs), restores config defaults, and reconnects with a clean consent gate.
-	 */
 	private void handleResetConfigCommand()
 	{
 		final String group = "osrstcg";
