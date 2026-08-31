@@ -268,9 +268,9 @@ public final class CardFxPainter
 		int h = face.getHeight();
 		Shape card = new RoundRectangle2D.Double(0, 0, w, h, cornerRadius * 2.0d, cornerRadius * 2.0d);
 
-		drawColorWash(face, card, w, h, wear.getFade());
+		drawColorWash(face, card, w, h, wear.getGrade().getFade());
 		drawGrime(face, card, w, h, wear);
-		if (wear.isShowEdges())
+		if (wear.getGrade() != CardGrade.A && wear.getGrade() != CardGrade.S)
 		{
 			applyEdges(face, w, h, wear);
 		}
@@ -300,7 +300,7 @@ public final class CardFxPainter
 
 	private static void drawGrime(BufferedImage face, Shape card, int w, int h, WearFx wear)
 	{
-		double i = wear.getIntensity();
+		double i = wear.getGrade().getIntensity();
 		double dirt = wear.getDirtMix();
 		BufferedImage layer = newLayer(w, h);
 		Graphics2D g = quality(layer);
@@ -344,7 +344,7 @@ public final class CardFxPainter
 
 	private static void applyEdges(BufferedImage face, int w, int h, WearFx wear)
 	{
-		double i = wear.getIntensity();
+		double i = wear.getGrade().getIntensity();
 		double e = wear.getEdgeMix();
 		double whiteBlur;
 		double whiteAlpha;

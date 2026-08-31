@@ -171,7 +171,7 @@ public final class SharedCardRenderer
 		WearFx wear = req.getWear();
 		if (wear != null)
 		{
-			CardFxPainter.applyWearFilter(face, wear.getFade());
+			CardFxPainter.applyWearFilter(face, wear.getGrade().getFade());
 			CardFxPainter.drawWear(face, geo.outerRadius, wear);
 		}
 		return face;
