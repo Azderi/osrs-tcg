@@ -17,16 +17,8 @@ public final class CloudEndpoints
 		{
 			return API_BASE_URL;
 		}
-		String path = pathAndQuery.trim();
-		if (path.startsWith("https://"))
-		{
-			return path;
-		}
-		if (!path.startsWith("/"))
-		{
-			path = "/" + path;
-		}
-		return API_BASE_URL + path;
+		String joined = joinHttps(API_BASE_URL, pathAndQuery);
+		return joined.isEmpty() ? API_BASE_URL : joined;
 	}
 
 	/** Join a path under {@link #WEB_BASE_URL}. Absolute {@code https://} URLs pass through. */

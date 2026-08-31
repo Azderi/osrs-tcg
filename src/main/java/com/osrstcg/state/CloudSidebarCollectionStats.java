@@ -7,10 +7,6 @@ import java.util.List;
 import java.util.Map;
 import lombok.Value;
 
-/**
- * Authoritative collection overview from {@code GET /api/v1/me/stats} / inbox {@code stats}.
- * Excludes migrated beta cards (server-side).
- */
 @Value
 public class CloudSidebarCollectionStats
 {
@@ -66,10 +62,6 @@ public class CloudSidebarCollectionStats
 			|| stats.has("collectionScore");
 	}
 
-	/**
-	 * Optimistic overview after pack pulls: deltas against {@code ownedBefore} applied onto the last
-	 * authoritative {@code base} stats. Returns {@code base} unchanged when there is nothing to apply.
-	 */
 	public static CloudSidebarCollectionStats withOptimisticPackPulls(
 		CloudSidebarCollectionStats base,
 		Map<CardCollectionKey, Integer> ownedBefore,
@@ -137,7 +129,6 @@ public class CloudSidebarCollectionStats
 			Math.max(0L, collectionScore));
 	}
 
-	/** Count fields used to detect local-vs-server collection drift (score/pct left out - rounding). */
 	public static boolean countsAgree(CloudSidebarCollectionStats server, CloudSidebarCollectionStats local)
 	{
 		if (server == null || local == null)

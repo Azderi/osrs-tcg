@@ -101,16 +101,10 @@ public class TcgResetCommand
 			cloudSessionCoordinator.connect();
 		}
 		SwingUtilities.invokeLater(sidebarRefresh::refresh);
-		queueGameMessage("Cleared " + cleared + " config key(s) and restored defaults.");
-	}
-
-	private void queueGameMessage(String message)
-	{
-		if (client == null || clientThread == null || message == null || message.isEmpty())
+		if (client != null)
 		{
-			return;
+			TcgPluginGameMessages.queueOnClientThread(clientThread, chatMessageManager,
+				"Cleared " + cleared + " config key(s) and restored defaults.");
 		}
-		clientThread.invokeLater(() ->
-			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, message));
 	}
 }

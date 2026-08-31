@@ -28,9 +28,6 @@ import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
 
-/**
- * Shared sidebar metrics, scroll chrome, and small widget helpers.
- */
 public final class SidebarLayout
 {
 	public static final int MAIN_PANEL_INSET = 6;
@@ -46,7 +43,6 @@ public final class SidebarLayout
 	{
 	}
 
-	/** Usable width inside the plugin sidebar; leaves room for tab scrollbars. */
 	public static int sidebarInnerWidth()
 	{
 		return Math.max(160, PluginPanel.PANEL_WIDTH - 2 * PluginPanel.BORDER_OFFSET - TAB_SCROLLBAR_RESERVED_WIDTH);
@@ -223,6 +219,16 @@ public final class SidebarLayout
 		panel.setAlignmentX(Component.LEFT_ALIGNMENT);
 		Dimension preferred = panel.getPreferredSize();
 		panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, preferred.height));
+	}
+
+	public static void clampFixedWidth(JComponent component, int width)
+	{
+		component.setAlignmentX(Component.LEFT_ALIGNMENT);
+		Dimension preferred = component.getPreferredSize();
+		int h = preferred.height;
+		component.setPreferredSize(new Dimension(width, h));
+		component.setMaximumSize(new Dimension(width, h));
+		component.setMinimumSize(new Dimension(0, h));
 	}
 
 	public static Font resolveWelcomeFont(boolean bold, int fontSize)

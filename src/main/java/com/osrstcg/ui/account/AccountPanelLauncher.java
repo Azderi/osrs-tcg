@@ -40,11 +40,6 @@ public final class AccountPanelLauncher
 		this.updateButtonState = updateButtonState;
 	}
 
-	public AtomicBoolean inFlight()
-	{
-		return inFlight;
-	}
-
 	public void open()
 	{
 		open("/me");

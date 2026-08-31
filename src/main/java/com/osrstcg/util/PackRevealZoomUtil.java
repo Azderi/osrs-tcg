@@ -10,9 +10,6 @@ public final class PackRevealZoomUtil
 
 	public static final double[] LEVELS = {NATIVE, ONE_AND_HALF, DOUBLE};
 
-	public static final double MIN = NATIVE;
-	public static final double MAX = DOUBLE;
-
 	private PackRevealZoomUtil()
 	{
 	}

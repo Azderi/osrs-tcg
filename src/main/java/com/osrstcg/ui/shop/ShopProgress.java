@@ -23,7 +23,6 @@ public final class ShopProgress
 	{
 	}
 
-	/** Distinct card names with at least one foil copy owned. */
 	public static Set<String> foilCollectedNamesFromOwned(Map<CardCollectionKey, Integer> owned)
 	{
 		Set<String> foilNames = new HashSet<>();
@@ -49,12 +48,6 @@ public final class ShopProgress
 		return foilNames;
 	}
 
-	/**
-	 * Shop progress: Standard (empty category) = distinct names in the roll pool; regional = distinct names in the full
-	 * catalog that match {@link BoosterPackDefinition#cardMatchesRegion}.
-	 * {@code owned} should exclude beta copies.
-	 * Returns {@code [standardOwned, foilOwned, total]}.
-	 */
 	public static int[] ownedTotal(
 		BoosterPackDefinition booster,
 		List<CardDefinition> allCards,

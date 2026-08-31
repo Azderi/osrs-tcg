@@ -31,10 +31,6 @@ import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.RuneLite;
 
-/**
- * Loads chat activity rules and NPC kill exclusions from {@code GET /api/v1/config/activities}.
- * Memory + disk last-good; version-check before full fetch; soft-header + quiet poll refresh.
- */
 @Slf4j
 @Singleton
 public final class ActivityConfigService
@@ -61,7 +57,6 @@ public final class ActivityConfigService
 		api.setActivitiesVersionListener(this::noteRemoteVersion);
 	}
 
-	/** Plugin start: apply disk last-good if present (no network). */
 	public void loadDiskCacheIfPresent()
 	{
 		Path file = diskCacheFile();
@@ -86,22 +81,17 @@ public final class ActivityConfigService
 		}
 	}
 
-	/** Background prefetch (plugin start). Does not start the quiet poll. */
 	public void prefetchAsync()
 	{
 		scheduler.execute(this::ensureFreshSafe);
 	}
 
-	/**
-	 * After cloud login: refresh config and start the 10-minute quiet poll.
-	 */
 	public void refreshOnLogin()
 	{
 		startQuietPoll();
 		scheduler.execute(this::ensureFreshSafe);
 	}
 
-	/** Logout / disconnect - stop quiet poll; keep memory + disk cache. */
 	public void stopQuietPoll()
 	{
 		synchronized (pollLock)
@@ -114,9 +104,6 @@ public final class ActivityConfigService
 		}
 	}
 
-	/**
-	 * Soft header / explicit: if remote version differs from cache, schedule a single-flight refresh.
-	 */
 	public void noteRemoteVersion(String remoteVersion)
 	{
 		if (remoteVersion == null || remoteVersion.isBlank())

@@ -2,9 +2,6 @@ package com.osrstcg.util;
 
 import java.util.Locale;
 
-/**
- * Consistent display: group thousands with a space.
- */
 public final class NumberFormatting
 {
 	private NumberFormatting()
@@ -26,10 +23,6 @@ public final class NumberFormatting
 		return formatWithSpaces((long) value);
 	}
 
-	/**
-	 * Compact form for tight UI: {@code >= 1_000_000} → {@code 1.5M} / {@code 2.0M},
-	 * {@code >= 100_000} → {@code 105k}, otherwise spaced thousands.
-	 */
 	public static String formatCompact(long value)
 	{
 		long abs = Math.abs(value);

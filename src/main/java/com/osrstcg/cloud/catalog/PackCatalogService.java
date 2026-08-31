@@ -16,10 +16,6 @@ import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import com.osrstcg.cloud.api.CloudApiClient;
 
-/**
- * Login-fetched pack catalog for cloud sessions. Shop and pack-open read the cache only -
- * no GET /packs on shop open. When disconnected or before a successful fetch, the shop is empty.
- */
 @Slf4j
 @Singleton
 public final class PackCatalogService
@@ -51,16 +47,11 @@ public final class PackCatalogService
 		changeListener.set(listener);
 	}
 
-	/** Never null - server snapshot after login fetch, otherwise empty. */
 	public PackCatalogCache getCache()
 	{
 		return cache.get();
 	}
 
-	/**
-	 * Shop / infobox packs: only the last successful {@code GET /packs} response.
-	 * Empty while disconnected or if the login fetch has not succeeded.
-	 */
 	public List<BoosterPackDefinition> getVisibleBoosters()
 	{
 		PackCatalogCache current = getCache();
@@ -102,9 +93,6 @@ public final class PackCatalogService
 		return fromApi == null ? "" : fromApi.trim();
 	}
 
-	/**
-	 * Exactly once after cloud session is established. Failures leave the shop empty for the session.
-	 */
 	public CompletableFuture<Void> refreshOnLogin()
 	{
 		if (!loginFetchAttempted.compareAndSet(false, true))
@@ -114,13 +102,11 @@ public final class PackCatalogService
 		return CompletableFuture.runAsync(this::fetchAndApplyLogin, scheduler);
 	}
 
-	/** Only from 409 catalog_mismatch on pack open. */
 	public CompletableFuture<Void> refreshAfterCatalogMismatch()
 	{
 		return CompletableFuture.runAsync(this::fetchAndApplyMismatch, scheduler);
 	}
 
-	/** Logout / disconnect - clear packs until the next successful login fetch. */
 	public void clear()
 	{
 		loginFetchAttempted.set(false);
@@ -175,7 +161,6 @@ public final class PackCatalogService
 		}
 	}
 
-	/** Warm disk/memory cache for shop thumbnails and reveal sleeves. */
 	private CompletableFuture<Void> preloadPackImages(PackCatalogCache catalog)
 	{
 		if (catalog == null || imageCacheService == null)

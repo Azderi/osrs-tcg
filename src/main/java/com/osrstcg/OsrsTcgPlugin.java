@@ -304,7 +304,11 @@ public class OsrsTcgPlugin extends Plugin
 		{
 			return;
 		}
-		queueGameMessage(PackRevealService.PENDING_PULLS_TIMEOUT_MESSAGE);
+		if (client != null)
+		{
+			TcgPluginGameMessages.queueOnClientThread(clientThread, chatMessageManager,
+				PackRevealService.PENDING_PULLS_TIMEOUT_MESSAGE);
+		}
 		tcgPanel.clearPackRevealSidebarFreeze();
 		tcgPanel.refreshAfterPackRevealClose();
 	}
@@ -421,8 +425,11 @@ public class OsrsTcgPlugin extends Plugin
 			packRevealService.reset();
 			tcgPanel.clearPackRevealSidebarFreeze();
 			tcgPanel.refresh();
-			queueGameMessage(
-				"This profile was saved with debug mode on; collection and credits were reset.");
+			if (client != null)
+			{
+				TcgPluginGameMessages.queueOnClientThread(clientThread, chatMessageManager,
+					"This profile was saved with debug mode on; collection and credits were reset.");
+			}
 		}
 		else
 		{
@@ -444,17 +451,6 @@ public class OsrsTcgPlugin extends Plugin
 		TcgStateLoadResult loadResult = stateService.load();
 		applyLoadedProfileState(loadResult);
 		loadedAccountHash = accountHash;
-	}
-
-	private void queueGameMessage(String message)
-	{
-		if (client == null || clientThread == null || message == null || message.isEmpty())
-		{
-			return;
-		}
-
-		clientThread.invokeLater(() ->
-			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, message));
 	}
 
 	@Subscribe

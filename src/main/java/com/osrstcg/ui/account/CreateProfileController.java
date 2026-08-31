@@ -75,11 +75,6 @@ public final class CreateProfileController
 		this.afterUi = afterUi;
 	}
 
-	public AtomicBoolean inFlight()
-	{
-		return inFlight;
-	}
-
 	public void createProfile()
 	{
 		if (cloudSessionService.isRestrictedWorld() || !cloudSessionService.needsProfileCreate())

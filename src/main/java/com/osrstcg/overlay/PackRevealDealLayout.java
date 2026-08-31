@@ -8,7 +8,7 @@ import java.util.Collections;
 import java.util.List;
 
 /** Deal-phase card rects: pile wait, flight lerp, then landed slots. */
-final class PackRevealDealLayout
+public final class PackRevealDealLayout
 {
 	static final int DEAL_STACK_STEP = 5;
 
@@ -64,7 +64,7 @@ final class PackRevealDealLayout
 		return new Rectangle(x, y, w, h);
 	}
 
-	static double clamp01(double v)
+	public static double clamp01(double v)
 	{
 		if (v <= 0.0d)
 		{

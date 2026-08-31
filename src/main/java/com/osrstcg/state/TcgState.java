@@ -129,11 +129,6 @@ public final class TcgState
 		return copy(economyState, newCollectionState, debugLogging, packRevealOverlayScale, skillCreditBaseline, totalCreditsGained, profileCreatedAtUnix, profileSavedAtUnix, cloudRevision, cloudStateHash, sidebarRanks);
 	}
 
-	public TcgState withDebugLogging(boolean enabled)
-	{
-		return copy(economyState, collectionState, enabled, packRevealOverlayScale, skillCreditBaseline, totalCreditsGained, profileCreatedAtUnix, profileSavedAtUnix, cloudRevision, cloudStateHash, sidebarRanks);
-	}
-
 	public TcgState withPackRevealOverlayScale(double multiplier)
 	{
 		return copy(economyState, collectionState, debugLogging, multiplier, skillCreditBaseline, totalCreditsGained, profileCreatedAtUnix, profileSavedAtUnix, cloudRevision, cloudStateHash, sidebarRanks);

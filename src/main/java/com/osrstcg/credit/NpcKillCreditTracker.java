@@ -20,13 +20,6 @@ import net.runelite.api.events.InteractingChanged;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.Subscribe;
 
-/**
- * Awards kill credits from actual NPC deaths (including zero-loot kills), using the same engagement
- * signals as {@code monster-monitor}: player target + player damage within a short tick window.
- * Replaces credits tied to {@link net.runelite.client.plugins.loottracker.LootReceived}.
- * <p>
- * NPC kill exclusions come from server activity config ({@link ActivityConfigService}).
- */
 @Singleton
 public final class NpcKillCreditTracker
 {

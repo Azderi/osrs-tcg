@@ -648,7 +648,7 @@ public class PackRevealOverlay extends Overlay
 				BufferedImage linked = expectsArt ? imageCacheService.getCached(artPath) : null;
 				if (expectsArt && linked == null)
 				{
-					SharedCardRenderer.drawCardBack(g2, r, card.getPull().isFoil(), card.getRarityColor(),
+					SharedCardRenderer.drawCardBack(g2, r, card.getPull().isFoil(),
 						cardBackImage());
 				}
 				else
@@ -656,7 +656,7 @@ public class PackRevealOverlay extends Overlay
 					CardFaceDrawRequest req = cachedFaceRequest(index, card, linked, r.width, r.height);
 					if (!SharedCardRenderer.drawCardFaceIfCached(g2, r, req))
 					{
-						SharedCardRenderer.drawCardBack(g2, r, card.getPull().isFoil(), card.getRarityColor(),
+						SharedCardRenderer.drawCardBack(g2, r, card.getPull().isFoil(),
 							cardBackImage());
 						scheduleFacePrewarm(index, r.width, r.height, req);
 					}
@@ -664,7 +664,7 @@ public class PackRevealOverlay extends Overlay
 			}
 			else
 			{
-				SharedCardRenderer.drawCardBack(g2, r, card.getPull().isFoil(), card.getRarityColor(),
+				SharedCardRenderer.drawCardBack(g2, r, card.getPull().isFoil(),
 					cardBackImage());
 			}
 		}
@@ -1261,7 +1261,7 @@ public class PackRevealOverlay extends Overlay
 		{
 			PackRevealService.RevealCard card = cards.get(i);
 			Rectangle r = rects.get(i);
-			SharedCardRenderer.drawCardBack(graphics, r, card.getPull().isFoil(), card.getRarityColor(),
+			SharedCardRenderer.drawCardBack(graphics, r, card.getPull().isFoil(),
 				cardBackImage());
 		}
 	}
@@ -1281,7 +1281,7 @@ public class PackRevealOverlay extends Overlay
 		}
 		else
 		{
-			SharedCardRenderer.drawCardBack(g, bounds, false, Color.WHITE, cardBackImage());
+			SharedCardRenderer.drawCardBack(g, bounds, false, cardBackImage());
 		}
 		g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
 	}

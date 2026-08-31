@@ -17,8 +17,6 @@ public final class CardInfoTipModel
 	public static final int DELAY_MS = 180;
 	public static final int OFFSET_PX = 14;
 	public static final int CLAMP_PAD_PX = 8;
-	public static final int DEFAULT_TIP_W = 220;
-	public static final int DEFAULT_TIP_H = 220;
 	public static final int FADE_IN_MS = 160;
 
 	public static final String ACTION_OPEN_WIKI = "open-wiki";

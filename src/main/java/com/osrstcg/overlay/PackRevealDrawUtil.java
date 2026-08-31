@@ -1,6 +1,7 @@
 package com.osrstcg.overlay;
 
 import com.osrstcg.ui.SharedCardRenderer;
+import com.osrstcg.ui.card.CardColorMath;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -242,8 +243,7 @@ final class PackRevealDrawUtil
 
 	static Color withAlpha(Color color, float alpha)
 	{
-		int a = Math.max(0, Math.min(255, (int) Math.round(alpha * 255f)));
-		return new Color(color.getRed(), color.getGreen(), color.getBlue(), a);
+		return CardColorMath.withAlpha(color == null ? Color.WHITE : color, alpha);
 	}
 
 	static Rectangle fittedImageRect(Rectangle bounds, BufferedImage image)

@@ -1,10 +1,5 @@
 package com.osrstcg.ui.card;
 
-/**
- * Letter grade bands for a card instance {@code condition} (0.01–100, higher = better).
- * Port of {@code osrs-tcg-front/src/album/cardGrade.js}; the intensity/fade budgets come from
- * {@code GRADE_INTENSITY} / {@code GRADE_FADE} in {@code wearFx.js}.
- */
 public enum CardGrade
 {
 	S(0.0d, 0.0d),
@@ -23,19 +18,16 @@ public enum CardGrade
 		this.fade = fade;
 	}
 
-	/** Overall wear strength (dirt / edges / scratch budget). */
 	public double getIntensity()
 	{
 		return intensity;
 	}
 
-	/** Desaturation / color-wash strength. */
 	public double getFade()
 	{
 		return fade;
 	}
 
-	/** Null when {@code condition} is absent or not finite (matches {@code Number.isFinite} guard). */
 	public static CardGrade gradeFromCondition(Double condition)
 	{
 		if (condition == null || condition.isNaN() || condition.isInfinite())
@@ -66,7 +58,6 @@ public enum CardGrade
 		return E;
 	}
 
-	/** Beta / migrated instances omit condition and always count as {@link #S}. */
 	public static CardGrade gradeFromVariant(boolean beta, Double condition)
 	{
 		if (beta)
@@ -76,7 +67,6 @@ public enum CardGrade
 		return gradeFromCondition(condition);
 	}
 
-	/** {@code condition.toFixed(2)} in US locale, or null when absent/non-finite. */
 	public static String formatCondition(Double condition)
 	{
 		if (condition == null || condition.isNaN() || condition.isInfinite())

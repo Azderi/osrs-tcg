@@ -2,10 +2,6 @@ package com.osrstcg.util;
 
 import java.nio.charset.StandardCharsets;
 
-/**
- * OSRS Wiki article URLs from catalog {@code wiki.page} / pack-pull {@code wikiPage}.
- * Matches {@code osrs-tcg-front/src/catalog/osrsWiki.js}.
- */
 public final class OsrsWiki
 {
 	private static final String WIKI_BASE = "https://oldschool.runescape.wiki/w/";
@@ -14,12 +10,6 @@ public final class OsrsWiki
 	{
 	}
 
-	/**
-	 * Build an OSRS Wiki article URL from a wiki page title.
-	 * Spaces → underscores; then {@code encodeURIComponent} with {@code /} left unescaped (subpages).
-	 *
-	 * @return absolute wiki URL, or {@code null} when {@code page} is blank
-	 */
 	public static String url(String page)
 	{
 		if (page == null)
@@ -57,7 +47,6 @@ public final class OsrsWiki
 		return WIKI_BASE + encoded;
 	}
 
-	/** Characters left unescaped by JS {@code encodeURIComponent}. */
 	private static boolean isEncodeUriComponentSafe(int cp)
 	{
 		return (cp >= 'A' && cp <= 'Z')

@@ -5,10 +5,6 @@ import java.awt.FontMetrics;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Banded examine wrap/fit matching {@code AlbumCardFace.fitExamineFontEm} /
- * {@code .album-card__examine-text} ({@code word-break: break-word}, {@code line-height: 1.05}).
- */
 public final class ExamineTextLayout
 {
 	public static final float EXAMINE_EM_MAX = 1.18f;
@@ -20,17 +16,11 @@ public final class ExamineTextLayout
 	{
 	}
 
-	/** CSS {@code line-height: 1.2} in px for a given font size. */
 	public static int lineHeightPx(float fontSizePx)
 	{
 		return Math.max(1, Math.round(fontSizePx * EXAMINE_LINE_HEIGHT));
 	}
 
-	/**
-	 * Wrap like CSS {@code word-break: break-word} / {@code overflow-wrap: break-word}
-	 * with {@code white-space: pre-line}: explicit newlines force breaks; other whitespace
-	 * collapses; hard-break mid-token when a word exceeds {@code maxWidth}.
-	 */
 	public static List<String> wrapBreakWord(FontMetrics fm, String text, int maxWidth)
 	{
 		List<String> lines = new ArrayList<>();
@@ -103,10 +93,6 @@ public final class ExamineTextLayout
 		}
 	}
 
-	/**
-	 * Largest examine em (of card root) that fits, matching the site's 12-step binary search.
-	 * Rounded to 3 decimal places.
-	 */
 	public static float fitExamineEm(FontMetricsFactory metrics, double scale, String text, int maxWidth, int bandHeight)
 	{
 		String examine = text == null || text.trim().isEmpty() ? "No examine text." : text.trim();
@@ -147,7 +133,6 @@ public final class ExamineTextLayout
 		return lines.size() * lineH <= bandHeight + 0.5f;
 	}
 
-	/** Supplies {@link FontMetrics} under the same Graphics2D hints used when painting. */
 	@FunctionalInterface
 	public interface FontMetricsFactory
 	{

@@ -15,10 +15,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Builds filterable/sortable owned-card rows for the sidebar Collection tab (no images).
- * Pure data - safe to call off the EDT.
- */
 public final class CollectionListModel
 {
 	public enum SortMode
@@ -100,10 +96,6 @@ public final class CollectionListModel
 		return buildRows(collection, cardsByLowerName, packEligibleNamesOrNull, rarityFilterOrNull, null, sortMode);
 	}
 
-	/**
-	 * One row per owned {@code (name, foil)} excluding beta. Missing catalog defs use white Common and score 0.
-	 * {@code nameQueryOrNull} matches card name or catalog display name (case-insensitive contains).
-	 */
 	public static List<Row> buildRows(
 		CollectionState collection,
 		Map<String, CardDefinition> cardsByLowerName,
@@ -174,10 +166,6 @@ public final class CollectionListModel
 		return false;
 	}
 
-	/**
-	 * Eligible card names for a pack filter - same rules as shop set progress
-	 * (empty category → roll pool; otherwise region match on full catalog).
-	 */
 	public static Set<String> eligibleNamesForPack(
 		BoosterPackDefinition booster,
 		List<CardDefinition> allCards,
@@ -226,9 +214,6 @@ public final class CollectionListModel
 		return map;
 	}
 
-	/**
-	 * Single pass over instances: owned keys excluding beta, with max pulled-at per key.
-	 */
 	private static void aggregateOwnedExcludingBeta(
 		CollectionState collection,
 		Map<CardCollectionKey, Long> maxPulledAtOut)

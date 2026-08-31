@@ -5,6 +5,7 @@ import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.catalog.BoosterPackDefinition;
 import com.osrstcg.catalog.CardDatabase;
 import com.osrstcg.catalog.CardDefinition;
+import com.osrstcg.overlay.PackRevealDealLayout;
 import com.osrstcg.state.CardCollectionKey;
 import com.osrstcg.state.PackCardResult;
 import com.osrstcg.util.CardDisplayNames;
@@ -601,7 +602,7 @@ public class PackRevealService
 			return 0.0d;
 		}
 		double elapsed = (double) (System.currentTimeMillis() - phaseStartedAt);
-		return clamp01(elapsed / (double) PACK_FADE_MS);
+		return PackRevealDealLayout.clamp01(elapsed / (double) PACK_FADE_MS);
 	}
 
 	public synchronized Phase getPhase()
@@ -731,19 +732,6 @@ public class PackRevealService
 			&& card.getPull() != null
 			&& card.getPull().getCardName() != null
 			&& !card.getPull().getCardName().isBlank();
-	}
-
-	private double clamp01(double value)
-	{
-		if (value < 0.0d)
-		{
-			return 0.0d;
-		}
-		if (value > 1.0d)
-		{
-			return 1.0d;
-		}
-		return value;
 	}
 
 	private int clickedCardIndex(List<Rectangle> bounds, Point click)
@@ -895,11 +883,6 @@ public class PackRevealService
 	private boolean hasMoreBatches()
 	{
 		return batchOffset + visibleCount() < cards.size();
-	}
-
-	private boolean fiveCardsRevealed()
-	{
-		return (batchOffset + visibleCount()) % 5 == 0;
 	}
 
 	private void initCurrentBatchRevealFlags()

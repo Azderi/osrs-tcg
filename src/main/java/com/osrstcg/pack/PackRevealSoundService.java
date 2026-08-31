@@ -6,10 +6,6 @@ import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.audio.AudioPlayer;
 
-/**
- * Pack reveal audio via {@link AudioPlayer}: one-shot premium {@code /com/osrstcg/sounds/hum.wav} per reveal when a qualifying
- * card is still face-down after the pack opens, plus reveal chime, deal motion, flip, and apex hover sounds.
- */
 @Slf4j
 @Singleton
 public class PackRevealSoundService
@@ -44,9 +40,6 @@ public class PackRevealSoundService
 		this.audioPlayer = audioPlayer;
 	}
 
-	/**
-	 * Plays {@code hum.wav} at most once per reveal while {@code humWanted} is true.
-	 */
 	public synchronized void tryPlayMythicHum(boolean humWanted)
 	{
 		if (!config.enableSounds() || humOpenFailed || humPlayedThisReveal || !humWanted)
@@ -63,7 +56,6 @@ public class PackRevealSoundService
 		humPlayedThisReveal = true;
 	}
 
-	/** One-shot {@code reveal.wav} when a qualifying premium card is flipped (after {@link #playCardFlip()}). */
 	public synchronized void playMythicReveal()
 	{
 		if (!config.enableSounds() || revealOpenFailed)
@@ -76,7 +68,6 @@ public class PackRevealSoundService
 		}
 	}
 
-	/** One-shot {@code flip.wav} when any face-down card is clicked to flip during click-to-reveal. */
 	public synchronized void playCardFlip()
 	{
 		if (!config.enableSounds() || flipOpenFailed)
@@ -89,7 +80,6 @@ public class PackRevealSoundService
 		}
 	}
 
-	/** One-shot {@code apex.wav} when the pointer enters the sealed apex pack (overlapping plays allowed). */
 	public synchronized void playApexPackHoverOneShot()
 	{
 		if (!config.enableSounds() || apexHoverOneShotOpenFailed)
@@ -102,10 +92,6 @@ public class PackRevealSoundService
 		}
 	}
 
-	/**
-	 * While {@code dealPhaseActive}, plays {@code card.wav} once per card when its deal flight starts
-	 * (same timing as {@link com.osrstcg.overlay.PackRevealOverlay}: {@code elapsed >= index * staggerMs}).
-	 */
 	public synchronized void tickDealMotionSounds(boolean dealPhaseActive, long elapsedMs, int cardCount, long staggerMs)
 	{
 		if (!dealPhaseActive || !config.enableSounds())
@@ -135,13 +121,11 @@ public class PackRevealSoundService
 		}
 	}
 
-	/** Clears deal-flight sound progress so the next {@link #tickDealMotionSounds} batch starts from index 0. */
 	public synchronized void resetDealMotionSounds()
 	{
 		dealMotionSoundUpToIndex = -1;
 	}
 
-	/** Resets per-reveal sound state when the overlay closes or the plugin shuts down. */
 	public synchronized void hardStop()
 	{
 		humPlayedThisReveal = false;

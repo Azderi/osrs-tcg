@@ -20,11 +20,6 @@ import com.osrstcg.cloud.attest.CreditAttestQueue;
 import com.osrstcg.cloud.session.CloudSessionService;
 import com.osrstcg.cloud.trade.TradeCloudService;
 
-/**
- * Server-authoritative card sells via {@code POST /api/v1/cards/sell}.
- * Never sells locked or beta instances (planner + local filter).
- * Batches requests to match the server per-request sell cap.
- */
 @Slf4j
 @Singleton
 public final class CloudSellService
@@ -56,9 +51,6 @@ public final class CloudSellService
 		this.client = client;
 	}
 
-	/**
-	 * Sell planned duplicate instance IDs. Collection is updated only after a successful server response.
-	 */
 	public CardSellResult sellDuplicates(DuplicateSellPlanner.Result plan)
 	{
 		long creditsBefore = stateService.getCredits();
@@ -185,9 +177,6 @@ public final class CloudSellService
 		return sold;
 	}
 
-	/**
-	 * Drop blank ids and any that still resolve to beta/locked local instances.
-	 */
 	private List<String> filterSellableInstanceIds(List<String> plannedIds)
 	{
 		Set<String> betaOrLocked = new HashSet<>();

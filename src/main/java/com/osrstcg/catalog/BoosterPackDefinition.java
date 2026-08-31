@@ -67,12 +67,6 @@ public class BoosterPackDefinition
 		return out;
 	}
 
-	/**
-	 * True if the card matches one of this pack's filters. Filters are OR'd; each filter may list several
-	 * {@code &}-separated parts that must all appear among the card's category tags or regions
-	 * (after splitting {@code &} on each). When {@code regionFilters} is empty, this is a universal pack:
-	 * every roll-eligible card matches.
-	 */
 	public static boolean cardMatchesRegion(CardDefinition card, List<String> regionFilters)
 	{
 		if (card == null || regionFilters == null)

@@ -5,17 +5,10 @@ import com.osrstcg.config.CreditsPerHourWindow;
 import java.util.ArrayDeque;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import com.osrstcg.state.TcgStateService;
 import net.runelite.api.GameState;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.client.eventbus.Subscribe;
 
-/**
- * Credits-per-hour from {@link TcgStateService} credit gains.
- * Uses a configurable sliding window ({@link OsrsTcgConfig#creditsPerHourWindow()});
- * {@link CreditsPerHourWindow#PERSISTENT} keeps all drops until {@link #clear()}.
- * The displayed rate is only recomputed when a new credit drop is recorded.
- */
 @Singleton
 public class CreditsRateTracker
 {
@@ -45,11 +38,6 @@ public class CreditsRateTracker
 		recomputeCachedRate(now);
 	}
 
-	/**
-	 * @return last credits/h computed on a credit drop, or {@code null} until at least
-	 * {@value #MIN_DROPS_TO_SHOW} drops are in the window, or after the window elapses
-	 * with no new drops (timed modes only)
-	 */
 	public synchronized Long creditsPerHourOrNull()
 	{
 		if (cachedCreditsPerHour == null || drops.isEmpty())

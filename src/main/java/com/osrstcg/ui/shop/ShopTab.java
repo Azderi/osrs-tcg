@@ -216,7 +216,7 @@ public final class ShopTab
 		if (rows == null || rows.isEmpty())
 		{
 			outer.add(infoPanel("No booster packs available."));
-			clampShopPanelWidth(outer);
+			SidebarLayout.clampFixedWidth(outer, shopWidth.getAsInt());
 			return outer;
 		}
 
@@ -274,7 +274,7 @@ public final class ShopTab
 		grid.setMaximumSize(new Dimension(Integer.MAX_VALUE, gridPref.height));
 
 		outer.add(grid);
-		clampShopPanelWidth(outer);
+		SidebarLayout.clampFixedWidth(outer, shopWidth.getAsInt());
 		return outer;
 	}
 
@@ -309,16 +309,6 @@ public final class ShopTab
 	{
 		int inner = shopWidth.getAsInt();
 		return Math.max(96, (inner - BOOSTER_GRID_GAP) / 2);
-	}
-
-	private void clampShopPanelWidth(JPanel panel)
-	{
-		int w = shopWidth.getAsInt();
-		panel.setAlignmentX(Component.LEFT_ALIGNMENT);
-		Dimension preferred = panel.getPreferredSize();
-		panel.setPreferredSize(new Dimension(w, preferred.height));
-		panel.setMaximumSize(new Dimension(w, preferred.height));
-		panel.setMinimumSize(new Dimension(0, preferred.height));
 	}
 
 	private JPanel infoPanel(String message)

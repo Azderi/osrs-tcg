@@ -10,7 +10,6 @@ import java.awt.Shape;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Wrap / ellipsize / centered text helpers for card faces. */
 final class CardTextLayout
 {
 	private static final int FULL_ART_DESIGN_W = 180;
@@ -21,16 +20,11 @@ final class CardTextLayout
 	{
 	}
 
-	/** Single-line full-bleed title at design scale (stable across pack-reveal zoom). */
 	static String ellipsizeFullArtTitle(FontMetrics fm, String text)
 	{
 		return ellipsizeToWidth(valueOrFallback(text, "Unknown Card"), fm, fullArtDesignTitleMaxWidth());
 	}
 
-	/**
-	 * Full-bleed examine lines at design scale so line breaks stay stable when the pack reveal
-	 * overlay zooms (font sizes round to whole pixels independently of layout widths).
-	 */
 	static List<String> wrapFullArtExamine(FontMetrics fm, String text)
 	{
 		String raw = text == null ? "" : text.trim();

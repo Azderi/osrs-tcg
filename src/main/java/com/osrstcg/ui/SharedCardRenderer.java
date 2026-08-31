@@ -32,7 +32,6 @@ public final class SharedCardRenderer
 	private static final Color FOIL_FRAME_GOLD = new Color(0xD4AF37);
 	private static final Color PANEL_DARK = new Color(0x222222);
 	private static final Color PANEL_MID = new Color(0x2F2F2F);
-	private static final Color FULL_ART_WELL = new Color(0x1A1A1A);
 
 	private static final int[] BAND_FRACTIONS = {10, 40, 10, 30, 10};
 	private static final float BANDED_TITLE_EM_MIN = 0.80f;
@@ -43,7 +42,6 @@ public final class SharedCardRenderer
 	private SharedCardRenderer()
 	{
 	}
-
 
 	public static boolean drawCardFaceIfCached(Graphics2D g, Rectangle bounds, CardFaceDrawRequest req)
 	{
@@ -81,12 +79,7 @@ public final class SharedCardRenderer
 		}
 	}
 
-	public static void drawCardBack(Graphics2D g, Rectangle bounds, boolean foil, Color rarityColor)
-	{
-		drawCardBack(g, bounds, foil, rarityColor, null);
-	}
-
-	public static void drawCardBack(Graphics2D g, Rectangle bounds, boolean foil, Color rarityColor,
+	public static void drawCardBack(Graphics2D g, Rectangle bounds, boolean foil,
 		BufferedImage cardBack)
 	{
 		if (g == null || bounds == null || bounds.width < 2 || bounds.height < 2)
@@ -152,7 +145,6 @@ public final class SharedCardRenderer
 		return CardFaceCache.contains(w, h, req);
 	}
 
-
 	static BufferedImage renderFace(int w, int h, CardFaceDrawRequest req)
 	{
 		BufferedImage face = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
@@ -162,7 +154,14 @@ public final class SharedCardRenderer
 		try
 		{
 			enableQuality(g2);
-			paintBase(g2, geo, req);
+			if (req.isFullArt())
+			{
+				paintFullArt(g2, geo, req);
+			}
+			else
+			{
+				paintBanded(g2, geo, req);
+			}
 		}
 		finally
 		{
@@ -176,16 +175,6 @@ public final class SharedCardRenderer
 			CardFxPainter.drawWear(face, geo.outerRadius, wear);
 		}
 		return face;
-	}
-
-	private static void paintBase(Graphics2D g2, Geometry geo, CardFaceDrawRequest req)
-	{
-		if (req.isFullArt())
-		{
-			paintFullArt(g2, geo, req);
-			return;
-		}
-		paintBanded(g2, geo, req);
 	}
 
 	private static void paintBanded(Graphics2D g2, Geometry geo, CardFaceDrawRequest req)
@@ -254,7 +243,7 @@ public final class SharedCardRenderer
 		Shape well = new RoundRectangle2D.Double(
 			geo.innerX, geo.innerY, geo.innerW, geo.innerH,
 			geo.innerRadius * 2.0d, geo.innerRadius * 2.0d);
-		g2.setColor(FULL_ART_WELL);
+		g2.setColor(FRAME_DARK);
 		g2.fill(well);
 
 		Shape prevClip = g2.getClip();
@@ -320,7 +309,7 @@ public final class SharedCardRenderer
 				geo.innerX + scorePadX, scoreScrim.y + scorePadY,
 				Math.max(8, geo.innerW - scorePadX * 2),
 				Math.max(8, scoreScrimH - scorePadY * 2));
-			drawCenteredTextShadowed(g2, scoreBox, "Score: " + scoreText(req), scoreFont, Color.WHITE, 0, geo.scale);
+			drawCenteredTextShadowed(g2, scoreBox, "Score: " + scoreText(req), scoreFont, Color.WHITE, 0, geo.scale, true, false);
 		}
 		finally
 		{
@@ -402,18 +391,6 @@ public final class SharedCardRenderer
 		g2.setColor(fill == null ? Color.WHITE : fill);
 		g2.fill(outline);
 		g2.setStroke(new BasicStroke(1f));
-	}
-
-	private static void drawCenteredTextShadowed(Graphics2D g2, Rectangle rect, String text, Font font,
-		Color color, int horizontalPadding, double scale)
-	{
-		drawCenteredTextShadowed(g2, rect, text, font, color, horizontalPadding, scale, true);
-	}
-
-	private static void drawCenteredTextShadowed(Graphics2D g2, Rectangle rect, String text, Font font,
-		Color color, int horizontalPadding, double scale, boolean ellipsize)
-	{
-		drawCenteredTextShadowed(g2, rect, text, font, color, horizontalPadding, scale, ellipsize, false);
 	}
 
 	private static void drawCenteredTextShadowed(Graphics2D g2, Rectangle rect, String text, Font font,
@@ -531,7 +508,6 @@ public final class SharedCardRenderer
 		return NumberFormatting.format(card.displayScore(foil));
 	}
 
-
 	private static final class Geometry
 	{
 		private final int width;
@@ -614,7 +590,6 @@ public final class SharedCardRenderer
 	{
 		return new Rectangle(r.x + pad, r.y + pad, Math.max(1, r.width - pad * 2), Math.max(1, r.height - pad * 2));
 	}
-
 
 	private static Font fitBandedTitleFont(Graphics2D g2, String title, int maxWidth, double scale)
 	{

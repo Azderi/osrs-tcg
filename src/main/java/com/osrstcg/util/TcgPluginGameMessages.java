@@ -2,6 +2,7 @@ package com.osrstcg.util;
 
 import java.awt.Color;
 import net.runelite.api.ChatMessageType;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatColorType;
 import net.runelite.client.chat.ChatMessageBuilder;
 import net.runelite.client.chat.ChatMessageManager;
@@ -18,11 +19,6 @@ public final class TcgPluginGameMessages
 
 	private TcgPluginGameMessages()
 	{
-	}
-
-	public static String plainPrefix()
-	{
-		return PLAIN_PREFIX;
 	}
 
 	public static ChatMessageBuilder prefixBuilder()
@@ -229,6 +225,15 @@ public final class TcgPluginGameMessages
 		}
 		body = stripLeadingPluginPrefix(body);
 		queueFormattedGameMessage(chatMessageManager, withPrefix(body), PLAIN_PREFIX + body);
+	}
+
+	public static void queueOnClientThread(ClientThread clientThread, ChatMessageManager chatMessageManager, String body)
+	{
+		if (clientThread == null || body == null || body.isEmpty())
+		{
+			return;
+		}
+		clientThread.invokeLater(() -> queuePrefixedGameMessage(chatMessageManager, body));
 	}
 
 	public static void queueDebugGameMessage(ChatMessageManager chatMessageManager, String body)

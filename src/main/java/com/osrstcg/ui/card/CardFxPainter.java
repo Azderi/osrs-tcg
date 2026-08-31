@@ -19,15 +19,12 @@ import java.awt.image.Kernel;
 
 public final class CardFxPainter
 {
-	static final double CARD_EM_PX = 12.5d;
 	private static final double BEZIER_K = 0.5522847498307936d;
 
 	public enum BlendMode
 	{
-		NORMAL,
 		MULTIPLY,
 		SOFT_LIGHT,
-		COLOR_DODGE,
 		LUMINOSITY
 	}
 
@@ -54,9 +51,7 @@ public final class CardFxPainter
 		return g;
 	}
 
-
-	public static void blend(BufferedImage base, BufferedImage layer, BlendMode mode, double opacity,
-		boolean writeIntoTransparent)
+	public static void blend(BufferedImage base, BufferedImage layer, BlendMode mode, double opacity)
 	{
 		if (base == null || layer == null || opacity <= 0.0d)
 		{
@@ -78,27 +73,15 @@ public final class CardFxPainter
 			}
 			int d = dst[i];
 			int da = d >>> 24;
+			if (da == 0)
+			{
+				continue;
+			}
 
 			double f = (sa / 255.0d) * op;
 			double sr = ((s >> 16) & 0xFF) / 255.0d;
 			double sg = ((s >> 8) & 0xFF) / 255.0d;
 			double sb = (s & 0xFF) / 255.0d;
-
-			if (da == 0)
-			{
-				if (!writeIntoTransparent)
-				{
-					continue;
-				}
-				int outA = to255(f);
-				if (outA <= 0)
-				{
-					continue;
-				}
-				dst[i] = (outA << 24) | (to255(sr) << 16) | (to255(sg) << 8) | to255(sb);
-				continue;
-			}
-
 			double br = ((d >> 16) & 0xFF) / 255.0d;
 			double bg = ((d >> 8) & 0xFF) / 255.0d;
 			double bb = (d & 0xFF) / 255.0d;
@@ -109,11 +92,6 @@ public final class CardFxPainter
 			int b = to255(bb + (blended[2] - bb) * f);
 			dst[i] = (da << 24) | (r << 16) | (g << 8) | b;
 		}
-	}
-
-	public static void blend(BufferedImage base, BufferedImage layer, BlendMode mode, double opacity)
-	{
-		blend(base, layer, mode, opacity, false);
 	}
 
 	private static void applyMode(BlendMode mode, double br, double bg, double bb, double sr, double sg, double sb,
@@ -131,33 +109,14 @@ public final class CardFxPainter
 				out[1] = softLight(bg, sg);
 				out[2] = softLight(bb, sb);
 				return;
-			case COLOR_DODGE:
-				out[0] = colorDodge(br, sr);
-				out[1] = colorDodge(bg, sg);
-				out[2] = colorDodge(bb, sb);
-				return;
 			case LUMINOSITY:
 				setLuminosity(br, bg, bb, luminosity(sr, sg, sb), out);
 				return;
-			case NORMAL:
 			default:
 				out[0] = sr;
 				out[1] = sg;
 				out[2] = sb;
 		}
-	}
-
-	private static double colorDodge(double cb, double cs)
-	{
-		if (cb <= 0.0d)
-		{
-			return 0.0d;
-		}
-		if (cs >= 1.0d)
-		{
-			return 1.0d;
-		}
-		return Math.min(1.0d, cb / (1.0d - cs));
 	}
 
 	private static double softLight(double cb, double cs)
@@ -210,7 +169,6 @@ public final class CardFxPainter
 		return i < 0 ? 0 : Math.min(i, 255);
 	}
 
-
 	public static void applyWearFilter(BufferedImage base, double fade)
 	{
 		if (base == null || fade <= 0.0d)
@@ -256,7 +214,6 @@ public final class CardFxPainter
 		}
 	}
 
-
 	public static void drawAnimatedSparkles(Graphics2D g, int x, int y, int w, int h, double cornerRadius,
 		double scale, FoilFx fx, double timeSec)
 	{
@@ -272,7 +229,7 @@ public final class CardFxPainter
 			Shape card = new RoundRectangle2D.Double(x, y, w, h, cornerRadius * 2.0d, cornerRadius * 2.0d);
 			g2.clip(card);
 
-			double glow = 0.25d * CARD_EM_PX * scale;
+			double glow = 3.125d * scale;
 			for (FoilFx.Sparkle s : fx.getSparkles())
 			{
 				FoilSparkleAnimation.Sample anim = FoilSparkleAnimation.sample(s.getDelay(), s.getDuration(), timeSec);
@@ -300,7 +257,6 @@ public final class CardFxPainter
 			g2.dispose();
 		}
 	}
-
 
 	public static void drawWear(BufferedImage face, double cornerRadius, WearFx wear)
 	{
@@ -330,7 +286,7 @@ public final class CardFxPainter
 		Graphics2D g = quality(layer);
 		try
 		{
-			g.setPaint(cssLinearGradient(w, h, 160.0d, 1.0d,
+			g.setPaint(cssLinearGradient(w, h, 160.0d,
 				new float[]{0f, 0.40f, 0.4001f, 1f},
 				new Color[]{alpha(light, 0.04d * fade), alpha(light, 0.0d), alpha(dark, 0.0d), alpha(dark, 0.22d * fade)}));
 			g.fill(card);
@@ -396,7 +352,7 @@ public final class CardFxPainter
 		double blackAlpha;
 		double ringBlur = 0.0d;
 		double ringAlpha = 0.0d;
-		double opacity;
+		double opacity = (0.45d + i * 0.55d) * (0.35d + e * 0.65d);
 
 		if (wear.getGrade() == CardGrade.E)
 		{
@@ -406,7 +362,6 @@ public final class CardFxPainter
 			blackAlpha = 0.45d;
 			ringBlur = 2.0d;
 			ringAlpha = 0.35d;
-			opacity = (0.45d + i * 0.55d) * (0.35d + e * 0.65d);
 		}
 		else
 		{
@@ -414,7 +369,6 @@ public final class CardFxPainter
 			whiteAlpha = 0.26d * i * e;
 			blackBlur = 24.0d * i * e;
 			blackAlpha = 0.34d * i * e;
-			opacity = (0.45d + i * 0.55d) * (0.35d + e * 0.65d);
 		}
 
 		int maxDepth = Math.max(1, Math.min(w, h) / 2 + 1);
@@ -682,16 +636,13 @@ public final class CardFxPainter
 		return current;
 	}
 
-
-	public static LinearGradientPaint cssLinearGradient(int w, int h, double angleDeg, double sizeFactor,
+	public static LinearGradientPaint cssLinearGradient(int w, int h, double angleDeg,
 		float[] fractions, Color[] colors)
 	{
 		double a = Math.toRadians(angleDeg);
 		double dx = Math.sin(a);
 		double dy = -Math.cos(a);
-		double gw = w * sizeFactor;
-		double gh = h * sizeFactor;
-		double len = Math.max(1.0d, Math.abs(gw * Math.sin(a)) + Math.abs(gh * Math.cos(a)));
+		double len = Math.max(1.0d, Math.abs(w * Math.sin(a)) + Math.abs(h * Math.cos(a)));
 		double cx = w / 2.0d;
 		double cy = h / 2.0d;
 		return new LinearGradientPaint(
@@ -749,7 +700,6 @@ public final class CardFxPainter
 
 	public static Color alpha(Color c, double a)
 	{
-		int av = CardColorMath.clamp255((int) Math.round(Math.max(0.0d, Math.min(1.0d, a)) * 255.0d));
-		return new Color(c.getRed(), c.getGreen(), c.getBlue(), av);
+		return CardColorMath.withAlpha(c, a);
 	}
 }

@@ -9,10 +9,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-/**
- * Chooses which duplicate copies to sell, respecting per-instance locks and never selling
- * migrated {@code beta} copies.
- */
 public final class DuplicateSellPlanner
 {
 	public static final class Result
@@ -28,7 +24,6 @@ public final class DuplicateSellPlanner
 			this.cardsSold = cardsSold;
 		}
 
-		/** Non-blank instance IDs planned for sale (never includes locked or beta copies). */
 		public List<String> getSoldInstanceIds()
 		{
 			return soldInstanceIds;
@@ -166,7 +161,6 @@ public final class DuplicateSellPlanner
 		return new Result(List.copyOf(soldInstanceIds), creditsToAdd, cardsSold);
 	}
 
-	/** Records a sellable instance id; returns false if id is blank (should not happen for cloud cards). */
 	private static boolean markSold(OwnedCardInstance inst, List<String> soldInstanceIds)
 	{
 		if (inst == null || inst.isBeta() || inst.isLocked())
