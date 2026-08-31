@@ -6,7 +6,6 @@ import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.party.PartyService;
 
-/** Sends OSRS TCG party websocket payloads (collection set completion). */
 @Slf4j
 @Singleton
 public class TcgPartyAnnouncer

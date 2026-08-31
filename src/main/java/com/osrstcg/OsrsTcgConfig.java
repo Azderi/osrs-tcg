@@ -84,7 +84,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "runeliteNotifications",
 		name = "Runelite notifications",
-		description = "Enable certain notifications to be sent through Runelite's default notification service as well.",
+		description = "Enable certain notifications to be sent through RuneLite's default notification service as well.",
 		section = generalSection,
 		position = 5
 	)
@@ -157,8 +157,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "showSidebarRanks",
 		name = "Sidebar hiscores ranks",
-		description = "Show your hiscores rank under overview stats after opening a pack "
-			+ "(updated at most once every 10 minutes).",
+		description = "Show your hiscores rank under overview stats after opening a pack.",
 		section = generalSection,
 		position = 12
 	)
@@ -213,7 +212,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "notifyNonFoils",
 		name = "Notify non-foils",
-		description = "Also notify for normal (non-foil) cards.",
+		description = "Also notify for normal cards.",
 		section = pullNotificationsSection,
 		position = 1
 	)

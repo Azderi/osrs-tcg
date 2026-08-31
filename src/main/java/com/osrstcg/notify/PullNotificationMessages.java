@@ -8,6 +8,8 @@ import java.util.List;
 
 public final class PullNotificationMessages
 {
+	public static final String PLUGIN_TITLE = "OSRS TCG";
+
 	private PullNotificationMessages()
 	{
 	}
@@ -69,7 +71,7 @@ public final class PullNotificationMessages
 		return appendInspectLink(body, inspectUrl);
 	}
 
-	public static String appendInspectLink(String message, String inspectUrl)
+	private static String appendInspectLink(String message, String inspectUrl)
 	{
 		if (message == null)
 		{
@@ -96,27 +98,6 @@ public final class PullNotificationMessages
 			}
 		}
 		return false;
-	}
-
-	public static RarityMath.Tier highestTier(List<PackPull> pulls)
-	{
-		if (pulls == null || pulls.isEmpty())
-		{
-			return null;
-		}
-		RarityMath.Tier best = null;
-		for (PackPull pull : pulls)
-		{
-			if (pull == null || pull.tier == null)
-			{
-				continue;
-			}
-			if (best == null || pull.tier.ordinal() > best.ordinal())
-			{
-				best = pull.tier;
-			}
-		}
-		return best;
 	}
 
 	public static PackPull highestTierPull(List<PackPull> pulls)

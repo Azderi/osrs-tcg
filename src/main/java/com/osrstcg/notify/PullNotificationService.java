@@ -67,10 +67,7 @@ public class PullNotificationService
 			queueCollectionAddChat(trimmed, newForCollection, foil, cardDatabase.chatRarityColorForCardName(trimmed));
 			chatPosted = true;
 		}
-		if (config.partyAnnouncePulls())
-		{
-			pullExternalNotificationService.notifyParty(trimmed, newForCollection, foil);
-		}
+		pullExternalNotificationService.notifyParty(trimmed, newForCollection, foil);
 		if (pullTrigger() == PullNotificationTrigger.EVERY_CARD)
 		{
 			pullExternalNotificationService.sendWebhook(trimmed, newForCollection, foil, tier, instanceId);
@@ -158,10 +155,6 @@ public class PullNotificationService
 			return;
 		}
 		List<PackPull> pulls = buildPackPulls(cards);
-		if (!PullNotificationMessages.hasEligiblePull(pulls))
-		{
-			return;
-		}
 		pullExternalNotificationService.sendPackSummary(pulls);
 		if (config.dinkNotifications())
 		{

@@ -11,7 +11,6 @@ import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
 
-/** Inbound party chat bodies for mythic pulls and collection-set completion. */
 @Singleton
 public class TcgPartyInboundHandler
 {

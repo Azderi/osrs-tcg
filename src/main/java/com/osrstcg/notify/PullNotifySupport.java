@@ -8,12 +8,36 @@ import com.osrstcg.cloud.api.CloudEndpoints;
 import com.osrstcg.config.PullNotifyTier;
 import com.osrstcg.interop.TcgChatStatsShareService;
 import com.osrstcg.interop.TcgPublicStatsCalculator;
+import com.osrstcg.notify.PullNotificationMessages.PackPull;
+import com.osrstcg.notify.PullNotificationMessages.PackSummarySections;
+import java.util.List;
+import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
 @Singleton
 public class PullNotifySupport
 {
+	public static final class PackSummaryContent
+	{
+		public final PackSummarySections sections;
+		public final String summaryMessage;
+		public final String imageUrl;
+		public final RarityMath.Tier tier;
+
+		PackSummaryContent(
+			PackSummarySections sections,
+			String summaryMessage,
+			String imageUrl,
+			RarityMath.Tier tier)
+		{
+			this.sections = sections;
+			this.summaryMessage = summaryMessage;
+			this.imageUrl = imageUrl;
+			this.tier = tier;
+		}
+	}
+
 	private final OsrsTcgConfig config;
 	private final CardDatabase cardDatabase;
 	private final TcgPublicStatsCalculator tcgPublicStatsCalculator;
@@ -54,6 +78,27 @@ public class PullNotifySupport
 		return meetsTier(tier, floor);
 	}
 
+	public Optional<PackSummaryContent> packSummaryContent(List<PackPull> pulls, String opener)
+	{
+		if (!PullNotificationMessages.hasEligiblePull(pulls))
+		{
+			return Optional.empty();
+		}
+		PackSummarySections sections = PullNotificationMessages.buildSummarySections(pulls);
+		if (sections.newCards.isEmpty() && sections.duplicates.isEmpty())
+		{
+			return Optional.empty();
+		}
+		PackPull thumbnailPull = PullNotificationMessages.highestTierPull(pulls);
+		String imageUrl = thumbnailPull == null ? "" : cardImageUrl(thumbnailPull.cardName);
+		RarityMath.Tier tier = thumbnailPull == null ? null : thumbnailPull.tier;
+		return Optional.of(new PackSummaryContent(
+			sections,
+			PullNotificationMessages.packSummaryMessage(opener, sections),
+			imageUrl,
+			tier));
+	}
+
 	public String cardImageUrl(String cardName)
 	{
 		return cardDatabase.findByName(cardName)
@@ -82,7 +127,7 @@ public class PullNotifySupport
 		return message + "\n\n" + statsPlainLine();
 	}
 
-	public static boolean meetsTier(RarityMath.Tier tier, PullNotifyTier floor)
+	private static boolean meetsTier(RarityMath.Tier tier, PullNotifyTier floor)
 	{
 		if (tier == null)
 		{

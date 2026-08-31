@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Deal-phase card rects: pile wait, flight lerp, then landed slots. */
 public final class PackRevealDealLayout
 {
 	static final int DEAL_STACK_STEP = 5;
@@ -39,7 +38,6 @@ public final class PackRevealDealLayout
 		return out;
 	}
 
-	/** 0 = landed (bottom), 1 = waiting in pile, 2 = in flight (top). */
 	static int dealDrawLayer(long elapsed, int i, long stagger, long flight)
 	{
 		long t0 = (long) i * stagger;

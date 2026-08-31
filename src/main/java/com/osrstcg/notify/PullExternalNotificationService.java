@@ -26,14 +26,12 @@ import okhttp3.Response;
 import okhttp3.ResponseBody;
 import com.osrstcg.catalog.RarityMath;
 import com.osrstcg.notify.PullNotificationMessages.PackPull;
-import com.osrstcg.notify.PullNotificationMessages.PackSummarySections;
 
 @Slf4j
 @Singleton
 public class PullExternalNotificationService
 {
 	private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
-	private static final String EMBED_TITLE = "OSRS TCG";
 
 	private final OkHttpClient okHttpClient;
 	private final Gson gson;
@@ -106,29 +104,27 @@ public class PullExternalNotificationService
 	public void sendPackSummary(List<PackPull> pulls)
 	{
 		List<HttpUrl> webhookUrls = configuredWebhookUrls();
-		if (webhookUrls.isEmpty() || !PullNotificationMessages.hasEligiblePull(pulls))
+		if (webhookUrls.isEmpty())
 		{
 			return;
 		}
-		try
+		pullNotifySupport.packSummaryContent(pulls, resolvePlayerName()).ifPresent(content ->
 		{
-			PackSummarySections sections = PullNotificationMessages.buildSummarySections(pulls);
-			if (sections.newCards.isEmpty() && sections.duplicates.isEmpty())
+			try
 			{
-				return;
+				String payload = gson.toJson(buildPayload(
+					content.summaryMessage,
+					pullNotifySupport.statsPlainLine(),
+					content.tier,
+					content.imageUrl,
+					""));
+				dispatchWebhook("pack summary", webhookUrls, payload);
 			}
-			PackPull thumbnailPull = PullNotificationMessages.highestTierPull(pulls);
-			String imageUrl = thumbnailPull == null ? "" : pullNotifySupport.cardImageUrl(thumbnailPull.cardName);
-			String description = PullNotificationMessages.packSummaryMessage(resolvePlayerName(), sections);
-			String statsLine = pullNotifySupport.statsPlainLine();
-			RarityMath.Tier tier = PullNotificationMessages.highestTier(pulls);
-			String payload = gson.toJson(buildPayload(description, statsLine, tier, imageUrl, ""));
-			dispatchWebhook("pack summary", webhookUrls, payload);
-		}
-		catch (Exception ex)
-		{
-			log.warn("Pull webhook pack summary failed before send", ex);
-		}
+			catch (Exception ex)
+			{
+				log.warn("Pull webhook pack summary failed before send", ex);
+			}
+		});
 	}
 
 	private List<HttpUrl> configuredWebhookUrls()
@@ -241,7 +237,7 @@ public class PullExternalNotificationService
 		String description, String footerText, RarityMath.Tier tier, String imageUrl, String inspectUrl)
 	{
 		Map<String, Object> embed = new LinkedHashMap<>();
-		embed.put("title", EMBED_TITLE);
+		embed.put("title", PullNotificationMessages.PLUGIN_TITLE);
 		if (inspectUrl != null && !inspectUrl.isEmpty())
 		{
 			embed.put("url", inspectUrl);

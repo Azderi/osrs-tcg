@@ -3,6 +3,7 @@ package com.osrstcg.notify;
 import com.osrstcg.catalog.RarityMath;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -14,9 +15,10 @@ public class PullNotificationMessagesTest
 	@Test
 	public void packSummaryOmitsEmptyDuplicatesSection()
 	{
-		PullNotificationMessages.PackSummarySections sections = new PullNotificationMessages.PackSummarySections(
-			Arrays.asList("**Zilyana**", "Goblin"),
-			Collections.emptyList());
+		List<PullNotificationMessages.PackPull> pulls = Arrays.asList(
+			pull("Zilyana", true),
+			pull("Goblin", false));
+		PullNotificationMessages.PackSummarySections sections = PullNotificationMessages.buildSummarySections(pulls);
 		assertEquals(
 			"%USERNAME% opened a booster pack!\n\n**New cards**\n- **Zilyana**\n- Goblin",
 			PullNotificationMessages.packSummaryMessage("%USERNAME%", sections));
@@ -25,9 +27,10 @@ public class PullNotificationMessagesTest
 	@Test
 	public void packSummaryOmitsEmptyNewCardsSection()
 	{
-		PullNotificationMessages.PackSummarySections sections = new PullNotificationMessages.PackSummarySections(
-			Collections.emptyList(),
-			Collections.singletonList("**General Graardor**"));
+		List<PullNotificationMessages.PackPull> pulls = Collections.singletonList(
+			new PullNotificationMessages.PackPull(
+				"General Graardor", false, false, RarityMath.Tier.COMMON, null, true));
+		PullNotificationMessages.PackSummarySections sections = PullNotificationMessages.buildSummarySections(pulls);
 		assertEquals(
 			"%USERNAME% opened a booster pack!\n\n**Duplicates**\n- **General Graardor**",
 			PullNotificationMessages.packSummaryMessage("%USERNAME%", sections));
@@ -36,9 +39,8 @@ public class PullNotificationMessagesTest
 	@Test
 	public void packSummaryContainsOnlyOpeningLineWhenBothSectionsAreEmpty()
 	{
-		PullNotificationMessages.PackSummarySections sections = new PullNotificationMessages.PackSummarySections(
-			Collections.emptyList(),
-			Collections.emptyList());
+		PullNotificationMessages.PackSummarySections sections =
+			PullNotificationMessages.buildSummarySections(Collections.emptyList());
 		assertEquals(
 			"%USERNAME% opened a booster pack!",
 			PullNotificationMessages.packSummaryMessage("%USERNAME%", sections));

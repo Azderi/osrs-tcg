@@ -10,7 +10,6 @@ import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.events.PluginMessage;
 import com.osrstcg.catalog.RarityMath;
 import com.osrstcg.notify.PullNotificationMessages.PackPull;
-import com.osrstcg.notify.PullNotificationMessages.PackSummarySections;
 
 @Slf4j
 @Singleton
@@ -18,7 +17,6 @@ public class DinkNotificationService
 {
 	private static final String DINK_NAMESPACE = "dink";
 	private static final String DINK_NOTIFY = "notify";
-	private static final String PLUGIN_TITLE = "OSRS TCG";
 
 	private final EventBus eventBus;
 	private final PullNotifySupport pullNotifySupport;
@@ -62,34 +60,25 @@ public class DinkNotificationService
 
 	void notifyPackSummary(List<PackPull> pulls)
 	{
-		if (!PullNotificationMessages.hasEligiblePull(pulls))
+		pullNotifySupport.packSummaryContent(pulls, "%USERNAME%").ifPresent(content ->
 		{
-			return;
-		}
-		PackSummarySections sections = PullNotificationMessages.buildSummarySections(pulls);
-		if (sections.newCards.isEmpty() && sections.duplicates.isEmpty())
-		{
-			return;
-		}
-		PackPull thumbnailPull = PullNotificationMessages.highestTierPull(pulls);
-		String imageUrl = thumbnailPull == null ? "" : pullNotifySupport.cardImageUrl(thumbnailPull.cardName);
-		Map<String, Object> metadata = new HashMap<>();
-		metadata.put("notificationType", "packSummary");
-		metadata.put("newCards", sections.newCards);
-		metadata.put("duplicates", sections.duplicates);
-		postNotify(
-			pullNotifySupport.messageWithStatsLine(
-				PullNotificationMessages.packSummaryMessage("%USERNAME%", sections)),
-			imageUrl,
-			metadata);
+			Map<String, Object> metadata = new HashMap<>();
+			metadata.put("notificationType", "packSummary");
+			metadata.put("newCards", content.sections.newCards);
+			metadata.put("duplicates", content.sections.duplicates);
+			postNotify(
+				pullNotifySupport.messageWithStatsLine(content.summaryMessage),
+				content.imageUrl,
+				metadata);
+		});
 	}
 
 	private void postNotify(String text, String imageUrl, Map<String, Object> metadata)
 	{
 		Map<String, Object> data = new HashMap<>();
-		data.put("sourcePlugin", PLUGIN_TITLE);
+		data.put("sourcePlugin", PullNotificationMessages.PLUGIN_TITLE);
 		data.put("text", text);
-		data.put("title", PLUGIN_TITLE);
+		data.put("title", PullNotificationMessages.PLUGIN_TITLE);
 		data.put("imageRequested", true);
 		if (imageUrl != null && !imageUrl.isEmpty())
 		{

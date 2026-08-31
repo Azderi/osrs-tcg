@@ -34,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
@@ -153,7 +154,6 @@ public class PackRevealOverlay extends Overlay
 					}
 					catch (Exception ignored)
 					{
-						// best-effort; avoid blocking the client thread on audio line teardown
 					}
 				});
 			}
@@ -167,7 +167,7 @@ public class PackRevealOverlay extends Overlay
 		PackRevealService.RevealPaintSnapshot snap = snapOpt.get();
 		packRevealSoundActiveLastFrame = true;
 
-		Rectangle canvas = new Rectangle(0, 0, client.getCanvasWidth(), client.getCanvasHeight());
+		Rectangle canvas = fullCanvas();
 		PackRevealDrawUtil.drawDim(graphics, canvas);
 
 		List<PackRevealService.RevealCard> cards = snap.getCards();
@@ -284,15 +284,7 @@ public class PackRevealOverlay extends Overlay
 				PackRevealDrawUtil.drawGlow(graphics, glowRect, card.getRarityColor(), glowAlpha);
 			}
 			drawFlippingCard(graphics, i, r, card, flipProgress);
-		}
-		for (int i : drawOrder)
-		{
-			PackRevealService.RevealCard card = cards.get(i);
-			RevealCardVisual visual = revealCardVisual(i, bounds.get(i), snap);
-			Rectangle r = visual.rect;
-			boolean faceUp = visual.faceUp;
-			double lift = visual.lift;
-			if (faceUp && visual.flipProgress >= 1f)
+			if (faceUp && flipProgress >= 1f)
 			{
 				if (card.isNew() && shouldShowNewBadge(card, revealService.getPreOwnedFoilNames()))
 				{
@@ -323,7 +315,7 @@ public class PackRevealOverlay extends Overlay
 			&& slot.height == height
 			&& slot.artId == artId
 			&& slot.wearWanted == wearWanted
-			&& java.util.Objects.equals(slot.artPath, artPath))
+			&& Objects.equals(slot.artPath, artPath))
 		{
 			return slot.request;
 		}
@@ -429,7 +421,7 @@ public class PackRevealOverlay extends Overlay
 			String artPath = artPathFor(card);
 			ensureSlotFaceCache(i);
 			SlotFaceCache slot = slotFaceCache[i];
-			if (facePrewarmDone[i] && slot != null && java.util.Objects.equals(slot.artPath, artPath)
+			if (facePrewarmDone[i] && slot != null && Objects.equals(slot.artPath, artPath)
 				&& SharedCardRenderer.isFaceCached(slot.width, slot.height, slot.request))
 			{
 				continue;
@@ -700,8 +692,9 @@ public class PackRevealOverlay extends Overlay
 			{
 				return null;
 			}
-			Rectangle canvas = new Rectangle(0, 0, client.getCanvasWidth(), client.getCanvasHeight());
-			PackRevealLayout.ViewportLayout layout = computeViewportLayout(canvas, revealService.getCards().size());
+			Rectangle canvas = fullCanvas();
+			int n = revealService.getCards().size();
+			PackRevealLayout.ViewportLayout layout = computeViewportLayout(canvas, n, revealService.getPhase());
 			Rectangle packBase = layout.packRect(canvas);
 			return packDrawRect(packBase);
 		}
@@ -719,50 +712,46 @@ public class PackRevealOverlay extends Overlay
 			{
 				return List.of();
 			}
-			Rectangle canvas = new Rectangle(0, 0, client.getCanvasWidth(), client.getCanvasHeight());
+			Rectangle canvas = fullCanvas();
 			int n = revealService.getCards().size();
-			List<Rectangle> bases = PackRevealLayout.layoutCardSlots(canvas, n, computeViewportLayout(canvas, n));
+			List<Rectangle> bases = PackRevealLayout.layoutCardSlots(canvas, n, computeViewportLayout(canvas, n, phase));
 			return withCardHoverVisualScale(bases);
 		}
 	}
 
 	public PackRevealService.RevealCard faceUpCardAt(Point canvasPoint)
 	{
-		if (canvasPoint == null)
-		{
-			return null;
-		}
 		synchronized (revealService)
 		{
-			List<Rectangle> bounds = currentCardBounds();
-			List<PackRevealService.RevealCard> cards = revealService.getCards();
-			if (bounds.isEmpty() || cards.isEmpty())
-			{
-				return null;
-			}
-			for (int i = 0; i < bounds.size() && i < cards.size(); i++)
-			{
-				Rectangle r = bounds.get(i);
-				if (r != null && r.contains(canvasPoint) && revealService.isCardRevealed(i))
-				{
-					return cards.get(i);
-				}
-			}
-			return null;
+			int i = faceUpCardIndexAt(canvasPoint);
+			return i < 0 ? null : revealService.getCards().get(i);
 		}
+	}
+
+	private int faceUpCardIndexAt(Point canvasPoint)
+	{
+		if (canvasPoint == null)
+		{
+			return -1;
+		}
+		List<Rectangle> bounds = currentCardBounds();
+		if (bounds.isEmpty())
+		{
+			return -1;
+		}
+		for (int i = 0; i < bounds.size(); i++)
+		{
+			Rectangle r = bounds.get(i);
+			if (r != null && r.contains(canvasPoint) && revealService.isCardRevealed(i))
+			{
+				return i;
+			}
+		}
+		return -1;
 	}
 
 	private void paintRevealChrome(Graphics2D graphics, Rectangle canvas, PackRevealService.RevealPaintSnapshot snap,
 		List<PackRevealService.RevealCard> cards)
-	{
-		paintCloseButton(graphics, canvas);
-		if (cards != null)
-		{
-			paintCardInfoTip(graphics, canvas, cards);
-		}
-	}
-
-	private void paintCloseButton(Graphics2D g, Rectangle canvas)
 	{
 		PackRevealDrawUtil.layoutCloseButton(canvas, closeButtonBounds);
 		boolean hover = false;
@@ -771,20 +760,17 @@ public class PackRevealOverlay extends Overlay
 			Point p = new Point(pointerScratch[0], pointerScratch[1]);
 			hover = closeButtonBounds.contains(p) && !cardInfoTipCoversPoint(p);
 		}
-		PackRevealDrawUtil.drawCloseButton(g, closeButtonBounds, hover);
+		PackRevealDrawUtil.drawCloseButton(graphics, closeButtonBounds, hover);
+		if (cards != null)
+		{
+			paintCardInfoTip(graphics, canvas, cards);
+		}
 	}
 
 	public boolean handleCloseButtonClick(Point canvasPoint)
 	{
-		if (canvasPoint == null || closeButtonBounds.width <= 0)
-		{
-			return false;
-		}
-		if (!closeButtonBounds.contains(canvasPoint))
-		{
-			return false;
-		}
-		return !cardInfoTipCoversPoint(canvasPoint);
+		return canvasPoint != null && closeButtonBounds.width > 0
+			&& closeButtonBounds.contains(canvasPoint) && !cardInfoTipCoversPoint(canvasPoint);
 	}
 
 	private boolean cardInfoTipCoversPoint(Point p)
@@ -861,35 +847,26 @@ public class PackRevealOverlay extends Overlay
 		tipActionBounds.clear();
 	}
 
-	/**
-	 * Right-click on a face-up card: freeze the card tip and append context-menu actions
-	 * (Inspect / Open wiki page) when available.
-	 *
-	 * @return true when the tip was pinned
-	 */
 	public boolean pinCardInfoTipAt(Point canvasPoint)
 	{
-		PackRevealService.RevealCard card = faceUpCardAt(canvasPoint);
-		String wikiPage = CardInfoTipModel.wikiPageFor(card);
-		String instanceId = CardInfoTipModel.instanceIdFor(card);
-		if (card == null || canvasPoint == null || (wikiPage == null && instanceId == null))
+		if (canvasPoint == null)
 		{
 			return false;
 		}
-		int index = -1;
+		PackRevealService.RevealCard card;
+		int index;
 		synchronized (revealService)
 		{
-			List<PackRevealService.RevealCard> cards = revealService.getCards();
-			for (int i = 0; i < cards.size(); i++)
+			index = faceUpCardIndexAt(canvasPoint);
+			if (index < 0)
 			{
-				if (cards.get(i) == card)
-				{
-					index = i;
-					break;
-				}
+				return false;
 			}
+			card = revealService.getCards().get(index);
 		}
-		if (index < 0)
+		String wikiPage = CardInfoTipModel.wikiPageFor(card);
+		String instanceId = CardInfoTipModel.instanceIdFor(card);
+		if (wikiPage == null && instanceId == null)
 		{
 			return false;
 		}
@@ -914,11 +891,6 @@ public class PackRevealOverlay extends Overlay
 		return tipPinned;
 	}
 
-	/**
-	 * Left-click while the tip is pinned. Opens inspect/wiki when an action row is hit; otherwise dismisses.
-	 *
-	 * @return true when the click was fully consumed (do not advance the reveal)
-	 */
 	public boolean handlePinnedTipClick(Point canvasPoint)
 	{
 		if (!tipPinned || canvasPoint == null)
@@ -1246,14 +1218,14 @@ public class PackRevealOverlay extends Overlay
 		}
 	}
 
-	private PackRevealLayout.ViewportLayout computeViewportLayout(Rectangle canvas, int cardCount)
-	{
-		return computeViewportLayout(canvas, cardCount, revealService.getPhase());
-	}
-
 	private PackRevealLayout.ViewportLayout computeViewportLayout(Rectangle canvas, int cardCount, PackRevealService.Phase phase)
 	{
 		return PackRevealLayout.computeViewportLayout(canvas, cardCount, phase, preferredZoomMultiplier(), this::noteAppliedZoom);
+	}
+
+	private Rectangle fullCanvas()
+	{
+		return new Rectangle(0, 0, client.getCanvasWidth(), client.getCanvasHeight());
 	}
 
 	private void noteAppliedZoom(double zoomMul)
