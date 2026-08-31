@@ -2,7 +2,6 @@ package com.osrstcg.overlay;
 
 import com.osrstcg.OsrsTcgConfig;
 import com.osrstcg.cloud.catalog.PackCatalogService;
-import com.osrstcg.cloud.catalog.PackImageUrls;
 import com.osrstcg.catalog.BoosterPackDefinition;
 import com.osrstcg.catalog.CardDefinition;
 import com.osrstcg.state.PackCardResult;
@@ -53,8 +52,6 @@ public class PackRevealOverlay extends Overlay
 	private static final double HOVER_LERP = 0.22d;
 	private static final double HOVER_LERP_REFERENCE_HZ = 60.0d;
 	private static final double HOVER_LERP_MAX_DT_SEC = 0.05d;
-	static final double PACK_REVEAL_ZOOM_MIN = PackRevealZoomUtil.MIN;
-	static final double PACK_REVEAL_ZOOM_MAX = PackRevealZoomUtil.MAX;
 	private static final float HOVER_RARITY_GLOW_ALPHA = 0.30f;
 	private static final int PACK_SEALED_GLOW_INSET = 2;
 
@@ -833,7 +830,7 @@ public class PackRevealOverlay extends Overlay
 	{
 		if (!Double.isNaN(sessionPackZoomMultiplier))
 		{
-			persistPackRevealScale(sessionPackZoomMultiplier);
+			tcgStateService.setPackRevealOverlayScale(sessionPackZoomMultiplier);
 		}
 	}
 
@@ -1186,17 +1183,7 @@ public class PackRevealOverlay extends Overlay
 		{
 			return sessionPackZoomMultiplier;
 		}
-		return readPersistedPackRevealScale();
-	}
-
-	private double readPersistedPackRevealScale()
-	{
 		return PackRevealZoomUtil.clamp(tcgStateService.getState().getPackRevealOverlayScale());
-	}
-
-	private void persistPackRevealScale(double multiplier)
-	{
-		tcgStateService.setPackRevealOverlayScale(multiplier);
 	}
 
 	public void nudgeSessionPackZoom(int wheelRotation)
@@ -1207,7 +1194,7 @@ public class PackRevealOverlay extends Overlay
 		}
 		double base = preferredZoomMultiplier();
 		sessionPackZoomMultiplier = PackRevealZoomUtil.nudge(base, wheelRotation);
-		persistPackRevealScale(sessionPackZoomMultiplier);
+		tcgStateService.setPackRevealOverlayScale(sessionPackZoomMultiplier);
 		invalidateFaceSizes();
 	}
 
@@ -1274,7 +1261,6 @@ public class PackRevealOverlay extends Overlay
 		{
 			PackRevealService.RevealCard card = cards.get(i);
 			Rectangle r = rects.get(i);
-			PackRevealDrawUtil.drawGlow(graphics, r, card.getRarityColor(), 0f);
 			SharedCardRenderer.drawCardBack(graphics, r, card.getPull().isFoil(), card.getRarityColor(),
 				cardBackImage());
 		}
@@ -1288,16 +1274,15 @@ public class PackRevealOverlay extends Overlay
 	private void drawPackImage(Graphics2D g, Rectangle bounds, float alpha, String boosterPackId)
 	{
 		BufferedImage packArt = packArtForPackId(boosterPackId);
+		g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0f, Math.min(1f, alpha))));
 		if (packArt != null)
 		{
-			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0f, Math.min(1f, alpha))));
 			PackRevealDrawUtil.drawImageFit(g, packArt, bounds);
-			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
-			return;
 		}
-
-		g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0f, Math.min(1f, alpha))));
-		SharedCardRenderer.drawCardBack(g, bounds, false, Color.WHITE, cardBackImage());
+		else
+		{
+			SharedCardRenderer.drawCardBack(g, bounds, false, Color.WHITE, cardBackImage());
+		}
 		g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
 	}
 
@@ -1313,17 +1298,12 @@ public class PackRevealOverlay extends Overlay
 			return null;
 		}
 		BoosterPackDefinition pack = packCatalogService.getCache().get(boosterPackId).orElse(null);
-		String imagePath = PackImageUrls.revealSleevePath(pack);
+		String imagePath = pack == null ? null : pack.revealSleevePath();
 		if (imagePath == null)
 		{
 			return null;
 		}
 		return imageCacheService.getCached(imagePath);
-	}
-
-	static double clampPackRevealZoomMultiplier(double value)
-	{
-		return PackRevealZoomUtil.clamp(value);
 	}
 
 	private static final class SlotFaceCache

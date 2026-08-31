@@ -35,6 +35,21 @@ public class BoosterPackDefinition
 		return id;
 	}
 
+	public static boolean isHostedImagePath(String path)
+	{
+		if (path == null || path.isBlank())
+		{
+			return false;
+		}
+		String t = path.trim();
+		return t.startsWith("/") || t.startsWith("https://");
+	}
+
+	public String revealSleevePath()
+	{
+		return isHostedImagePath(image) ? image.trim() : null;
+	}
+
 	public List<String> getCategoryFilters()
 	{
 		if (category == null)

@@ -54,7 +54,6 @@ public final class CardFxPainter
 		return g;
 	}
 
-	// ------------------------------------------------------------------ blending
 
 	public static void blend(BufferedImage base, BufferedImage layer, BlendMode mode, double opacity,
 		boolean writeIntoTransparent)
@@ -211,7 +210,6 @@ public final class CardFxPainter
 		return i < 0 ? 0 : Math.min(i, 255);
 	}
 
-	// ------------------------------------------------------------------ whole-card filter
 
 	public static void applyWearFilter(BufferedImage base, double fade)
 	{
@@ -258,7 +256,6 @@ public final class CardFxPainter
 		}
 	}
 
-	// ------------------------------------------------------------------ foil
 
 	public static void drawAnimatedSparkles(Graphics2D g, int x, int y, int w, int h, double cornerRadius,
 		double scale, FoilFx fx, double timeSec)
@@ -304,7 +301,6 @@ public final class CardFxPainter
 		}
 	}
 
-	// ------------------------------------------------------------------ wear
 
 	public static void drawWear(BufferedImage face, double cornerRadius, WearFx wear)
 	{
@@ -686,7 +682,6 @@ public final class CardFxPainter
 		return current;
 	}
 
-	// ------------------------------------------------------------------ shapes / paints
 
 	public static LinearGradientPaint cssLinearGradient(int w, int h, double angleDeg, double sizeFactor,
 		float[] fractions, Color[] colors)
@@ -750,11 +745,6 @@ public final class CardFxPainter
 	private static double ratio(double side, double sum)
 	{
 		return sum <= 0.0d ? 1.0d : Math.min(1.0d, side / sum);
-	}
-
-	static Color transparent(Color c)
-	{
-		return alpha(c, 0.0d);
 	}
 
 	public static Color alpha(Color c, double a)

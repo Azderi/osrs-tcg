@@ -111,8 +111,8 @@ public final class CreateProfileController
 			}
 			catch (CloudApiException ex)
 			{
-				TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-					"[OSRS TCG] Create profile failed: " + ex.getMessage());
+				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+					"Create profile failed: " + ex.getMessage());
 			}
 			catch (Exception ex)
 			{
@@ -120,8 +120,8 @@ public final class CreateProfileController
 				String detail = ex.getMessage() != null && !ex.getMessage().isBlank()
 					? ex.getMessage()
 					: "try again";
-				TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-					"[OSRS TCG] Create profile failed: " + detail);
+				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+					"Create profile failed: " + detail);
 			}
 			finally
 			{

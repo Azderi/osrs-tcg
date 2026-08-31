@@ -6,8 +6,6 @@ public final class CloudEndpoints
 	public static final String API_BASE_URL = "https://api.osrs-tcg.net/api/v1";
 	public static final String WEB_BASE_URL = "https://osrs-tcg.net";
 
-	private static final String API_V1_PREFIX = "/api/v1";
-
 	private CloudEndpoints()
 	{
 	}
@@ -28,18 +26,6 @@ public final class CloudEndpoints
 		{
 			path = "/" + path;
 		}
-		if (path.equals(API_V1_PREFIX))
-		{
-			return API_BASE_URL;
-		}
-		if (path.startsWith(API_V1_PREFIX + "/"))
-		{
-			path = path.substring(API_V1_PREFIX.length());
-		}
-		else if (path.startsWith(API_V1_PREFIX + "?"))
-		{
-			path = path.substring(API_V1_PREFIX.length());
-		}
 		return API_BASE_URL + path;
 	}
 
@@ -47,6 +33,32 @@ public final class CloudEndpoints
 	public static String webUrl(String pathOrUrl)
 	{
 		return joinHttps(WEB_BASE_URL, pathOrUrl);
+	}
+
+	public static String resolvePublicUrl(String pathOrUrl)
+	{
+		if (pathOrUrl == null)
+		{
+			return "";
+		}
+		String raw = pathOrUrl.trim();
+		if (raw.isEmpty())
+		{
+			return "";
+		}
+		if (raw.startsWith("https://"))
+		{
+			return raw;
+		}
+		if (raw.equals("/api/v1") || raw.startsWith("/api/v1/") || raw.startsWith("/api/v1?"))
+		{
+			return apiUrl(raw.substring("/api/v1".length()));
+		}
+		if (raw.startsWith("/api/"))
+		{
+			return apiUrl(raw);
+		}
+		return webUrl(raw);
 	}
 
 	/**

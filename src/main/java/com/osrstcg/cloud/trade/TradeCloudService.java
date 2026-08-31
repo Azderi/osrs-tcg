@@ -136,7 +136,7 @@ public final class TradeCloudService
 	{
 		if (!session.isReady())
 		{
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager, "[OSRS TCG] Cloud offline - cannot trade.");
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, "Cloud offline - cannot trade.");
 			return;
 		}
 		if (partnerDisplayName == null || partnerDisplayName.trim().isEmpty())
@@ -146,8 +146,8 @@ public final class TradeCloudService
 		long accountHash = client.getAccountHash();
 		if (accountHash == -1L)
 		{
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-				"[OSRS TCG] Waiting for account - try again in a moment.");
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+				"Waiting for account - try again in a moment.");
 			return;
 		}
 		final String partner = partnerDisplayName.trim();
@@ -158,8 +158,8 @@ public final class TradeCloudService
 				JsonObject result = api.createTrade(partner, accountHash);
 				applyEconomyFieldsFromRpc(result);
 				String url = result.has("url") ? result.get("url").getAsString() : null;
-				TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-					"[OSRS TCG] Trade request sent to " + partner
+				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+					"Trade request sent to " + partner
 						+ (url == null || url.isEmpty() ? "." : " - finish on the website."));
 				if (url != null && !url.isEmpty())
 				{
@@ -174,14 +174,14 @@ public final class TradeCloudService
 			}
 			catch (IllegalArgumentException ex)
 			{
-				TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-					"[OSRS TCG] Trade failed: account hash missing - try relogging.");
+				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+					"Trade failed: account hash missing - try relogging.");
 			}
 			catch (Exception ex)
 			{
 				log.warn("Trade create failed", ex);
-				TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-					"[OSRS TCG] Trade failed - cloud error.");
+				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+					"Trade failed - cloud error.");
 			}
 		});
 	}
@@ -190,7 +190,7 @@ public final class TradeCloudService
 	{
 		if (!session.isReady())
 		{
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager, "[OSRS TCG] Cloud offline - cannot cancel trade.");
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, "Cloud offline - cannot cancel trade.");
 			return;
 		}
 		if (tradeId == null || tradeId.isBlank())
@@ -200,8 +200,8 @@ public final class TradeCloudService
 		long accountHash = client.getAccountHash();
 		if (accountHash == -1L)
 		{
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-				"[OSRS TCG] Waiting for account - try again in a moment.");
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+				"Waiting for account - try again in a moment.");
 			return;
 		}
 		final String id = tradeId.trim();
@@ -211,7 +211,7 @@ public final class TradeCloudService
 			{
 				JsonObject result = api.cancelTrade(id, accountHash);
 				applyEconomyFieldsFromRpc(result);
-				TcgPluginGameMessages.queueGameMessage(chatMessageManager, "[OSRS TCG] Trade cancelled.");
+				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, "Trade cancelled.");
 				notifyListener();
 				requestForcedRefresh();
 			}
@@ -221,14 +221,14 @@ public final class TradeCloudService
 			}
 			catch (IllegalArgumentException ex)
 			{
-				TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-					"[OSRS TCG] Trade failed: account hash missing - try relogging.");
+				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+					"Trade failed: account hash missing - try relogging.");
 			}
 			catch (Exception ex)
 			{
 				log.warn("Trade cancel failed", ex);
-				TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-					"[OSRS TCG] Trade cancel failed - cloud error.");
+				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+					"Trade cancel failed - cloud error.");
 			}
 		});
 	}
@@ -240,8 +240,8 @@ public final class TradeCloudService
 			return;
 		}
 		String mapped = TradeMutationErrors.messageFor(ex);
-		TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-			"[OSRS TCG] " + (mapped == null ? "Trade failed." : mapped));
+		TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+			mapped == null ? "Trade failed." : mapped);
 	}
 
 	private void scheduleNextLocked(long delayMs)
@@ -372,8 +372,8 @@ public final class TradeCloudService
 		String fromLabel = fromDisplayName == null || fromDisplayName.isBlank()
 			? "someone"
 			: fromDisplayName.trim();
-		TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-			"[OSRS TCG] You have a pending trade request from " + fromLabel + ". Check the sidebar!");
+		TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+			"You have a pending trade request from " + fromLabel + ". Check the sidebar!");
 	}
 
 	private void applyEconomyFieldsFromRpc(JsonObject response)

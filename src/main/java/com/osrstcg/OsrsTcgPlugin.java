@@ -304,7 +304,7 @@ public class OsrsTcgPlugin extends Plugin
 		{
 			return;
 		}
-		queueGameMessage("[OSRS TCG] " + PackRevealService.PENDING_PULLS_TIMEOUT_MESSAGE);
+		queueGameMessage(PackRevealService.PENDING_PULLS_TIMEOUT_MESSAGE);
 		tcgPanel.clearPackRevealSidebarFreeze();
 		tcgPanel.refreshAfterPackRevealClose();
 	}
@@ -422,7 +422,7 @@ public class OsrsTcgPlugin extends Plugin
 			tcgPanel.clearPackRevealSidebarFreeze();
 			tcgPanel.resetSessionUi();
 			queueGameMessage(
-				"[OSRS TCG] This profile was saved with debug mode on; collection and credits were reset.");
+				"This profile was saved with debug mode on; collection and credits were reset.");
 		}
 		else
 		{
@@ -454,7 +454,7 @@ public class OsrsTcgPlugin extends Plugin
 		}
 
 		clientThread.invokeLater(() ->
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager, message));
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, message));
 	}
 
 	@Subscribe

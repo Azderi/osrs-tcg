@@ -123,9 +123,9 @@ public final class AccountPanelLauncher
 	private void queueOpenAccountPanelError(String detail)
 	{
 		String message = detail == null || detail.isBlank()
-			? "[OSRS TCG] Could not open account page"
-			: "[OSRS TCG] Could not open account page - " + detail.trim();
-		TcgPluginGameMessages.queueGameMessage(chatMessageManager, message);
+			? "Could not open account page"
+			: "Could not open account page - " + detail.trim();
+		TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, message);
 	}
 
 	public static String resolveWebLoginUrl(JsonObject response)

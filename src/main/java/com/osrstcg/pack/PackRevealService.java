@@ -2,7 +2,6 @@ package com.osrstcg.pack;
 
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.catalog.PackCatalogService;
-import com.osrstcg.cloud.catalog.PackImageUrls;
 import com.osrstcg.catalog.BoosterPackDefinition;
 import com.osrstcg.catalog.CardDatabase;
 import com.osrstcg.catalog.CardDefinition;
@@ -198,7 +197,7 @@ public class PackRevealService
 		if (packCatalogService != null && packId != null && !packId.isBlank())
 		{
 			BoosterPackDefinition pack = packCatalogService.getCache().get(packId).orElse(null);
-			String sleeve = PackImageUrls.revealSleevePath(pack);
+			String sleeve = pack == null ? null : pack.revealSleevePath();
 			if (sleeve != null)
 			{
 				urls.add(sleeve);

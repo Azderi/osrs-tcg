@@ -101,7 +101,7 @@ public class TcgResetCommand
 			cloudSessionCoordinator.connect();
 		}
 		SwingUtilities.invokeLater(sidebarRefresh::refresh);
-		queueGameMessage("[OSRS TCG] Cleared " + cleared + " config key(s) and restored defaults.");
+		queueGameMessage("Cleared " + cleared + " config key(s) and restored defaults.");
 	}
 
 	private void queueGameMessage(String message)
@@ -111,6 +111,6 @@ public class TcgResetCommand
 			return;
 		}
 		clientThread.invokeLater(() ->
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager, message));
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, message));
 	}
 }

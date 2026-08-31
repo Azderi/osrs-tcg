@@ -2,6 +2,10 @@ package com.osrstcg.cloud.activity;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
+import com.osrstcg.cloud.activity.ActivityConfigModels.ActivitiesConfigResponse;
+import com.osrstcg.cloud.activity.ActivityConfigModels.ActivityChatRuleDto;
+import com.osrstcg.cloud.activity.ActivityConfigModels.ActivityConfigDto;
+import com.osrstcg.cloud.activity.ActivityConfigModels.NpcExclusionsDto;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
 import com.osrstcg.util.AtomicFiles;

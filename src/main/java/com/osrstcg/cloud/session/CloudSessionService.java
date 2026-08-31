@@ -462,15 +462,15 @@ public final class CloudSessionService
 				return;
 			}
 			setState(CloudConnectionState.ERROR, ex.getMessage());
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-				"[OSRS TCG] Cloud: " + ex.getMessage());
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+				"Cloud: " + ex.getMessage());
 		}
 		catch (Exception ex)
 		{
 			log.warn("Cloud session failed", ex);
 			setState(CloudConnectionState.ERROR, "Cloud unreachable");
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-				"[OSRS TCG] Cloud unreachable");
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+				"Cloud unreachable");
 		}
 	}
 

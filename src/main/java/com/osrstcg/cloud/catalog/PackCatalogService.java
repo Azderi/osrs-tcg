@@ -189,11 +189,11 @@ public final class PackCatalogService
 			{
 				continue;
 			}
-			if (PackImageUrls.isHostedPath(pack.getThumbnail()))
+			if (BoosterPackDefinition.isHostedImagePath(pack.getThumbnail()))
 			{
 				urls.add(pack.getThumbnail().trim());
 			}
-			if (PackImageUrls.isHostedPath(pack.getImage()))
+			if (BoosterPackDefinition.isHostedImagePath(pack.getImage()))
 			{
 				urls.add(pack.getImage().trim());
 			}

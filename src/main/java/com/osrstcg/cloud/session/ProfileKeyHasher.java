@@ -48,12 +48,6 @@ public final class ProfileKeyHasher
 		return tcgRoot().resolve("profiles");
 	}
 
-	public static Path profileDir(long accountHash)
-	{
-		String id = accountDirName(accountHash);
-		return id == null ? null : profilesRoot().resolve(id);
-	}
-
 	public static String sha256Hex(String value)
 	{
 		return TcgStateHash.hexOfUtf8(value);

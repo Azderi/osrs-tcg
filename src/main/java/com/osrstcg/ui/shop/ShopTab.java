@@ -7,7 +7,6 @@ import com.osrstcg.catalog.CardDefinition;
 import com.osrstcg.catalog.CardImageCacheService;
 import com.osrstcg.catalog.RollPoolFilter;
 import com.osrstcg.cloud.catalog.PackCatalogService;
-import com.osrstcg.cloud.catalog.PackImageUrls;
 import com.osrstcg.cloud.session.CloudSessionService;
 import com.osrstcg.cloud.shop.CloudSellService;
 import com.osrstcg.credit.DuplicateSellPlanner;
@@ -39,9 +38,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
-import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
-import javax.swing.border.MatteBorder;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
@@ -185,7 +182,7 @@ public final class ShopTab
 				continue;
 			}
 			String thumb = row.booster.getThumbnail();
-			if (PackImageUrls.isHostedPath(thumb))
+			if (BoosterPackDefinition.isHostedImagePath(thumb))
 			{
 				urls.add(thumb.trim());
 			}
@@ -339,7 +336,7 @@ public final class ShopTab
 	private ImageIcon shopPackIcon(BoosterPackDefinition booster)
 	{
 		String thumbnail = booster == null ? null : booster.getThumbnail();
-		if (!PackImageUrls.isHostedPath(thumbnail))
+		if (!BoosterPackDefinition.isHostedImagePath(thumbnail))
 		{
 			return null;
 		}
@@ -408,7 +405,7 @@ public final class ShopTab
 			String reason = cloudSessionService.needsProfileCreate()
 				? "Create a profile before selling cards."
 				: "Cloud offline - cannot sell cards.";
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager, "[OSRS TCG] " + reason);
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, reason);
 			refreshUi.run();
 			return;
 		}
@@ -435,8 +432,8 @@ public final class ShopTab
 				{
 					sellInFlight.set(false);
 					updateSellDuplicatesButtonState();
-					TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-						"[OSRS TCG] No sellable duplicates.");
+					TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+						"No sellable duplicates.");
 					refreshUi.run();
 					return;
 				}
@@ -465,8 +462,8 @@ public final class ShopTab
 							if (!cloudSessionService.isAccountLocked()
 								&& result.getMessage() != null && !result.getMessage().isEmpty())
 							{
-								TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-									"[OSRS TCG] " + result.getMessage());
+								TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+									result.getMessage());
 							}
 							refreshUi.run();
 						}
@@ -488,10 +485,7 @@ public final class ShopTab
 		button.setBackground(ColorScheme.DARKER_GRAY_COLOR.darker());
 		button.setForeground(Color.WHITE);
 		button.setFont(FontManager.getRunescapeSmallFont());
-		button.setBorder(new CompoundBorder(
-			new MatteBorder(1, 1, 1, 1, ColorScheme.LIGHT_GRAY_COLOR.darker()),
-			new EmptyBorder(6, 6, 6, 6)
-		));
+		SidebarLayout.styleOutlinedButton(button, ColorScheme.LIGHT_GRAY_COLOR.darker(), 6, 6, 6, 6);
 		button.addActionListener(ev -> promptAndSellDuplicates());
 		return button;
 	}

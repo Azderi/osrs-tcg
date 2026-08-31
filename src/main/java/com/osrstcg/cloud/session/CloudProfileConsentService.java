@@ -116,8 +116,8 @@ final class CloudProfileConsentService
 		}
 
 		tokens.setMigrated(true);
-		TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-			"[OSRS TCG] Created cloud profile.");
+		TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+			"Created cloud profile.");
 		finishConsentSuccess();
 	}
 

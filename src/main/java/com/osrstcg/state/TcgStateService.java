@@ -5,9 +5,7 @@ import com.osrstcg.persist.TcgStateLoadResult;
 import com.osrstcg.persist.TcgStateLoadSource;
 import com.osrstcg.persist.TcgStateStore;
 import com.osrstcg.util.PackRevealZoomUtil;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -182,23 +180,6 @@ public class TcgStateService
 		return state.isDebugLogging();
 	}
 
-	public synchronized void setDebugLogging(boolean enabled)
-	{
-		if (state.isDebugLogging() == enabled)
-		{
-			return;
-		}
-		state = state.withDebugLogging(enabled);
-		if (!enabled)
-		{
-			if (stripDebugProvenanceRowsIfDebugDisabled())
-			{
-				notifyCollectionMutated();
-				return;
-			}
-		}
-	}
-
 	public synchronized void setPackRevealOverlayScale(double multiplier)
 	{
 		double clamped = PackRevealZoomUtil.clamp(multiplier);
@@ -338,29 +319,6 @@ public class TcgStateService
 		optimistic.clear();
 	}
 
-	public synchronized void resetProgressForCloudResync()
-	{
-		optimistic.clear();
-		cloudCollectionStats = null;
-		cloudGroupKey = null;
-		TcgState s = state;
-		state = new TcgState(
-			TcgState.CURRENT_SCHEMA_VERSION,
-			EconomyState.empty(),
-			CollectionState.empty(),
-			s.isDebugLogging(),
-			s.getPackRevealOverlayScale(),
-			SkillCreditBaseline.absent(),
-			0L,
-			s.getProfileCreatedAtUnix(),
-			s.getProfileSavedAtUnix(),
-			0L,
-			"",
-			null);
-		saveFullCheckpoint(TcgSaveTrigger.RESET);
-		notifyCollectionMutated();
-	}
-
 	public synchronized void addOptimisticCredits(long amount)
 	{
 		if (amount <= 0)
@@ -391,25 +349,6 @@ public class TcgStateService
 		optimistic.clearAmount(amount);
 	}
 
-	public synchronized void addCard(String cardName, boolean foil, int quantity, String pulledByUsername, long pulledAtEpochMs)
-	{
-		if (cardName == null || cardName.isEmpty() || quantity <= 0)
-		{
-			return;
-		}
-
-
-		String by = pulledByUsername == null ? "" : pulledByUsername.trim();
-		long at = Math.max(0L, pulledAtEpochMs);
-		List<OwnedCardInstance> add = new ArrayList<>();
-		for (int i = 0; i < quantity; i++)
-		{
-			add.add(OwnedCardInstance.createNew(cardName, foil, by, at));
-		}
-		state = state.withCollection(state.getCollectionState().withInstancesAdded(add));
-		notifyCollectionMutated();
-	}
-
 	public synchronized void addOwnedCardInstances(List<OwnedCardInstance> instances)
 	{
 		if (instances == null || instances.isEmpty())
@@ -418,11 +357,6 @@ public class TcgStateService
 		}
 		state = state.withCollection(state.getCollectionState().withInstancesAdded(instances));
 		notifyCollectionMutated();
-	}
-
-	public synchronized Map<CardCollectionKey, Integer> copyOwnedCardsSnapshot()
-	{
-		return new java.util.HashMap<>(state.getCollectionState().getOwnedCards());
 	}
 
 	public synchronized void setCollectionInstances(List<OwnedCardInstance> replacement)

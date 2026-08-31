@@ -27,12 +27,6 @@ public final class OwnedCardInstance
 	}
 
 	public OwnedCardInstance(String instanceId, String cardName, boolean foil, String pulledByUsername,
-		long pulledAtEpochMs, boolean locked)
-	{
-		this(instanceId, cardName, foil, pulledByUsername, pulledAtEpochMs, locked, null, false, null);
-	}
-
-	public OwnedCardInstance(String instanceId, String cardName, boolean foil, String pulledByUsername,
 		long pulledAtEpochMs, boolean locked, Double condition, boolean beta, String source)
 	{
 		this.instanceId = instanceId == null || instanceId.isEmpty()
@@ -48,38 +42,9 @@ public final class OwnedCardInstance
 		this.source = source == null || source.isBlank() ? null : source.trim();
 	}
 
-	public OwnedCardInstance withLocked(boolean nextLocked)
-	{
-		if (locked == nextLocked)
-		{
-			return this;
-		}
-		return new OwnedCardInstance(instanceId, cardName, foil, pulledByUsername, pulledAtEpochMs, nextLocked,
-			condition, beta, source);
-	}
-
-	public static OwnedCardInstance createNew(String cardName, boolean foil, String pulledByUsername, long pulledAtEpochMs)
-	{
-		return new OwnedCardInstance(UUID.randomUUID().toString(), cardName, foil, pulledByUsername, pulledAtEpochMs);
-	}
-
 	public static boolean hasDebugPullMetadata(String pulledByUsername)
 	{
 		return pulledByUsername != null && pulledByUsername.startsWith(DEBUG_PULL_METADATA_PREFIX);
-	}
-
-	public static String withDebugPullMetadataPrefix(String playerNameOrSanitized)
-	{
-		if (playerNameOrSanitized == null)
-		{
-			return DEBUG_PULL_METADATA_PREFIX;
-		}
-		String t = playerNameOrSanitized.trim();
-		if (t.startsWith(DEBUG_PULL_METADATA_PREFIX))
-		{
-			return t;
-		}
-		return DEBUG_PULL_METADATA_PREFIX + t;
 	}
 
 	private static Double normalizeCondition(Double value)

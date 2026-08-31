@@ -68,20 +68,6 @@ public final class CollectionState
 		return aggregateQuantities(instances, true);
 	}
 
-	public CollectionState withInstanceAdded(OwnedCardInstance instance)
-	{
-		if (instance == null || instance.getCardName() == null || instance.getCardName().trim().isEmpty())
-		{
-			return this;
-		}
-		List<OwnedCardInstance> next = new ArrayList<>(instances.size() + 1);
-		next.addAll(instances);
-		next.add(instance);
-		Map<CardCollectionKey, Integer> nextOwned = new HashMap<>(ownedCards);
-		nextOwned.merge(new CardCollectionKey(instance.getCardName(), instance.isFoil()), 1, Integer::sum);
-		return new CollectionState(next, nextOwned);
-	}
-
 	public CollectionState withInstancesAdded(List<OwnedCardInstance> toAdd)
 	{
 		if (toAdd == null || toAdd.isEmpty())

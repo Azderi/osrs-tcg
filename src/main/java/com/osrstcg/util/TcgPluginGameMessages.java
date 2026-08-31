@@ -13,8 +13,6 @@ public final class TcgPluginGameMessages
 
 	public static Color PREFIX_COLOR = DEFAULT_PREFIX_COLOR;
 
-	public static final Color CHAT_EMPHASIS_GOLD = new Color(0xC4, 0x94, 0x1A);
-
 	private static final String PLAIN_PREFIX = "[OSRS TCG] ";
 	private static final String PLAIN_DEBUG_PREFIX = "[TCG DEBUG] ";
 
@@ -241,11 +239,6 @@ public final class TcgPluginGameMessages
 		}
 		body = stripLeadingPluginPrefix(body);
 		queueFormattedGameMessage(chatMessageManager, withDebugPrefix(body), PLAIN_DEBUG_PREFIX + body);
-	}
-
-	public static void queueGameMessage(ChatMessageManager chatMessageManager, String message)
-	{
-		queuePrefixedGameMessage(chatMessageManager, message);
 	}
 
 	private static String duplicatePrefix(boolean newForCollection)

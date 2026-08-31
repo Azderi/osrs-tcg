@@ -13,7 +13,6 @@ public final class CardFonts
 
 	public static final float ROOT_SIZE_PX = 15.625f;
 	public static final float TITLE_EM = 1.12f;
-	public static final float TITLE_MULTILINE_EM = 0.98f;
 	public static final float FULL_EXAMINE_EM = 0.92f;
 	public static final float FULL_SCORE_EM = 1.08f;
 
@@ -35,20 +34,10 @@ public final class CardFonts
 		return sized(REGULAR, ROOT_SIZE_PX * clampedEm * (float) Math.max(0.01d, scale));
 	}
 
-	public static Font title(double scale)
-	{
-		return title(scale, TITLE_EM);
-	}
-
 	public static Font title(double scale, float em)
 	{
 		float clampedEm = Math.max(0.01f, em);
 		return sized(BOLD, ROOT_SIZE_PX * clampedEm * (float) Math.max(0.01d, scale));
-	}
-
-	public static Font titleMultiline(double scale)
-	{
-		return sized(BOLD, ROOT_SIZE_PX * TITLE_MULTILINE_EM * (float) Math.max(0.01d, scale));
 	}
 
 	public static Font bold(double scale)

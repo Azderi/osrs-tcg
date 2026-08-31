@@ -106,11 +106,6 @@ public class CardImageCacheService
 		return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new));
 	}
 
-	public String resolveAbsoluteUrl(String pathOrUrl)
-	{
-		return normalizeUrl(pathOrUrl);
-	}
-
 	public BufferedImage getCached(String pathOrUrl)
 	{
 		if (pathOrUrl == null)
@@ -532,24 +527,7 @@ public class CardImageCacheService
 
 	private String normalizeUrl(String pathOrUrl)
 	{
-		if (pathOrUrl == null)
-		{
-			return "";
-		}
-		String raw = pathOrUrl.trim();
-		if (raw.isEmpty())
-		{
-			return "";
-		}
-		if (raw.startsWith("https://"))
-		{
-			return raw;
-		}
-		if (raw.startsWith("/api/"))
-		{
-			return CloudEndpoints.apiUrl(raw);
-		}
-		return CloudEndpoints.webUrl(raw);
+		return CloudEndpoints.resolvePublicUrl(pathOrUrl);
 	}
 
 	static boolean isOsrsTcgNetUrl(String url)

@@ -13,9 +13,7 @@ import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
-import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
-import javax.swing.border.MatteBorder;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 
@@ -81,10 +79,8 @@ final class BoosterBuyButtonFactory
 		button.setVerticalTextPosition(SwingConstants.CENTER);
 		button.setBackground(ColorScheme.DARKER_GRAY_COLOR.darker());
 		button.setForeground(Color.WHITE);
-		button.setBorder(new CompoundBorder(
-			new MatteBorder(1, 1, 1, 1, ColorScheme.LIGHT_GRAY_COLOR.darker()),
-			new EmptyBorder(compact ? 4 : 6, 6, compact ? 6 : 8, 6)
-		));
+		SidebarLayout.styleOutlinedButton(button, ColorScheme.LIGHT_GRAY_COLOR.darker(),
+			compact ? 4 : 6, 6, compact ? 6 : 8, 6);
 		button.setFocusPainted(false);
 		button.setFont(FontManager.getRunescapeSmallFont());
 		button.setFocusable(false);

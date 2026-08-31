@@ -70,102 +70,59 @@ public class TcgChatStatsShareService
 
 	public String buildColoredLine(TcgPublicStats s)
 	{
-		return buildFormattedLine(s, true);
-	}
-
-	public String buildPlainLine(TcgPublicStats s)
-	{
-		return buildFormattedLine(s, false);
-	}
-
-	private static String buildFormattedLine(TcgPublicStats s, boolean colored)
-	{
 		String pct = String.format(Locale.US, "%.2f%%", s.getCompletionPct());
 		String foilPct = String.format(Locale.US, "%.2f%%", s.getFoilCompletionPct());
-		if (colored)
-		{
-			ChatMessageBuilder builder = TcgPluginGameMessages.prefixBuilder()
-				.append(ChatColorType.NORMAL)
-				.append("Collection score: ")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(NumberFormatting.format(s.getCollectionScore()))
-				.append(ChatColorType.NORMAL)
-				.append(" (")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(pct)
-				.append(ChatColorType.NORMAL)
-				.append("), Unique cards: ")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(NumberFormatting.format(s.getUniqueOwned()))
-				.append(ChatColorType.NORMAL)
-				.append(" / ")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(NumberFormatting.format(s.getTotalCardPool()))
-				.append(ChatColorType.NORMAL)
-				.append(" (")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(pct)
-				.append(ChatColorType.NORMAL)
-				.append("), Unique foil cards: ")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(NumberFormatting.format(s.getUniqueFoilOwned()))
-				.append(ChatColorType.NORMAL)
-				.append(" / ")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(NumberFormatting.format(s.getTotalCardPool()))
-				.append(ChatColorType.NORMAL)
-				.append(" (")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(foilPct)
-				.append(ChatColorType.NORMAL)
-				.append("), Opened packs: ")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(NumberFormatting.format(s.getOpenedPacks()))
-				.append(ChatColorType.NORMAL)
-				.append(", Total cards: ")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(NumberFormatting.format(s.getTotalCardsOwned()))
-				.append(ChatColorType.NORMAL)
-				.append(", Total foil cards: ")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(NumberFormatting.format(s.getFoilOwned()));
-			if (s.isCustomRates())
-			{
-				builder.append(ChatColorType.NORMAL)
-					.append(" (custom rates)");
-			}
-			return builder.build();
-		}
-
-		StringBuilder plain = new StringBuilder()
-			.append(TcgPluginGameMessages.plainPrefix())
+		ChatMessageBuilder builder = TcgPluginGameMessages.prefixBuilder()
+			.append(ChatColorType.NORMAL)
 			.append("Collection score: ")
+			.append(ChatColorType.HIGHLIGHT)
 			.append(NumberFormatting.format(s.getCollectionScore()))
+			.append(ChatColorType.NORMAL)
 			.append(" (")
+			.append(ChatColorType.HIGHLIGHT)
 			.append(pct)
+			.append(ChatColorType.NORMAL)
 			.append("), Unique cards: ")
+			.append(ChatColorType.HIGHLIGHT)
 			.append(NumberFormatting.format(s.getUniqueOwned()))
+			.append(ChatColorType.NORMAL)
 			.append(" / ")
+			.append(ChatColorType.HIGHLIGHT)
 			.append(NumberFormatting.format(s.getTotalCardPool()))
+			.append(ChatColorType.NORMAL)
 			.append(" (")
+			.append(ChatColorType.HIGHLIGHT)
 			.append(pct)
+			.append(ChatColorType.NORMAL)
 			.append("), Unique foil cards: ")
+			.append(ChatColorType.HIGHLIGHT)
 			.append(NumberFormatting.format(s.getUniqueFoilOwned()))
+			.append(ChatColorType.NORMAL)
 			.append(" / ")
+			.append(ChatColorType.HIGHLIGHT)
 			.append(NumberFormatting.format(s.getTotalCardPool()))
+			.append(ChatColorType.NORMAL)
 			.append(" (")
+			.append(ChatColorType.HIGHLIGHT)
 			.append(foilPct)
+			.append(ChatColorType.NORMAL)
 			.append("), Opened packs: ")
+			.append(ChatColorType.HIGHLIGHT)
 			.append(NumberFormatting.format(s.getOpenedPacks()))
+			.append(ChatColorType.NORMAL)
 			.append(", Total cards: ")
+			.append(ChatColorType.HIGHLIGHT)
 			.append(NumberFormatting.format(s.getTotalCardsOwned()))
+			.append(ChatColorType.NORMAL)
 			.append(", Total foil cards: ")
+			.append(ChatColorType.HIGHLIGHT)
 			.append(NumberFormatting.format(s.getFoilOwned()));
 		if (s.isCustomRates())
 		{
-			plain.append(" (custom rates)");
+			builder.append(ChatColorType.NORMAL)
+				.append(" (custom rates)");
 		}
-		return plain.toString();
+		return builder.build();
 	}
 
 	private static String normalizeKey(String sanitizedRsn)

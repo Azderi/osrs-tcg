@@ -99,8 +99,8 @@ public class PackOpenCoordinator
 		{
 			if (ui.chatWhenBusy)
 			{
-				TcgPluginGameMessages.queueGameMessage(chatMessageManager,
-					"[OSRS TCG] Finish the current pack reveal first.");
+				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+					"Finish the current pack reveal first.");
 			}
 			ui.refresh.run();
 			return;
@@ -157,7 +157,7 @@ public class PackOpenCoordinator
 			if (!cloudSessionService.isAccountLocked()
 				&& result.getMessage() != null && !result.getMessage().isEmpty())
 			{
-				TcgPluginGameMessages.queueGameMessage(chatMessageManager, "[OSRS TCG] " + result.getMessage());
+				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, result.getMessage());
 			}
 			ui.refresh.run();
 			return;
@@ -165,8 +165,8 @@ public class PackOpenCoordinator
 
 		if (ui.announceCreditsOnSuccess)
 		{
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager, String.format(Locale.US,
-				"[OSRS TCG] Opened pack for %s credits. New balance: %s. Pulled %s cards.",
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, String.format(Locale.US,
+				"Opened pack for %s credits. New balance: %s. Pulled %s cards.",
 				NumberFormatting.format(result.getPackPrice()), NumberFormatting.format(result.getCreditsAfter()),
 				NumberFormatting.format(result.getPulls().size())));
 		}
@@ -174,7 +174,7 @@ public class PackOpenCoordinator
 		{
 			packRevealService.abortPendingReveal();
 			ui.clearFreeze.run();
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager, "[OSRS TCG] Pack open returned no cards.");
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, "Pack open returned no cards.");
 		}
 		ui.refresh.run();
 	}

@@ -99,7 +99,7 @@ public class CardDatabase
 			RarityMath.Tier t = RarityMath.tierFromLabel(c.getTierLabel());
 			Color displayColor = t.getColor();
 			Color chatColor = t == RarityMath.Tier.GODLY
-				? TcgPluginGameMessages.CHAT_EMPHASIS_GOLD
+				? TcgPluginGameMessages.DEFAULT_PREFIX_COLOR
 				: displayColor;
 			chatMap.putIfAbsent(key, chatColor);
 		}

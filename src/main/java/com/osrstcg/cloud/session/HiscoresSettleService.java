@@ -268,13 +268,13 @@ final class HiscoresSettleService
 		if (accepted > 0L)
 		{
 			String toast = buildToast(accepted, response);
-			TcgPluginGameMessages.queueGameMessage(chatMessageManager, toast);
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, toast);
 		}
 	}
 
 	private static String buildToast(long accepted, JsonObject response)
 	{
-		StringBuilder sb = new StringBuilder("[OSRS TCG] Offline settle: +");
+		StringBuilder sb = new StringBuilder("Offline settle: +");
 		sb.append(NumberFormatting.format(accepted)).append(" credits");
 		if (response.has("breakdown") && response.get("breakdown").isJsonObject())
 		{

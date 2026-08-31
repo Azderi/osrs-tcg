@@ -21,8 +21,8 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
-import com.osrstcg.cloud.activity.ActivitiesConfigResponse;
-import com.osrstcg.cloud.activity.ActivityConfigDto;
+import com.osrstcg.cloud.activity.ActivityConfigModels.ActivitiesConfigResponse;
+import com.osrstcg.cloud.activity.ActivityConfigModels.ActivityConfigDto;
 import com.osrstcg.cloud.catalog.LiveCardsResponse;
 import com.osrstcg.cloud.session.CloudTokenStore;
 import static com.osrstcg.cloud.api.JsonObjects.text;
@@ -127,14 +127,14 @@ public final class CloudApiClient
 
 	public JsonObject getPacks() throws CloudApiException, IOException
 	{
-		JsonObject json = requestAuthed("GET", "/api/v1/packs", null);
+		JsonObject json = requestAuthed("GET", "/packs", null);
 		cacheCatalogVersionFrom(json);
 		return json;
 	}
 
 	public LiveCardsResponse getLiveCards(String cachedCatalogVersion) throws CloudApiException, IOException
 	{
-		try (Response response = getWithOptionalEtag("/api/v1/catalog/cards/live", cachedCatalogVersion))
+		try (Response response = getWithOptionalEtag("/catalog/cards/live", cachedCatalogVersion))
 		{
 			String versionHeader = response.header("X-Catalog-Version");
 			if (versionHeader != null && !versionHeader.isBlank())
@@ -174,7 +174,7 @@ public final class CloudApiClient
 		String name = displayName == null ? "" : displayName.trim();
 		String slug = name.replace(' ', '_');
 		String encoded = URLEncoder.encode(slug, StandardCharsets.UTF_8).replace("+", "%20");
-		return request("GET", "/api/v1/players/" + encoded + "/stats", null, false);
+		return request("GET", "/players/" + encoded + "/stats", null, false);
 	}
 
 	public void setCachedCatalogVersion(String catalogVersion)
@@ -200,7 +200,7 @@ public final class CloudApiClient
 		body.addProperty("displayName", displayName);
 		body.addProperty("profileKeyHash", profileKeyHash);
 		body.addProperty("accountHash", Long.toString(accountHash));
-		return request("POST", "/api/v1/auth/pair/start", body, false);
+		return request("POST", "/auth/pair/start", body, false);
 	}
 
 	public JsonObject refresh(String refreshToken, String profileKeyHash) throws CloudApiException, IOException
@@ -208,7 +208,7 @@ public final class CloudApiClient
 		JsonObject body = new JsonObject();
 		body.addProperty("refreshToken", refreshToken);
 		body.addProperty("profileKeyHash", profileKeyHash);
-		return request("POST", "/api/v1/auth/refresh", body, false);
+		return request("POST", "/auth/refresh", body, false);
 	}
 
 	public JsonObject webCode(String next) throws CloudApiException, IOException
@@ -218,23 +218,23 @@ public final class CloudApiClient
 		{
 			body.addProperty("next", next.trim());
 		}
-		return requestAuthed("POST", "/api/v1/auth/web-code", body);
+		return requestAuthed("POST", "/auth/web-code", body);
 	}
 
 	public JsonObject getStats() throws CloudApiException, IOException
 	{
-		return requestAuthed("GET", "/api/v1/me/stats", null);
+		return requestAuthed("GET", "/me/stats", null);
 	}
 
 	public JsonObject getState() throws CloudApiException, IOException
 	{
-		return requestAuthed("GET", "/api/v1/me/state", null);
+		return requestAuthed("GET", "/me/state", null);
 	}
 
 	public JsonObject getCardsPage(int limit, String cursor) throws CloudApiException, IOException
 	{
 		int pageLimit = Math.max(1, Math.min(limit, 500));
-		StringBuilder path = new StringBuilder("/api/v1/me/cards?limit=").append(pageLimit);
+		StringBuilder path = new StringBuilder("/me/cards?limit=").append(pageLimit);
 		if (cursor != null && !cursor.isBlank())
 		{
 			path.append("&cursor=").append(URLEncoder.encode(cursor.trim(), StandardCharsets.UTF_8));
@@ -244,7 +244,7 @@ public final class CloudApiClient
 
 	public JsonObject attest(JsonObject body) throws CloudApiException, IOException
 	{
-		return requestAuthed("POST", "/api/v1/credits/attest", body);
+		return requestAuthed("POST", "/credits/attest", body);
 	}
 
 	public JsonObject settleHiscores(String displayName, long accountHash, boolean snapshot)
@@ -257,7 +257,7 @@ public final class CloudApiClient
 		{
 			body.addProperty("snapshot", true);
 		}
-		return requestAuthed("POST", "/api/v1/credits/settle-hiscores", body);
+		return requestAuthed("POST", "/credits/settle-hiscores", body);
 	}
 
 	public JsonObject settleHiscores(String displayName, long accountHash) throws CloudApiException, IOException
@@ -267,7 +267,7 @@ public final class CloudApiClient
 
 	public String getActivitiesVersion() throws CloudApiException, IOException
 	{
-		JsonObject json = request("GET", "/api/v1/config/activities/version", null, false);
+		JsonObject json = request("GET", "/config/activities/version", null, false);
 		if (json.has("version") && !json.get("version").isJsonNull())
 		{
 			return json.get("version").getAsString();
@@ -277,7 +277,7 @@ public final class CloudApiClient
 
 	public ActivitiesConfigResponse getActivities(String cachedVersion) throws CloudApiException, IOException
 	{
-		try (Response response = getWithOptionalEtag("/api/v1/config/activities", cachedVersion))
+		try (Response response = getWithOptionalEtag("/config/activities", cachedVersion))
 		{
 			notifyActivitiesVersion(response.header("X-Activities-Version"));
 			if (response.code() == 304)
@@ -305,7 +305,7 @@ public final class CloudApiClient
 
 	public JsonObject openPack(JsonObject body) throws CloudApiException, IOException
 	{
-		return requestAuthed("POST", "/api/v1/packs/open", body);
+		return requestAuthed("POST", "/packs/open", body);
 	}
 
 	public JsonObject sellCards(List<String> instanceIds, long accountHash) throws CloudApiException, IOException
@@ -324,25 +324,12 @@ public final class CloudApiClient
 		}
 		body.add("instanceIds", ids);
 		body.addProperty("accountHash", Long.toString(accountHash));
-		return requestAuthed("POST", "/api/v1/cards/sell", body);
+		return requestAuthed("POST", "/cards/sell", body);
 	}
 
 	public String resolvePublicUrl(String pathOrUrl)
 	{
-		if (pathOrUrl == null)
-		{
-			return "";
-		}
-		String raw = pathOrUrl.trim();
-		if (raw.isEmpty())
-		{
-			return "";
-		}
-		if (raw.startsWith("/api/"))
-		{
-			return CloudEndpoints.apiUrl(raw);
-		}
-		return CloudEndpoints.webUrl(raw);
+		return CloudEndpoints.resolvePublicUrl(pathOrUrl);
 	}
 
 	public static JsonObject withPluginAccountHash(JsonObject body, long accountHash)
@@ -360,13 +347,13 @@ public final class CloudApiClient
 	{
 		JsonObject body = withPluginAccountHash(new JsonObject(), accountHash);
 		body.addProperty("partnerDisplayName", partnerDisplayName);
-		return requestAuthed("POST", "/api/v1/trades", body);
+		return requestAuthed("POST", "/trades", body);
 	}
 
 	public JsonObject cancelTrade(String tradeId, long accountHash) throws CloudApiException, IOException
 	{
 		JsonObject body = withPluginAccountHash(new JsonObject(), accountHash);
-		return requestAuthed("POST", "/api/v1/trades/" + tradeId + "/cancel", body);
+		return requestAuthed("POST", "/trades/" + tradeId + "/cancel", body);
 	}
 
 	public JsonObject getTradeInbox(long accountHash) throws CloudApiException, IOException
@@ -376,7 +363,7 @@ public final class CloudApiClient
 
 	public JsonObject getTradeInbox(long accountHash, Long sinceRevision) throws CloudApiException, IOException
 	{
-		String path = "/api/v1/me/trades/inbox?accountHash=" + accountHash;
+		String path = "/me/trades/inbox?accountHash=" + accountHash;
 		if (sinceRevision != null)
 		{
 			path += "&sinceRevision=" + sinceRevision;
@@ -387,7 +374,7 @@ public final class CloudApiClient
 	public JsonObject ackTradeNotify(String tradeId, long accountHash) throws CloudApiException, IOException
 	{
 		JsonObject body = withPluginAccountHash(new JsonObject(), accountHash);
-		return requestAuthed("POST", "/api/v1/me/trades/" + tradeId + "/ack-notify", body);
+		return requestAuthed("POST", "/me/trades/" + tradeId + "/ack-notify", body);
 	}
 
 	public List<TradeInboxItem> parseInbox(JsonObject response)

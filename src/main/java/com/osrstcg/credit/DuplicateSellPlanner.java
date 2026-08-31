@@ -17,22 +17,15 @@ public final class DuplicateSellPlanner
 {
 	public static final class Result
 	{
-		private final List<OwnedCardInstance> kept;
 		private final List<String> soldInstanceIds;
 		private final long creditsToAdd;
 		private final int cardsSold;
 
-		private Result(List<OwnedCardInstance> kept, List<String> soldInstanceIds, long creditsToAdd, int cardsSold)
+		private Result(List<String> soldInstanceIds, long creditsToAdd, int cardsSold)
 		{
-			this.kept = kept;
 			this.soldInstanceIds = soldInstanceIds;
 			this.creditsToAdd = creditsToAdd;
 			this.cardsSold = cardsSold;
-		}
-
-		public List<OwnedCardInstance> getKept()
-		{
-			return kept;
 		}
 
 		/** Non-blank instance IDs planned for sale (never includes locked or beta copies). */
@@ -65,7 +58,7 @@ public final class DuplicateSellPlanner
 	{
 		if (all == null || all.isEmpty())
 		{
-			return new Result(List.of(), List.of(), 0L, 0);
+			return new Result(List.of(), 0L, 0);
 		}
 
 		Map<String, List<OwnedCardInstance>> byName = new HashMap<>();
@@ -78,7 +71,6 @@ public final class DuplicateSellPlanner
 			byName.computeIfAbsent(i.getCardName(), k -> new ArrayList<>()).add(i);
 		}
 
-		List<OwnedCardInstance> kept = new ArrayList<>();
 		List<String> soldInstanceIds = new ArrayList<>();
 		long creditsToAdd = 0L;
 		int cardsSold = 0;
@@ -102,7 +94,6 @@ public final class DuplicateSellPlanner
 					sellable.add(inst);
 				}
 			}
-			kept.addAll(protectedCopies);
 
 			if (sellable.isEmpty())
 			{
@@ -112,7 +103,6 @@ public final class DuplicateSellPlanner
 			// Only one non-protected copy and nothing else for this name → keep it.
 			if (sellable.size() == 1 && protectedCopies.isEmpty())
 			{
-				kept.addAll(sellable);
 				continue;
 			}
 
@@ -141,7 +131,6 @@ public final class DuplicateSellPlanner
 				if (!unlockedFoils.isEmpty())
 				{
 					OwnedCardInstance keeper = newest(unlockedFoils);
-					kept.add(keeper);
 					for (OwnedCardInstance inst : unlockedFoils)
 					{
 						if (inst != keeper && markSold(inst, soldInstanceIds))
@@ -163,7 +152,6 @@ public final class DuplicateSellPlanner
 			else if (!unlockedNormals.isEmpty())
 			{
 				OwnedCardInstance keeper = newest(unlockedNormals);
-				kept.add(keeper);
 				for (OwnedCardInstance inst : unlockedNormals)
 				{
 					if (inst != keeper && markSold(inst, soldInstanceIds))
@@ -175,7 +163,7 @@ public final class DuplicateSellPlanner
 			}
 		}
 
-		return new Result(List.copyOf(kept), List.copyOf(soldInstanceIds), creditsToAdd, cardsSold);
+		return new Result(List.copyOf(soldInstanceIds), creditsToAdd, cardsSold);
 	}
 
 	/** Records a sellable instance id; returns false if id is blank (should not happen for cloud cards). */

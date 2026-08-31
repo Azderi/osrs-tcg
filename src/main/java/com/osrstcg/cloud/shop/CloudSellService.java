@@ -57,7 +57,7 @@ public final class CloudSellService
 	}
 
 	/**
-	 * Sell planned duplicate instance IDs. {@code kept} is applied only after a successful server response.
+	 * Sell planned duplicate instance IDs. Collection is updated only after a successful server response.
 	 */
 	public CardSellResult sellDuplicates(DuplicateSellPlanner.Result plan)
 	{

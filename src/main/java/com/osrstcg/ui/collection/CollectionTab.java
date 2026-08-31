@@ -28,7 +28,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
-import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListSelectionModel;
@@ -42,7 +41,6 @@ import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
-import javax.swing.border.MatteBorder;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
@@ -455,9 +453,7 @@ public final class CollectionTab
 		field.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		field.setForeground(Color.WHITE);
 		field.setCaretColor(Color.WHITE);
-		field.setBorder(BorderFactory.createCompoundBorder(
-			new MatteBorder(1, 1, 1, 1, ColorScheme.MEDIUM_GRAY_COLOR),
-			new EmptyBorder(2, 4, 2, 4)));
+		SidebarLayout.styleOutlinedButton(field, ColorScheme.MEDIUM_GRAY_COLOR, 2, 4, 2, 4);
 		javax.swing.event.DocumentListener listener = new javax.swing.event.DocumentListener()
 		{
 			@Override

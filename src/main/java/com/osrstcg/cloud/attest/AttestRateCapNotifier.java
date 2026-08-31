@@ -35,7 +35,7 @@ public final class AttestRateCapNotifier
 	@Inject
 	AttestRateCapNotifier(ChatMessageManager chatMessageManager)
 	{
-		this(body -> TcgPluginGameMessages.queueGameMessage(chatMessageManager, body));
+		this(body -> TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, body));
 	}
 
 	/** Package-visible for unit tests. */

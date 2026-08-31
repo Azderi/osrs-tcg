@@ -107,9 +107,15 @@ public final class SidebarLayout
 		button.setFocusable(false);
 		button.setBackground(ColorScheme.DARKER_GRAY_COLOR.darker());
 		button.setForeground(Color.WHITE);
-		button.setBorder(new CompoundBorder(
-			new MatteBorder(1, 1, 1, 1, ColorScheme.LIGHT_GRAY_COLOR.darker()),
-			new EmptyBorder(10, 14, 10, 14)
+		styleOutlinedButton(button, ColorScheme.LIGHT_GRAY_COLOR.darker(), 10, 14, 10, 14);
+	}
+
+	public static void styleOutlinedButton(JComponent component, Color borderColor,
+		int top, int left, int bottom, int right)
+	{
+		component.setBorder(new CompoundBorder(
+			new MatteBorder(1, 1, 1, 1, borderColor),
+			new EmptyBorder(top, left, bottom, right)
 		));
 	}
 

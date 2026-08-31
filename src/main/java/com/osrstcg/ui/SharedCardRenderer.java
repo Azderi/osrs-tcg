@@ -33,12 +33,6 @@ public final class SharedCardRenderer
 	private static final Color PANEL_DARK = new Color(0x222222);
 	private static final Color PANEL_MID = new Color(0x2F2F2F);
 	private static final Color FULL_ART_WELL = new Color(0x1A1A1A);
-	private static final Color LOCK_BADGE_BG = new Color(20, 24, 32, 209);
-	private static final Color LOCK_BADGE_BORDER = new Color(158, 200, 255, 115);
-	private static final Color LOCK_BADGE_ICON = new Color(0x9EC8FF);
-	private static final Color BETA_BADGE_BG = new Color(26, 58, 110, 235);
-	private static final Color BETA_BADGE_BORDER = new Color(0x3D7EFF);
-	private static final Color BETA_BADGE_TEXT = new Color(0xB8D4FF);
 
 	private static final int[] BAND_FRACTIONS = {10, 40, 10, 30, 10};
 	private static final float BANDED_TITLE_EM_MIN = 0.80f;
@@ -50,7 +44,6 @@ public final class SharedCardRenderer
 	{
 	}
 
-	// ------------------------------------------------------------------ public API
 
 	public static boolean drawCardFaceIfCached(Graphics2D g, Rectangle bounds, CardFaceDrawRequest req)
 	{
@@ -72,7 +65,7 @@ public final class SharedCardRenderer
 		g.drawImage(face, bounds.x, bounds.y, null);
 
 		FoilFx foilFx = req.getFoilFx();
-		if (foilFx != null && req.isFoil() && req.isDrawFoilOverlays())
+		if (foilFx != null && req.isFoil())
 		{
 			double scale = bounds.width / (double) DEFAULT_CARD_WIDTH;
 			CardFxPainter.drawAnimatedSparkles(
@@ -159,7 +152,6 @@ public final class SharedCardRenderer
 		return CardFaceCache.contains(w, h, req);
 	}
 
-	// ------------------------------------------------------------------ raster build
 
 	static BufferedImage renderFace(int w, int h, CardFaceDrawRequest req)
 	{
@@ -231,7 +223,6 @@ public final class SharedCardRenderer
 		CardTextLayout.drawWrappedCentered(g2, titleBox, titleText, titleFont, titleColor, 1, geo.bandPadX, true);
 
 		drawArt(g2, geo, req);
-		drawBandedBadges(g2, geo, req);
 
 		String tierLabel = CardTextLayout.valueOrFallback(req.getTierLabel(), tierLabelForRarityColor(rarity));
 		CardTextLayout.drawCenteredText(g2, geo.tier, tierLabel, CardFonts.bold(geo.scale), titleColor, geo.bandPadX);
@@ -330,8 +321,6 @@ public final class SharedCardRenderer
 				Math.max(8, geo.innerW - scorePadX * 2),
 				Math.max(8, scoreScrimH - scorePadY * 2));
 			drawCenteredTextShadowed(g2, scoreBox, "Score: " + scoreText(req), scoreFont, Color.WHITE, 0, geo.scale);
-
-			drawFullArtBadges(g2, geo, req);
 		}
 		finally
 		{
@@ -468,88 +457,6 @@ public final class SharedCardRenderer
 		g2.drawString(text, x, y);
 	}
 
-	private static void drawBandedBadges(Graphics2D g2, Geometry geo, CardFaceDrawRequest req)
-	{
-		if (!req.isLocked() && !req.isBeta())
-		{
-			return;
-		}
-		drawBadgesAt(g2, geo.art.x, geo.art.y, geo.art.width, geo.scale, req.isLocked(), req.isBeta());
-	}
-
-	private static void drawFullArtBadges(Graphics2D g2, Geometry geo, CardFaceDrawRequest req)
-	{
-		if (!req.isLocked() && !req.isBeta())
-		{
-			return;
-		}
-		drawBadgesAt(g2, geo.innerX, geo.innerY, geo.innerW, geo.scale, req.isLocked(), req.isBeta());
-	}
-
-	private static void drawBadgesAt(Graphics2D g2, int originX, int originY, int parentWidth, double scale,
-		boolean locked, boolean beta)
-	{
-		int inset = Math.max(1, (int) Math.round(4.0d * scale));
-		if (locked)
-		{
-			int size = Math.max(8, (int) Math.round(20.0d * scale));
-			int x = originX + inset;
-			int y = originY + inset;
-			int radius = Math.max(2, (int) Math.round(5.0d * scale));
-			float border = (float) Math.max(1.0d, 1.5d * scale);
-			g2.setColor(LOCK_BADGE_BG);
-			g2.fillRoundRect(x, y, size, size, radius * 2, radius * 2);
-			g2.setColor(LOCK_BADGE_BORDER);
-			g2.setStroke(new BasicStroke(border));
-			g2.drawRoundRect(x, y, size, size, radius * 2, radius * 2);
-			g2.setStroke(new BasicStroke(1f));
-			drawLockIcon(g2, x, y, size, LOCK_BADGE_ICON);
-		}
-		if (beta)
-		{
-			Font font = CardFonts.bold(scale).deriveFont(Math.max(6f, (float) (11.0d * scale)));
-			g2.setFont(font);
-			FontMetrics fm = g2.getFontMetrics();
-			String label = "BETA";
-			int padX = Math.max(2, (int) Math.round(6.0d * scale));
-			int h = Math.max(8, (int) Math.round(18.0d * scale));
-			int w = fm.stringWidth(label) + padX * 2;
-			int x = originX + parentWidth - inset - w;
-			int y = originY + inset;
-			int radius = Math.max(2, (int) Math.round(6.0d * scale));
-			float border = (float) Math.max(1.0d, 1.5d * scale);
-			int nudgeX = Math.max(0, (int) Math.round(0.5d * scale));
-			int nudgeY = Math.max(0, (int) Math.round(1.0d * scale));
-			g2.setColor(BETA_BADGE_BG);
-			g2.fillRoundRect(x + nudgeX, y + nudgeY, w, h, radius * 2, radius * 2);
-			g2.setColor(BETA_BADGE_BORDER);
-			g2.setStroke(new BasicStroke(border));
-			g2.drawRoundRect(x + nudgeX, y + nudgeY, w, h, radius * 2, radius * 2);
-			g2.setStroke(new BasicStroke(1f));
-			g2.setColor(BETA_BADGE_TEXT);
-			int tx = x + nudgeX + (w - fm.stringWidth(label)) / 2;
-			int ty = y + nudgeY + (h - fm.getHeight()) / 2 + fm.getAscent();
-			g2.drawString(label, tx, ty);
-		}
-	}
-
-	private static void drawLockIcon(Graphics2D g2, int badgeX, int badgeY, int badgeSize, Color color)
-	{
-		int icon = Math.max(6, (int) Math.round(badgeSize * 12.0d / 20.0d));
-		int x = badgeX + (badgeSize - icon) / 2;
-		int y = badgeY + (badgeSize - icon) / 2;
-		g2.setColor(color);
-		int bodyH = Math.max(2, (int) Math.round(icon * 0.45d));
-		int bodyY = y + icon - bodyH;
-		int shackleW = Math.max(2, (int) Math.round(icon * 0.55d));
-		int shackleX = x + (icon - shackleW) / 2;
-		int shackleH = Math.max(2, (int) Math.round(icon * 0.4d));
-		g2.fillRoundRect(x, bodyY, icon, bodyH, 2, 2);
-		g2.setStroke(new BasicStroke(Math.max(1f, icon / 8f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-		g2.drawArc(shackleX, y, shackleW, shackleH * 2, 0, 180);
-		g2.setStroke(new BasicStroke(1f));
-	}
-
 	private static void fillBand(Graphics2D g2, Rectangle band, Color fill, int radius)
 	{
 		g2.setColor(fill);
@@ -624,7 +531,6 @@ public final class SharedCardRenderer
 		return NumberFormatting.format(card.displayScore(foil));
 	}
 
-	// ------------------------------------------------------------------ geometry
 
 	private static final class Geometry
 	{
@@ -709,7 +615,6 @@ public final class SharedCardRenderer
 		return new Rectangle(r.x + pad, r.y + pad, Math.max(1, r.width - pad * 2), Math.max(1, r.height - pad * 2));
 	}
 
-	// ------------------------------------------------------------------ text / image helpers
 
 	private static Font fitBandedTitleFont(Graphics2D g2, String title, int maxWidth, double scale)
 	{

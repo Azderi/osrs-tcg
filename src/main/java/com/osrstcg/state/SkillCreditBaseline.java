@@ -4,7 +4,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.OptionalInt;
 import java.util.OptionalLong;
 import net.runelite.api.Skill;
 
@@ -125,18 +124,6 @@ public final class SkillCreditBaseline
 		return kind == Kind.MISSING;
 	}
 
-	/** @deprecated Legacy single-pool remainder; always zero for new baselines. */
-	@Deprecated
-	public long getUncreditedXp()
-	{
-		long sum = 0L;
-		for (long remainder : uncreditedXpBySkill.values())
-		{
-			sum += remainder;
-		}
-		return sum;
-	}
-
 	public Map<String, Long> getUncreditedXpBySkill()
 	{
 		return uncreditedXpBySkill;
@@ -145,16 +132,6 @@ public final class SkillCreditBaseline
 	public Map<String, Integer> getSkillXpByName()
 	{
 		return skillXpByName;
-	}
-
-	public OptionalInt xpFor(Skill skill)
-	{
-		if (kind != Kind.PRESENT || skill == null || skill.getName() == null)
-		{
-			return OptionalInt.empty();
-		}
-		Integer xp = skillXpByName.get(skill.getName());
-		return xp == null ? OptionalInt.empty() : OptionalInt.of(xp);
 	}
 
 	public OptionalLong uncreditedXpFor(Skill skill)

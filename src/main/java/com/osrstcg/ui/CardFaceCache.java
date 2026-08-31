@@ -89,8 +89,6 @@ final class CardFaceCache
 			+ '|' + (card == null ? "" : card.getFoilImagePath())
 			+ '|' + (req.isFoil() ? 1 : 0)
 			+ '|' + (req.isFullArt() ? 1 : 0)
-			+ '|' + (req.isLocked() ? 1 : 0)
-			+ '|' + (req.isBeta() ? 1 : 0)
 			+ '|' + req.getRarityColor().getRGB()
 			+ '|' + (req.getTierLabel() == null ? "" : req.getTierLabel())
 			+ '|' + SharedCardRenderer.scoreText(req)

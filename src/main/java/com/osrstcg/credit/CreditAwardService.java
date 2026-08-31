@@ -75,17 +75,6 @@ public class CreditAwardService
 		}
 	}
 
-	public void rebaseExperienceCreditBaselineToCurrentStats()
-	{
-		skills.resetTracking();
-		clearUncreditedXpPool("disk save restore");
-		stateService.replaceSkillCreditBaseline(SkillCreditBaseline.absent());
-
-		skills.snapshotSkillBaselinesIfLoggedIn(client);
-		persistSkillBaselineToState();
-		debugAward("Set skill credit baselines to current stats after disk save restore");
-	}
-
 	public void flushSkillBaselineForPersist()
 	{
 		if (!isCreditTrackingAllowed())
