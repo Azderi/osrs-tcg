@@ -4,6 +4,7 @@ import com.osrstcg.catalog.CardDatabase;
 import com.osrstcg.catalog.CardDefinition;
 import com.osrstcg.catalog.RarityMath;
 import com.osrstcg.cloud.api.CloudApiClient;
+import com.osrstcg.cloud.api.CloudEndpoints;
 import com.osrstcg.state.CardCollectionKey;
 import com.osrstcg.state.PackCardResult;
 import com.osrstcg.util.CardDisplayNames;
@@ -151,7 +152,7 @@ final class RevealCardResolver
 		if (pull.getImagePath() != null && !pull.getImagePath().isBlank())
 		{
 			String absolute = cloudApiClient == null
-				? CloudApiClient.resolvePublicUrl(null, pull.getImagePath())
+				? CloudEndpoints.webUrl(pull.getImagePath())
 				: cloudApiClient.resolvePublicUrl(pull.getImagePath());
 			if (absolute != null && !absolute.isBlank())
 			{
@@ -161,7 +162,7 @@ final class RevealCardResolver
 		if (pull.getFoilImagePath() != null && !pull.getFoilImagePath().isBlank())
 		{
 			String absolute = cloudApiClient == null
-				? CloudApiClient.resolvePublicUrl(null, pull.getFoilImagePath())
+				? CloudEndpoints.webUrl(pull.getFoilImagePath())
 				: cloudApiClient.resolvePublicUrl(pull.getFoilImagePath());
 			if (absolute != null && !absolute.isBlank())
 			{

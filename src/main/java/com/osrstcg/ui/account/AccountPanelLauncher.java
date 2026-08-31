@@ -143,19 +143,14 @@ public final class AccountPanelLauncher
 
 	public static String buildWebLoginUrl(String webBaseUrl, String code, String next)
 	{
-		if (code == null || code.isBlank())
-		{
-			return null;
-		}
-		String root = CloudEndpoints.trimTrailingSlash(webBaseUrl);
-		if (root.isEmpty())
+		if (code == null || code.isBlank() || webBaseUrl == null || webBaseUrl.isBlank())
 		{
 			return null;
 		}
 		String nextPath = next == null || next.isBlank() ? "/me" : next.trim();
 		String encodedCode = URLEncoder.encode(code.trim(), StandardCharsets.UTF_8);
 		String encodedNext = URLEncoder.encode(nextPath, StandardCharsets.UTF_8);
-		return root + "/login?code=" + encodedCode + "&next=" + encodedNext;
+		return webBaseUrl + "/login?code=" + encodedCode + "&next=" + encodedNext;
 	}
 
 	private String fallbackWebLoginUrl(String code, String next)

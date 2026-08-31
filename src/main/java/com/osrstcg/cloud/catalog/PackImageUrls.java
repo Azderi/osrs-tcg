@@ -3,7 +3,6 @@ package com.osrstcg.cloud.catalog;
 /**
  * Helpers for pack art paths from {@code GET /packs} ({@code thumbnail} / {@code image}).
  * Hosted assets live on the website under {@code /images/packs/...}.
- * <p>
  * Shop tiles use {@code thumbnail}; the pack-opening overlay must use {@code image}.
  */
 public final class PackImageUrls
@@ -20,9 +19,7 @@ public final class PackImageUrls
 			return false;
 		}
 		String t = path.trim();
-		return t.startsWith("/")
-			|| t.startsWith("http://")
-			|| t.startsWith("https://");
+		return t.startsWith("/") || t.startsWith("https://");
 	}
 
 	/** Full-resolution sleeve for the pack-opening overlay ({@link com.osrstcg.catalog.BoosterPackDefinition#getImage()}). */

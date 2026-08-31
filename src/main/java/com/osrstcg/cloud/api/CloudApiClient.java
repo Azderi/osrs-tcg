@@ -342,12 +342,7 @@ public final class CloudApiClient
 		{
 			return CloudEndpoints.apiUrl(raw);
 		}
-		return CloudEndpoints.webUrl(pathOrUrl);
-	}
-
-	public static String resolvePublicUrl(String webBaseUrl, String pathOrUrl)
-	{
-		return CloudEndpoints.resolvePublicUrl(webBaseUrl, pathOrUrl);
+		return CloudEndpoints.webUrl(raw);
 	}
 
 	public static JsonObject withPluginAccountHash(JsonObject body, long accountHash)

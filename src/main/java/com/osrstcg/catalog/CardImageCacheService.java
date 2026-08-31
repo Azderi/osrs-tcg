@@ -215,7 +215,7 @@ public class CardImageCacheService
 			return fromDisk;
 		}
 
-		if (fetchUrl.isEmpty() || !(fetchUrl.startsWith("http://") || fetchUrl.startsWith("https://")))
+		if (fetchUrl.isEmpty() || !fetchUrl.startsWith("https://"))
 		{
 			return null;
 		}
@@ -541,13 +541,9 @@ public class CardImageCacheService
 		{
 			return "";
 		}
-		if (raw.startsWith("http://") || raw.startsWith("https://"))
+		if (raw.startsWith("https://"))
 		{
 			return raw;
-		}
-		if (raw.startsWith("//"))
-		{
-			return "https:" + raw;
 		}
 		if (raw.startsWith("/api/"))
 		{
