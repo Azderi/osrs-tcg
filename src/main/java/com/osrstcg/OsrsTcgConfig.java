@@ -212,11 +212,23 @@ public interface OsrsTcgConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "duplicateNotifyTier",
+		name = "Duplicate notify tier",
+		description = "Minimum rarity for duplicate pulls.",
+		section = pullNotificationsSection,
+		position = 1
+	)
+	default PullNotifyTier duplicateNotifyTier()
+	{
+		return PullNotifyTier.LEGENDARY;
+	}
+
+	@ConfigItem(
 		keyName = "notifyNonFoils",
 		name = "Notify non-foils",
 		description = "Also notify for normal cards.",
 		section = pullNotificationsSection,
-		position = 1
+		position = 2
 	)
 	default boolean notifyNonFoils()
 	{
@@ -228,7 +240,7 @@ public interface OsrsTcgConfig extends Config
 		name = "Notify all foils",
 		description = "Notify for every foil pull.",
 		section = pullNotificationsSection,
-		position = 2
+		position = 3
 	)
 	default boolean notifyFoils()
 	{
@@ -240,23 +252,11 @@ public interface OsrsTcgConfig extends Config
 		name = "Only notify new cards",
 		description = "Only notify when the card is new to you.",
 		section = pullNotificationsSection,
-		position = 3
+		position = 4
 	)
 	default boolean notifyNewCardsOnly()
 	{
 		return true;
-	}
-
-	@ConfigItem(
-		keyName = "duplicateNotifyTier",
-		name = "Duplicate notify tier",
-		description = "Minimum rarity for duplicate pulls.",
-		section = pullNotificationsSection,
-		position = 4
-	)
-	default PullNotifyTier duplicateNotifyTier()
-	{
-		return PullNotifyTier.MYTHIC;
 	}
 
 	@ConfigItem(
@@ -272,37 +272,13 @@ public interface OsrsTcgConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "notifyChat",
-		name = "In-game chat",
-		description = "Post collection-add lines to game chat.",
+		keyName = "partyAnnouncePulls",
+		name = "Party/chat announcements",
+		description = "Post alerts to game chat and share them with party members.",
 		section = pullNotificationsSection,
 		position = 6
 	)
-	default boolean notifyChat()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "partyAnnouncePulls",
-		name = "Party pull announcements",
-		description = "Share pull alerts with party members.",
-		section = pullNotificationsSection,
-		position = 7
-	)
 	default boolean partyAnnouncePulls()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "partyAnnounceCollectionSets",
-		name = "Party collection-set announcements",
-		description = "Share finished collection sets with party members.",
-		section = pullNotificationsSection,
-		position = 8
-	)
-	default boolean partyAnnounceCollectionSets()
 	{
 		return true;
 	}
@@ -312,7 +288,7 @@ public interface OsrsTcgConfig extends Config
 		name = "Webhook URL",
 		description = "Discord webhook URL for pull alerts.",
 		section = pullNotificationsSection,
-		position = 9
+		position = 7
 	)
 	default String pullWebhookUrl()
 	{
@@ -324,7 +300,7 @@ public interface OsrsTcgConfig extends Config
 		name = "Enable Dink notifications",
 		description = "Send pull alerts via Dink.",
 		section = pullNotificationsSection,
-		position = 10
+		position = 8
 	)
 	default boolean dinkNotifications()
 	{

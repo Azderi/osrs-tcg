@@ -55,12 +55,7 @@ public class PullNotificationService
 			return false;
 		}
 		String trimmed = cardName.trim();
-		boolean chatPosted = false;
-		if (config.notifyChat())
-		{
-			queueCollectionAddChat(trimmed, newForCollection, foil, cardDatabase.chatRarityColorForCardName(trimmed));
-			chatPosted = true;
-		}
+		queueCollectionAddChat(trimmed, newForCollection, foil, cardDatabase.chatRarityColorForCardName(trimmed));
 		externalNotifyService.notifyParty(trimmed, newForCollection, foil);
 		if (pullNotifySupport.notificationTrigger() == PullNotificationTrigger.EVERY_CARD)
 		{
@@ -70,7 +65,7 @@ public class PullNotificationService
 				dinkNotificationService.notifyPackPull(trimmed, newForCollection, foil, tier, instanceId);
 			}
 		}
-		return chatPosted;
+		return config.partyAnnouncePulls();
 	}
 
 	public void postCollectionAddChat(String cardName, boolean newForCollection, boolean foil, Color rarityColor)
@@ -160,6 +155,10 @@ public class PullNotificationService
 
 	private void queueCollectionAddChat(String cardName, boolean newForCollection, boolean foil, Color rarityColor)
 	{
+		if (!config.partyAnnouncePulls())
+		{
+			return;
+		}
 		String formatted = TcgPluginGameMessages.formatYouAddedCollection(
 			cardName, newForCollection, foil, rarityColor);
 		String plain = TcgPluginGameMessages.plainYouAddedCollection(cardName, newForCollection, foil);

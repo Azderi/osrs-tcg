@@ -22,7 +22,7 @@ public class TcgPartyAnnouncer
 
 	public void announceSetComplete(String collectionDisplayName)
 	{
-		if (!partyAnnouncementsEnabled())
+		if (!config.partyAnnouncePulls())
 		{
 			return;
 		}
@@ -46,8 +46,4 @@ public class TcgPartyAnnouncer
 		}
 	}
 
-	private boolean partyAnnouncementsEnabled()
-	{
-		return config.partyAnnounceCollectionSets();
-	}
 }

@@ -59,7 +59,7 @@ public class TcgPartyInboundHandler
 
 	public void onCollectionSetComplete(TcgCollectionSetCompletePartyMessage message)
 	{
-		if (!config.partyAnnounceCollectionSets() || message == null)
+		if (!config.partyAnnouncePulls() || message == null)
 		{
 			return;
 		}
