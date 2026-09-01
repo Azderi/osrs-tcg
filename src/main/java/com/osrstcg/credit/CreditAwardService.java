@@ -29,7 +29,9 @@ import com.osrstcg.state.TcgStateService;
 public class CreditAwardService
 {
 	private static final int FAKE_XP_DROP_SANITY_CAP = 20_000_000;
-	private static final int CREDIT_COOLDOWN_TICKS = 3;
+	static final int CREDIT_COOLDOWN_TICKS = 3;
+	/** Extra settle window when hopping off a restricted/event world (temp max stats). */
+	static final int RESTRICTED_WORLD_EXIT_SETTLE_TICKS = 15;
 	private static final Set<Skill> COMBAT_SKILLS = EnumSet.of(
 		Skill.ATTACK,
 		Skill.DEFENCE,
@@ -46,6 +48,7 @@ public class CreditAwardService
 	private final SkillCreditSession skills = new SkillCreditSession();
 	private boolean creditCooldownActive;
 	private int creditCooldownUntilTick;
+	private int creditCooldownDurationTicks = CREDIT_COOLDOWN_TICKS;
 	private boolean pendingStatsSettle;
 	private boolean restoreXpFromPersistedBaseline;
 
@@ -238,7 +241,7 @@ public class CreditAwardService
 
 		if (pendingStatsSettle)
 		{
-			beginCreditAwardCooldown();
+			beginCreditAwardCooldown(creditCooldownDurationTicks);
 		}
 	}
 
@@ -509,14 +512,19 @@ public class CreditAwardService
 	{
 		pendingStatsSettle = true;
 		restoreXpFromPersistedBaseline = true;
-		suppressAwardsUntilSettle(true);
+		suppressAwardsUntilSettle(true, CREDIT_COOLDOWN_TICKS);
 	}
 
 	private void armStatsSettleForHopOrLogin()
 	{
 		pendingStatsSettle = true;
 		restoreXpFromPersistedBaseline = false;
-		suppressAwardsUntilSettle(false);
+		suppressAwardsUntilSettle(false, resolveHopSettleCooldownTicks(session.isRestrictedWorld()));
+	}
+
+	static int resolveHopSettleCooldownTicks(boolean restrictedWorld)
+	{
+		return restrictedWorld ? RESTRICTED_WORLD_EXIT_SETTLE_TICKS : CREDIT_COOLDOWN_TICKS;
 	}
 
 	private void persistSkillBaselineToState()
@@ -530,9 +538,9 @@ public class CreditAwardService
 		stateService.replaceSkillCreditBaseline(baseline);
 	}
 
-	private void suppressAwardsUntilSettle(boolean clearUncreditedXpPool)
+	private void suppressAwardsUntilSettle(boolean clearUncreditedXpPool, int cooldownTicks)
 	{
-		beginCreditAwardCooldown();
+		beginCreditAwardCooldown(cooldownTicks);
 		skills.resetTracking();
 		if (clearUncreditedXpPool)
 		{
@@ -540,16 +548,18 @@ public class CreditAwardService
 		}
 	}
 
-	private void beginCreditAwardCooldown()
+	private void beginCreditAwardCooldown(int durationTicks)
 	{
+		int duration = Math.max(1, durationTicks);
 		creditCooldownActive = true;
+		creditCooldownDurationTicks = duration;
 		if (client == null)
 		{
 			creditCooldownUntilTick = 0;
 			return;
 		}
 
-		creditCooldownUntilTick = client.getTickCount() + CREDIT_COOLDOWN_TICKS;
+		creditCooldownUntilTick = client.getTickCount() + duration;
 	}
 
 	public boolean isCreditAwardOnCooldown()
@@ -565,7 +575,7 @@ public class CreditAwardService
 			return false;
 		}
 
-		if (creditCooldownUntilTick - tick > CREDIT_COOLDOWN_TICKS)
+		if (creditCooldownUntilTick - tick > creditCooldownDurationTicks)
 		{
 			return false;
 		}
