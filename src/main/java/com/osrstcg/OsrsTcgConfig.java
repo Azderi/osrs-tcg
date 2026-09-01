@@ -169,6 +169,18 @@ public interface OsrsTcgConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "ignoreBetaForNewStatus",
+		name = "Ignore beta for new status",
+		description = "Beta copies do not count as owned when deciding if a pull is new.",
+		section = packOpeningSection,
+		position = 4
+	)
+	default boolean ignoreBetaForNewStatus()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "showSidebarRanks",
 		name = "Sidebar hiscores ranks",
 		description = "Show your hiscores rank under overview stats after opening a pack.",

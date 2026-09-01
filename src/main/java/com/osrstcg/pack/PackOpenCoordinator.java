@@ -1,11 +1,13 @@
 package com.osrstcg.pack;
 
+import com.osrstcg.OsrsTcgConfig;
 import com.osrstcg.catalog.BoosterPackDefinition;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.cloud.session.CloudSessionService;
 import com.osrstcg.cloud.shop.CloudPackService;
 import com.osrstcg.notify.PullNotificationService;
 import com.osrstcg.state.CardCollectionKey;
+import com.osrstcg.state.CollectionState;
 import com.osrstcg.state.PackOpenResult;
 import com.osrstcg.state.TcgStateService;
 import com.osrstcg.ui.SidebarRefresh;
@@ -37,6 +39,7 @@ public class PackOpenCoordinator
 	private final Provider<SidebarRefresh> sidebarRefreshProvider;
 	private final ScheduledExecutorService scheduler;
 	private final ChatMessageManager chatMessageManager;
+	private final OsrsTcgConfig config;
 
 	@Inject
 	public PackOpenCoordinator(
@@ -48,7 +51,8 @@ public class PackOpenCoordinator
 		CloudSessionService cloudSessionService,
 		Provider<SidebarRefresh> sidebarRefreshProvider,
 		ScheduledExecutorService scheduler,
-		ChatMessageManager chatMessageManager)
+		ChatMessageManager chatMessageManager,
+		OsrsTcgConfig config)
 	{
 		this.packRevealService = packRevealService;
 		this.cloudPackService = cloudPackService;
@@ -59,6 +63,7 @@ public class PackOpenCoordinator
 		this.sidebarRefreshProvider = sidebarRefreshProvider;
 		this.scheduler = scheduler;
 		this.chatMessageManager = chatMessageManager;
+		this.config = config;
 	}
 
 	/** Infobox / {@code ::tcg-open}: freeze sidebar, chat credits on success, resume on the client thread. */
@@ -111,8 +116,11 @@ public class PackOpenCoordinator
 		}
 
 		ui.beginFreeze.run();
+		CollectionState collection = stateService.getState().getCollectionState();
 		HashSet<CardCollectionKey> preOwned = new HashSet<>(
-			stateService.getState().getCollectionState().getOwnedCards().keySet());
+			(config.ignoreBetaForNewStatus()
+				? collection.getOwnedCardsExcludingBeta()
+				: collection.getOwnedCards()).keySet());
 		String boosterPackId = booster.getId() == null ? "" : booster.getId().trim();
 		int expectedCards = Math.max(1, packCatalogService.getCache().getPackSize());
 		packRevealService.beginPendingReveal(boosterPackId, false, expectedCards);

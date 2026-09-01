@@ -136,7 +136,7 @@ public final class CloudPackService
 			Map<CardCollectionKey, Integer> ownedBefore;
 			synchronized (stateService)
 			{
-				ownedBefore = new HashMap<>(stateService.getState().getCollectionState().getOwnedCards());
+				ownedBefore = new HashMap<>(stateService.getState().getCollectionState().getOwnedCardsExcludingBeta());
 			}
 
 			JsonObject response = api.openPack(body);
