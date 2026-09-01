@@ -42,7 +42,7 @@ public class TcgTradeMenuHandler
 		{
 			return;
 		}
-		client.getMenu().createMenuEntry(-1)
+		client.getMenu().createMenuEntry(0)
 			.setOption(TRADE_REQ_MENU_OPTION)
 			.setTarget(target)
 			.setType(MenuAction.RUNELITE)
