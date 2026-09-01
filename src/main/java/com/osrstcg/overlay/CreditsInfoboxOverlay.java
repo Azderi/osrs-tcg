@@ -60,6 +60,7 @@ public class CreditsInfoboxOverlay extends OverlayPanel
 		this.creditsRateTracker = creditsRateTracker;
 		this.packCatalogService = packCatalogService;
 		setPosition(OverlayPosition.TOP_LEFT);
+		setClearChildren(false);
 	}
 
 	@Override
