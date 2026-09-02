@@ -7,6 +7,12 @@ import java.util.ArrayList;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Reinterprets rejected events from an attest response and re-queues fixed-up versions of them onto
+ * {@link CreditAttestQueue}. Handles two known reject reasons: {@code settle_cooldown} (retry unchanged)
+ * and {@code kill_amount_too_large} (split an oversized npc_kill into {@link CreditAttestCoalescer#MAX_KILL_AMOUNT}
+ * chunks). Runs on the flush thread, as part of {@link CreditAttestPoster#postAttestBatch}.
+ */
 @Slf4j
 final class AttestRejectRequeuer
 {
@@ -20,6 +26,13 @@ final class AttestRejectRequeuer
 		this.queue = queue;
 	}
 
+	/**
+	 * Walks {@code response.rejected}, matching each rejection's {@code index} back to the sent
+	 * {@code batch}, and re-queues a corrected event for the reasons this class knows how to fix.
+	 * Any events produced are prepended to the queue's pending list and an early flush is scheduled.
+	 *
+	 * @return the reject reasons seen and the indexes into {@code batch} that were requeued
+	 */
 	AttestRejectRequeuer.RequeueResult requeueRejectedEvents(JsonObject response, List<JsonObject> batch)
 	{
 		RequeueResult result = new RequeueResult();
@@ -127,6 +140,7 @@ final class AttestRejectRequeuer
 		return result;
 	}
 
+	/** Reasons seen and batch indexes requeued for a single {@link #requeueRejectedEvents} call. */
 	static final class RequeueResult
 	{
 		final List<Integer> requeuedIndexes = new ArrayList<>();

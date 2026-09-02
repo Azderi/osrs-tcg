@@ -16,6 +16,11 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.util.LinkBrowser;
 
+/**
+ * Opens the OSRS TCG website account page (signed in via a one-time web code) from the sidebar,
+ * and drives the enabled/disabled state of the account/trades buttons. Network calls run on the
+ * given scheduler; UI updates are marshalled back onto the Swing EDT.
+ */
 @Slf4j
 public final class AccountPanelLauncher
 {
@@ -26,6 +31,7 @@ public final class AccountPanelLauncher
 	private final Runnable updateButtonState;
 	private final AtomicBoolean inFlight = new AtomicBoolean(false);
 
+	/** @param updateButtonState invoked (on the EDT) whenever button-enabled state may have changed */
 	public AccountPanelLauncher(
 		CloudSessionService cloudSessionService,
 		CloudApiClient cloudApiClient,
@@ -40,6 +46,13 @@ public final class AccountPanelLauncher
 		this.updateButtonState = updateButtonState;
 	}
 
+	/**
+	 * Requests a login web-code from the cloud API and opens the resulting URL in the system browser.
+	 * No-ops if the world is restricted, the panel can't currently be opened, or a request is already
+	 * in flight. Runs the network call on {@link #scheduler} and browser launch on the EDT.
+	 *
+	 * @param next path to redirect to after web login; defaults to {@code /me} if blank
+	 */
 	public void open(String next)
 	{
 		if (cloudSessionService.isRestrictedWorld()
@@ -84,6 +97,7 @@ public final class AccountPanelLauncher
 		});
 	}
 
+	/** Refreshes enabled state and tooltips of the account panel and trades buttons from current cloud session state. */
 	public void updateManageAccountState(JButton openAccountPanelButton, JButton openTradesButton)
 	{
 		if (openAccountPanelButton == null)
@@ -110,6 +124,7 @@ public final class AccountPanelLauncher
 		}
 	}
 
+	/** Queues a chat message reporting that opening the account panel failed, with optional detail. */
 	private void queueOpenAccountPanelError(String detail)
 	{
 		String message = detail == null || detail.isBlank()
@@ -118,6 +133,7 @@ public final class AccountPanelLauncher
 		TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, message);
 	}
 
+	/** @return the {@code url} field from a web-code response, or {@code null} if absent/blank. */
 	public static String resolveWebLoginUrl(JsonObject response)
 	{
 		if (response != null && response.has("url") && !response.get("url").isJsonNull())
@@ -131,6 +147,7 @@ public final class AccountPanelLauncher
 		return null;
 	}
 
+	/** @return a {@code /login} URL for the web base with the code and redirect path encoded, or {@code null} if inputs are missing. */
 	public static String buildWebLoginUrl(String webBaseUrl, String code, String next)
 	{
 		if (code == null || code.isBlank() || webBaseUrl == null || webBaseUrl.isBlank())
@@ -143,6 +160,10 @@ public final class AccountPanelLauncher
 		return webBaseUrl + "/login?code=" + encodedCode + "&next=" + encodedNext;
 	}
 
+	/**
+	 * Prefers building a login URL from the response's one-time {@code code}; falls back to the
+	 * response's {@code url} rewritten onto the configured web base.
+	 */
 	private String resolveWebLoginUrlOrFallback(JsonObject response, String next)
 	{
 		if (response != null && response.has("code") && !response.get("code").isJsonNull())

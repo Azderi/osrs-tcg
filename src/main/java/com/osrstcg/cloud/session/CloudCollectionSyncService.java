@@ -10,6 +10,12 @@ import lombok.extern.slf4j.Slf4j;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
 
+/**
+ * Pulls cloud economy/collection state and reconciles it into local {@link TcgStateService}.
+ * Compares local vs server revisions and collection hashes to decide whether a full {@code /me/cards}
+ * pull is needed. Blocking: the {@code refresh*}/{@code reconcile*} methods issue synchronous HTTP
+ * calls and must not run on the client/EDT thread.
+ */
 @Slf4j
 final class CloudCollectionSyncService
 {
@@ -21,6 +27,7 @@ final class CloudCollectionSyncService
 	private final TcgPublicStatsCalculator publicStatsCalculator;
 	private final CloudCollectionPager pager;
 
+	/** Wires collaborators; no side effects. */
 	CloudCollectionSyncService(
 		CloudSessionService session,
 		CloudApiClient api,
@@ -39,6 +46,11 @@ final class CloudCollectionSyncService
 		this.pager = pager;
 	}
 
+	/**
+	 * Updates cached economy (credits/opened packs/total gained) and collection sidebar stats from a
+	 * {@code stats}-shaped response, and applies any account status it carries. No-op if {@code stats}
+	 * is null.
+	 */
 	void applySidebarStats(JsonObject stats)
 	{
 		if (stats == null)
@@ -69,6 +81,12 @@ final class CloudCollectionSyncService
 		}
 	}
 
+	/**
+	 * Reacts to a push/inbox stats update: logs (does not itself resolve) a mismatch between server
+	 * and locally-computed sidebar counts, then delegates to {@link #reconcileCollectionWithCloud}
+	 * to pull a fresh collection if needed. No-op while cloud consent is pending, or if {@code stats}
+	 * is null. Reconcile failures are swallowed and logged at debug level.
+	 */
 	void reconcileCollectionFromInbox(JsonObject stats)
 	{
 		if (stats == null || session.needsCloudConsent())
@@ -111,6 +129,11 @@ final class CloudCollectionSyncService
 		}
 	}
 
+	/**
+	 * Flushes any pending credit attests, then re-fetches and applies server stats, clearing the
+	 * local optimistic credit adjustment. No-op if there's no access token, consent is pending, or
+	 * the account is locked.
+	 */
 	void refreshCreditsFromServer() throws Exception
 	{
 		if (tokens.getAccessToken() == null || session.needsCloudConsent() || session.isAccountLocked())
@@ -130,6 +153,7 @@ final class CloudCollectionSyncService
 		stateService.clearOptimisticCredits();
 	}
 
+	/** Fetches server stats, applies them, and reconciles the local collection against the cloud copy. */
 	void refreshLocalCacheFromCloud() throws Exception
 	{
 		JsonObject stats = api.getStats();
@@ -137,6 +161,13 @@ final class CloudCollectionSyncService
 		reconcileCollectionWithCloud(stats);
 	}
 
+	/**
+	 * Compares local sync markers against {@code stats} and, if the collection hash differs (or the
+	 * legacy revision is behind with no hash to compare), pulls the full player state and cards from
+	 * {@code /me/state} via {@link CloudCollectionPager} and replaces local collection/economy state.
+	 * If unchanged but the revision/hash advanced, only updates the local sync markers. No-op while
+	 * cloud consent is pending.
+	 */
 	void reconcileCollectionWithCloud(JsonObject stats) throws Exception
 	{
 		if (session.needsCloudConsent())
@@ -199,6 +230,7 @@ final class CloudCollectionSyncService
 			parsed.revision, parsed.cards.size(), parsed.migrated);
 	}
 
+	/** Delegates to {@link CloudCollectionPager#loadCloudPlayerStateWithCards}. */
 	CloudPlayerStateParser.ParsedCloudPlayerState loadCloudPlayerStateWithCards(JsonObject stateJson) throws Exception
 	{
 		return pager.loadCloudPlayerStateWithCards(stateJson);

@@ -13,6 +13,10 @@ import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
 
+/**
+ * Renders the sidebar's first-run Welcome tab: a stack of styled, centered paragraphs sourced from
+ * {@link WelcomeContent}. Swing component; must be built on the EDT.
+ */
 public final class WelcomeTab
 {
 	private final WelcomeContent catalog;
@@ -22,11 +26,13 @@ public final class WelcomeTab
 		this.catalog = catalog;
 	}
 
+	/** Adds the paragraph stack to {@code target}'s north region, wrapped to {@code contentMaxW}. */
 	public void render(JPanel target, int contentMaxW)
 	{
 		target.add(buildBlurb(contentMaxW), java.awt.BorderLayout.NORTH);
 	}
 
+	/** Builds a vertical stack of styled {@link javax.swing.JTextPane}s, one per paragraph, sized to fit {@code contentMaxW}. */
 	private JPanel buildBlurb(int contentMaxW)
 	{
 		int w = Math.max(1, contentMaxW);
@@ -55,6 +61,7 @@ public final class WelcomeTab
 		return wrap;
 	}
 
+	/** Builds a single non-editable, center-aligned, word-wrapped paragraph text pane sized to its rendered height at {@code contentMaxW}. */
 	private static JTextPane buildTextArea(
 		int contentMaxW, String text, int topGap, Color foreground, boolean bold, int fontSize)
 	{

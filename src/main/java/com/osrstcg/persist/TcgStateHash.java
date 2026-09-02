@@ -4,12 +4,14 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
+/** SHA-256 hashing helper used to verify save-file writes/reads round-trip correctly. */
 public final class TcgStateHash
 {
 	private TcgStateHash()
 	{
 	}
 
+	/** Returns the lowercase hex SHA-256 digest of {@code s} (treated as UTF-8; null treated as empty). */
 	public static String hexOfUtf8(String s)
 	{
 		String input = s == null ? "" : s;

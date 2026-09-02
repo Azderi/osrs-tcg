@@ -11,6 +11,10 @@ import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
 
+/**
+ * Handles incoming party messages from other members (pulls, set completions) and turns them into
+ * local chat announcements. Ignores messages that originated from the local player.
+ */
 @Singleton
 public class TcgPartyInboundHandler
 {
@@ -19,6 +23,7 @@ public class TcgPartyInboundHandler
 	private final PartyService partyService;
 	private final ChatMessageManager chatMessageManager;
 
+	/** Wires config, the card database (for rarity color), the party service, and chat. */
 	@Inject
 	public TcgPartyInboundHandler(
 		OsrsTcgConfig config,
@@ -32,6 +37,10 @@ public class TcgPartyInboundHandler
 		this.chatMessageManager = chatMessageManager;
 	}
 
+	/**
+	 * Chats a "so-and-so added X to their collection" line for a party member's pull. No-op if
+	 * party-announce is off, the message/card name is blank, or the message came from the local player.
+	 */
 	public void onPull(TcgPullPartyMessage message)
 	{
 		if (!config.partyAnnouncePulls() || message == null)
@@ -57,6 +66,10 @@ public class TcgPartyInboundHandler
 		TcgPluginGameMessages.queueFormattedGameMessage(chatMessageManager, formatted, plain);
 	}
 
+	/**
+	 * Chats a "so-and-so just finished X!" line for a party member's set completion. No-op if
+	 * party-announce is off, the message/collection name is blank, or the message came from the local player.
+	 */
 	public void onCollectionSetComplete(TcgCollectionSetCompletePartyMessage message)
 	{
 		if (!config.partyAnnouncePulls() || message == null)
@@ -77,12 +90,14 @@ public class TcgPartyInboundHandler
 			String.format(Locale.US, "%s just finished %s!", who, collectionName.trim()));
 	}
 
+	/** True if {@code memberId} is the local player's own party member id. */
 	private boolean isLocalMember(long memberId)
 	{
 		PartyMember localMember = partyService.getLocalMember();
 		return localMember != null && memberId == localMember.getMemberId();
 	}
 
+	/** Resolves a party member's display name for chat, falling back to "A party member" if unknown/blank. */
 	private String displayName(long memberId)
 	{
 		PartyMember author = partyService.getMemberById(memberId);

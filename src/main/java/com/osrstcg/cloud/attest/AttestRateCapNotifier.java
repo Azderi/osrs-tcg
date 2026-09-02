@@ -16,6 +16,10 @@ import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.chat.ChatMessageManager;
 
+/**
+ * Watches credit attest responses for {@code rate_cap} rejection reasons and posts a throttled,
+ * player-facing chat warning. Safe to call from any thread; internal state is a single atomic timestamp.
+ */
 @Slf4j
 @Singleton
 public final class AttestRateCapNotifier
@@ -27,27 +31,35 @@ public final class AttestRateCapNotifier
 	private final Consumer<String> chatSink;
 	private final AtomicLong lastRateCapWarnAtMs = new AtomicLong(0L);
 
+	/** Injected constructor: routes warnings to the prefixed game chat. */
 	@Inject
 	AttestRateCapNotifier(ChatMessageManager chatMessageManager)
 	{
 		this(body -> TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, body));
 	}
 
+	/** Test/internal constructor with a pluggable chat sink; a null sink is replaced with a no-op. */
 	AttestRateCapNotifier(Consumer<String> chatSink)
 	{
 		this.chatSink = chatSink == null ? body -> { } : chatSink;
 	}
 
+	/** Clears the throttle so the next rate-cap rejection warns immediately. Called on session reset. */
 	public void reset()
 	{
 		lastRateCapWarnAtMs.set(0L);
 	}
 
+	/** Inspects an attest response for rate-cap rejections and quarantine, using the current time. */
 	public void onAttestResponse(JsonObject response)
 	{
 		onAttestResponse(response, System.currentTimeMillis());
 	}
 
+	/**
+	 * Logs any rate-cap rejection reasons found in {@code response} and, subject to throttling, warns
+	 * the player in chat. Also logs a warning if the response is marked quarantined.
+	 */
 	void onAttestResponse(JsonObject response, long nowMs)
 	{
 		if (response == null)
@@ -76,6 +88,7 @@ public final class AttestRateCapNotifier
 		}
 	}
 
+	/** Extracts distinct {@code reason} values from {@code response.rejected} that start with {@code rate_cap}. */
 	static List<String> collectRateCapReasons(JsonObject response)
 	{
 		Set<String> reasons = new LinkedHashSet<>();
@@ -112,6 +125,7 @@ public final class AttestRateCapNotifier
 		return List.copyOf(reasons);
 	}
 
+	/** True if {@code reason}, case-insensitively, starts with the {@code rate_cap} prefix. */
 	static boolean isRateCapReason(String reason)
 	{
 		if (reason == null || reason.isBlank())
@@ -121,6 +135,7 @@ public final class AttestRateCapNotifier
 		return reason.trim().toLowerCase(Locale.ROOT).startsWith(RATE_CAP_PREFIX);
 	}
 
+	/** Builds the chat message for a rate-cap warning, preferring a category-specific message when one applies. */
 	static String playerFacingRateCapMessage(List<String> reasons)
 	{
 		String specific = mapSpecificMessage(reasons);
@@ -131,6 +146,10 @@ public final class AttestRateCapNotifier
 		return "Credit rate limit hit - some XP/kills were not credited this hour. Try again later.";
 	}
 
+	/**
+	 * Returns a message naming the single credit category (skill/level/kills/activity/global) hit by the
+	 * rate cap, or {@code null} if the reasons are empty or span more than one category.
+	 */
 	private static String mapSpecificMessage(List<String> reasons)
 	{
 		if (reasons == null || reasons.isEmpty())
@@ -194,6 +213,7 @@ public final class AttestRateCapNotifier
 		return null;
 	}
 
+	/** Posts the rate-cap chat warning unless one was already sent within {@link #RATE_CAP_THROTTLE_MS}. */
 	private void maybeWarnRateCap(List<String> reasons, long nowMs)
 	{
 		while (true)
@@ -212,6 +232,7 @@ public final class AttestRateCapNotifier
 		}
 	}
 
+	/** Formats every {@code reason} found in {@code response.rejected} as a bracketed list, for debug logging. */
 	private static String formatAllRejectReasons(JsonObject response)
 	{
 		if (response == null || !response.has("rejected") || !response.get("rejected").isJsonArray())

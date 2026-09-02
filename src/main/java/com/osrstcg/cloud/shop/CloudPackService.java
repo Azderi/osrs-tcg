@@ -34,6 +34,12 @@ import com.osrstcg.cloud.catalog.PackPullParser;
 import com.osrstcg.cloud.session.CloudSessionService;
 import com.osrstcg.cloud.trade.TradeCloudService;
 
+/**
+ * Buys a booster pack through the cloud API and applies the resulting pulls, credits and ranks to local state.
+ * {@link #buyAndOpenPack(BoosterPackDefinition)} makes a blocking network call and updates shared
+ * {@link TcgStateService} state, so callers must invoke it off the client thread and marshal any UI work
+ * back onto the client thread themselves.
+ */
 @Slf4j
 @Singleton
 public final class CloudPackService
@@ -48,6 +54,7 @@ public final class CloudPackService
 	private final Client client;
 	private final TcgPartyAnnouncer partyAnnouncer;
 
+	/** Wires cloud/session/state collaborators used to buy and resolve a pack open. */
 	@Inject
 	CloudPackService(
 		CloudApiClient api,
@@ -71,11 +78,22 @@ public final class CloudPackService
 		this.partyAnnouncer = partyAnnouncer;
 	}
 
+	/**
+	 * Buys and opens {@code booster} via the cloud API. Makes a blocking network call - run off the client
+	 * thread. Never throws; failures are reported through the returned {@link PackOpenResult}.
+	 */
 	public PackOpenResult buyAndOpenPack(BoosterPackDefinition booster)
 	{
 		return buyAndOpenPack(booster, true);
 	}
 
+	/**
+	 * Core buy-and-open flow: validates session/credits/catalog, calls the open-pack endpoint, then updates
+	 * owned cards, credits, sidebar ranks and collection stats from the response.
+	 *
+	 * @param allowCatalogRetry whether a {@code catalog_mismatch} error should trigger one catalog refresh
+	 *                          and a single retry with the refreshed pack definition
+	 */
 	private PackOpenResult buyAndOpenPack(BoosterPackDefinition booster, boolean allowCatalogRetry)
 	{
 		long creditsBefore = stateService.getCredits();
@@ -264,6 +282,7 @@ public final class CloudPackService
 		}
 	}
 
+	/** Reconciles local credits with the server's reported balance after an insufficient-credits failure. */
 	private void applyInsufficientCreditsFix(CloudApiException ex)
 	{
 		Long serverCredits = ex == null ? null : ex.getServerCredits();
@@ -277,6 +296,7 @@ public final class CloudPackService
 		refreshCreditsQuietly();
 	}
 
+	/** Refreshes credits from the server, swallowing and logging any failure. */
 	private void refreshCreditsQuietly()
 	{
 		try
@@ -289,6 +309,7 @@ public final class CloudPackService
 		}
 	}
 
+	/** Applies the optional 6-element {@code ranks} array from a pack-open response to sidebar state, if present and valid. */
 	private void absorbRanksFromPackOpen(JsonObject response)
 	{
 		if (response == null || !response.has("ranks") || !response.get("ranks").isJsonArray())

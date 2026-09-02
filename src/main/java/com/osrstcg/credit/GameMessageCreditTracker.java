@@ -21,6 +21,10 @@ import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.util.Text;
 
+/**
+ * Awards credits for configured chat "activities" (game messages matching a rule from
+ * {@link ActivityConfigService}) by enqueueing an attest event. Subscribes to {@link ChatMessage}.
+ */
 @Slf4j
 @Singleton
 public final class GameMessageCreditTracker
@@ -53,6 +57,7 @@ public final class GameMessageCreditTracker
 		this.sidebarRefresh = sidebarRefresh;
 	}
 
+	/** Matches game/spam chat messages against configured activity rules and enqueues a credit attest on a hit. */
 	@Subscribe
 	public void onChatMessage(ChatMessage event)
 	{
@@ -78,6 +83,7 @@ public final class GameMessageCreditTracker
 		sidebarRefresh.refreshCredits();
 	}
 
+	/** Logs and chats a debug message for a matched activity rule, when debug chat is enabled. */
 	private void debugActivityQueued(CompiledActivityConfig.CompiledChatRule matched)
 	{
 		if (!stateService.isDebugChatEnabled())
@@ -96,6 +102,7 @@ public final class GameMessageCreditTracker
 		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, body);
 	}
 
+	/** First configured chat rule whose pattern matches {@code messageWithoutTags}, if any. */
 	private Optional<CompiledActivityConfig.CompiledChatRule> firstMatchingRule(String messageWithoutTags)
 	{
 		List<CompiledActivityConfig.CompiledChatRule> rules = activityConfigService.getChatRules();

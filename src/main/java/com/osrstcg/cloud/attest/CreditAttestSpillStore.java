@@ -16,6 +16,10 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Persists pending credit-attest events to a per-account JSON file so they survive a client restart
+ * before being flushed to the cloud. Reads/writes are file I/O and should not run on the client thread.
+ */
 @Slf4j
 @Singleton
 public final class CreditAttestSpillStore
@@ -35,12 +39,14 @@ public final class CreditAttestSpillStore
 		this.profilesRoot = profilesRoot;
 	}
 
+	/** Resolves the spill file path for an account, or {@code null} if the account can't be hashed to a dir name. */
 	Path spillFile(long accountHash)
 	{
 		String id = ProfileKeyHasher.accountDirName(accountHash);
 		return id == null ? null : profilesRoot.resolve(id).resolve(SPILL_FILENAME);
 	}
 
+	/** Loads the spilled pending events for an account, or an empty list if none/unreadable/invalid. */
 	public List<JsonObject> load(long accountHash)
 	{
 		if (accountHash == -1L)
@@ -50,6 +56,7 @@ public final class CreditAttestSpillStore
 		return readSpillFile(spillFile(accountHash));
 	}
 
+	/** Reads and parses a spill file as a JSON array of objects; returns an empty list on any failure. */
 	private List<JsonObject> readSpillFile(Path file)
 	{
 		if (file == null || !Files.isRegularFile(file))
@@ -86,6 +93,7 @@ public final class CreditAttestSpillStore
 		}
 	}
 
+	/** Atomically writes {@code events} as the spill file for an account, or deletes it if the list is empty. */
 	public void save(long accountHash, List<JsonObject> events)
 	{
 		if (accountHash == -1L)
@@ -122,6 +130,7 @@ public final class CreditAttestSpillStore
 		}
 	}
 
+	/** Deletes the spill file for an account, if any. Failures are logged and swallowed. */
 	public void delete(long accountHash)
 	{
 		if (accountHash == -1L)
@@ -142,6 +151,7 @@ public final class CreditAttestSpillStore
 		}
 	}
 
+	/** Deep-copies a list of events so a snapshot can be persisted without aliasing live queue state. */
 	static List<JsonObject> copyEvents(List<JsonObject> events)
 	{
 		if (events == null || events.isEmpty())

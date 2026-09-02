@@ -2,14 +2,21 @@ package com.osrstcg.util;
 
 import java.nio.charset.StandardCharsets;
 
+/** Builds Old School RuneScape Wiki article URLs from a page title. */
 public final class OsrsWiki
 {
 	private static final String WIKI_BASE = "https://oldschool.runescape.wiki/w/";
 
+	/** No instances. */
 	private OsrsWiki()
 	{
 	}
 
+	/**
+	 * Builds the wiki URL for {@code page}: spaces become underscores, {@code /} is kept
+	 * literal (wiki subpage separator), and every other non-URL-safe character is percent-encoded.
+	 * @return {@code null} if {@code page} is {@code null} or blank after trimming.
+	 */
 	public static String url(String page)
 	{
 		if (page == null)
@@ -47,6 +54,7 @@ public final class OsrsWiki
 		return WIKI_BASE + encoded;
 	}
 
+	/** @return true if {@code cp} does not need percent-encoding (mirrors JS {@code encodeURIComponent} safe set). */
 	private static boolean isEncodeUriComponentSafe(int cp)
 	{
 		return (cp >= 'A' && cp <= 'Z')

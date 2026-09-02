@@ -19,6 +19,14 @@ import net.runelite.api.GameState;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.WorldChanged;
 
+/**
+ * Wires {@link CloudSessionService} connection lifecycle to RuneLite client events: connects on
+ * login/world change, disconnects on logout, and schedules randomized-delay reconnect attempts
+ * while cloud is reachable-but-not-ready. Starts/stops the credit attest queue and trade sync
+ * alongside session readiness, and pauses all cloud traffic on restricted world types. Connection
+ * attempts run on the injected {@link ScheduledExecutorService}; UI refresh callbacks are marshalled
+ * onto the EDT via {@link SwingUtilities#invokeLater}.
+ */
 @Slf4j
 @Singleton
 public class CloudSessionCoordinator
@@ -39,6 +47,7 @@ public class CloudSessionCoordinator
 	private ScheduledFuture<?> cloudReconnectFuture;
 	private GameState lastObservedGameState;
 
+	/** Wires collaborators; no side effects. */
 	@Inject
 	public CloudSessionCoordinator(
 		Client client,
@@ -58,6 +67,11 @@ public class CloudSessionCoordinator
 		this.scheduler = scheduler;
 	}
 
+	/**
+	 * Registers a listener on {@link CloudSessionService} that starts/stops the attest queue and
+	 * trade sync in response to readiness changes, manages reconnect scheduling, and refreshes the
+	 * sidebar on every status change.
+	 */
 	public void installStatusListener()
 	{
 		cloudSessionService.setStatusListener(() ->
@@ -81,11 +95,18 @@ public class CloudSessionCoordinator
 		});
 	}
 
+	/** Removes the status listener installed by {@link #installStatusListener()}. */
 	public void clearStatusListener()
 	{
 		cloudSessionService.setStatusListener(null);
 	}
 
+	/**
+	 * Kicks off (or no-ops if already in flight) an async attempt to establish/verify the cloud
+	 * session on {@link #scheduler}. Short-circuits if the account is locked or the world is
+	 * restricted. On success, cancels any pending reconnect and starts the attest queue and trade
+	 * sync; on failure, schedules a reconnect.
+	 */
 	public void connect()
 	{
 		if (cloudSessionService.isAccountLocked())
@@ -138,6 +159,7 @@ public class CloudSessionCoordinator
 		});
 	}
 
+	/** Cancels reconnect, stops attest/trade traffic, and marks the session as restricted-world-paused. */
 	public void pauseForRestrictedWorld()
 	{
 		cancelReconnect();
@@ -147,6 +169,11 @@ public class CloudSessionCoordinator
 		SwingUtilities.invokeLater(sidebarRefresh::refresh);
 	}
 
+	/**
+	 * Tears down the cloud session on logout. If the account is locked, discards pending attests
+	 * without flushing; otherwise blocks flushing pending attests and snapshotting hiscores before
+	 * disconnecting.
+	 */
 	public void disconnect()
 	{
 		cancelReconnect();
@@ -165,6 +192,12 @@ public class CloudSessionCoordinator
 		cloudSessionService.disconnectQuietly();
 	}
 
+	/**
+	 * Schedules a single reconnect attempt with a random delay between {@link #CLOUD_RECONNECT_MIN_MS}
+	 * and {@link #CLOUD_RECONNECT_MAX_MS}, unless one is already pending, reconnect isn't applicable
+	 * (not logged in, can't collect attests, already ready, or waiting on game identity), or the
+	 * current connection state isn't {@code ERROR}/{@code DISCONNECTED}.
+	 */
 	public void scheduleReconnectIfNeeded()
 	{
 		if (client.getGameState() != GameState.LOGGED_IN
@@ -197,6 +230,7 @@ public class CloudSessionCoordinator
 		cloudSessionService.noteOfflineReconnectScheduled();
 	}
 
+	/** Fires when a scheduled reconnect delay elapses; re-attempts {@link #connect()} if still needed. */
 	private void onReconnectTimer()
 	{
 		synchronized (cloudReconnectLock)
@@ -212,6 +246,7 @@ public class CloudSessionCoordinator
 		connect();
 	}
 
+	/** Cancels any pending scheduled reconnect, if one exists. */
 	public void cancelReconnect()
 	{
 		synchronized (cloudReconnectLock)
@@ -224,6 +259,10 @@ public class CloudSessionCoordinator
 		}
 	}
 
+	/**
+	 * Per-tick hook: if logged in, not locked, not already connecting/active, and still waiting for
+	 * game identity (display name/account hash) to become available, retries {@link #connect()}.
+	 */
 	public void onLoggedInGameTick()
 	{
 		if (client.getGameState() != GameState.LOGGED_IN)
@@ -244,6 +283,11 @@ public class CloudSessionCoordinator
 		}
 	}
 
+	/**
+	 * Reacts to RuneLite game state transitions: flushes pending attests on leaving a logged-in
+	 * session (excluding hop/loading transitions), disconnects on reaching the login screen, and
+	 * connects (or resumes a restricted-world pause) on reaching logged-in.
+	 */
 	public void onGameStateChanged(GameStateChanged event)
 	{
 		GameState gs = event.getGameState();
@@ -278,6 +322,7 @@ public class CloudSessionCoordinator
 		}
 	}
 
+	/** Re-attempts connect on world hop (world type may have changed) and refreshes the sidebar. */
 	public void onWorldChanged(WorldChanged event)
 	{
 		if (client.getGameState() == GameState.LOGGED_IN)
@@ -287,6 +332,11 @@ public class CloudSessionCoordinator
 		SwingUtilities.invokeLater(sidebarRefresh::refresh);
 	}
 
+	/**
+	 * Client-shutdown hook: blocking-flushes pending attests and snapshots hiscores (unless the
+	 * account is locked), logging rather than throwing on failure, then always stops attest/trade
+	 * traffic and disconnects.
+	 */
 	public void flushAttestsForShutdown()
 	{
 		try

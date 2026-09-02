@@ -17,6 +17,13 @@ import com.osrstcg.cloud.api.JsonObjects;
 import com.osrstcg.cloud.trade.TradeCloudService;
 import javax.inject.Provider;
 
+/**
+ * Settles offline hiscores gains into cloud credits once per login, and snapshots hiscores on
+ * logout so offline progress since the snapshot can be settled next login. Handles transient
+ * {@code hiscores_unavailable} failures with a single delayed retry. Blocking: methods issue
+ * synchronous HTTP calls via {@link CloudApiClient} and must not run on the client/EDT thread,
+ * except the scheduled retry body which runs on {@link #scheduler}.
+ */
 @Slf4j
 final class HiscoresSettleService
 {
@@ -37,6 +44,7 @@ final class HiscoresSettleService
 	private final java.util.function.BooleanSupplier needsCloudConsent;
 	private final java.util.function.BooleanSupplier isAccountLocked;
 
+	/** Wires collaborators and the shared login/retry flags owned by {@link CloudSessionService}. */
 	HiscoresSettleService(
 		Client client,
 		CloudApiClient api,
@@ -65,6 +73,11 @@ final class HiscoresSettleService
 		this.isAccountLocked = isAccountLocked;
 	}
 
+	/**
+	 * Records a hiscores snapshot at logout so future gains can be settled next login. No-op if the
+	 * account is locked, consent is pending, no access token, the world is restricted, or the account
+	 * hash/display name aren't known. Failures are logged at debug level and swallowed.
+	 */
 	void snapshotOnLogout()
 	{
 		if (isAccountLocked.getAsBoolean()
@@ -109,6 +122,12 @@ final class HiscoresSettleService
 		}
 	}
 
+	/**
+	 * Settles offline hiscores gains since the last snapshot into credits, once per login (guarded by
+	 * {@link #hiscoresSettledThisLogin}). No-op if already settled this login, the account is locked,
+	 * consent is pending, no access token, the world is restricted, or the account hash/display name
+	 * aren't known yet. On error, delegates to {@link #handleSettleError}.
+	 */
 	void settleAfterCloudLogin()
 	{
 		if (hiscoresSettledThisLogin.get())
@@ -151,12 +170,18 @@ final class HiscoresSettleService
 		}
 	}
 
+	/** Resets the once-per-login settle gate and retry-scheduled flag (e.g. on logout or lock). */
 	void clearGate()
 	{
 		hiscoresSettledThisLogin.set(false);
 		hiscoresRetryScheduled.set(false);
 	}
 
+	/**
+	 * Classifies a settle failure: "not found"/forbidden/locked codes are treated as terminal for
+	 * this login (marks settled, no retry); {@code hiscores_unavailable}/503 schedules one retry;
+	 * anything else is just logged.
+	 */
 	private void handleSettleError(CloudApiException ex, long accountHash, String displayName)
 	{
 		String code = ex.getCode() == null ? "" : ex.getCode();
@@ -187,6 +212,11 @@ final class HiscoresSettleService
 		log.warn("Hiscores settle failed: {} {}", code, ex.getMessage());
 	}
 
+	/**
+	 * Schedules a single delayed settle retry (guarded by {@link #hiscoresRetryScheduled} so only one
+	 * retry is ever pending). The retry re-checks preconditions (not already settled, has token,
+	 * consent granted, still the same account) before calling settle again.
+	 */
 	private void scheduleRetry(long accountHash, String displayName)
 	{
 		if (!hiscoresRetryScheduled.compareAndSet(false, true))
@@ -226,6 +256,7 @@ final class HiscoresSettleService
 		}, HISCORES_RETRY_DELAY_SEC, TimeUnit.SECONDS);
 	}
 
+	/** Current local player's sanitized name, falling back to the last known name if unavailable. */
 	private String resolveDisplayName()
 	{
 		if (client.getLocalPlayer() != null && client.getLocalPlayer().getName() != null)
@@ -240,6 +271,10 @@ final class HiscoresSettleService
 		return lastDisplayName;
 	}
 
+	/**
+	 * Applies a settle response's sidebar stats and revision, and posts a chat toast when credits
+	 * were accepted. No-op if the response is null or marked skipped/throttled.
+	 */
 	private void applySettleResponse(JsonObject response)
 	{
 		if (response == null)
@@ -272,6 +307,7 @@ final class HiscoresSettleService
 		}
 	}
 
+	/** Formats the "Offline settle: +N credits (XP x, levels y, activities z)." chat toast text. */
 	private static String buildToast(long accepted, JsonObject response)
 	{
 		StringBuilder sb = new StringBuilder("Offline settle: +");

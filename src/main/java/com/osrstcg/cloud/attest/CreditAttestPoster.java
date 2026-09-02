@@ -9,6 +9,11 @@ import java.util.List;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Sends one coalesced batch of credit events to the cloud attest endpoint and applies the response:
+ * clears optimistic credits, requeues fixable rejects, updates sidebar economy stats, and forces a
+ * refresh when server state changed. Must run on a background/flush thread, never the client thread.
+ */
 @Slf4j
 final class CreditAttestPoster
 {
@@ -23,6 +28,12 @@ final class CreditAttestPoster
 		this.requeuer = requeuer;
 	}
 
+	/**
+	 * Posts {@code batch} to the attest API, requeues any rejected-but-fixable events, clears optimistic
+	 * credits for what the server accepted, and applies any economy/revision changes from the response.
+	 *
+	 * @return true if applying the response changed local credits or the trade revision
+	 */
 	boolean postAttestBatch(List<JsonObject> batch) throws Exception
 	{
 		long accountHash = queue.resolveAccountHash();
@@ -117,6 +128,7 @@ final class CreditAttestPoster
 		return changed;
 	}
 
+	/** True for transient I/O failures, server errors (5xx), or rate limiting — worth a retry flush. */
 	static boolean isRetryableAttestFailure(Throwable ex)
 	{
 		if (ex instanceof IOException && !(ex instanceof CloudApiException))

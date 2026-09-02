@@ -12,14 +12,22 @@ import net.runelite.api.Skill;
 /** Live skill XP / level baselines and uncredited XP pools for {@link CreditAwardService}. */
 final class SkillCreditSession
 {
+	/** Highest level observed per skill so far this session (used to detect level-ups). */
 	final Map<Skill, Integer> lastKnownLevels = new EnumMap<>(Skill.class);
+	/** Last-seen XP per skill, indexed by {@link Skill#ordinal()}; baseline for detecting XP gains. */
 	final int[] previousSkillXp = new int[Skill.values().length];
+	/** XP earned but not yet converted to a full credit chunk, indexed by {@link Skill#ordinal()}. */
 	final long[] uncreditedXpBySkill = new long[Skill.values().length];
+	/** Whether {@link #lastKnownLevels} has been populated from a logged-in client this session. */
 	boolean skillLevelsInitialized;
+	/** Whether {@link #previousSkillXp} has been populated from a logged-in client this session. */
 	boolean skillXpInitialized;
+	/** Slayer XP accrued since the last attempt to attest it (e.g. while the cloud session is offline). */
 	long pendingSlayerXpToAttest;
+	/** Slayer XP short of a full {@link XpCreditMath#SLAYER_XP_PER_CHUNK} chunk, carried to the next gain. */
 	long slayerXpRemainder;
 
+	/** Clears level/XP baselines so the next snapshot re-establishes them from the client. */
 	void resetTracking()
 	{
 		lastKnownLevels.clear();
@@ -28,6 +36,7 @@ final class SkillCreditSession
 		Arrays.fill(previousSkillXp, 0);
 	}
 
+	/** Discards all pending uncredited XP (main pool and Slayer pending/remainder). */
 	void clearUncreditedXpPool()
 	{
 		Arrays.fill(uncreditedXpBySkill, 0L);
@@ -35,6 +44,7 @@ final class SkillCreditSession
 		slayerXpRemainder = 0L;
 	}
 
+	/** Replaces the uncredited XP pool with a persisted baseline (e.g. restored after a profile reload). */
 	void restoreUncreditedXp(SkillCreditBaseline saved)
 	{
 		Arrays.fill(uncreditedXpBySkill, 0L);
@@ -61,6 +71,7 @@ final class SkillCreditSession
 		}
 	}
 
+	/** Adds {@code xp} XP to the skill's uncredited pool and returns the new pool total. */
 	long addUncreditedXp(Skill skill, long xp)
 	{
 		if (skill == null || xp <= 0L)
@@ -78,6 +89,7 @@ final class SkillCreditSession
 		return uncreditedXpBySkill[index];
 	}
 
+	/** Currently uncredited XP pooled for {@code skill} (0 if unknown/null skill). */
 	long uncreditedXpFor(Skill skill)
 	{
 		if (skill == null)
@@ -94,6 +106,7 @@ final class SkillCreditSession
 		return uncreditedXpBySkill[index];
 	}
 
+	/** Removes {@code xp} XP from the skill's uncredited pool (clamped at 0), typically after crediting a chunk. */
 	void subtractUncreditedXp(Skill skill, long xp)
 	{
 		if (skill == null || xp <= 0L)
@@ -110,6 +123,7 @@ final class SkillCreditSession
 		uncreditedXpBySkill[index] = Math.max(0L, uncreditedXpBySkill[index] - xp);
 	}
 
+	/** Sum of uncredited XP pooled across all skills. */
 	long totalUncreditedXp()
 	{
 		long total = 0L;
@@ -120,6 +134,7 @@ final class SkillCreditSession
 		return total;
 	}
 
+	/** Builds a persistable snapshot of current XP baselines and non-zero uncredited XP by skill name. */
 	SkillCreditBaseline toBaseline()
 	{
 		Map<String, Long> uncreditedByName = new LinkedHashMap<>();
@@ -144,12 +159,17 @@ final class SkillCreditSession
 			uncreditedByName);
 	}
 
+	/** Snapshots both XP and level baselines from the client, if logged in. */
 	void snapshotBaselinesIfLoggedIn(Client client)
 	{
 		snapshotXpIfLoggedIn(client);
 		snapshotSkillLevelsIfLoggedIn(client);
 	}
 
+	/**
+	 * Snapshots per-skill XP from the client into {@link #previousSkillXp}, if logged in. Once initialized,
+	 * only raises the baseline (never lowers it) so a transient client read can't roll it back.
+	 */
 	void snapshotXpIfLoggedIn(Client client)
 	{
 		if (client == null || client.getGameState() != GameState.LOGGED_IN)
@@ -177,6 +197,10 @@ final class SkillCreditSession
 		skillXpInitialized = true;
 	}
 
+	/**
+	 * Snapshots per-skill levels from the client into {@link #lastKnownLevels}, if logged in. Only raises an
+	 * already-known level, and skips the Overall pseudo-skill.
+	 */
 	void snapshotSkillLevelsIfLoggedIn(Client client)
 	{
 		if (client == null || client.getGameState() != GameState.LOGGED_IN)
@@ -205,6 +229,7 @@ final class SkillCreditSession
 		skillLevelsInitialized = true;
 	}
 
+	/** Looks up a {@link Skill} by its display name (case-insensitive), or {@code null} if not found. */
 	private static Skill skillByName(String name)
 	{
 		if (name == null || name.isEmpty())

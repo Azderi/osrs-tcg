@@ -10,12 +10,23 @@ import com.osrstcg.state.OwnedCardInstance;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Stateless parser for the JSON payloads returned by the cloud {@code /me/state} and related
+ * endpoints. Converts raw {@link JsonObject}s into typed, defensively-normalized value objects
+ * ({@link ParsedCloudPlayerState}, {@link SyncMarkers}).
+ */
 public final class CloudPlayerStateParser
 {
 	private CloudPlayerStateParser()
 	{
 	}
 
+	/**
+	 * Parses a full {@code /me/state}-shaped root object (account/economy/stats/cards sections)
+	 * into a {@link ParsedCloudPlayerState}. Returns {@link ParsedCloudPlayerState#empty()} if
+	 * {@code root} is null. Cards are read from the top-level {@code cards} field, falling back to
+	 * {@code collection.cards} for older payload shapes.
+	 */
 	public static ParsedCloudPlayerState parse(JsonObject root)
 	{
 		if (root == null)
@@ -89,6 +100,11 @@ public final class CloudPlayerStateParser
 			groupKey);
 	}
 
+	/**
+	 * Converts a {@code cards} JSON array into {@link OwnedCardInstance}s, skipping any element that
+	 * isn't an object or is missing a usable card name. Returns an empty list if {@code cardsEl} is
+	 * null or not an array.
+	 */
 	public static List<OwnedCardInstance> parseCards(JsonElement cardsEl)
 	{
 		List<OwnedCardInstance> out = new ArrayList<>();
@@ -124,6 +140,11 @@ public final class CloudPlayerStateParser
 		return out;
 	}
 
+	/**
+	 * Reads revision/stateHash/collectionHash sync markers from either a stats payload with a nested
+	 * {@code economy} object or an economy object directly, falling back to top-level fields when the
+	 * nested ones are absent. Returns zero/blank markers if {@code statsOrEconomy} is null.
+	 */
 	public static SyncMarkers readSyncMarkers(JsonObject statsOrEconomy)
 	{
 		if (statsOrEconomy == null)
@@ -147,12 +168,14 @@ public final class CloudPlayerStateParser
 		return new SyncMarkers(revision, hash == null ? "" : hash, collectionHash == null ? "" : collectionHash);
 	}
 
+	/** Revision/hash markers used to detect whether local state is behind the cloud copy. */
 	public static final class SyncMarkers
 	{
 		public final long revision;
 		public final String stateHash;
 		public final String collectionHash;
 
+		/** Normalizes revision to non-negative and hashes to trimmed, non-null strings. */
 		public SyncMarkers(long revision, String stateHash, String collectionHash)
 		{
 			this.revision = Math.max(0L, revision);
@@ -161,6 +184,11 @@ public final class CloudPlayerStateParser
 		}
 	}
 
+	/**
+	 * Normalized, immutable snapshot of a cloud player-state response: migration/account status,
+	 * economy totals, sync markers, and the owned card collection (which may be a placeholder when
+	 * {@link #cardsPaged} is true, pending a follow-up page fetch via {@link CloudCollectionPager}).
+	 */
 	public static final class ParsedCloudPlayerState
 	{
 		public final boolean migrated;
@@ -176,6 +204,7 @@ public final class CloudPlayerStateParser
 		public final boolean cardsPaged;
 		public final String groupKey;
 
+		/** Normalizes all fields (non-negative numbers, non-null/trimmed strings, immutable card list). */
 		ParsedCloudPlayerState(
 			boolean migrated,
 			String migratedAt,
@@ -204,6 +233,7 @@ public final class CloudPlayerStateParser
 			this.groupKey = groupKey == null || groupKey.isBlank() ? null : groupKey.trim();
 		}
 
+		/** Returns a copy with {@code nextCards} substituted and {@code cardsPaged} cleared. */
 		public ParsedCloudPlayerState withCards(List<OwnedCardInstance> nextCards)
 		{
 			return new ParsedCloudPlayerState(
@@ -221,6 +251,7 @@ public final class CloudPlayerStateParser
 				groupKey);
 		}
 
+		/** An unmigrated, zeroed-out state used when there is no cloud payload to parse. */
 		static ParsedCloudPlayerState empty()
 		{
 			return new ParsedCloudPlayerState(false, null, null, EconomyState.empty(), 0L, 0L, "", "",

@@ -17,6 +17,7 @@ public class CreditNotificationService
 	private final ChatMessageManager chatMessageManager;
 	private final Notifier notifier;
 
+	/** Wires the config, chat, and RuneLite notifier used to announce the credit threshold. */
 	@Inject
 	CreditNotificationService(
 		OsrsTcgConfig config,
@@ -28,6 +29,11 @@ public class CreditNotificationService
 		this.notifier = notifier;
 	}
 
+	/**
+	 * Chats (and optionally shows a RuneLite notification) the first time credits cross the
+	 * configured purchase-price threshold. No-op if credit notifications are disabled, credits
+	 * didn't increase, the threshold is unset, or the threshold was already crossed before this gain.
+	 */
 	public void onCreditsIncreased(long creditsBefore, long creditsAfter)
 	{
 		if (!config.creditNotifications() || creditsAfter <= creditsBefore)

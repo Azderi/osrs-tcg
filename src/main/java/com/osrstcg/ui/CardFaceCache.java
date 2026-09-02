@@ -13,9 +13,11 @@ import java.util.Map;
 final class CardFaceCache
 {
 	private static final int FACE_CACHE_MAX = 48;
+	/** Access-ordered map so {@code removeEldestEntry} evicts the least-recently-used face once the cap is exceeded. */
 	private static final Map<String, BufferedImage> FACE_CACHE = Collections.synchronizedMap(
 		new LinkedHashMap<String, BufferedImage>(32, 0.75f, true)
 		{
+			/** Evicts the eldest entry once the cache exceeds {@link #FACE_CACHE_MAX}. */
 			@Override
 			protected boolean removeEldestEntry(Map.Entry<String, BufferedImage> eldest)
 			{
@@ -23,10 +25,16 @@ final class CardFaceCache
 			}
 		});
 
+	/** Not instantiated; all members are static. */
 	private CardFaceCache()
 	{
 	}
 
+	/**
+	 * Returns the cached face for the given request, rendering and caching it via
+	 * {@link SharedCardRenderer#renderFace} on a miss. Returns {@code null} if art is expected but not
+	 * yet loaded (see {@link #expectsArtButMissing}).
+	 */
 	static BufferedImage cachedFace(int w, int h, CardFaceDrawRequest req)
 	{
 		if (expectsArtButMissing(req))
@@ -44,16 +52,22 @@ final class CardFaceCache
 		return face;
 	}
 
+	/** Returns whether a rendered face is already cached for this request, without rendering it. */
 	static boolean contains(int w, int h, CardFaceDrawRequest req)
 	{
 		return FACE_CACHE.containsKey(cacheKey(w, h, req));
 	}
 
+	/** Returns the cached face for this request, or {@code null} on a miss (never renders). */
 	static BufferedImage getIfPresent(int w, int h, CardFaceDrawRequest req)
 	{
 		return FACE_CACHE.get(cacheKey(w, h, req));
 	}
 
+	/**
+	 * Cache-key fragment distinguishing art variants: the art key plus a pending marker or the art
+	 * image's identity hash, so a request whose art hasn't loaded yet doesn't collide with one that has.
+	 */
 	private static String artIdentity(CardFaceDrawRequest req)
 	{
 		String artKey = req.getArtKey();
@@ -68,6 +82,7 @@ final class CardFaceCache
 		return req.getArt() == null ? "0" : Integer.toHexString(System.identityHashCode(req.getArt()));
 	}
 
+	/** Returns true when the request names an art key but the art image hasn't been loaded yet. */
 	static boolean expectsArtButMissing(CardFaceDrawRequest req)
 	{
 		if (req == null)
@@ -78,6 +93,7 @@ final class CardFaceCache
 		return artKey != null && !artKey.isEmpty() && req.getArt() == null;
 	}
 
+	/** Builds the cache key from every visual input that affects the rendered face's pixels. */
 	static String cacheKey(int w, int h, CardFaceDrawRequest req)
 	{
 		CardDefinition card = req.getCard();

@@ -4,6 +4,11 @@ import java.util.Objects;
 import java.util.UUID;
 import lombok.Getter;
 
+/**
+ * One physical owned copy of a card, tracked individually (rather than as a bare quantity) so
+ * pull attribution/timestamp and foil/beta status survive per-copy. Identity is by
+ * {@link #instanceId} alone.
+ */
 @Getter
 public final class OwnedCardInstance
 {
@@ -14,12 +19,14 @@ public final class OwnedCardInstance
 	private final long pulledAtEpochMs;
 	private final boolean beta;
 
+	/** Non-beta convenience overload; delegates with {@code beta = false}. */
 	public OwnedCardInstance(String instanceId, String cardName, boolean foil, String pulledByUsername,
 		long pulledAtEpochMs)
 	{
 		this(instanceId, cardName, foil, pulledByUsername, pulledAtEpochMs, false);
 	}
 
+	/** Generates a random {@code instanceId} when null/empty; normalizes other fields to non-null/non-negative. */
 	public OwnedCardInstance(String instanceId, String cardName, boolean foil, String pulledByUsername,
 		long pulledAtEpochMs, boolean beta)
 	{
@@ -33,6 +40,7 @@ public final class OwnedCardInstance
 		this.beta = beta;
 	}
 
+	/** Equal when {@link #instanceId} matches; other fields are not compared. */
 	@Override
 	public boolean equals(Object o)
 	{

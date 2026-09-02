@@ -10,6 +10,10 @@ import net.runelite.client.events.PluginMessage;
 import com.osrstcg.catalog.RarityMath;
 import com.osrstcg.notify.PullNotifySupport.PackSummaryContent;
 
+/**
+ * Forwards pull and pack-summary notifications to the Dink plugin via its {@link PluginMessage}
+ * namespace, so Dink can relay them (e.g. to Discord) independently of this plugin's own webhook.
+ */
 @Slf4j
 @Singleton
 public class DinkNotificationService
@@ -21,6 +25,7 @@ public class DinkNotificationService
 	private final EventBus eventBus;
 	private final PullNotifySupport pullNotifySupport;
 
+	/** Wires the event bus used to post {@link PluginMessage}s and the shared pull-content builder. */
 	@Inject
 	DinkNotificationService(EventBus eventBus, PullNotifySupport pullNotifySupport)
 	{
@@ -28,6 +33,7 @@ public class DinkNotificationService
 		this.pullNotifySupport = pullNotifySupport;
 	}
 
+	/** Posts a single-card pull notification to Dink, with card/rarity metadata attached. No-op for a blank card name. */
 	public void notifyPackPull(
 		String cardName, boolean newForCollection, boolean foil, RarityMath.Tier tier, String instanceId)
 	{
@@ -43,6 +49,7 @@ public class DinkNotificationService
 			pullMetadata(cardName.trim(), foil, newForCollection, tier, content.imageUrl, content.inspectUrl));
 	}
 
+	/** Posts an end-of-pack summary notification (new cards / duplicates) to Dink. */
 	void notifyPackSummary(PackSummaryContent content)
 	{
 		Map<String, Object> metadata = new HashMap<>();
@@ -55,6 +62,7 @@ public class DinkNotificationService
 			metadata);
 	}
 
+	/** Builds the Dink metadata map for a single card pull (name, foil, new-for-collection, tier, image/inspect links). */
 	private static Map<String, Object> pullMetadata(
 		String cardName, boolean foil, boolean newForCollection, RarityMath.Tier tier,
 		String imageUrl, String inspectUrl)
@@ -75,6 +83,7 @@ public class DinkNotificationService
 		return metadata;
 	}
 
+	/** Assembles and posts the Dink {@link PluginMessage} envelope; swallows failures (Dink not installed, etc.). */
 	private void postNotify(String text, String imageUrl, Map<String, Object> metadata)
 	{
 		Map<String, Object> data = new HashMap<>();

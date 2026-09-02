@@ -31,6 +31,7 @@ public final class TcgStateStorageEncoding
 	{
 	}
 
+	/** Gzip-compresses (fastest level) and Base64-encodes {@code plainJson} with the {@code RLTCG_v3:} prefix. */
 	public static String encode(String plainJson)
 	{
 		try
@@ -46,6 +47,11 @@ public final class TcgStateStorageEncoding
 		}
 	}
 
+	/**
+	 * Decodes a {@code RLTCG_v3:} or legacy {@code RLTCG_v2:} blob back to plain JSON (v2 additionally
+	 * XOR-decrypted with {@link #XOR_SALT} before gzip decompression). Returns empty on blank input or
+	 * any decode failure.
+	 */
 	public static String decode(String stored)
 	{
 		String s = Objects.requireNonNullElse(stored, "");
@@ -75,6 +81,7 @@ public final class TcgStateStorageEncoding
 		}
 	}
 
+	/** Gzip-compresses {@code input} using {@link FastGzipOutputStream} (best-speed deflate level). */
 	private static byte[] gzipCompress(byte[] input) throws IOException
 	{
 		ByteArrayOutputStream baos = new ByteArrayOutputStream(Math.max(256, input.length / 3 + 64));
@@ -85,6 +92,7 @@ public final class TcgStateStorageEncoding
 		return baos.toByteArray();
 	}
 
+	/** Gzip-decompresses {@code compressed} into a UTF-8 string. */
 	private static String gzipDecompress(byte[] compressed) throws IOException
 	{
 		try (GZIPInputStream gzis = new GZIPInputStream(new ByteArrayInputStream(compressed)))
@@ -93,6 +101,7 @@ public final class TcgStateStorageEncoding
 		}
 	}
 
+	/** XORs {@code data} in place with the repeating {@link #XOR_SALT} (used only for legacy v2 blobs). */
 	private static void xorWithSalt(byte[] data)
 	{
 		for (int i = 0; i < data.length; i++)
@@ -101,8 +110,10 @@ public final class TcgStateStorageEncoding
 		}
 	}
 
+	/** {@link GZIPOutputStream} forced to {@link Deflater#BEST_SPEED} to keep save writes fast. */
 	private static final class FastGzipOutputStream extends GZIPOutputStream
 	{
+		/** Wraps {@code out} and lowers the deflate level to best-speed. */
 		private FastGzipOutputStream(ByteArrayOutputStream out) throws IOException
 		{
 			super(out);

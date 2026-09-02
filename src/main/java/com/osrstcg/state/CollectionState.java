@@ -7,11 +7,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Immutable snapshot of a player's owned card collection: the per-copy instance list plus a
+ * precomputed name+foil quantity aggregate. Every mutation method returns a new instance.
+ */
 public final class CollectionState
 {
 	private final List<OwnedCardInstance> instances;
 	private final Map<CardCollectionKey, Integer> ownedCards;
 
+	/** Filters out null/nameless instances, then aggregates quantities including beta copies. */
 	private CollectionState(List<OwnedCardInstance> instances)
 	{
 		List<OwnedCardInstance> copy = new ArrayList<>();
@@ -29,37 +34,47 @@ public final class CollectionState
 		this.ownedCards = Collections.unmodifiableMap(aggregateQuantities(copy, false));
 	}
 
+	/** Trusts both arguments as already-filtered/aggregated; used internally to avoid recomputation. */
 	private CollectionState(List<OwnedCardInstance> instances, Map<CardCollectionKey, Integer> ownedCards)
 	{
 		this.instances = Collections.unmodifiableList(instances);
 		this.ownedCards = Collections.unmodifiableMap(ownedCards);
 	}
 
+	/** Returns a state with no owned cards. */
 	public static CollectionState empty()
 	{
 		return new CollectionState(List.of());
 	}
 
+	/** Builds a state from a raw instance list, filtering invalid entries and aggregating quantities. */
 	public static CollectionState copyOf(List<OwnedCardInstance> instances)
 	{
 		return new CollectionState(instances);
 	}
 
+	/** Returns the unmodifiable list of owned card instances. */
 	public List<OwnedCardInstance> getOwnedInstances()
 	{
 		return instances;
 	}
 
+	/** Returns owned quantities aggregated by name+foil, including beta copies. */
 	public Map<CardCollectionKey, Integer> getOwnedCards()
 	{
 		return ownedCards;
 	}
 
+	/** Recomputes owned quantities aggregated by name+foil, excluding beta copies. */
 	public Map<CardCollectionKey, Integer> getOwnedCardsExcludingBeta()
 	{
 		return aggregateQuantities(instances, true);
 	}
 
+	/**
+	 * Returns a new state with {@code toAdd} appended, after filtering invalid entries. Returns
+	 * {@code this} unchanged if there is nothing valid to add.
+	 */
 	public CollectionState withInstancesAdded(List<OwnedCardInstance> toAdd)
 	{
 		if (toAdd == null || toAdd.isEmpty())
@@ -89,6 +104,7 @@ public final class CollectionState
 		return new CollectionState(next, nextOwned);
 	}
 
+	/** Counts instances per {@link CardCollectionKey}, optionally skipping beta copies and null entries. */
 	private static Map<CardCollectionKey, Integer> aggregateQuantities(
 		List<OwnedCardInstance> list,
 		boolean excludeBeta)
@@ -106,6 +122,7 @@ public final class CollectionState
 		return map;
 	}
 
+	/** Equal when the owned instance lists are equal; the derived {@link #ownedCards} map is not compared. */
 	@Override
 	public boolean equals(Object o)
 	{

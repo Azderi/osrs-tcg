@@ -17,6 +17,7 @@ public final class PackCloseSnapshot
 	/** Cloud or local overview captured with this snapshot (null → compute locally). */
 	public final CloudSidebarCollectionStats collectionStats;
 
+	/** Defensively copies/normalizes nullable inputs (empty map, {@link CollectionState#empty()}) into an immutable snapshot. */
 	public PackCloseSnapshot(
 		Map<CardCollectionKey, Integer> owned,
 		CollectionState collectionState,

@@ -9,6 +9,11 @@ import net.runelite.api.GameState;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.client.eventbus.Subscribe;
 
+/**
+ * Tracks recent credit gains and derives a rolling credits-per-hour rate for the sidebar. Subscribes to
+ * {@link GameStateChanged} to reset on logout. All public methods are synchronized since drops can be
+ * recorded from background threads while the UI reads the rate on the client/EDT thread.
+ */
 @Singleton
 public class CreditsRateTracker
 {
@@ -25,6 +30,7 @@ public class CreditsRateTracker
 		this.config = config;
 	}
 
+	/** Records a credit gain (credits) at the current time, pruning old drops and recomputing the cached rate. */
 	public synchronized void recordCreditGain(long amount)
 	{
 		if (amount <= 0L)
@@ -38,6 +44,7 @@ public class CreditsRateTracker
 		recomputeCachedRate(now);
 	}
 
+	/** Current credits/hour rate, or {@code null} if too few recent drops or the window has gone stale. */
 	public synchronized Long creditsPerHourOrNull()
 	{
 		if (cachedCreditsPerHour == null || drops.isEmpty())
@@ -60,12 +67,14 @@ public class CreditsRateTracker
 		return cachedCreditsPerHour;
 	}
 
+	/** Discards all tracked drops and the cached rate. */
 	public synchronized void clear()
 	{
 		drops.clear();
 		cachedCreditsPerHour = null;
 	}
 
+	/** Resets tracking when the player returns to the login screen. */
 	@Subscribe
 	public void onGameStateChanged(GameStateChanged event)
 	{
@@ -75,6 +84,7 @@ public class CreditsRateTracker
 		}
 	}
 
+	/** Recomputes {@link #cachedCreditsPerHour} from the current drop window, or clears it if below the minimum. */
 	private void recomputeCachedRate(long nowMs)
 	{
 		if (drops.size() < MIN_DROPS_TO_SHOW)
@@ -94,6 +104,7 @@ public class CreditsRateTracker
 		cachedCreditsPerHour = Math.round(total * 3_600_000.0d / (double) elapsedMs);
 	}
 
+	/** Removes drops older than the configured rate window (no-op if the window is unbounded). */
 	private void prune(long nowMs)
 	{
 		Long windowMs = windowMsOrNull();
@@ -109,6 +120,7 @@ public class CreditsRateTracker
 		}
 	}
 
+	/** Configured rate window in ms, or {@code null} for the persistent (unbounded) window. */
 	private Long windowMsOrNull()
 	{
 		CreditsPerHourWindow window = config.creditsPerHourWindow();
@@ -119,6 +131,7 @@ public class CreditsRateTracker
 		return window.getWindowMs();
 	}
 
+	/** A single recorded credit gain: {@code amount} credits at {@code timeMs}. */
 	private static final class CreditDrop
 	{
 		private final long timeMs;
