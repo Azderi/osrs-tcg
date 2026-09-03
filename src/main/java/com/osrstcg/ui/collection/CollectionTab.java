@@ -28,7 +28,6 @@ import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
@@ -219,8 +218,7 @@ public final class CollectionTab
 		{
 			return;
 		}
-		CardDefinition def = CollectionListModel.indexByLowerName(cardDatabase.getCards())
-			.get(row.getName().trim().toLowerCase(Locale.ROOT));
+		CardDefinition def = cardDatabase.findByName(row.getName()).orElse(null);
 		if (def == null)
 		{
 			return;
