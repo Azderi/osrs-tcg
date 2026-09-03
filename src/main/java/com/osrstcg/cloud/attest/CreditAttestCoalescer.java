@@ -28,6 +28,8 @@ public final class CreditAttestCoalescer
 	public static final int MAX_KILL_AMOUNT = 500;
 	public static final int EARLY_FLUSH_COALESCED = 80;
 	public static final long HOUR_MS = 3_600_000L;
+	/** Max optimistic credits payable from login-cached events folded into settle-hiscores. */
+	public static final long MAX_LOGIN_CACHE_CREDITS = 500_000L;
 
 	public static final String TYPE_NPC_KILL = "npc_kill";
 	public static final String TYPE_XP_CHUNK = "xp_chunk";
@@ -188,6 +190,65 @@ public final class CreditAttestCoalescer
 		coalesced.clear();
 		coalesced.addAll(leftover);
 		return batch;
+	}
+
+	/**
+	 * Result of capping a coalesced login-cache batch by optimistic credit total.
+	 * Payable events are ordered by {@link #priorityScore}; overflow is unpaid but still cleared on send.
+	 */
+	public static final class LoginCacheSplit
+	{
+		public final List<JsonObject> payable;
+		public final long overflowCredits;
+		public final int overflowEventCount;
+
+		LoginCacheSplit(List<JsonObject> payable, long overflowCredits, int overflowEventCount)
+		{
+			this.payable = payable;
+			this.overflowCredits = overflowCredits;
+			this.overflowEventCount = overflowEventCount;
+		}
+	}
+
+	/**
+	 * Takes coalesced events in priority order until adding the next would exceed {@code maxOptimistic}.
+	 * Does not mutate {@code coalesced}. Events beyond the cap become overflow (credits summed, not paid).
+	 */
+	public static LoginCacheSplit takePriorityUntilOptimistic(List<JsonObject> coalesced, long maxOptimistic)
+	{
+		if (coalesced == null || coalesced.isEmpty())
+		{
+			return new LoginCacheSplit(List.of(), 0L, 0);
+		}
+		long cap = Math.max(0L, maxOptimistic);
+		List<Scored> scored = new ArrayList<>(coalesced.size());
+		for (int i = 0; i < coalesced.size(); i++)
+		{
+			scored.add(new Scored(i, coalesced.get(i), priorityScore(coalesced.get(i))));
+		}
+		scored.sort(Comparator
+			.comparingLong((Scored s) -> s.score).reversed()
+			.thenComparingInt(s -> s.index));
+
+		List<JsonObject> payable = new ArrayList<>();
+		long used = 0L;
+		long overflowCredits = 0L;
+		int overflowEventCount = 0;
+		for (Scored s : scored)
+		{
+			long cost = Math.max(0L, optimisticOf(s.event));
+			if (payable.isEmpty() || used + cost <= cap)
+			{
+				payable.add(s.event);
+				used += cost;
+			}
+			else
+			{
+				overflowCredits += cost;
+				overflowEventCount += 1;
+			}
+		}
+		return new LoginCacheSplit(List.copyOf(payable), overflowCredits, overflowEventCount);
 	}
 
 	/** True for the melee/ranged/magic/defence skills whose xp is never attested directly (kills are instead). */

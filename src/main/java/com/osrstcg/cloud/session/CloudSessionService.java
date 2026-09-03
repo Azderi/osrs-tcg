@@ -121,6 +121,7 @@ public final class CloudSessionService
 			publicStatsCalculator, collectionPager);
 		this.hiscoresSettle = new HiscoresSettleService(
 			client, api, tokens, restrictedWorldGuard, scheduler, chatMessageManager, tradeCloudProvider,
+			attestQueueProvider,
 			collectionSync::applySidebarStats, hiscoresSettledThisLogin, hiscoresRetryScheduled,
 			this::needsCloudConsent, this::isAccountLocked);
 		this.profileConsent = new CloudProfileConsentService(

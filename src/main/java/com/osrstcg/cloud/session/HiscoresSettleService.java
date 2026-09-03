@@ -3,6 +3,8 @@ package com.osrstcg.cloud.session;
 import com.osrstcg.util.NumberFormatting;
 import com.osrstcg.util.TcgPluginGameMessages;
 import com.google.gson.JsonObject;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -14,12 +16,15 @@ import net.runelite.client.util.Text;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
 import com.osrstcg.cloud.api.JsonObjects;
+import com.osrstcg.cloud.attest.CreditAttestCoalescer;
+import com.osrstcg.cloud.attest.CreditAttestQueue;
 import com.osrstcg.cloud.trade.TradeCloudService;
 import javax.inject.Provider;
 
 /**
  * Settles offline hiscores gains into cloud credits once per login, and snapshots hiscores on
- * logout so offline progress since the snapshot can be settled next login. Handles transient
+ * logout so offline progress since the snapshot can be settled next login. Optionally folds
+ * spilled/pending attest events into the settle request. Handles transient
  * {@code hiscores_unavailable} failures with a single delayed retry. Blocking: methods issue
  * synchronous HTTP calls via {@link CloudApiClient} and must not run on the client/EDT thread,
  * except the scheduled retry body which runs on {@link #scheduler}.
@@ -38,6 +43,7 @@ final class HiscoresSettleService
 	private final ScheduledExecutorService scheduler;
 	private final ChatMessageManager chatMessageManager;
 	private final Provider<TradeCloudService> tradeCloudProvider;
+	private final Provider<CreditAttestQueue> attestQueueProvider;
 	private final Consumer<JsonObject> applySidebarStats;
 	private final AtomicBoolean hiscoresSettledThisLogin;
 	private final AtomicBoolean hiscoresRetryScheduled;
@@ -53,6 +59,7 @@ final class HiscoresSettleService
 		ScheduledExecutorService scheduler,
 		ChatMessageManager chatMessageManager,
 		Provider<TradeCloudService> tradeCloudProvider,
+		Provider<CreditAttestQueue> attestQueueProvider,
 		Consumer<JsonObject> applySidebarStats,
 		AtomicBoolean hiscoresSettledThisLogin,
 		AtomicBoolean hiscoresRetryScheduled,
@@ -66,6 +73,7 @@ final class HiscoresSettleService
 		this.scheduler = scheduler;
 		this.chatMessageManager = chatMessageManager;
 		this.tradeCloudProvider = tradeCloudProvider;
+		this.attestQueueProvider = attestQueueProvider;
 		this.applySidebarStats = applySidebarStats;
 		this.hiscoresSettledThisLogin = hiscoresSettledThisLogin;
 		this.hiscoresRetryScheduled = hiscoresRetryScheduled;
@@ -124,9 +132,9 @@ final class HiscoresSettleService
 
 	/**
 	 * Settles offline hiscores gains since the last snapshot into credits, once per login (guarded by
-	 * {@link #hiscoresSettledThisLogin}). No-op if already settled this login, the account is locked,
-	 * consent is pending, no access token, the world is restricted, or the account hash/display name
-	 * aren't known yet. On error, delegates to {@link #handleSettleError}.
+	 * {@link #hiscoresSettledThisLogin}). Always calls settle-hiscores even when there is no spill —
+	 * cached events are optional. On successful send with a non-empty snapshot, clears durable
+	 * pending/spill. On error, delegates to {@link #handleSettleError}.
 	 */
 	void settleAfterCloudLogin()
 	{
@@ -154,9 +162,20 @@ final class HiscoresSettleService
 			return;
 		}
 
+		LoginCachePayload cache = prepareLoginCache();
 		try
 		{
-			JsonObject response = api.settleHiscores(displayName, accountHash);
+			JsonObject response = api.settleHiscores(
+				displayName,
+				accountHash,
+				cache.wireEvents,
+				cache.overflowCredits,
+				cache.overflowEventCount);
+			// Successful HTTP delivery: clear durable cache for the attached snapshot (may be empty).
+			if (cache.hadSnapshot)
+			{
+				attestQueueProvider.get().clearAfterSuccessfulSettleSend(cache.optimisticTotal);
+			}
 			hiscoresSettledThisLogin.set(true);
 			applySettleResponse(response);
 		}
@@ -180,7 +199,7 @@ final class HiscoresSettleService
 	/**
 	 * Classifies a settle failure: "not found"/forbidden/locked codes are treated as terminal for
 	 * this login (marks settled, no retry); {@code hiscores_unavailable}/503 schedules one retry;
-	 * anything else is just logged.
+	 * anything else is just logged. Durable cache is left intact on transport/server failure.
 	 */
 	private void handleSettleError(CloudApiException ex, long accountHash, String displayName)
 	{
@@ -215,7 +234,8 @@ final class HiscoresSettleService
 	/**
 	 * Schedules a single delayed settle retry (guarded by {@link #hiscoresRetryScheduled} so only one
 	 * retry is ever pending). The retry re-checks preconditions (not already settled, has token,
-	 * consent granted, still the same account) before calling settle again.
+	 * consent granted, still the same account) before calling settle again — still always settles
+	 * even with an empty cache.
 	 */
 	private void scheduleRetry(long accountHash, String displayName)
 	{
@@ -239,7 +259,17 @@ final class HiscoresSettleService
 				{
 					retryName = displayName;
 				}
-				JsonObject response = api.settleHiscores(retryName, accountHash);
+				LoginCachePayload cache = prepareLoginCache();
+				JsonObject response = api.settleHiscores(
+					retryName,
+					accountHash,
+					cache.wireEvents,
+					cache.overflowCredits,
+					cache.overflowEventCount);
+				if (cache.hadSnapshot)
+				{
+					attestQueueProvider.get().clearAfterSuccessfulSettleSend(cache.optimisticTotal);
+				}
 				hiscoresSettledThisLogin.set(true);
 				applySettleResponse(response);
 			}
@@ -272,8 +302,42 @@ final class HiscoresSettleService
 	}
 
 	/**
+	 * Snapshot spill/pending, coalesce, and cap at {@link CreditAttestCoalescer#MAX_LOGIN_CACHE_CREDITS}.
+	 * Empty spill still produces a valid payload so settle always runs.
+	 */
+	private LoginCachePayload prepareLoginCache()
+	{
+		CreditAttestQueue queue = attestQueueProvider.get();
+		List<JsonObject> snapshot = queue.snapshotPendingForSettle();
+		if (snapshot == null || snapshot.isEmpty())
+		{
+			return LoginCachePayload.empty();
+		}
+		List<JsonObject> coalesced = CreditAttestCoalescer.coalesce(snapshot);
+		long optimisticTotal = 0L;
+		for (JsonObject event : coalesced)
+		{
+			optimisticTotal += CreditAttestCoalescer.optimisticOf(event);
+		}
+		CreditAttestCoalescer.LoginCacheSplit split = CreditAttestCoalescer.takePriorityUntilOptimistic(
+			coalesced, CreditAttestCoalescer.MAX_LOGIN_CACHE_CREDITS);
+		List<JsonObject> wire = new ArrayList<>(split.payable.size());
+		for (JsonObject event : split.payable)
+		{
+			wire.add(CreditAttestCoalescer.forWire(event));
+		}
+		return new LoginCachePayload(
+			true,
+			wire,
+			split.overflowCredits,
+			split.overflowEventCount,
+			optimisticTotal);
+	}
+
+	/**
 	 * Applies a settle response's sidebar stats and revision, and posts a chat toast when credits
-	 * were accepted. No-op if the response is null or marked skipped/throttled.
+	 * were accepted (hiscores and/or folded login-cache events). No-op if the response is null or
+	 * marked skipped/throttled with no event credits.
 	 */
 	private void applySettleResponse(JsonObject response)
 	{
@@ -281,8 +345,13 @@ final class HiscoresSettleService
 		{
 			return;
 		}
-		if (response.has("skipped") && !response.get("skipped").isJsonNull()
-			&& response.get("skipped").getAsBoolean())
+
+		boolean skipped = response.has("skipped") && !response.get("skipped").isJsonNull()
+			&& response.get("skipped").getAsBoolean();
+		boolean eventsApplied = response.has("eventsApplied") && !response.get("eventsApplied").isJsonNull()
+			&& response.get("eventsApplied").getAsBoolean();
+
+		if (skipped && !eventsApplied)
 		{
 			log.debug("Hiscores settle throttled/skipped: {}",
 				response.has("reason") ? response.get("reason").getAsString() : "settle_throttle");
@@ -296,13 +365,22 @@ final class HiscoresSettleService
 		}
 
 		long accepted = 0L;
-		if (response.has("accepted") && !response.get("accepted").isJsonNull())
+		if (response.has("accepted") && !response.get("accepted").isJsonNull()
+			&& response.get("accepted").isJsonPrimitive())
 		{
 			accepted = response.get("accepted").getAsLong();
 		}
-		if (accepted > 0L)
+		long eventsCredits = JsonObjects.readLong(response, "eventsCredits");
+		long toastCredits = accepted + Math.max(0L, eventsCredits);
+		if (toastCredits > 0L && !skipped)
 		{
 			String toast = buildToast(accepted, response);
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, toast);
+		}
+		else if (eventsCredits > 0L)
+		{
+			String toast = "Offline settle: +" + NumberFormatting.format(eventsCredits)
+				+ " credits (cached events)";
 			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, toast);
 		}
 	}
@@ -347,7 +425,34 @@ final class HiscoresSettleService
 				sb.append(')');
 			}
 		}
-		sb.append('.');
 		return sb.toString();
+	}
+
+	private static final class LoginCachePayload
+	{
+		final boolean hadSnapshot;
+		final List<JsonObject> wireEvents;
+		final long overflowCredits;
+		final int overflowEventCount;
+		final long optimisticTotal;
+
+		LoginCachePayload(
+			boolean hadSnapshot,
+			List<JsonObject> wireEvents,
+			long overflowCredits,
+			int overflowEventCount,
+			long optimisticTotal)
+		{
+			this.hadSnapshot = hadSnapshot;
+			this.wireEvents = wireEvents;
+			this.overflowCredits = overflowCredits;
+			this.overflowEventCount = overflowEventCount;
+			this.optimisticTotal = optimisticTotal;
+		}
+
+		static LoginCachePayload empty()
+		{
+			return new LoginCachePayload(false, null, 0L, 0, 0L);
+		}
 	}
 }

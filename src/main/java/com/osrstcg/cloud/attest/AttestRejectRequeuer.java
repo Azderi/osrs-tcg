@@ -9,15 +9,14 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * Reinterprets rejected events from an attest response and re-queues fixed-up versions of them onto
- * {@link CreditAttestQueue}. Handles two known reject reasons: {@code settle_cooldown} (retry unchanged)
- * and {@code kill_amount_too_large} (split an oversized npc_kill into {@link CreditAttestCoalescer#MAX_KILL_AMOUNT}
- * chunks). Runs on the flush thread, as part of {@link CreditAttestPoster#postAttestBatch}.
+ * {@link CreditAttestQueue}. Handles {@code kill_amount_too_large} by splitting an oversized npc_kill
+ * into {@link CreditAttestCoalescer#MAX_KILL_AMOUNT} chunks. Runs on the flush thread, as part of
+ * {@link CreditAttestPoster#postAttestBatch}.
  */
 @Slf4j
 final class AttestRejectRequeuer
 {
 	static final String REASON_KILL_AMT_TOO_LARGE = "kill_amount_too_large";
-	static final String REASON_SETTLE_COOLDOWN = "settle_cooldown";
 
 	private final CreditAttestQueue queue;
 
@@ -65,13 +64,6 @@ final class AttestRejectRequeuer
 			JsonObject original = batch.get(index);
 			if (original == null)
 			{
-				continue;
-			}
-
-			if (REASON_SETTLE_COOLDOWN.equals(reason))
-			{
-				requeue.add(original.deepCopy());
-				result.requeuedIndexes.add(index);
 				continue;
 			}
 

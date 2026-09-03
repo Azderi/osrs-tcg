@@ -155,6 +155,33 @@ public final class CreditAttestQueue
 	}
 
 	/**
+	 * Deep-copies pending + spill events for folding into login settle. Does not clear the queue.
+	 * Safe to call from a background/settle thread.
+	 */
+	public List<JsonObject> snapshotPendingForSettle()
+	{
+		ensureSpillLoaded();
+		synchronized (lock)
+		{
+			return CreditAttestSpillStore.copyEvents(pendingRaw);
+		}
+	}
+
+	/**
+	 * After a successful settle-hiscores send that included a login-cache snapshot: clear durable
+	 * pending/spill and drop the matching optimistic credit estimate.
+	 */
+	public void clearAfterSuccessfulSettleSend(long optimisticCreditsToClear)
+	{
+		discardPending();
+		if (optimisticCreditsToClear > 0L)
+		{
+			stateService.clearOptimisticCredits(optimisticCreditsToClear);
+			notifyEconomyListener();
+		}
+	}
+
+	/**
 	 * Records one raw credit-earning event for later attestation. Filters out combat-skill xp and
 	 * non-progressing level-ups, applies the optimistic credit estimate to local state immediately,
 	 * persists the pending list to disk, and triggers an early flush on a coalesced-count or xp-spike

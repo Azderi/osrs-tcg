@@ -1,6 +1,7 @@
 package com.osrstcg.cloud.api;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -272,6 +273,22 @@ public final class CloudApiClient
 	public JsonObject settleHiscores(String displayName, long accountHash, boolean snapshot)
 		throws CloudApiException, IOException
 	{
+		return settleHiscores(displayName, accountHash, snapshot, null, 0L, 0);
+	}
+
+	/**
+	 * {@code POST /credits/settle-hiscores} with optional login-cached {@code events} and overflow
+	 * metadata (unpaid credits beyond the client 500k cap).
+	 */
+	public JsonObject settleHiscores(
+		String displayName,
+		long accountHash,
+		boolean snapshot,
+		List<JsonObject> events,
+		long overflowCredits,
+		int overflowEventCount)
+		throws CloudApiException, IOException
+	{
 		JsonObject body = new JsonObject();
 		body.addProperty("displayName", displayName);
 		body.addProperty("accountHash", Long.toString(accountHash));
@@ -279,13 +296,48 @@ public final class CloudApiClient
 		{
 			body.addProperty("snapshot", true);
 		}
+		if (events != null && !events.isEmpty())
+		{
+			JsonArray arr = new JsonArray();
+			for (JsonObject event : events)
+			{
+				if (event != null)
+				{
+					arr.add(event);
+				}
+			}
+			body.add("events", arr);
+		}
+		if (overflowCredits > 0L)
+		{
+			body.addProperty("overflowCredits", overflowCredits);
+		}
+		if (overflowEventCount > 0)
+		{
+			body.addProperty("overflowEventCount", overflowEventCount);
+		}
 		return requestAuthed("POST", "/credits/settle-hiscores", body);
 	}
 
 	/** {@link #settleHiscores(String, long, boolean)} without requesting a snapshot. */
 	public JsonObject settleHiscores(String displayName, long accountHash) throws CloudApiException, IOException
 	{
-		return settleHiscores(displayName, accountHash, false);
+		return settleHiscores(displayName, accountHash, false, null, 0L, 0);
+	}
+
+	/**
+	 * Login settle with optional cached events (no snapshot). Always used for post-login settle,
+	 * including when {@code events} is null/empty.
+	 */
+	public JsonObject settleHiscores(
+		String displayName,
+		long accountHash,
+		List<JsonObject> events,
+		long overflowCredits,
+		int overflowEventCount)
+		throws CloudApiException, IOException
+	{
+		return settleHiscores(displayName, accountHash, false, events, overflowCredits, overflowEventCount);
 	}
 
 	/** {@code GET /config/activities/version} (unauthenticated). Blocking call. */
