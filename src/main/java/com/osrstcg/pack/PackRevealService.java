@@ -211,9 +211,11 @@ public class PackRevealService
 	}
 
 	/**
-	 * Async continuation of {@link #beginPendingReveal}: resolves the server's pulls into shuffled
-	 * {@link RevealCard}s, preloads their images, and advances the phase out of {@code AWAITING_PULLS}/
-	 * pending {@code CARD_DEAL}/{@code CARD_REVEAL} if the corresponding wait has already elapsed.
+	 * Async continuation of {@link #beginPendingReveal}: resolves the server's pulls into
+	 * {@link RevealCard}s shuffled within each {@link #MAX_VISIBLE_REVEAL_CARDS}-card chunk
+	 * (keeps large-pack apex sets contiguous), preloads their images, and advances the phase out of
+	 * {@code AWAITING_PULLS}/ pending {@code CARD_DEAL}/{@code CARD_REVEAL} if the corresponding wait
+	 * has already elapsed.
 	 * Returns {@code false} (leaving state untouched) if the reveal was aborted or the pulls resolved to nothing.
 	 */
 	public synchronized boolean supplyRevealPulls(List<PackCardResult> pulls, Set<CardCollectionKey> preOwnedCards,
@@ -230,7 +232,12 @@ public class PackRevealService
 		}
 
 		preOwnedFoilNames = buildPreOwnedFoilNames(preOwnedCards);
-		Collections.shuffle(resolved, ThreadLocalRandom.current());
+		ThreadLocalRandom rnd = ThreadLocalRandom.current();
+		for (int start = 0; start < resolved.size(); start += MAX_VISIBLE_REVEAL_CARDS)
+		{
+			int end = Math.min(start + MAX_VISIBLE_REVEAL_CARDS, resolved.size());
+			Collections.shuffle(resolved.subList(start, end), rnd);
+		}
 		this.cards = List.copyOf(resolved);
 		this.batchOffset = 0;
 		this.apexPackOpen = apexPackOpen;
