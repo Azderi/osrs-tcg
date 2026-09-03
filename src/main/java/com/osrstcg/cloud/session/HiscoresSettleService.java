@@ -336,8 +336,8 @@ final class HiscoresSettleService
 
 	/**
 	 * Applies a settle response's sidebar stats and revision, and posts a chat toast when credits
-	 * were accepted (hiscores and/or folded login-cache events). No-op if the response is null or
-	 * marked skipped/throttled with no event credits.
+	 * were accepted (hiscores and/or folded login-cache events). Skips the toast when total credits
+	 * are zero. No-op if the response is null or marked skipped/throttled with no event credits.
 	 */
 	private void applySettleResponse(JsonObject response)
 	{
@@ -372,60 +372,13 @@ final class HiscoresSettleService
 		}
 		long eventsCredits = JsonObjects.readLong(response, "eventsCredits");
 		long toastCredits = accepted + Math.max(0L, eventsCredits);
-		if (toastCredits > 0L && !skipped)
+		if (toastCredits > 0L)
 		{
-			String toast = buildToast(accepted, response);
+			String toast = "You have been automatically credited "
+				+ NumberFormatting.format(toastCredits)
+				+ " credits from your progress!";
 			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, toast);
 		}
-		else if (eventsCredits > 0L)
-		{
-			String toast = "Offline settle: +" + NumberFormatting.format(eventsCredits)
-				+ " credits (cached events)";
-			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, toast);
-		}
-	}
-
-	/** Formats the "Offline settle: +N credits (XP x, levels y, activities z)." chat toast text. */
-	private static String buildToast(long accepted, JsonObject response)
-	{
-		StringBuilder sb = new StringBuilder("Offline settle: +");
-		sb.append(NumberFormatting.format(accepted)).append(" credits");
-		if (response.has("breakdown") && response.get("breakdown").isJsonObject())
-		{
-			JsonObject b = response.getAsJsonObject("breakdown");
-			long xp = JsonObjects.readLong(b, "xpCredits");
-			long levels = JsonObjects.readLong(b, "levelCredits");
-			long activities = JsonObjects.readLong(b, "activityCredits");
-			if (xp > 0L || levels > 0L || activities > 0L)
-			{
-				sb.append(" (");
-				boolean first = true;
-				if (xp > 0L)
-				{
-					sb.append("XP ").append(NumberFormatting.format(xp));
-					first = false;
-				}
-				if (levels > 0L)
-				{
-					if (!first)
-					{
-						sb.append(", ");
-					}
-					sb.append("levels ").append(NumberFormatting.format(levels));
-					first = false;
-				}
-				if (activities > 0L)
-				{
-					if (!first)
-					{
-						sb.append(", ");
-					}
-					sb.append("activities ").append(NumberFormatting.format(activities));
-				}
-				sb.append(')');
-			}
-		}
-		return sb.toString();
 	}
 
 	private static final class LoginCachePayload
