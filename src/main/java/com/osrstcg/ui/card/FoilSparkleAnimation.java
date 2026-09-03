@@ -1,5 +1,9 @@
 package com.osrstcg.ui.card;
 
+/**
+ * Computes a single sparkle's animated opacity and scale at a point in time, looping a fade-in/hold/fade-out
+ * cycle (via a cubic-bezier ease) over each sparkle's delay and duration.
+ */
 public final class FoilSparkleAnimation
 {
 	private static final double EASE_X1 = 0.42d;
@@ -7,22 +11,26 @@ public final class FoilSparkleAnimation
 	private static final double EASE_X2 = 0.58d;
 	private static final double EASE_Y2 = 1.0d;
 
+	/** Opacity and scale of a sparkle at a sampled point in its animation cycle. */
 	public static final class Sample
 	{
 		private final double opacity;
 		private final double scale;
 
+		/** Stores the sampled opacity and scale. */
 		Sample(double opacity, double scale)
 		{
 			this.opacity = opacity;
 			this.scale = scale;
 		}
 
+		/** Sparkle opacity (0-1) at this sample point. */
 		public double getOpacity()
 		{
 			return opacity;
 		}
 
+		/** Sparkle size multiplier at this sample point. */
 		public double getScale()
 		{
 			return scale;
@@ -33,6 +41,11 @@ public final class FoilSparkleAnimation
 	{
 	}
 
+	/**
+	 * Samples a sparkle's animation at {@code timeSec}, given its {@code delaySec} start offset and cycle
+	 * {@code durationSec}. Before the delay elapses, or when duration is non-positive, returns the invisible
+	 * resting state; otherwise loops the elapsed time into a 0-1 phase and delegates to {@link #samplePhase}.
+	 */
 	public static Sample sample(double delaySec, double durationSec, double timeSec)
 	{
 		if (durationSec <= 0.0d)
@@ -52,6 +65,11 @@ public final class FoilSparkleAnimation
 		return samplePhase(phase);
 	}
 
+	/**
+	 * Maps a 0-1 cycle phase to opacity/scale: eased fade-in and grow (0-0.40), a brief hold near full
+	 * opacity/scale (0.40-0.55), an eased shrink (0.55-0.70), then an eased fade-out and further shrink
+	 * (0.70-1.0). Phase outside (0, 1) is treated as fully invisible.
+	 */
 	static Sample samplePhase(double phase)
 	{
 		double p = phase;
@@ -77,11 +95,13 @@ public final class FoilSparkleAnimation
 		return lerp(0.2d, 0.7d, 0.0d, 0.4d, u);
 	}
 
+	/** Linearly interpolates opacity and scale between two endpoints by {@code u} (0-1). */
 	private static Sample lerp(double o0, double s0, double o1, double s1, double u)
 	{
 		return new Sample(o0 + (o1 - o0) * u, s0 + (s1 - s0) * u);
 	}
 
+	/** Clamps {@code t} to 0-1 and applies the class's cubic-bezier ease curve. */
 	static double easeInOut(double t)
 	{
 		double x = Math.max(0.0d, Math.min(1.0d, t));
@@ -96,6 +116,7 @@ public final class FoilSparkleAnimation
 		return cubicBezierY(EASE_X1, EASE_Y1, EASE_X2, EASE_Y2, x);
 	}
 
+	/** Solves for parametric {@code t} where the cubic-bezier's x-coordinate equals {@code x} (Newton's method), then returns its y. */
 	private static double cubicBezierY(double x1, double y1, double x2, double y2, double x)
 	{
 		double t = x;
@@ -113,12 +134,14 @@ public final class FoilSparkleAnimation
 		return bezierCoord(t, y1, y2);
 	}
 
+	/** Evaluates a cubic bezier with control points at 0, {@code p1}, {@code p2}, 1 at parameter {@code t}. */
 	private static double bezierCoord(double t, double p1, double p2)
 	{
 		double u = 1.0d - t;
 		return 3.0d * u * u * t * p1 + 3.0d * u * t * t * p2 + t * t * t;
 	}
 
+	/** Derivative of {@link #bezierCoord} with respect to {@code t}. */
 	private static double bezierDerivative(double t, double p1, double p2)
 	{
 		double u = 1.0d - t;

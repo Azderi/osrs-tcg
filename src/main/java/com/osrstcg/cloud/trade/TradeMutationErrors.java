@@ -6,6 +6,7 @@ import com.osrstcg.cloud.api.CloudApiException;
  */
 final class TradeMutationErrors
 {
+	/** Static-only utility class; not instantiable. */
 	private TradeMutationErrors()
 	{
 	}

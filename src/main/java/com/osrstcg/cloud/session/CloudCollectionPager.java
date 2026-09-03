@@ -8,6 +8,12 @@ import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import com.osrstcg.cloud.api.CloudApiClient;
 
+/**
+ * Fetches the full owned-card collection from {@code /me/cards} in pages when the player state
+ * response indicates cards are paginated, and retries the whole state pull once if the server
+ * revision drifts mid-paging. Blocking: every method here issues synchronous HTTP calls via
+ * {@link CloudApiClient} and must be called off the client/EDT thread.
+ */
 @Slf4j
 final class CloudCollectionPager
 {
@@ -16,11 +22,16 @@ final class CloudCollectionPager
 
 	private final CloudApiClient api;
 
+	/** Wires the API client; no side effects. */
 	CloudCollectionPager(CloudApiClient api)
 	{
 		this.api = api;
 	}
 
+	/**
+	 * Parses {@code stateJson} and, if cards are paginated, fetches all pages from {@code /me/cards}.
+	 * On a revision drift mid-paging, re-fetches the full state once and pages again against the new revision.
+	 */
 	CloudPlayerStateParser.ParsedCloudPlayerState loadCloudPlayerStateWithCards(JsonObject stateJson)
 		throws Exception
 	{
@@ -41,6 +52,7 @@ final class CloudCollectionPager
 		}
 	}
 
+	/** Returns {@code parsed} unchanged if cards aren't paginated, otherwise fills in cards fetched by page. */
 	CloudPlayerStateParser.ParsedCloudPlayerState resolveCardsForState(
 		CloudPlayerStateParser.ParsedCloudPlayerState parsed) throws Exception
 	{
@@ -52,6 +64,12 @@ final class CloudCollectionPager
 		return parsed.withCards(cards);
 	}
 
+	/**
+	 * Pages through {@code /me/cards} until {@code hasMore} is false, verifying each page reports
+	 * {@code expectedRevision}. Throws if a page's revision doesn't match (caller should retry from
+	 * fresh state), if paging exceeds {@link #ME_CARDS_MAX_PAGES}, or if a page claims more results
+	 * without a cursor.
+	 */
 	List<OwnedCardInstance> fetchAllOwnedCards(long expectedRevision) throws Exception
 	{
 		List<OwnedCardInstance> all = new ArrayList<>();

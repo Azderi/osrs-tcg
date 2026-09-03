@@ -9,12 +9,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Derives category/collection-set completion status from an owned-cards map: which card names are
+ * owned, and which primary categories in the roll pool are fully collected.
+ */
 public final class CollectionSetCompletionUtil
 {
 	private CollectionSetCompletionUtil()
 	{
 	}
 
+	/** Card names with at least one owned copy (summed across normal/foil variants), from {@code owned} quantities keyed by {@link CardCollectionKey}. */
 	public static Set<String> collectedNamesFromOwned(Map<CardCollectionKey, Integer> owned)
 	{
 		if (owned == null || owned.isEmpty())
@@ -43,6 +48,7 @@ public final class CollectionSetCompletionUtil
 		return collectedNames;
 	}
 
+	/** Whether {@code owned} has at least one foil copy of {@code cardName}. */
 	public static boolean hasFoilOwned(Map<CardCollectionKey, Integer> owned, String cardName)
 	{
 		if (owned == null || cardName == null)
@@ -53,6 +59,7 @@ public final class CollectionSetCompletionUtil
 		return n != null && n > 0;
 	}
 
+	/** Primary category names from {@code rollPool} where every card in that category is owned per {@code owned}. */
 	public static Set<String> completedPrimaryCategoryNames(Map<CardCollectionKey, Integer> owned,
 		List<CardDefinition> rollPool)
 	{
@@ -87,6 +94,7 @@ public final class CollectionSetCompletionUtil
 		return done;
 	}
 
+	/** Categories completed in {@code ownedAfter} but not in {@code ownedBefore}, i.e. completed by the change between the two snapshots. */
 	public static List<String> newlyCompletedCategories(Map<CardCollectionKey, Integer> ownedBefore,
 		Map<CardCollectionKey, Integer> ownedAfter, List<CardDefinition> rollPool)
 	{

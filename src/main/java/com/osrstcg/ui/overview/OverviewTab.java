@@ -22,6 +22,11 @@ import javax.swing.border.EmptyBorder;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 
+/**
+ * Renders the sidebar's Overview tab: a credits row plus a two-column grid of collection stat tiles
+ * (unique/foil counts, completion percentages, opened packs, collection score), optionally annotated
+ * with hiscores ranks. Swing component; {@link #render} and {@link #updateCredits} must run on the EDT.
+ */
 public final class OverviewTab
 {
 	private static final int STAT_GRID_GAP = 6;
@@ -32,6 +37,7 @@ public final class OverviewTab
 	private final Class<?> imageResourceClass;
 	private JLabel creditsValueLabel;
 
+	/** @param imageResourceClass class whose classloader resolves stat icon resource paths */
 	public OverviewTab(
 		OsrsTcgConfig config,
 		TcgStateService stateService,
@@ -44,6 +50,7 @@ public final class OverviewTab
 		this.imageResourceClass = imageResourceClass;
 	}
 
+	/** Builds and adds the credits panel and the stat tile grid to {@code target}, using {@code snap}/{@code m} for values and optional hiscores ranks. */
 	public void render(JPanel target, PackCloseSnapshot snap, CloudSidebarCollectionStats m)
 	{
 		int[] ranks = config.showSidebarRanks() ? stateService.getSidebarRanks() : null;
@@ -74,6 +81,7 @@ public final class OverviewTab
 		), STAT_GRID_GAP));
 	}
 
+	/** Updates the already-rendered credits value label in place, if the tab has been rendered. */
 	public void updateCredits(long credits)
 	{
 		if (creditsValueLabel != null)
@@ -82,6 +90,7 @@ public final class OverviewTab
 		}
 	}
 
+	/** Builds a full-width row panel: an icon (if the resource resolves) and label on the left, value on the right. */
 	public JPanel imageStatPanel(String labelText, String valueText, String imagePath)
 	{
 		JPanel panel = new JPanel(new BorderLayout(8, 0));
@@ -114,6 +123,7 @@ public final class OverviewTab
 		return panel;
 	}
 
+	/** @return the rank at {@code index}, or {@code null} if not shown, the array is missing, the index is out of range, or the rank is non-positive. */
 	private static Integer rankAt(int[] ranks, int index, boolean show)
 	{
 		if (!show || ranks == null || index < 0 || index >= ranks.length)
@@ -124,6 +134,7 @@ public final class OverviewTab
 		return rank > 0 ? rank : null;
 	}
 
+	/** @return {@code "#<rank>"}, or {@code "#<n>k"} for ranks of 1000 or more. */
 	static String formatHiscoresRank(int rank)
 	{
 		if (rank < 1000)
@@ -133,6 +144,7 @@ public final class OverviewTab
 		return "#" + (rank / 1000) + "k";
 	}
 
+	/** @return a tiered color for a hiscores rank (gold/pink/red/purple/blue/green/white by threshold), dimmed once rank exceeds 1000. */
 	static Color colorHiscoresRank(int rank)
 	{
 		Color base;
@@ -167,6 +179,7 @@ public final class OverviewTab
 		return rank > 1000 ? dimHiscoresRankColor(base) : base;
 	}
 
+	/** Scales down a color's RGB channels to indicate a lower-priority hiscores rank. */
 	private static Color dimHiscoresRankColor(Color color)
 	{
 		final float factor = 0.62f;
@@ -176,11 +189,17 @@ public final class OverviewTab
 			Math.round(color.getBlue() * factor));
 	}
 
+	/** {@link #statBoxPanel(String, String, Integer, boolean)} with no rank row. */
 	private JPanel statBoxPanel(String labelText, String valueText)
 	{
 		return statBoxPanel(labelText, valueText, null, false);
 	}
 
+	/**
+	 * Builds a single stat tile: centered label, bold value, and an optional rank line beneath. When
+	 * {@code hiscoresRank} is null but {@code reserveRankRow} is true, a blank rank line is still
+	 * reserved so tiles in the same row stay the same height.
+	 */
 	private JPanel statBoxPanel(String labelText, String valueText, Integer hiscoresRank, boolean reserveRankRow)
 	{
 		JPanel panel = new JPanel();
@@ -226,12 +245,14 @@ public final class OverviewTab
 		return panel;
 	}
 
+	/** @return the width of one stat tile in a two-column grid, given the available content width. */
 	private int overviewStatBoxWidth()
 	{
 		int inner = contentWidth.getAsInt();
 		return Math.max(96, (inner - STAT_GRID_GAP) / 2);
 	}
 
+	/** Lays out {@code tiles} two-per-row, centered horizontally, with {@code gap} pixels between tiles and rows. */
 	private JPanel twoColumnGridPanel(List<JPanel> tiles, int gap)
 	{
 		JPanel grid = new JPanel();

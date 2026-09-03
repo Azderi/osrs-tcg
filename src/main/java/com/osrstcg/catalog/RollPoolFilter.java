@@ -11,6 +11,7 @@ public final class RollPoolFilter
 	{
 	}
 
+	/** Currently a passthrough (empty list stays empty); filtering already happened at catalog build time. */
 	public static List<CardDefinition> filterRollPool(List<CardDefinition> cards)
 	{
 		if (cards == null || cards.isEmpty())

@@ -20,6 +20,11 @@ public final class LiveCardsCatalogParser
 	{
 	}
 
+	/**
+	 * Converts the {@code items} and {@code npcs} arrays of a live-catalog response into
+	 * {@link CardDefinition}s, deduplicated by name (items take priority over NPCs). Returns an
+	 * empty list for null input.
+	 */
 	public static List<CardDefinition> parse(JsonObject liveJson)
 	{
 		if (liveJson == null)
@@ -78,6 +83,11 @@ public final class LiveCardsCatalogParser
 		return cards;
 	}
 
+	/**
+	 * Builds a {@link CardDefinition} from one raw item/NPC entry. When an NPC shares its name
+	 * with an item, it is renamed to {@code "npc:<id>"} to keep it distinct (or dropped if it
+	 * has no id). Returns null when the entry has no name.
+	 */
 	private static CardDefinition normalizeParent(JsonObject raw, boolean npc, Set<String> itemNames)
 	{
 		String name = JsonObjects.textTrimmed(raw, "name");
@@ -216,6 +226,7 @@ public final class LiveCardsCatalogParser
 		return out;
 	}
 
+	/** Reads a JSON array of strings at {@code key}, trimming and dropping blanks; empty list if absent/not an array. */
 	private static List<String> parseStringList(JsonObject o, String key)
 	{
 		if (o == null || !o.has(key) || !o.get(key).isJsonArray())

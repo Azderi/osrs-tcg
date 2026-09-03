@@ -26,6 +26,14 @@ import com.osrstcg.util.TcgPluginGameMessages;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+/**
+ * In-memory + disk-spilled queue of raw credit-earning events (xp, level-ups, npc kills, activities)
+ * awaiting attestation to the cloud. Buffers events as they occur, coalesces and prioritizes them at
+ * flush time via {@link CreditAttestCoalescer}, posts batches through {@link CreditAttestPoster}, and
+ * requeues fixable rejects via {@link AttestRejectRequeuer}. {@link #enqueue} is called from the client
+ * thread as gameplay events happen; flushes run on the injected {@link ScheduledExecutorService}, guarded
+ * by internal locks, so callers never need external synchronization.
+ */
 @Slf4j
 @Singleton
 public final class CreditAttestQueue
@@ -58,6 +66,7 @@ public final class CreditAttestQueue
 	private volatile String lastDisplayName;
 	private volatile long spillLoadedAccountHash = -1L;
 
+	/** Injected constructor; wires up the sub-scheduler with a flush callback and initial default interval. */
 	@Inject
 	CreditAttestQueue(
 		CloudApiClient api,
@@ -85,17 +94,20 @@ public final class CreditAttestQueue
 			() -> flushSafe(false), running::get);
 	}
 
+	/** Registers a callback invoked whenever attest processing changes credits/pending totals; replaces any prior listener. */
 	public void setEconomyListener(Runnable listener)
 	{
 		economyListener.set(listener);
 	}
 
+	/** Starts periodic flushing and loads any spilled events for the current account. */
 	public void start()
 	{
 		attestScheduler.start();
 		ensureSpillLoaded();
 	}
 
+	/** Stops periodic flushing and resets retry/spill/rate-cap state for the next session. */
 	public void stop()
 	{
 		attestScheduler.stop();
@@ -104,6 +116,7 @@ public final class CreditAttestQueue
 		rateCapNotifier.reset();
 	}
 
+	/** Clamps a server-provided attest interval to at least {@link #DEFAULT_ATTEST_AFTER_MS}, falling back when unset. */
 	private static long resolveAttestAfterMs(long ms, long fallbackMs)
 	{
 		if (ms <= 0L)
@@ -114,6 +127,7 @@ public final class CreditAttestQueue
 		return ms;
 	}
 
+	/** Updates the periodic flush interval from the server's {@code attestAfterMs}/{@code pollAfterMs} hint, if present. */
 	void noteAttestAfterMs(JsonObject response)
 	{
 		long fallback = lastGoodAttestAfterMs.get();
@@ -122,6 +136,7 @@ public final class CreditAttestQueue
 		lastGoodAttestAfterMs.set(resolveAttestAfterMs(ms, fallback));
 	}
 
+	/** Drops all in-memory pending events and deletes the on-disk spill for the current account, without flushing. */
 	public void discardPending()
 	{
 		long hash;
@@ -140,6 +155,12 @@ public final class CreditAttestQueue
 		}
 	}
 
+	/**
+	 * Records one raw credit-earning event for later attestation. Filters out combat-skill xp and
+	 * non-progressing level-ups, applies the optimistic credit estimate to local state immediately,
+	 * persists the pending list to disk, and triggers an early flush on a coalesced-count or xp-spike
+	 * threshold. No-op if the session can't currently collect attests. Expected to run on the client thread.
+	 */
 	public void enqueue(String type, JsonObject evidence, long optimisticCredits)
 	{
 		if (!session.canCollectAttests())
@@ -212,16 +233,24 @@ public final class CreditAttestQueue
 		}
 	}
 
+	/** Schedules an immediate, non-blocking flush on the executor. */
 	public void flushNow()
 	{
 		scheduler.execute(() -> flushSafe(false));
 	}
 
+	/**
+	 * Runs a teardown flush synchronously on the calling thread (used on shutdown/logout). Must not be
+	 * called from the client thread.
+	 *
+	 * @return true if the flush changed local credits or the trade revision
+	 */
 	public boolean flushBlocking()
 	{
 		return flushSafe(true);
 	}
 
+	/** Reads the current account hash from the client, caching it and invalidating spill-loaded state on account change. */
 	long resolveAccountHash()
 	{
 		long hash = client.getAccountHash();
@@ -237,6 +266,7 @@ public final class CreditAttestQueue
 		return lastAccountHash;
 	}
 
+	/** Reads and sanitizes the local player's RSN, caching the last known value for use when unavailable. */
 	String resolveDisplayName()
 	{
 		if (client.getLocalPlayer() != null && client.getLocalPlayer().getName() != null)
@@ -251,6 +281,7 @@ public final class CreditAttestQueue
 		return lastDisplayName;
 	}
 
+	/** Loads any spilled pending events for the current account into memory, once per account hash. */
 	private void ensureSpillLoaded()
 	{
 		long hash = resolveAccountHash();
@@ -295,6 +326,7 @@ public final class CreditAttestQueue
 		}
 	}
 
+	/** Writes a snapshot of the current pending list to disk for the current account. */
 	private void persistSpillFromPending()
 	{
 		long hash;
@@ -311,6 +343,7 @@ public final class CreditAttestQueue
 		spillStore.save(hash, snapshot);
 	}
 
+	/** Adds an optimistic credit estimate to local state and notifies the economy listener, if positive. */
 	private void applyOptimistic(long optimisticCredits)
 	{
 		if (optimisticCredits > 0)
@@ -320,11 +353,16 @@ public final class CreditAttestQueue
 		}
 	}
 
+	/** Delegates to {@link CreditAttestScheduler#scheduleEarlyFlush()}. */
 	void scheduleEarlyFlush()
 	{
 		attestScheduler.scheduleEarlyFlush();
 	}
 
+	/**
+	 * On a retryable failure (and not during teardown), schedules a backing-off retry flush up to
+	 * {@link #ATTEST_RETRY_ATTEMPTS} times; otherwise resets the failure counter.
+	 */
 	private void maybeScheduleRetryFlush(boolean teardown, Exception ex)
 	{
 		if (teardown || !CreditAttestPoster.isRetryableAttestFailure(ex))
@@ -344,6 +382,7 @@ public final class CreditAttestQueue
 		attestScheduler.scheduleRetryFlush(delayMs);
 	}
 
+	/** Inserts events at the front of the pending list, so they're the next candidates for flushing. */
 	void prependPending(List<JsonObject> events)
 	{
 		synchronized (lock)
@@ -352,6 +391,7 @@ public final class CreditAttestQueue
 		}
 	}
 
+	/** Runs {@link #flush} and swallows/logs any exception so scheduler callbacks never throw. */
 	private boolean flushSafe(boolean teardown)
 	{
 		try
@@ -370,6 +410,15 @@ public final class CreditAttestQueue
 		}
 	}
 
+	/**
+	 * Drains and posts all pending events, one coalesced+prioritized batch at a time, until the pending
+	 * list is empty. Serialized via {@link #flushGate} so only one flush runs at a time. A batch that's
+	 * only hitpoints xp is held back rather than sent. On a post failure, the batch (and any remaining
+	 * coalesced events) are put back on the front of the pending list and the exception propagates.
+	 *
+	 * @param teardown true for a shutdown flush, which uses a looser readiness check than a normal flush
+	 * @return true if any posted batch changed local credits or the trade revision
+	 */
 	private boolean flush(boolean teardown) throws Exception
 	{
 		if (teardown)
@@ -456,6 +505,11 @@ public final class CreditAttestQueue
 		}
 	}
 
+	/**
+	 * Determines how many optimistic credits to clear after a batch is posted: prefers the server's
+	 * accepted-credits sum when present, otherwise falls back to the batch's optimistic estimate minus
+	 * whatever was held back for requeued (not yet resolved) events.
+	 */
 	static long resolveOptimisticClearAmount(
 		JsonObject response,
 		List<JsonObject> batch,
@@ -481,6 +535,7 @@ public final class CreditAttestQueue
 		return Math.max(0L, batchOptimisticEstimate - holdBack);
 	}
 
+	/** Sums the credit amounts of {@code response.accepted}, or -1 if the field is absent/malformed. */
 	private static long sumAcceptedCredits(JsonObject response)
 	{
 		if (response == null || !response.has("accepted") || !response.get("accepted").isJsonArray())
@@ -511,6 +566,7 @@ public final class CreditAttestQueue
 		return sawAmount ? sum : -1L;
 	}
 
+	/** Posts a debug-chat summary of an outgoing attest batch (event type counts, optimistic estimate), if debug chat is on. */
 	void debugCreditAttestSend(List<JsonObject> batch, long optimisticEstimate)
 	{
 		if (!stateService.isDebugChatEnabled() || batch == null || batch.isEmpty())
@@ -544,6 +600,7 @@ public final class CreditAttestQueue
 		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, message);
 	}
 
+	/** Posts a debug-chat summary of an attest response (credits, cleared/pending optimistic, rejects), if debug chat is on. */
 	void debugCreditAttestResponse(JsonObject response, long clearOptimistic, long pendingBefore)
 	{
 		if (!stateService.isDebugChatEnabled() || response == null)
@@ -572,6 +629,7 @@ public final class CreditAttestQueue
 		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, message.toString());
 	}
 
+	/** Formats {@code response.rejected} reasons as a bracketed, comma-separated list for logging/chat. */
 	static String formatRejectedReasons(JsonObject response)
 	{
 		if (response == null || !response.has("rejected") || !response.get("rejected").isJsonArray())
@@ -602,6 +660,7 @@ public final class CreditAttestQueue
 		return sb.toString();
 	}
 
+	/** Invokes the registered economy listener, if any. */
 	void notifyEconomyListener()
 	{
 		Runnable listener = economyListener.get();
@@ -611,6 +670,7 @@ public final class CreditAttestQueue
 		}
 	}
 
+	/** Returns an event's {@code evidence} object, or an empty object if missing/not an object. */
 	static JsonObject evidenceObject(JsonObject event)
 	{
 		if (event != null && event.has("evidence") && event.get("evidence").isJsonObject())
@@ -620,6 +680,7 @@ public final class CreditAttestQueue
 		return new JsonObject();
 	}
 
+	/** Reads a string field from an evidence object, returning {@code defaultValue} if missing/null. */
 	static String evidenceString(JsonObject evidence, String key, String defaultValue)
 	{
 		if (evidence == null || !evidence.has(key) || evidence.get(key).isJsonNull())
@@ -630,6 +691,7 @@ public final class CreditAttestQueue
 		return value == null ? defaultValue : value;
 	}
 
+	/** Reads an int field from an evidence object, returning {@code defaultValue} if missing/null. */
 	static int evidenceInt(JsonObject evidence, String key, int defaultValue)
 	{
 		if (evidence == null || !evidence.has(key) || evidence.get(key).isJsonNull())
@@ -639,6 +701,7 @@ public final class CreditAttestQueue
 		return evidence.get(key).getAsInt();
 	}
 
+	/** Reads a long field from an evidence object, returning {@code defaultValue} if missing/null. */
 	static long evidenceLong(JsonObject evidence, String key, long defaultValue)
 	{
 		if (evidence == null || !evidence.has(key) || evidence.get(key).isJsonNull())

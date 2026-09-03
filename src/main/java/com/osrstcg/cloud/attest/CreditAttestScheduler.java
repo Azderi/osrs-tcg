@@ -22,6 +22,7 @@ final class CreditAttestScheduler
 	private ScheduledFuture<?> flushFuture;
 	private ScheduledFuture<?> retryFlushFuture;
 
+	/** @param flushSafeFalse invoked to run a non-teardown flush; {@code stillRunning} checked after each tick to decide whether to reschedule */
 	CreditAttestScheduler(
 		ScheduledExecutorService scheduler,
 		AtomicBoolean running,
@@ -40,6 +41,7 @@ final class CreditAttestScheduler
 		this.stillRunning = stillRunning;
 	}
 
+	/** Starts the periodic flush timer at the default interval, if not already running. Idempotent. */
 	void start()
 	{
 		synchronized (scheduleLock)
@@ -54,6 +56,7 @@ final class CreditAttestScheduler
 		}
 	}
 
+	/** Stops the scheduler and cancels any pending periodic or retry flush. */
 	void stop()
 	{
 		synchronized (scheduleLock)
@@ -64,6 +67,7 @@ final class CreditAttestScheduler
 		}
 	}
 
+	/** Runs a flush immediately on the executor, coalescing concurrent requests via {@code earlyFlushScheduled}. */
 	void scheduleEarlyFlush()
 	{
 		if (!earlyFlushScheduled.compareAndSet(false, true))
@@ -83,6 +87,10 @@ final class CreditAttestScheduler
 		});
 	}
 
+	/**
+	 * Schedules a single flush retry after {@code delayMs}, unless the scheduler is stopped or a retry
+	 * is already pending (only one retry flush may be in flight at a time).
+	 */
 	void scheduleRetryFlush(long delayMs)
 	{
 		if (!running.get())
@@ -118,6 +126,7 @@ final class CreditAttestScheduler
 		}
 	}
 
+	/** Periodic timer callback: runs a flush, then reschedules itself using the latest attest-after interval. */
 	void flushTick()
 	{
 		try
@@ -136,6 +145,7 @@ final class CreditAttestScheduler
 		}
 	}
 
+	/** Schedules the next periodic {@link #flushTick()}; must be called while holding {@link #scheduleLock}. */
 	private void scheduleNextLocked(long delayMs)
 	{
 		if (!running.get())
@@ -145,6 +155,7 @@ final class CreditAttestScheduler
 		flushFuture = scheduler.schedule(this::flushTick, Math.max(0L, delayMs), TimeUnit.MILLISECONDS);
 	}
 
+	/** Cancels the pending periodic flush, if any; must be called while holding {@link #scheduleLock}. */
 	private void cancelScheduledLocked()
 	{
 		if (flushFuture != null)
@@ -154,6 +165,7 @@ final class CreditAttestScheduler
 		}
 	}
 
+	/** Cancels the pending retry flush, if any, and clears its scheduled flag; must hold {@link #scheduleLock}. */
 	private void cancelRetryFlushLocked()
 	{
 		if (retryFlushFuture != null)

@@ -9,6 +9,7 @@ import java.util.regex.Pattern;
  */
 public final class CompiledActivityConfig
 {
+	/** Empty config used before any fetch/disk-cache load has succeeded. */
 	public static final CompiledActivityConfig EMPTY = new CompiledActivityConfig(
 		"",
 		List.of(),
@@ -18,6 +19,7 @@ public final class CompiledActivityConfig
 	private final List<CompiledChatRule> chatRules;
 	private final Set<Integer> excludedNpcIds;
 
+	/** Normalizes nulls to empty and defensively copies the collections into immutable ones. */
 	CompiledActivityConfig(
 		String version,
 		List<CompiledChatRule> chatRules,
@@ -28,6 +30,7 @@ public final class CompiledActivityConfig
 		this.excludedNpcIds = excludedNpcIds == null ? Set.of() : Set.copyOf(excludedNpcIds);
 	}
 
+	/** Opaque version string this config was compiled from; empty for {@link #EMPTY}. */
 	public String getVersion()
 	{
 		return version;
@@ -38,11 +41,13 @@ public final class CompiledActivityConfig
 		return chatRules;
 	}
 
+	/** Whether {@code npcId} is excluded from credit-earning activities. */
 	public boolean isExcludedNpc(int npcId)
 	{
 		return excludedNpcIds.contains(npcId);
 	}
 
+	/** Precompiled chat-message match rule: literal prefix or regex, mutually exclusive. */
 	public static final class CompiledChatRule
 	{
 		private final String activityId;
@@ -51,6 +56,7 @@ public final class CompiledActivityConfig
 		private final String prefix;
 		private final Pattern pattern;
 
+		/** Normalizes nulls and clamps credits to non-negative; exactly one of {@code prefix}/{@code pattern} is expected. */
 		CompiledChatRule(String activityId, long credits, String label, String prefix, Pattern pattern)
 		{
 			this.activityId = activityId == null ? "" : activityId;
@@ -60,6 +66,7 @@ public final class CompiledActivityConfig
 			this.pattern = pattern;
 		}
 
+		/** True if {@code message} satisfies this rule's regex or prefix match. */
 		public boolean matches(String message)
 		{
 			if (message == null)

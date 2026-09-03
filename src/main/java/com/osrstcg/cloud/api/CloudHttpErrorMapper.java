@@ -7,6 +7,11 @@ final class CloudHttpErrorMapper
 	{
 	}
 
+	/**
+	 * Produces a short player-facing message: a canned message for rate limiting or an
+	 * HTML/gateway body, the trimmed/truncated server message otherwise, or a status-based
+	 * default when the message is blank.
+	 */
 	static String humanize(int status, String code, String message)
 	{
 		if (status == 429 || "rate_limited".equals(code))
@@ -26,6 +31,7 @@ final class CloudHttpErrorMapper
 		return cleaned;
 	}
 
+	/** True when {@code text} looks like an HTML error page (e.g. from an nginx gateway) rather than API JSON. */
 	static boolean looksLikeHtmlOrGatewayPage(String text)
 	{
 		String lower = text.toLowerCase(java.util.Locale.ROOT);
@@ -36,6 +42,7 @@ final class CloudHttpErrorMapper
 			|| lower.contains("nginx/");
 	}
 
+	/** Generic player-facing message for an HTTP status when no usable server message is available. */
 	static String defaultMessageForHttpStatus(int status)
 	{
 		if (status == 401 || status == 403)

@@ -11,5 +11,6 @@ import net.runelite.client.party.messages.PartyMemberMessage;
 @EqualsAndHashCode(callSuper = false)
 public class TcgCollectionSetCompletePartyMessage extends PartyMemberMessage
 {
+	/** Display name of the completed collection/set. */
 	private String collectionName;
 }

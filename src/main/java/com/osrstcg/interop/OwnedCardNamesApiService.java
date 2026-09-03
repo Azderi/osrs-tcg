@@ -46,6 +46,7 @@ public class OwnedCardNamesApiService
 	private final AtomicBoolean started = new AtomicBoolean(false);
 	private final Runnable onCollectionChanged = this::broadcastChanged;
 
+	/** Stores the event bus, state service, and card database used to answer queries. */
 	@Inject
 	OwnedCardNamesApiService(
 		EventBus eventBus,
@@ -57,6 +58,7 @@ public class OwnedCardNamesApiService
 		this.cardDatabase = cardDatabase;
 	}
 
+	/** Registers on the event bus and collection-change listener; idempotent. */
 	public void start()
 	{
 		if (!started.compareAndSet(false, true))
@@ -67,6 +69,7 @@ public class OwnedCardNamesApiService
 		stateService.addOwnedCollectionListener(onCollectionChanged);
 	}
 
+	/** Unregisters the collection-change listener and event bus subscription; idempotent. */
 	public void stop()
 	{
 		if (!started.compareAndSet(true, false))
@@ -77,6 +80,7 @@ public class OwnedCardNamesApiService
 		eventBus.unregister(this);
 	}
 
+	/** Replies with a fresh snapshot to any {@link #QUERY} message on {@link #NAMESPACE}, ignoring the rest. */
 	@Subscribe
 	public void onPluginMessage(PluginMessage event)
 	{
@@ -90,6 +94,7 @@ public class OwnedCardNamesApiService
 		post(REPLY, snapshotPayload());
 	}
 
+	/** Posts a fresh snapshot as {@link #CHANGED}; called whenever the owned collection mutates. */
 	public void broadcastChanged()
 	{
 		if (!started.get())
@@ -99,6 +104,7 @@ public class OwnedCardNamesApiService
 		post(CHANGED, snapshotPayload());
 	}
 
+	/** Builds the query/changed-event payload: owned/foil names, derived item/NPC ids, and the cloud group key. */
 	private Map<String, Object> snapshotPayload()
 	{
 		CollectionState collection;
@@ -121,6 +127,7 @@ public class OwnedCardNamesApiService
 		return data;
 	}
 
+	/** Looks up each owned name's card definition and adds its item/variant ids into {@code itemIds} or {@code npcIds}. */
 	private void collectOwnedCatalogIds(List<String> ownedNames, Set<Long> itemIds, Set<Long> npcIds)
 	{
 		if (ownedNames == null || ownedNames.isEmpty())
@@ -137,6 +144,7 @@ public class OwnedCardNamesApiService
 		}
 	}
 
+	/** Adds {@code card}'s primary id and all variant ids to {@code target}; no-op if either arg is null. */
 	static void addCatalogIds(CardDefinition card, Set<Long> target)
 	{
 		if (card == null || target == null)
@@ -161,6 +169,7 @@ public class OwnedCardNamesApiService
 		}
 	}
 
+	/** True if {@code card} carries an "NPC" category tag (case-insensitive). */
 	static boolean isNpcCard(CardDefinition card)
 	{
 		if (card == null)
@@ -177,16 +186,19 @@ public class OwnedCardNamesApiService
 		return false;
 	}
 
+	/** Distinct owned card names (any variant), case-insensitively sorted. */
 	static List<String> distinctOwnedNames(CollectionState collection)
 	{
 		return distinctOwnedNames(collection, false);
 	}
 
+	/** Distinct owned foil card names, case-insensitively sorted. */
 	static List<String> distinctOwnedFoilNames(CollectionState collection)
 	{
 		return distinctOwnedNames(collection, true);
 	}
 
+	/** Shared implementation for {@link #distinctOwnedNames(CollectionState)} and {@link #distinctOwnedFoilNames}. */
 	private static List<String> distinctOwnedNames(CollectionState collection, boolean foilOnly)
 	{
 		if (collection == null)
@@ -216,6 +228,7 @@ public class OwnedCardNamesApiService
 		return sorted;
 	}
 
+	/** Posts a {@link PluginMessage} on {@link #NAMESPACE}, swallowing and logging any failure. */
 	private void post(String name, Map<String, Object> data)
 	{
 		try

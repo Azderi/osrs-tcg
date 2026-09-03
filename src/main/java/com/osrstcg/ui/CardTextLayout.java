@@ -10,21 +10,31 @@ import java.awt.Shape;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Text layout helpers shared by {@link SharedCardRenderer}: word wrapping, ellipsizing, and
+ * centered/wrapped drawing, plus fixed-size full-art width math independent of the actual render scale.
+ */
 final class CardTextLayout
 {
 	private static final int FULL_ART_DESIGN_W = 180;
 	private static final int FULL_ART_DESIGN_H = 260;
 	private static final int FULL_ART_EXAMINE_MAX = 5;
 
+	/** Not instantiated; all members are static. */
 	private CardTextLayout()
 	{
 	}
 
+	/** Ellipsizes a full-art title to fit the fixed-design title width, falling back to "Unknown Card" if blank. */
 	static String ellipsizeFullArtTitle(FontMetrics fm, String text)
 	{
 		return ellipsizeToWidth(valueOrFallback(text, "Unknown Card"), fm, fullArtDesignTitleMaxWidth());
 	}
 
+	/**
+	 * Wraps full-art examine text to the fixed-design examine width, capping at
+	 * {@link #FULL_ART_EXAMINE_MAX} lines and ellipsizing the last line if more text remains.
+	 */
 	static List<String> wrapFullArtExamine(FontMetrics fm, String text)
 	{
 		String raw = text == null ? "" : text.trim();
@@ -43,6 +53,7 @@ final class CardTextLayout
 		return lines;
 	}
 
+	/** Max pixel width for full-art title text at the fixed design size ({@link #FULL_ART_DESIGN_W}x{@link #FULL_ART_DESIGN_H}, scale 1.0). */
 	static int fullArtDesignTitleMaxWidth()
 	{
 		int innerW = fullArtDesignInnerWidth();
@@ -50,6 +61,7 @@ final class CardTextLayout
 		return Math.max(8, innerW - titlePadX * 2);
 	}
 
+	/** Max pixel width for full-art examine text at the fixed design size. */
 	private static int fullArtDesignExamineMaxWidth()
 	{
 		int innerW = fullArtDesignInnerWidth();
@@ -58,6 +70,7 @@ final class CardTextLayout
 		return Math.max(8, examineW - examinePadX * 2);
 	}
 
+	/** Inner well width at the fixed design size, mirroring {@code SharedCardRenderer.Geometry}'s rim math at scale 1.0. */
 	private static int fullArtDesignInnerWidth()
 	{
 		int rim = Math.max(1, Math.min(Math.min(FULL_ART_DESIGN_W, FULL_ART_DESIGN_H) / 4,
@@ -65,6 +78,7 @@ final class CardTextLayout
 		return Math.max(1, FULL_ART_DESIGN_W - rim * 2);
 	}
 
+	/** Draws single-line text centered in {@code rect}, ellipsized to fit and clipped to the rect. */
 	static void drawCenteredText(Graphics2D g2, Rectangle rect, String text, Font font, Color color, int horizontalPadding)
 	{
 		g2.setFont(font == null ? CardFonts.body(1.0d) : font);
@@ -87,6 +101,10 @@ final class CardTextLayout
 		}
 	}
 
+	/**
+	 * Word-wraps text to fit {@code rect}'s width, truncates to {@code maxLines} (dropping overflow
+	 * rather than merging or splitting words), then draws it centered or top-aligned, clipped to the rect.
+	 */
 	static void drawWrappedCentered(Graphics2D g2, Rectangle rect, String text, Font font, Color color, int maxLines,
 		int horizontalPadding, boolean topAlign)
 	{
@@ -127,6 +145,10 @@ final class CardTextLayout
 		}
 	}
 
+	/**
+	 * Greedy word-wraps text (normalizing line endings, splitting on paragraphs) to fit within
+	 * {@code maxWidth}; never breaks a word mid-way. Always returns at least one (possibly empty) line.
+	 */
 	static List<String> wrapLines(FontMetrics fm, String text, int maxWidth)
 	{
 		List<String> lines = new ArrayList<>();
@@ -176,6 +198,11 @@ final class CardTextLayout
 		return lines;
 	}
 
+	/**
+	 * Truncates text character by character and appends "..." so the result fits within
+	 * {@code maxWidth}; returns "" if even the ellipsis doesn't fit, or {@code text} unchanged if it
+	 * already fits.
+	 */
 	static String ellipsizeToWidth(String text, FontMetrics fm, int maxWidth)
 	{
 		if (text == null)
@@ -207,6 +234,7 @@ final class CardTextLayout
 		return out + ellipsis;
 	}
 
+	/** Returns {@code value} trimmed, or {@code fallback} if {@code value} is null/blank. */
 	static String valueOrFallback(String value, String fallback)
 	{
 		return (value == null || value.trim().isEmpty()) ? fallback : value.trim();

@@ -33,20 +33,35 @@ import com.osrstcg.notify.PullNotificationService;
 import com.osrstcg.ui.tip.CardInfoTipModel;
 import com.osrstcg.ui.SharedCardRenderer;
 
+/**
+ * State machine driving the pack-open reveal overlay: pack-tap animation, waiting for the server's pulls,
+ * dealing cards in batches, per-card flip reveals, and the wait-to-close pause. All public methods are
+ * {@code synchronized} on this instance and are expected to be called from the client thread; {@link #tick()}
+ * and {@link #capturePaintFrame()} are driven once per paint frame to advance time-based phases.
+ */
 @Singleton
 public class PackRevealService
 {
+	/** Reveal overlay phases, advanced by {@link #tick()} (time-driven) or user input ({@link #handleClick}, {@link #advanceFromKeyboard}). */
 	public enum Phase
 	{
+		/** No reveal in progress. */
 		IDLE,
+		/** Pack sleeve shown, waiting for the player to click/tap it. */
 		PACK_READY,
+		/** Pack sleeve fading out after being tapped. */
 		PACK_FADING,
+		/** Fade finished but the server hasn't supplied pulls yet ({@link #supplyRevealPulls} not yet called). */
 		AWAITING_PULLS,
+		/** Cards animating into their dealt positions. */
 		CARD_DEAL,
+		/** Cards dealt and awaiting per-card flip clicks/keyboard advance. */
 		CARD_REVEAL,
+		/** Current batch fully revealed; waiting for input to start the next batch or close the overlay. */
 		WAIT_CLOSE
 	}
 
+	/** One resolved reveal card: the raw server pull, its display definition, rarity tier/color, and new-to-collection flag. */
 	@Value
 	public static class RevealCard
 	{
@@ -57,6 +72,7 @@ public class PackRevealService
 		boolean isNew;
 	}
 
+	/** Immutable copy of the current reveal state for the overlay to paint one frame from, without holding the service lock. */
 	@Getter
 	public static final class RevealPaintSnapshot
 	{
@@ -71,6 +87,7 @@ public class PackRevealService
 		private final String boosterPackId;
 		private final boolean apexPackOpen;
 
+		/** Copies the given frame state; array/collection ownership is transferred from the caller. */
 		private RevealPaintSnapshot(Phase phase, List<RevealCard> cards, boolean[] revealedByIndex,
 			float[] flipProgressByIndex, long phaseElapsedMs,
 			double packFadeProgress, String boosterPackId, boolean apexPackOpen)
@@ -85,11 +102,13 @@ public class PackRevealService
 			this.apexPackOpen = apexPackOpen;
 		}
 
+		/** Whether the visible card at {@code index} has completed its flip. */
 		public boolean isCardRevealed(int index)
 		{
 			return index >= 0 && index < revealedByIndex.length && revealedByIndex[index];
 		}
 
+		/** Eased flip progress (0..1) for the visible card at {@code index}; 1 once revealed, 0 if out of range. */
 		public float getFlipProgress(int index)
 		{
 			if (index < 0 || flipProgressByIndex == null || index >= flipProgressByIndex.length)
@@ -99,6 +118,7 @@ public class PackRevealService
 			return flipProgressByIndex[index];
 		}
 
+		/** Whether any still-face-down card in this batch would play mythic/legendary-foil reveal audio when flipped. */
 		public boolean hasUnrevealedMythic()
 		{
 			return hasUnrevealedPremiumAudio(cards, revealedByIndex);
@@ -148,6 +168,11 @@ public class PackRevealService
 		this.revealCardResolver = new RevealCardResolver(cardDatabase);
 	}
 
+	/**
+	 * Starts a reveal in {@link Phase#PACK_READY} with placeholder cards, before the server has responded
+	 * with actual pulls. Call {@link #supplyRevealPulls} once the pulls arrive, or {@link #abortPendingReveal}
+	 * if the buy call fails.
+	 */
 	public synchronized void beginPendingReveal(String boosterPackId,
 		boolean apexPackOpen, int expectedCardCount)
 	{
@@ -168,6 +193,7 @@ public class PackRevealService
 		this.phase = Phase.PACK_READY;
 	}
 
+	/** Kicks off async preloading of the card-back and (if resolvable) pack-specific reveal sleeve images. */
 	private void preloadRevealSleeve(String packId)
 	{
 		ArrayList<String> urls = new ArrayList<>(2);
@@ -184,6 +210,12 @@ public class PackRevealService
 		imageCacheService.preloadAsync(urls);
 	}
 
+	/**
+	 * Async continuation of {@link #beginPendingReveal}: resolves the server's pulls into shuffled
+	 * {@link RevealCard}s, preloads their images, and advances the phase out of {@code AWAITING_PULLS}/
+	 * pending {@code CARD_DEAL}/{@code CARD_REVEAL} if the corresponding wait has already elapsed.
+	 * Returns {@code false} (leaving state untouched) if the reveal was aborted or the pulls resolved to nothing.
+	 */
 	public synchronized boolean supplyRevealPulls(List<PackCardResult> pulls, Set<CardCollectionKey> preOwnedCards,
 		boolean apexPackOpen)
 	{
@@ -240,12 +272,14 @@ public class PackRevealService
 		return true;
 	}
 
+	/** Cancels a reveal that never received server pulls (buy call failed) and returns to {@link Phase#IDLE}. */
 	public synchronized void abortPendingReveal()
 	{
 		packRevealSoundService.hardStop();
 		reset();
 	}
 
+	/** Display name used for the pull/party chat announcement for a revealed card. */
 	private static String cardNameForParty(RevealCard card)
 	{
 		return CardDisplayNames.titleForDefinition(
@@ -253,6 +287,11 @@ public class PackRevealService
 			card == null ? null : card.getPull());
 	}
 
+	/**
+	 * Handles a click/tap on the reveal overlay: taps the pack sleeve to start fading it, clicks past a
+	 * fully-revealed batch to advance, or clicks an individual face-down card to start its flip (playing
+	 * flip/mythic sound and posting the pull notification).
+	 */
 	public synchronized void handleClick(Point click, Rectangle packBounds, List<Rectangle> cardBounds)
 	{
 		if (phase == Phase.IDLE)
@@ -305,6 +344,11 @@ public class PackRevealService
 		}
 	}
 
+	/**
+	 * Keyboard equivalent of tapping through the reveal: starts the pack fade, force-reveals the current
+	 * batch (skipping the deal/flip animation) if pulls are resolvable, or advances past a finished batch.
+	 * @return {@code true} if this call closed the reveal overlay entirely
+	 */
 	public synchronized boolean advanceFromKeyboard()
 	{
 		if (phase == Phase.IDLE)
@@ -334,6 +378,7 @@ public class PackRevealService
 		return advancePastWaitClose();
 	}
 
+	/** Starts the next card batch if any remain, otherwise closes the reveal. @return {@code true} if the reveal closed */
 	private boolean advancePastWaitClose()
 	{
 		if (hasMoreBatches())
@@ -345,6 +390,7 @@ public class PackRevealService
 		return true;
 	}
 
+	/** Marks every card in the current batch revealed immediately, announces pulls, and enters {@link Phase#WAIT_CLOSE}. */
 	private void forceRevealBatchAndWaitClose()
 	{
 		int batchSize = visibleCount();
@@ -371,6 +417,11 @@ public class PackRevealService
 		phaseStartedAt = System.currentTimeMillis();
 	}
 
+	/**
+	 * Timer-driven: advances time-based phase transitions (pending-pulls timeout, pack fade to deal/await,
+	 * deal to reveal, reveal to wait-close once fully face-up). Called once per paint frame via
+	 * {@link #capturePaintFrame()}.
+	 */
 	public synchronized void tick()
 	{
 		if (awaitingServerPulls
@@ -412,6 +463,7 @@ public class PackRevealService
 		}
 	}
 
+	/** Whether every card in the batch has a real (non-placeholder) pull identity, i.e. the server has responded. */
 	private boolean hasResolvablePulls()
 	{
 		if (cards.isEmpty())
@@ -428,6 +480,7 @@ public class PackRevealService
 		return true;
 	}
 
+	/** Total duration of the deal animation for a batch of {@code cardCount} cards (stagger between cards plus one flight). */
 	public static long packDealPhaseTotalMs(int cardCount)
 	{
 		if (cardCount <= 0)
@@ -437,11 +490,17 @@ public class PackRevealService
 		return (long) (cardCount - 1) * PACK_DEAL_STAGGER_MS + PACK_DEAL_FLIGHT_MS;
 	}
 
+	/** Whether a reveal is in progress (any phase other than {@link Phase#IDLE}). */
 	public synchronized boolean isActive()
 	{
 		return phase != Phase.IDLE;
 	}
 
+	/**
+	 * Timer-driven: advances the state machine ({@link #tick()}, completing any finished card flips) and
+	 * returns an immutable snapshot of the current frame for the overlay to paint, or empty if there's
+	 * nothing to draw.
+	 */
 	public synchronized Optional<RevealPaintSnapshot> capturePaintFrame()
 	{
 		tick();
@@ -472,6 +531,10 @@ public class PackRevealService
 			apexPackOpen));
 	}
 
+	/**
+	 * Marks any in-progress card flip revealed once {@link #CARD_FLIP_MS} has elapsed since it started, and
+	 * enters {@link Phase#WAIT_CLOSE} if that completes the batch.
+	 */
 	private void completeFinishedFlipsLocked()
 	{
 		if (flipStartedAtMs.length == 0)
@@ -509,6 +572,7 @@ public class PackRevealService
 		}
 	}
 
+	/** Computes per-card eased flip progress (1 if revealed, 0 if not started, eased elapsed fraction otherwise). */
 	private float[] buildFlipProgressLocked()
 	{
 		float[] out = new float[Math.max(revealedByIndex.length, flipStartedAtMs.length)];
@@ -531,6 +595,7 @@ public class PackRevealService
 		return out;
 	}
 
+	/** Milliseconds elapsed since the current phase began, or 0 if the phase has no start time. */
 	private long computePhaseElapsedMsLocked()
 	{
 		if (phaseStartedAt <= 0L)
@@ -540,6 +605,7 @@ public class PackRevealService
 		return Math.max(0L, System.currentTimeMillis() - phaseStartedAt);
 	}
 
+	/** Pack-sleeve fade progress (0..1): 1 once past the fade, in-progress fraction during {@code PACK_FADING}, else 0. */
 	private double computePackFadeProgressLocked()
 	{
 		if (phase == Phase.AWAITING_PULLS
@@ -557,26 +623,31 @@ public class PackRevealService
 		return PackRevealDealLayout.clamp01(elapsed / (double) PACK_FADE_MS);
 	}
 
+	/** Current reveal phase. */
 	public synchronized Phase getPhase()
 	{
 		return phase;
 	}
 
+	/** Cards in the currently visible batch (up to {@link #MAX_VISIBLE_REVEAL_CARDS}). */
 	public synchronized List<RevealCard> getCards()
 	{
 		return List.copyOf(visibleCards());
 	}
 
+	/** Whether the visible card at {@code index} has completed its flip. */
 	public synchronized boolean isCardRevealed(int index)
 	{
 		return index >= 0 && index < revealedByIndex.length && revealedByIndex[index];
 	}
 
+	/** Whether a reveal has started but the server's pulls haven't arrived yet. */
 	public synchronized boolean isAwaitingServerPulls()
 	{
 		return awaitingServerPulls;
 	}
 
+	/** Consumes (clears) and returns whether the pending-pulls wait timed out since the last call. */
 	public synchronized boolean consumePendingPullsTimeout()
 	{
 		if (!pendingPullsTimedOut)
@@ -587,6 +658,7 @@ public class PackRevealService
 		return true;
 	}
 
+	/** Clears all reveal state and returns to {@link Phase#IDLE}. */
 	public synchronized void reset()
 	{
 		phase = Phase.IDLE;
@@ -604,11 +676,13 @@ public class PackRevealService
 		preOwnedFoilNames = Set.of();
 	}
 
+	/** Lower-cased names of cards the player already owned as foils before this reveal, for "already have" UI hints. */
 	public synchronized Set<String> getPreOwnedFoilNames()
 	{
 		return Set.copyOf(preOwnedFoilNames);
 	}
 
+	/** Extracts lower-cased, normalized names of foil cards from the pre-reveal owned-cards set. */
 	private static Set<String> buildPreOwnedFoilNames(Set<CardCollectionKey> preOwnedCards)
 	{
 		if (preOwnedCards == null || preOwnedCards.isEmpty())
@@ -624,6 +698,11 @@ public class PackRevealService
 			.collect(Collectors.toUnmodifiableSet());
 	}
 
+	/**
+	 * Force-closes an in-progress reveal (e.g. plugin shutdown or forced navigation away): announces any
+	 * unrevealed pulls and pending collection chat, stops sounds, resets to idle, and returns the full
+	 * card list that was in play.
+	 */
 	public synchronized List<RevealCard> abortActiveReveal()
 	{
 		if (!isActive())
@@ -638,6 +717,7 @@ public class PackRevealService
 		return snapshot;
 	}
 
+	/** Posts the collection-add chat message for any real pull that hasn't had one posted yet. */
 	private void announceRemainingCollectionChat()
 	{
 		for (int i = 0; i < cards.size(); i++)
@@ -659,6 +739,7 @@ public class PackRevealService
 		}
 	}
 
+	/** Whether {@code card} carries an actual server pull (as opposed to a placeholder awaiting server pulls). */
 	private static boolean hasRealPullIdentity(RevealCard card)
 	{
 		return card != null
@@ -667,6 +748,7 @@ public class PackRevealService
 			&& !card.getPull().getCardName().isBlank();
 	}
 
+	/** Posts the pull notification for {@code card} and marks its collection chat as posted if it was sent. */
 	private void notifyPullAndMarkPosted(RevealCard card, int absIndex)
 	{
 		if (pullNotificationService.notifyPull(
@@ -681,6 +763,7 @@ public class PackRevealService
 		}
 	}
 
+	/** Whether any not-yet-revealed card in {@code cards} would trigger premium (mythic/legendary-foil) reveal audio. */
 	private static boolean hasUnrevealedPremiumAudio(List<RevealCard> cards, boolean[] revealedByIndex)
 	{
 		for (int i = 0; i < cards.size(); i++)
@@ -698,6 +781,7 @@ public class PackRevealService
 		return false;
 	}
 
+	/** Index of the card bounds rectangle containing {@code click}, or -1 if none matched. */
 	private int clickedCardIndex(List<Rectangle> bounds, Point click)
 	{
 		if (bounds == null || click == null)
@@ -715,6 +799,11 @@ public class PackRevealService
 		return -1;
 	}
 
+	/**
+	 * Posts pull notifications for cards not yet revealed. When {@code currentBatchOnly} is true, limits
+	 * this to the visible batch (used when force-revealing it); otherwise covers every unrevealed card
+	 * across the whole reveal (used when aborting).
+	 */
 	private void announcePartyUnrevealedPulls(boolean currentBatchOnly)
 	{
 		if (currentBatchOnly)
@@ -744,6 +833,7 @@ public class PackRevealService
 		}
 	}
 
+	/** Notifies party/chat of the full pack contents once every 5th card position is reached (i.e. pack fully revealed). */
 	private void notifyPackAtBatchEnd()
 	{
 		if ((batchOffset + visibleCount()) % 5 == 0)
@@ -752,6 +842,7 @@ public class PackRevealService
 		}
 	}
 
+	/** Whether the card at absolute index {@code absIndex} (across all batches) has been revealed. */
 	private boolean isAbsolutelyRevealed(int absIndex)
 	{
 		if (absIndex < batchOffset)
@@ -766,6 +857,7 @@ public class PackRevealService
 		return false;
 	}
 
+	/** Whether {@code card} should play the premium reveal sting: any Godly pull, or a foil Legendary+ pull. */
 	private static boolean isPremiumRevealAudioPull(RevealCard card)
 	{
 		if (card == null)
@@ -783,11 +875,13 @@ public class PackRevealService
 		return card.getTier().ordinal() >= RarityMath.Tier.LEGENDARY.ordinal();
 	}
 
+	/** Whether {@code card}'s underlying pull is a foil. */
 	private static boolean isFoilPull(RevealCard card)
 	{
 		return card != null && card.getPull() != null && card.getPull().isFoil();
 	}
 
+	/** Whether every slot in the current batch is revealed (and the batch is fully sized/populated). */
 	private boolean allRevealSlotsFaceUp()
 	{
 		int batchSize = visibleCount();
@@ -805,6 +899,7 @@ public class PackRevealService
 		return true;
 	}
 
+	/** Number of cards visible in the current batch, capped at {@link #MAX_VISIBLE_REVEAL_CARDS}. */
 	private int visibleCount()
 	{
 		if (cards.isEmpty() || batchOffset >= cards.size())
@@ -814,6 +909,7 @@ public class PackRevealService
 		return Math.min(MAX_VISIBLE_REVEAL_CARDS, cards.size() - batchOffset);
 	}
 
+	/** The sublist of {@link #cards} making up the current batch. */
 	private List<RevealCard> visibleCards()
 	{
 		int n = visibleCount();
@@ -824,11 +920,13 @@ public class PackRevealService
 		return cards.subList(batchOffset, batchOffset + n);
 	}
 
+	/** Whether cards remain beyond the current batch. */
 	private boolean hasMoreBatches()
 	{
 		return batchOffset + visibleCount() < cards.size();
 	}
 
+	/** (Re)allocates the per-slot revealed/flip-start arrays for the current batch and resets the revealed count. */
 	private void initCurrentBatchRevealFlags()
 	{
 		int n = visibleCount();
@@ -837,6 +935,7 @@ public class PackRevealService
 		flipStartedAtMs = new long[n];
 	}
 
+	/** Advances the batch offset past the current batch and begins dealing the next one. */
 	private void startNextBatch()
 	{
 		batchOffset += visibleCount();
@@ -846,6 +945,7 @@ public class PackRevealService
 		phaseStartedAt = System.currentTimeMillis();
 	}
 
+	/** Notifies the full pack contents if this batch completes it, then enters {@link Phase#WAIT_CLOSE}. */
 	private void enterWaitCloseAfterBatch()
 	{
 		notifyPackAtBatchEnd();

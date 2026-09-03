@@ -75,6 +75,13 @@ import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.Text;
 
+/**
+ * RuneLite plugin entry point for OSRS TCG. Wires up the sidebar panel, pack-opening overlays,
+ * credit-earning trackers, and cloud sync services via Guice injection, and forwards RuneLite
+ * events to the relevant subsystem. Most of the actual logic lives in the injected services;
+ * this class is mainly lifecycle wiring ({@link #startUp()}/{@link #shutDown()}) and event
+ * dispatch.
+ */
 @Slf4j
 @PluginDescriptor(
 	name = "OSRS TCG",
@@ -84,6 +91,7 @@ import net.runelite.client.util.Text;
 )
 public class OsrsTcgPlugin extends Plugin
 {
+	/** Public chat command players can send/receive to look up another player's TCG stats. */
 	private static final String TCG_PUBLIC_CHAT_COMMAND = "!tcg";
 
 	@Inject
@@ -166,8 +174,13 @@ public class OsrsTcgPlugin extends Plugin
 	private ConfigManager configManager;
 
 	private NavigationButton navigationButton;
+	/** Account hash whose state was last loaded via {@link #loadStateIfLoggedIn()}, or -1 if none yet. */
 	private long loadedAccountHash = -1L;
 
+	/**
+	 * Registers the sidebar panel, overlays, input listeners, and event subscriptions, and kicks
+	 * off catalog prefetch and (if already logged in) state loading and cloud connect.
+	 */
 	@Override
 	protected void startUp()
 	{
@@ -235,6 +248,10 @@ public class OsrsTcgPlugin extends Plugin
 		TcgPluginGameMessages.setPrefixColor(config.chatPrefixColor());
 	}
 
+	/**
+	 * Flushes pending credit/state writes, disconnects from the cloud session, and tears down
+	 * everything registered in {@link #startUp()}.
+	 */
 	@Override
 	protected void shutDown()
 	{
@@ -288,6 +305,7 @@ public class OsrsTcgPlugin extends Plugin
 		cloudSessionCoordinator.onLoggedInGameTick();
 	}
 
+	/** Times out an in-flight pack reveal still waiting on server pull results, closing the sidebar freeze if it does. */
 	private void handlePendingPackOpenTimeout()
 	{
 		if (!packRevealService.isAwaitingServerPulls())
@@ -308,6 +326,7 @@ public class OsrsTcgPlugin extends Plugin
 		tcgPanel.refreshAfterPackRevealClose();
 	}
 
+	/** Saves a final checkpoint and blocks client shutdown until queued attests are flushed to the cloud. */
 	@Subscribe
 	public void onClientShutdown(ClientShutdown event)
 	{
@@ -316,18 +335,21 @@ public class OsrsTcgPlugin extends Plugin
 		event.waitFor(CompletableFuture.runAsync(cloudSessionCoordinator::flushAttestsForShutdown, scheduledExecutorService));
 	}
 
+	/** Awards XP-based credits for the stat gain, refreshing the sidebar if any credits were granted. */
 	@Subscribe
 	public void onStatChanged(StatChanged event)
 	{
 		refreshCreditsIf(creditAwardService.onStatChanged(event));
 	}
 
+	/** Awards credits for a fake (non-tracked-skill) XP drop, refreshing the sidebar if any were granted. */
 	@Subscribe
 	public void onFakeXpDrop(FakeXpDrop event)
 	{
 		refreshCreditsIf(creditAwardService.onFakeXpDrop(event));
 	}
 
+	/** On login, loads the account's saved state; on logout, checkpoints and clears the loaded-account marker. */
 	@Subscribe
 	public void onGameStateChanged(GameStateChanged event)
 	{
@@ -353,6 +375,7 @@ public class OsrsTcgPlugin extends Plugin
 		cloudSessionCoordinator.onWorldChanged(event);
 	}
 
+	/** Reacts to plugin config changes: chat prefix color and compact-shop layout take effect live. */
 	@Subscribe
 	public void onConfigChanged(ConfigChanged event)
 	{
@@ -370,12 +393,14 @@ public class OsrsTcgPlugin extends Plugin
 		}
 	}
 
+	/** Handles an incoming party pull announcement from another party member. */
 	@Subscribe
 	public void onTcgPullPartyMessage(TcgPullPartyMessage message)
 	{
 		tcgPartyInboundHandler.onPull(message);
 	}
 
+	/** Handles an incoming party announcement that a member completed a collection set. */
 	@Subscribe
 	public void onTcgCollectionSetCompletePartyMessage(TcgCollectionSetCompletePartyMessage message)
 	{
@@ -388,24 +413,28 @@ public class OsrsTcgPlugin extends Plugin
 		cloudSessionCoordinator.connect();
 	}
 
+	/** Adds the TCG trade menu entry to eligible right-click menus. */
 	@Subscribe
 	public void onMenuEntryAdded(MenuEntryAdded event)
 	{
 		tcgTradeMenuHandler.onMenuEntryAdded(event);
 	}
 
+	/** Handles clicks on the TCG trade menu entry. */
 	@Subscribe
 	public void onMenuOptionClicked(MenuOptionClicked event)
 	{
 		tcgTradeMenuHandler.onMenuOptionClicked(event);
 	}
 
+	/** Resets the XP credit baseline and refreshes the sidebar after a profile's state finishes loading. */
 	private void applyLoadedProfileState(TcgStateLoadResult loadResult)
 	{
 		creditAwardService.resetExperienceCreditBaseline();
 		tcgPanel.refresh();
 	}
 
+	/** Loads saved state for the current account once per login, no-op if already loaded or logged out. */
 	private void loadStateIfLoggedIn()
 	{
 		long accountHash = client.getAccountHash();
@@ -434,6 +463,11 @@ public class OsrsTcgPlugin extends Plugin
 		creditsInfoboxMenuHandler.onOverlayMenuClicked(event);
 	}
 
+	/**
+	 * Handles the {@code !tcg} public/private chat command: serves a cached stats line if we have
+	 * one for the requesting player, otherwise fetches from the cloud API asynchronously and
+	 * patches the chat message in once the result arrives.
+	 */
 	private void lookupPublicStatsChatCommand(ChatMessage chatMessage, String message)
 	{
 		if (!message.trim().equalsIgnoreCase(TCG_PUBLIC_CHAT_COMMAND))
@@ -496,6 +530,7 @@ public class OsrsTcgPlugin extends Plugin
 		});
 	}
 
+	/** Refreshes the sidebar's credits display, but only if the caller reports credits were awarded. */
 	private void refreshCreditsIf(boolean awarded)
 	{
 		if (awarded)
@@ -504,16 +539,19 @@ public class OsrsTcgPlugin extends Plugin
 		}
 	}
 
+	/** Schedules a full sidebar refresh on the Swing EDT. */
 	private void refreshPanelOnEdt()
 	{
 		SwingUtilities.invokeLater(tcgPanel::refresh);
 	}
 
+	/** Loads the sidebar navigation button icon from plugin resources. */
 	private BufferedImage buildPanelIcon()
 	{
 		return ImageUtil.loadImageResource(OsrsTcgPlugin.class, "/com/osrstcg/images/sidebar.png");
 	}
 
+	/** Guice provider wiring the RuneLite-generated config proxy for {@link OsrsTcgConfig}. */
 	@Provides
 	OsrsTcgConfig provideConfig(ConfigManager configManager)
 	{

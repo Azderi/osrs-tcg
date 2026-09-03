@@ -10,10 +10,15 @@ import java.nio.file.StandardCopyOption;
 /** Temp-file write then atomic replace. */
 public final class AtomicFiles
 {
+	/** No instances. */
 	private AtomicFiles()
 	{
 	}
 
+	/**
+	 * Writes {@code bytes} to a sibling {@code .tmp} file, then atomically moves it onto {@code target}.
+	 * Cleans up the temp file on failure. Creates parent directories as needed.
+	 */
 	public static void writeBytes(Path target, byte[] bytes) throws IOException
 	{
 		Path dir = target.getParent();
@@ -42,11 +47,13 @@ public final class AtomicFiles
 		}
 	}
 
+	/** Encodes {@code content} with {@code charset} and writes it via {@link #writeBytes}. */
 	public static void writeString(Path target, String content, Charset charset) throws IOException
 	{
 		writeBytes(target, content.getBytes(charset));
 	}
 
+	/** Moves {@code source} onto {@code target}, replacing any existing file, falling back to a non-atomic move if the filesystem doesn't support atomic rename. */
 	public static void moveReplace(Path source, Path target) throws IOException
 	{
 		try

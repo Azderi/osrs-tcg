@@ -15,8 +15,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+/** Builds and sorts the filtered {@link Row} list shown by the Collection tab's card list, off the EDT. */
 public final class CollectionListModel
 {
+	/** Ordering applied to the collection row list; the trailing label is also the combo box display text. */
 	public enum SortMode
 	{
 		SCORE_DESC("Score (high → low)"),
@@ -28,11 +30,13 @@ public final class CollectionListModel
 
 		private final String label;
 
+		/** Stores the combo box display label. */
 		SortMode(String label)
 		{
 			this.label = label;
 		}
 
+		/** The combo box display label. */
 		public String getLabel()
 		{
 			return label;
@@ -45,6 +49,7 @@ public final class CollectionListModel
 		}
 	}
 
+	/** One owned card/foil entry ready for display: display fields plus the values sort modes compare on. */
 	public static final class Row
 	{
 		private final String name;
@@ -53,6 +58,7 @@ public final class CollectionListModel
 		private final long score;
 		private final long pulledAtEpochMs;
 
+		/** Normalizes nulls/negatives (blank name, {@link RarityMath.Tier#COMMON} default, clamped score/timestamp). */
 		public Row(String name, boolean foil, RarityMath.Tier tier, long score, long pulledAtEpochMs)
 		{
 			this.name = name == null ? "" : name;
@@ -82,6 +88,7 @@ public final class CollectionListModel
 			return score;
 		}
 
+		/** Most recent pull timestamp across owned copies of this name/foil combination; 0 if unknown. */
 		public long getPulledAtEpochMs()
 		{
 			return pulledAtEpochMs;
@@ -92,6 +99,10 @@ public final class CollectionListModel
 	{
 	}
 
+	/**
+	 * Aggregates the player's non-beta owned cards into one {@link Row} per name/foil combination, applies
+	 * the pack-eligibility, rarity, and name filters, then sorts by {@code sortMode}. Safe to call off the EDT.
+	 */
 	public static List<Row> buildRows(
 		CollectionState collection,
 		Map<String, CardDefinition> cardsByLowerName,
@@ -148,6 +159,7 @@ public final class CollectionListModel
 		return rows;
 	}
 
+	/** Whether the card's key name or catalog display name contains {@code queryLower} (already lowercased). */
 	private static boolean nameMatchesQuery(String cardName, CardDefinition def, String queryLower)
 	{
 		if (cardName != null && cardName.toLowerCase(Locale.ROOT).contains(queryLower))
@@ -162,6 +174,10 @@ public final class CollectionListModel
 		return false;
 	}
 
+	/**
+	 * Names eligible for a booster's set-completion tracking: cards matching its category filters, or the
+	 * whole roll pool when it has none.
+	 */
 	public static Set<String> eligibleNamesForPack(
 		BoosterPackDefinition booster,
 		List<CardDefinition> allCards,
@@ -192,6 +208,7 @@ public final class CollectionListModel
 		return eligible;
 	}
 
+	/** Indexes card definitions by trimmed, lowercased name for case-insensitive lookup; first match wins on duplicates. */
 	public static Map<String, CardDefinition> indexByLowerName(List<CardDefinition> cards)
 	{
 		Map<String, CardDefinition> map = new HashMap<>();
@@ -210,6 +227,7 @@ public final class CollectionListModel
 		return map;
 	}
 
+	/** Fills {@code maxPulledAtOut} with the latest pull timestamp per name/foil key, skipping beta copies. */
 	private static void aggregateOwnedExcludingBeta(
 		CollectionState collection,
 		Map<CardCollectionKey, Long> maxPulledAtOut)
@@ -229,6 +247,7 @@ public final class CollectionListModel
 		}
 	}
 
+	/** Row comparator for {@code mode}; every mode uses name and foil status as tiebreakers. */
 	private static Comparator<Row> comparatorFor(SortMode mode)
 	{
 		Comparator<Row> byName = Comparator.comparing(r -> r.getName().toLowerCase(Locale.ROOT));

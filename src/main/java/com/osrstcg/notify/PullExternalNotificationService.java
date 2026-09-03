@@ -27,6 +27,10 @@ import okhttp3.ResponseBody;
 import com.osrstcg.catalog.RarityMath;
 import com.osrstcg.notify.PullNotifySupport.PackSummaryContent;
 
+/**
+ * Notifications that leave the client: party broadcasts of pulls, and Discord-style webhook posts
+ * for individual pulls and end-of-pack summaries.
+ */
 @Slf4j
 @Singleton
 public class PullExternalNotificationService
@@ -40,6 +44,7 @@ public class PullExternalNotificationService
 	private final PullNotifySupport pullNotifySupport;
 	private final PartyService partyService;
 
+	/** Wires the HTTP client, JSON codec, game client, config, pull-content builder, and party service. */
 	@Inject
 	PullExternalNotificationService(
 		OkHttpClient okHttpClient,
@@ -57,6 +62,7 @@ public class PullExternalNotificationService
 		this.partyService = partyService;
 	}
 
+	/** Broadcasts a single pull to the current party. No-op if party-announce is disabled or not in a party. */
 	public void notifyParty(String card, boolean newForCollection, boolean foil)
 	{
 		if (!config.partyAnnouncePulls() || !partyService.isInParty())
@@ -77,6 +83,7 @@ public class PullExternalNotificationService
 		}
 	}
 
+	/** Posts a single-card pull as a Discord-style embed to every configured webhook URL. No-op if none configured. */
 	public void sendWebhook(
 		String card, boolean newForCollection, boolean foil, RarityMath.Tier tier, String instanceId)
 	{
@@ -99,6 +106,7 @@ public class PullExternalNotificationService
 		}
 	}
 
+	/** Posts an end-of-pack summary (new cards / duplicates) as a Discord-style embed to every configured webhook URL. */
 	public void sendPackSummary(PackSummaryContent content)
 	{
 		List<HttpUrl> webhookUrls = configuredWebhookUrls();
@@ -122,6 +130,7 @@ public class PullExternalNotificationService
 		}
 	}
 
+	/** Parses the configured webhook URL(s) from config; logs a warning and returns empty if none parse. */
 	private List<HttpUrl> configuredWebhookUrls()
 	{
 		String webhookUrl = config.pullWebhookUrl();
@@ -137,6 +146,7 @@ public class PullExternalNotificationService
 		return webhookUrls;
 	}
 
+	/** Fires the same payload at each webhook URL independently. */
 	private void dispatchWebhook(String card, List<HttpUrl> webhookUrls, String payload)
 	{
 		for (HttpUrl parsedUrl : webhookUrls)
@@ -145,6 +155,7 @@ public class PullExternalNotificationService
 		}
 	}
 
+	/** Sends one async POST to a webhook URL; logs the outcome (success, HTTP error, or transport failure). */
 	private void enqueueWebhook(String card, HttpUrl parsedUrl, String payload)
 	{
 		Request request = new Request.Builder()
@@ -153,12 +164,14 @@ public class PullExternalNotificationService
 			.build();
 		okHttpClient.newCall(request).enqueue(new Callback()
 		{
+			/** Logs a transport-level failure (connection/timeout, not an HTTP error status). */
 			@Override
 			public void onFailure(Call call, IOException e)
 			{
 				log.warn("Pull webhook request failed for '{}' ({}): {}", card, maskWebhookUrl(parsedUrl), e.toString());
 			}
 
+			/** Logs success at debug level, or the response body (truncated) at warn level on a non-2xx status. */
 			@Override
 			public void onResponse(Call call, Response response)
 			{
@@ -187,6 +200,7 @@ public class PullExternalNotificationService
 		});
 	}
 
+	/** Splits the (possibly multi-line) config value into valid {@link HttpUrl}s, skipping blank/unparseable lines. */
 	private static List<HttpUrl> parseWebhookUrls(String raw)
 	{
 		List<HttpUrl> urls = new ArrayList<>();
@@ -208,6 +222,7 @@ public class PullExternalNotificationService
 		return urls;
 	}
 
+	/** Reduces a webhook URL to scheme/host/path for logging, dropping the sensitive token/query portion. */
 	private static String maskWebhookUrl(Object url)
 	{
 		if (url == null)
@@ -228,6 +243,7 @@ public class PullExternalNotificationService
 		return parsed == null ? "<invalid>" : maskWebhookUrl(parsed);
 	}
 
+	/** Builds a single-embed Discord webhook payload from the description, footer, tier color, and links. */
 	private static Map<String, Object> buildPayload(
 		String description, String footerText, RarityMath.Tier tier, String imageUrl, String inspectUrl)
 	{
@@ -252,12 +268,14 @@ public class PullExternalNotificationService
 		return payload;
 	}
 
+	/** Converts a rarity tier's {@link Color} to a Discord embed color integer; white if the tier is unknown. */
 	private static int discordColor(RarityMath.Tier tier)
 	{
 		Color color = tier == null ? Color.WHITE : tier.getColor();
 		return (color.getRed() << 16) | (color.getGreen() << 8) | color.getBlue();
 	}
 
+	/** Sanitizes and returns the local player's name for webhook attribution, or a fallback label if unknown. */
 	private String resolvePlayerName()
 	{
 		if (client.getLocalPlayer() == null || client.getLocalPlayer().getName() == null)
@@ -267,6 +285,7 @@ public class PullExternalNotificationService
 		return PullNotificationMessages.playerLabel(Text.sanitize(client.getLocalPlayer().getName()));
 	}
 
+	/** Collapses newlines and caps a webhook response body at 300 chars for logging. */
 	private static String truncateForLog(String value)
 	{
 		if (value == null || value.isEmpty())

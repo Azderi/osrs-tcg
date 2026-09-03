@@ -36,11 +36,16 @@ public class WelcomeContent
 	{
 	}
 
+	/** @return the fixed list of welcome-tab paragraphs, in display order. */
 	public List<WelcomeParagraph> getParagraphs()
 	{
 		return PARAGRAPHS;
 	}
 
+	/**
+	 * Resolves a paragraph's color string: a handful of named colors, otherwise a hex string
+	 * (with or without a leading {@code #}), falling back to {@link #DEFAULT_COLOR} if blank or unparsable.
+	 */
 	public static Color resolveColor(String raw)
 	{
 		if (raw == null || raw.isBlank())
@@ -76,6 +81,7 @@ public class WelcomeContent
 		}
 	}
 
+	/** @return true only if {@code bold} is non-null and {@code true}. */
 	public static boolean isBold(Boolean bold)
 	{
 		return Boolean.TRUE.equals(bold);

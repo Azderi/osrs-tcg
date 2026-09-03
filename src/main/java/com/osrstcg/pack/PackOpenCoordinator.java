@@ -41,6 +41,7 @@ public class PackOpenCoordinator
 	private final ChatMessageManager chatMessageManager;
 	private final OsrsTcgConfig config;
 
+	/** Wires the collaborators used to buy packs, run the reveal state machine, and refresh the UI afterwards. */
 	@Inject
 	public PackOpenCoordinator(
 		PackRevealService packRevealService,
@@ -94,6 +95,11 @@ public class PackOpenCoordinator
 			invokeLater));
 	}
 
+	/**
+	 * Guards against concurrent opens, freezes the sidebar, snapshots pre-owned cards, begins the
+	 * pending reveal, then buys/opens the pack on {@link #scheduler} and resumes on {@code ui.invokeLater}.
+	 * Must be called on the client thread.
+	 */
 	private void open(BoosterPackDefinition booster, UiHooks ui)
 	{
 		if (booster == null)
@@ -145,6 +151,10 @@ public class PackOpenCoordinator
 		});
 	}
 
+	/**
+	 * Async continuation of {@link #open}, run on the UI thread after the buy/open call returns: unfreezes
+	 * the sidebar and reports failure, or hands successful pulls to the reveal service and announces credits.
+	 */
 	private void applyOpenResult(PackOpenResult result, HashSet<CardCollectionKey> preOwned, UiHooks ui)
 	{
 		if (!packRevealService.isActive() && !packRevealService.isAwaitingServerPulls())
@@ -186,6 +196,7 @@ public class PackOpenCoordinator
 		ui.refresh.run();
 	}
 
+	/** Caller-specific UI callbacks/flags that let {@link #open} and {@link #applyOpenResult} stay caller-agnostic. */
 	private static final class UiHooks
 	{
 		final boolean announceCreditsOnSuccess;
@@ -196,6 +207,7 @@ public class PackOpenCoordinator
 		final Runnable refresh;
 		final Consumer<Runnable> invokeLater;
 
+		/** Stores the caller-supplied flags and callbacks verbatim. */
 		UiHooks(boolean announceCreditsOnSuccess, boolean chatWhenBusy,
 			AtomicBoolean inFlight, Runnable beginFreeze, Runnable clearFreeze, Runnable refresh,
 			Consumer<Runnable> invokeLater)

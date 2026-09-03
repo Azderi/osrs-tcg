@@ -6,6 +6,11 @@ import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.audio.AudioPlayer;
 
+/**
+ * Plays the pack-reveal sound effects (mythic hum/reveal, card flip, card deal stagger, apex hover),
+ * gated by {@link OsrsTcgConfig#enableSounds()}. Not thread-confined to the client thread, but all
+ * public methods are {@code synchronized} against shared per-resource/per-reveal state.
+ */
 @Slf4j
 @Singleton
 public class PackRevealSoundService
@@ -33,6 +38,7 @@ public class PackRevealSoundService
 	/** Greatest card index whose deal-start sound has been played this deal phase ({@code -1} = none). */
 	private int dealMotionSoundUpToIndex = -1;
 
+	/** Wires the config (for the sound-enabled toggle) and the shared audio player. */
 	@Inject
 	public PackRevealSoundService(OsrsTcgConfig config, AudioPlayer audioPlayer)
 	{
@@ -40,6 +46,7 @@ public class PackRevealSoundService
 		this.audioPlayer = audioPlayer;
 	}
 
+	/** Plays the mythic hum once per reveal, when wanted and not previously failed/played. */
 	public synchronized void tryPlayMythicHum(boolean humWanted)
 	{
 		if (!config.enableSounds() || humOpenFailed || humPlayedThisReveal || !humWanted)
@@ -56,6 +63,7 @@ public class PackRevealSoundService
 		humPlayedThisReveal = true;
 	}
 
+	/** Plays the mythic/legendary-foil reveal sting. */
 	public synchronized void playMythicReveal()
 	{
 		if (!config.enableSounds() || revealOpenFailed)
@@ -68,6 +76,7 @@ public class PackRevealSoundService
 		}
 	}
 
+	/** Plays the card-flip sound. */
 	public synchronized void playCardFlip()
 	{
 		if (!config.enableSounds() || flipOpenFailed)
@@ -80,6 +89,7 @@ public class PackRevealSoundService
 		}
 	}
 
+	/** Plays the apex-pack hover sound once, at reduced gain; no-ops after it fails to open. */
 	public synchronized void playApexPackHoverOneShot()
 	{
 		if (!config.enableSounds() || apexHoverOpenFailed)
@@ -92,6 +102,11 @@ public class PackRevealSoundService
 		}
 	}
 
+	/**
+	 * Timer-driven: called every paint frame during the card-deal phase to play one deal-stagger sound
+	 * per card whose stagger offset ({@code index * staggerMs}) has elapsed since the phase began.
+	 * Resets the played-up-to index when the deal phase isn't active.
+	 */
 	public synchronized void tickDealMotionSounds(boolean dealPhaseActive, long elapsedMs, int cardCount, long staggerMs)
 	{
 		if (!dealPhaseActive || !config.enableSounds())
@@ -121,17 +136,23 @@ public class PackRevealSoundService
 		}
 	}
 
+	/** Resets the deal-stagger progress so the next batch's deal sounds play from the start. */
 	public synchronized void resetDealMotionSounds()
 	{
 		dealMotionSoundUpToIndex = -1;
 	}
 
+	/** Clears per-reveal sound state (mythic hum played flag, deal-stagger progress) when a reveal ends or aborts. */
 	public synchronized void hardStop()
 	{
 		humPlayedThisReveal = false;
 		dealMotionSoundUpToIndex = -1;
 	}
 
+	/**
+	 * Plays the given resource at {@code gainDb}, logging and returning {@code false} if the resource is
+	 * missing or playback throws.
+	 */
 	private boolean playResource(String resourcePath, String logName, float gainDb)
 	{
 		if (PackRevealSoundService.class.getResource(resourcePath) == null)
@@ -152,6 +173,7 @@ public class PackRevealSoundService
 		}
 	}
 
+	/** Converts a 0..1 linear gain to decibels, clamping input to {@code [0, 1]} and flooring silence at -80dB. */
 	private static float linearGainToDb(float linear01)
 	{
 		float v = Math.max(0f, Math.min(1f, linear01));

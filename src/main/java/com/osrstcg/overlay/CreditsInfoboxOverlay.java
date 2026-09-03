@@ -42,12 +42,18 @@ public class CreditsInfoboxOverlay extends OverlayPanel
 	private final CreditsRateTracker creditsRateTracker;
 	private final PackCatalogService packCatalogService;
 
+	/** Cache of the last painted credits value; render()-thread only, used to skip rebuilding components when unchanged. */
 	private long lastCredits = Long.MIN_VALUE;
+	/** Cache of the last painted credits/h value; render()-thread only. */
 	private Long lastCreditsPerHour;
+	/** Cache of the last "show rate" config flag; render()-thread only. */
 	private boolean lastShowRate;
+	/** Cache of the last "show infobox" config flag; render()-thread only. */
 	private boolean lastShowInfobox = true;
+	/** Hash of the menu-entry-relevant state as of the last {@link #refreshMenuEntries()} call; render()-thread only. */
 	private int lastMenuFingerprint = Integer.MIN_VALUE;
 
+	/** Wires the collaborators used to read credits/rate/catalog state and positions the overlay top-left. */
 	@Inject
 	CreditsInfoboxOverlay(
 		OsrsTcgConfig config,
@@ -63,6 +69,12 @@ public class CreditsInfoboxOverlay extends OverlayPanel
 		setClearChildren(false);
 	}
 
+	/**
+	 * Paints the credits/credits-per-hour panel, rebuilding the child components only when the
+	 * displayed values changed, and refreshing the right-click menu only when its contents changed.
+	 * Called on the client's rendering thread. Returns null (and clears state) while the infobox is
+	 * disabled in config.
+	 */
 	@Override
 	public Dimension render(Graphics2D graphics)
 	{
@@ -118,6 +130,7 @@ public class CreditsInfoboxOverlay extends OverlayPanel
 		return super.render(graphics);
 	}
 
+	/** Combines credits, the rate-display flag, and each affordable visible booster into a change-detection hash. */
 	private int menuFingerprint(long credits, boolean showRate)
 	{
 		int hash = showRate ? 1 : 0;
@@ -153,6 +166,7 @@ public class CreditsInfoboxOverlay extends OverlayPanel
 		return "Pack";
 	}
 
+	/** Rebuilds the overlay's right-click menu: a Reset entry when the rate is shown, and an Open entry per affordable visible booster. */
 	private void refreshMenuEntries()
 	{
 		getMenuEntries().clear();

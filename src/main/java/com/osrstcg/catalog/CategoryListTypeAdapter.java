@@ -14,6 +14,7 @@ import java.util.List;
  */
 public final class CategoryListTypeAdapter extends TypeAdapter<List<String>>
 {
+	/** Writes {@code value} as a JSON array of strings, or {@code null} if the list is null. */
 	@Override
 	public void write(JsonWriter out, List<String> value) throws IOException
 	{
@@ -30,6 +31,7 @@ public final class CategoryListTypeAdapter extends TypeAdapter<List<String>>
 		out.endArray();
 	}
 
+	/** Reads a JSON null as an empty list, a single string as a one-element list, or an array as its string elements (non-strings skipped). Any other token is skipped and returns an empty list. */
 	@Override
 	public List<String> read(JsonReader in) throws IOException
 	{

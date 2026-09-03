@@ -27,6 +27,11 @@ import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.util.LinkBrowser;
 
+/**
+ * Drives the sidebar "create profile" flow: shows a cloud-consent dialog, submits profile creation
+ * to the cloud service on a background thread, and updates the create-profile button/prompt UI.
+ * UI-touching methods must run on, and callback to, the Swing EDT.
+ */
 @Slf4j
 public final class CreateProfileController
 {
@@ -55,6 +60,13 @@ public final class CreateProfileController
 	private final Runnable afterUi;
 	private final AtomicBoolean inFlight = new AtomicBoolean(false);
 
+	/**
+	 * @param dialogParent parent component for the consent dialog
+	 * @param refreshUi rerun after profile creation finishes, regardless of outcome
+	 * @param onSuccessSelectOverview run (before {@code afterUi}) if creation succeeded
+	 * @param onSuccessOpenAlbum optional, run after {@code refreshUi} if creation succeeded
+	 * @param afterUi run once the create-profile flow has been dispatched or completed, to update UI state
+	 */
 	public CreateProfileController(
 		CloudSessionService cloudSessionService,
 		ScheduledExecutorService scheduler,
@@ -75,6 +87,11 @@ public final class CreateProfileController
 		this.afterUi = afterUi;
 	}
 
+	/**
+	 * Entry point for the "create profile" button. Skips straight to {@code afterUi} if consent
+	 * isn't needed (restricted world or already consented); otherwise shows the consent dialog and,
+	 * on acceptance, starts profile creation.
+	 */
 	public void createProfile()
 	{
 		if (cloudSessionService.isRestrictedWorld() || !cloudSessionService.needsCloudConsent())
@@ -89,6 +106,10 @@ public final class CreateProfileController
 		beginCreate();
 	}
 
+	/**
+	 * Submits {@link CloudSessionService#createProfile()} on {@link #scheduler}, guarded against
+	 * concurrent invocations, then marshals the success/failure callbacks back onto the EDT.
+	 */
 	private void beginCreate()
 	{
 		if (!inFlight.compareAndSet(false, true))
@@ -139,6 +160,7 @@ public final class CreateProfileController
 		});
 	}
 
+	/** Shows the cloud data-consent dialog and returns whether the user accepted. */
 	private boolean confirmConsent()
 	{
 		JPanel sections = new JPanel();
@@ -165,6 +187,7 @@ public final class CreateProfileController
 		return choice == JOptionPane.YES_OPTION;
 	}
 
+	/** Builds one titled, word-wrapped section of the consent dialog, optionally with a privacy-policy link. */
 	private JPanel buildConsentSection(String title, String body, boolean includePrivacyLink)
 	{
 		JLabel header = new JLabel(title);
@@ -198,6 +221,7 @@ public final class CreateProfileController
 		return section;
 	}
 
+	/** Fixes a consent-dialog text area's size to its wrapped-text preferred height at the given width. */
 	private static void sizeConsentText(JTextArea text, int width)
 	{
 		text.setBorder(null);
@@ -212,6 +236,7 @@ public final class CreateProfileController
 		text.setMaximumSize(new Dimension(Integer.MAX_VALUE, height));
 	}
 
+	/** Builds an underlined, clickable "Privacy policy" label that opens {@link #PRIVACY_URL} in the browser. */
 	private JLabel buildPrivacyLink()
 	{
 		Cursor hand = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR);
@@ -241,6 +266,7 @@ public final class CreateProfileController
 		return link;
 	}
 
+	/** Creates an empty, non-editable text pane styled for the "create profile" sidebar prompt. */
 	public static JTextPane createPromptPane()
 	{
 		JTextPane tp = new JTextPane();
@@ -254,6 +280,7 @@ public final class CreateProfileController
 		return tp;
 	}
 
+	/** Sets the prompt text and center-aligned yellow styling, then resizes the pane and its footer wrapper to fit at the given width. */
 	public void updatePromptLayout(JTextPane promptPane, JPanel footerWrap, int width)
 	{
 		if (promptPane == null)
@@ -287,6 +314,7 @@ public final class CreateProfileController
 		footerWrap.setMaximumSize(new Dimension(width, wrapH));
 	}
 
+	/** Enables the create-profile button only while consent is still pending and no request is in flight. */
 	public void updateButtonState(JButton createProfileButton)
 	{
 		if (createProfileButton == null)

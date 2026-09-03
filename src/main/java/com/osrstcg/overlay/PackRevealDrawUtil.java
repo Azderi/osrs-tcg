@@ -17,6 +17,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import net.runelite.client.ui.FontManager;
 
+/**
+ * Stateless drawing helpers for the pack reveal overlay: the close button, glow effects, badges/labels,
+ * and image/rect fitting math. Called from overlay rendering ({@code Graphics2D}) on RuneLite's overlay
+ * render thread; the glow bake cache is synchronized since it may be read/written across renders.
+ */
 final class PackRevealDrawUtil
 {
 	static final int CLOSE_BUTTON_SIZE = 26;
@@ -45,10 +50,12 @@ final class PackRevealDrawUtil
 			}
 		});
 
+	/** No instances; all members are static. */
 	private PackRevealDrawUtil()
 	{
 	}
 
+	/** Fills {@code canvas} with a semi-transparent black wash to dim the game view behind the overlay. */
 	static void drawDim(Graphics2D g, Rectangle canvas)
 	{
 		g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.55f));
@@ -57,6 +64,7 @@ final class PackRevealDrawUtil
 		g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
 	}
 
+	/** Writes the close button's bounds (top-right corner of {@code canvas}, edge-padded) into {@code outBounds}. */
 	static void layoutCloseButton(Rectangle canvas, Rectangle outBounds)
 	{
 		int pad = PackRevealLayout.VIEWPORT_EDGE_PAD;
@@ -68,6 +76,7 @@ final class PackRevealDrawUtil
 			size);
 	}
 
+	/** Draws the rounded close button (shadow, gradient panel, inset highlight, border, X icon) with hover styling. */
 	static void drawCloseButton(Graphics2D g, Rectangle bounds, boolean hover)
 	{
 		if (g == null || bounds == null || bounds.width <= 0 || bounds.height <= 0)
@@ -143,6 +152,7 @@ final class PackRevealDrawUtil
 		}
 	}
 
+	/** Scales {@code r} uniformly by {@code scale} about its center, clamping each dimension to at least 1px. */
 	static Rectangle scaleRectCentered(Rectangle r, double scale)
 	{
 		int nw = Math.max(1, (int) Math.round(r.width * scale));
@@ -152,6 +162,7 @@ final class PackRevealDrawUtil
 		return new Rectangle(nx, ny, nw, nh);
 	}
 
+	/** Scales {@code r}'s width by {@code scaleX} about its horizontal center; height is unchanged. */
 	static Rectangle scaleRectHorizontally(Rectangle r, double scaleX)
 	{
 		int nw = Math.max(1, (int) Math.round(r.width * scaleX));
@@ -159,6 +170,7 @@ final class PackRevealDrawUtil
 		return new Rectangle(nx, r.y, nw, r.height);
 	}
 
+	/** Shrinks {@code r} by {@code inset} on all four sides, clamping each dimension to at least 1px. */
 	static Rectangle uniformInset(Rectangle r, int inset)
 	{
 		if (inset <= 0)
@@ -170,12 +182,17 @@ final class PackRevealDrawUtil
 		return new Rectangle(r.x + inset, r.y + inset, nw, nh);
 	}
 
+	/** Draws a soft glow around {@code r} using the default expand/layer settings and the card's outer arc. */
 	static void drawGlow(Graphics2D g, Rectangle r, Color color, float alpha)
 	{
 		int baseArc = SharedCardRenderer.outerArcDiameter(r.width);
 		drawGlow(g, r, color, alpha, GLOW_MAX_EXPAND, GLOW_LAYERS, baseArc);
 	}
 
+	/**
+	 * Draws a soft glow around {@code r} by blitting a cached, pre-baked layered-rounded-rect image scaled
+	 * to {@code alpha}. No-ops for a null/degenerate rect or near-zero alpha.
+	 */
 	static void drawGlow(Graphics2D g, Rectangle r, Color color, float alpha, float maxExpand, int layers, int baseArc)
 	{
 		Color glow = color == null ? Color.WHITE : color;
@@ -199,6 +216,10 @@ final class PackRevealDrawUtil
 		}
 	}
 
+	/**
+	 * Returns the baked glow image for this size/color/expand/layer combination, building and caching it
+	 * (LRU, capped at {@link #GLOW_CACHE_MAX}) on first use.
+	 */
 	private static BufferedImage cachedGlow(int width, int height, int rgb, int expand, int layers, int baseArc)
 	{
 		String key = width + "x" + height + '|' + rgb + '|' + expand + '|' + layers + '|' + baseArc + '|' + GLOW_LAYER_ALPHA;
@@ -241,11 +262,13 @@ final class PackRevealDrawUtil
 		return img;
 	}
 
+	/** Returns {@code color} (or white if null) with its alpha replaced by {@code alpha}. */
 	static Color withAlpha(Color color, float alpha)
 	{
 		return CardColorMath.withAlpha(color == null ? Color.WHITE : color, alpha);
 	}
 
+	/** Returns the largest rect that fits {@code image} inside {@code bounds} preserving aspect ratio, centered. */
 	static Rectangle fittedImageRect(Rectangle bounds, BufferedImage image)
 	{
 		if (image == null)
@@ -266,12 +289,14 @@ final class PackRevealDrawUtil
 		return new Rectangle(x, y, w, h);
 	}
 
+	/** Draws {@code image} scaled to fit within {@code bounds} preserving aspect ratio, centered. */
 	static void drawImageFit(Graphics2D g, BufferedImage image, Rectangle bounds)
 	{
 		Rectangle r = fittedImageRect(bounds, image);
 		g.drawImage(image, r.x, r.y, r.width, r.height, null);
 	}
 
+	/** Draws a centered "NEW!" badge with a drop shadow above {@code cardBounds}. */
 	static void drawNewBadge(Graphics2D g, Rectangle cardBounds)
 	{
 		Graphics2D g2 = (Graphics2D) g.create();
@@ -293,6 +318,7 @@ final class PackRevealDrawUtil
 		}
 	}
 
+	/** Draws {@code text} centered near the top of {@code cardBounds} with a drop shadow, faded by {@code alpha}. No-op if {@code text} is null or alpha is near zero. */
 	static void drawRarityLabel(Graphics2D g, Rectangle cardBounds, String text, Color color, float alpha)
 	{
 		float clampedAlpha = Math.max(0f, Math.min(1f, alpha));

@@ -14,6 +14,10 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.config.ConfigManager;
 
+/**
+ * Implements the {@code ::tcg-reset} chat command: clears all plugin config keys, restores defaults,
+ * and reconnects the cloud session.
+ */
 @Singleton
 public class TcgResetCommand
 {
@@ -25,6 +29,7 @@ public class TcgResetCommand
 	private final SidebarRefresh sidebarRefresh;
 	private final ConfigManager configManager;
 
+	/** Stores the collaborators used to clear config, reconnect the cloud session, and refresh the UI. */
 	@Inject
 	public TcgResetCommand(
 		Client client,
@@ -44,6 +49,7 @@ public class TcgResetCommand
 		this.configManager = configManager;
 	}
 
+	/** Dispatches {@code ::tcg-reset} to {@link #handleResetConfigCommand()}; ignores every other command. */
 	public void onCommandExecuted(CommandExecuted event)
 	{
 		if (event == null || event.getCommand() == null)
@@ -57,6 +63,10 @@ public class TcgResetCommand
 		handleResetConfigCommand();
 	}
 
+	/**
+	 * Unsets every {@code osrstcg.*} config key (global and RS-profile-scoped), restores config defaults,
+	 * reconnects the cloud session if logged in, refreshes the sidebar on the EDT, and chats a summary.
+	 */
 	private void handleResetConfigCommand()
 	{
 		final String group = "osrstcg";

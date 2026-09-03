@@ -13,6 +13,12 @@ import com.osrstcg.cloud.catalog.CardCatalogService;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.state.TcgStateService;
 
+/**
+ * Handles the one-time cloud profile creation/consent flow: pairing or refreshing a session,
+ * marking the profile migrated, and adopting an already-migrated server collection when local
+ * progress exists but this profile hasn't consented yet. Blocking: methods issue synchronous HTTP
+ * calls and must not run on the client/EDT thread.
+ */
 @Slf4j
 final class CloudProfileConsentService
 {
@@ -29,6 +35,7 @@ final class CloudProfileConsentService
 	private final CardCatalogService cardCatalogService;
 	private final ActivityConfigService activityConfigService;
 
+	/** Wires collaborators; no side effects. */
 	CloudProfileConsentService(
 		CloudSessionService session,
 		CloudCollectionSyncService collectionSync,
@@ -57,6 +64,12 @@ final class CloudProfileConsentService
 		this.activityConfigService = activityConfigService;
 	}
 
+	/**
+	 * Creates (or completes consent for) the cloud profile for the current RuneScape account: requires
+	 * being logged in with a known account hash, display name, and RuneLite profile key. Runs the
+	 * pairing/migration flow inside {@link CloudApiClient#openConsentTraffic()} so consent-gated
+	 * traffic is permitted for its duration.
+	 */
 	void createProfile() throws Exception
 	{
 		if (client.getGameState() != GameState.LOGGED_IN)
@@ -85,6 +98,11 @@ final class CloudProfileConsentService
 		}
 	}
 
+	/**
+	 * Ensures a session is active (refreshing or pairing as needed), adopts an already-migrated
+	 * server collection if applicable, then marks the profile migrated and finishes consent if it
+	 * wasn't already.
+	 */
 	private void createProfileAllowed(
 		long accountHash,
 		String displayName,
@@ -119,6 +137,11 @@ final class CloudProfileConsentService
 		finishConsentSuccess();
 	}
 
+	/**
+	 * Post-consent bring-up: refreshes local cache from cloud, settles offline hiscores, marks the
+	 * session connected, clears obsolete local caches, and refreshes pack/card catalogs and activity
+	 * config. Bails out early if the account becomes locked (banned/quarantined) partway through.
+	 */
 	void finishConsentSuccess() throws Exception
 	{
 		collectionSync.refreshLocalCacheFromCloud();
@@ -139,6 +162,12 @@ final class CloudProfileConsentService
 		activityConfigService.refreshOnLogin();
 	}
 
+	/**
+	 * If this profile hasn't recorded migration locally but has local progress (credits/packs/cards)
+	 * and has an access token, checks the server state: if the server shows the account already
+	 * migrated (has a migration timestamp or cards), adopts that server collection/economy locally
+	 * and marks migrated, skipping the consent prompt. No-op otherwise.
+	 */
 	void adoptServerMigrationIfNeeded() throws Exception
 	{
 		if (tokens.isMigrated() || tokens.getAccessToken() == null)

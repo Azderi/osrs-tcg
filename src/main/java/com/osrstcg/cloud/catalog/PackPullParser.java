@@ -12,6 +12,11 @@ public final class PackPullParser
 	{
 	}
 
+	/**
+	 * Parses one {@code cards[]} element into a {@link PackCardResult}. Returns null when the
+	 * element is null or missing {@code cardName}. Generates a random {@code instanceId} when
+	 * the server didn't supply one.
+	 */
 	public static PackCardResult parseCard(JsonObject c)
 	{
 		if (c == null)
