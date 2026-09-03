@@ -222,7 +222,7 @@ public class PullExternalNotificationService
 		return urls;
 	}
 
-	/** Reduces a webhook URL to scheme/host/path for logging, dropping the sensitive token/query portion. */
+	/** Reduces a webhook URL to scheme/host/path for logging, redacting the last path segment (token) and query. */
 	private static String maskWebhookUrl(Object url)
 	{
 		if (url == null)
@@ -232,7 +232,14 @@ public class PullExternalNotificationService
 		if (url instanceof HttpUrl)
 		{
 			HttpUrl parsed = (HttpUrl) url;
-			return parsed.scheme() + "://" + parsed.host() + parsed.encodedPath();
+			StringBuilder path = new StringBuilder();
+			int segments = parsed.pathSize();
+			for (int i = 0; i < segments; i++)
+			{
+				path.append('/');
+				path.append(i == segments - 1 ? "***" : parsed.encodedPathSegments().get(i));
+			}
+			return parsed.scheme() + "://" + parsed.host() + path;
 		}
 		String raw = url.toString().trim();
 		if (raw.isEmpty())

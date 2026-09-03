@@ -317,7 +317,7 @@ public final class CreditAttestQueue
 				{
 					optimisticTotal += CreditAttestCoalescer.optimisticOf(event);
 				}
-				log.debug("Loaded {} credit attest spill event(s) for accountHash={}", loaded.size(), hash);
+				log.debug("Loaded {} credit attest spill event(s) for accountHash={}", loaded.size(), "<redacted>");
 			}
 		}
 		if (optimisticTotal > 0L)

@@ -126,7 +126,7 @@ public final class CreditAttestSpillStore
 		}
 		catch (Exception ex)
 		{
-			log.debug("Credit attest spill write failed for accountHash={}", accountHash, ex);
+			log.debug("Credit attest spill write failed for accountHash={}", "<redacted>", ex);
 		}
 	}
 
@@ -147,7 +147,7 @@ public final class CreditAttestSpillStore
 		}
 		catch (Exception ex)
 		{
-			log.debug("Credit attest spill delete failed for accountHash={}", accountHash, ex);
+			log.debug("Credit attest spill delete failed for accountHash={}", "<redacted>", ex);
 		}
 	}
 

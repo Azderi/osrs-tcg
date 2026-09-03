@@ -8,6 +8,7 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -51,6 +52,7 @@ public class CardImageCacheService
 	private static final String USER_AGENT =
 		"osrs-tcg (https://github.com/Azderi/osrs-tcg)";
 	private static final int MEMORY_CACHE_MAX_ENTRIES = 256;
+	private static final int MAX_DOWNLOAD_BYTES = 16 * 1024 * 1024;
 	private static final int MAX_IN_FLIGHT_LOADS = 4;
 	private static final AtomicInteger IMAGE_LOADER_SEQ = new AtomicInteger();
 	private static final ThreadFactory IMAGE_LOADER_THREAD_FACTORY = r ->
@@ -256,7 +258,18 @@ public class CardImageCacheService
 					}
 					return null;
 				}
-				byte[] bytes = response.body().bytes();
+				long contentLength = response.body().contentLength();
+				if (contentLength > MAX_DOWNLOAD_BYTES)
+				{
+					log.debug("Card image too large ({} bytes) for {}", contentLength, fetchUrl);
+					return null;
+				}
+				byte[] bytes = readBodyCapped(response.body().byteStream(), MAX_DOWNLOAD_BYTES);
+				if (bytes == null)
+				{
+					log.debug("Card image exceeded {} byte cap for {}", MAX_DOWNLOAD_BYTES, fetchUrl);
+					return null;
+				}
 				if (bytes.length == 0)
 				{
 					return null;
@@ -280,6 +293,28 @@ public class CardImageCacheService
 			log.debug("Failed to cache card image {}", fetchUrl, ex);
 		}
 		return null;
+	}
+
+	/**
+	 * Reads at most {@code maxBytes} from {@code in}. Returns {@code null} if the stream exceeds the cap;
+	 * otherwise the full contents (possibly empty).
+	 */
+	private static byte[] readBodyCapped(InputStream in, int maxBytes) throws Exception
+	{
+		ByteArrayOutputStream out = new ByteArrayOutputStream(Math.min(maxBytes, 64 * 1024));
+		byte[] buf = new byte[8192];
+		int total = 0;
+		int n;
+		while ((n = in.read(buf)) != -1)
+		{
+			total += n;
+			if (total > maxBytes)
+			{
+				return null;
+			}
+			out.write(buf, 0, n);
+		}
+		return out.toByteArray();
 	}
 
 	/** Bilinearly downscales {@code source} so its longer edge is at most {@code maxEdgePx}; returns it unchanged if already within the cap. */
