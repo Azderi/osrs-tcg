@@ -57,6 +57,8 @@ public final class CloudApiClient
 	private volatile Consumer<String> activitiesVersionCb;
 	/** Nesting depth for {@link #openConsentTraffic()} (create-profile after Yes). */
 	private final ThreadLocal<Integer> consentTrafficDepth = ThreadLocal.withInitial(() -> 0);
+	/** When true, API calls use {@link CloudEndpoints#WEB_BASE_URL} instead of the api subdomain. */
+	private volatile boolean useWebApi;
 
 	/** Builds a dedicated {@link OkHttpClient} from the injected one with fixed connect/read/write timeouts. */
 	@Inject
@@ -567,7 +569,7 @@ public final class CloudApiClient
 			b.method(method, RequestBody.create(JSON, payload));
 		}
 
-		try (Response response = http.newCall(b.build()).execute())
+		try (Response response = executeWithFailover(b.build()))
 		{
 			notifyActivitiesVersion(response.header("X-Activities-Version"));
 			String text = readBody(response);
@@ -664,6 +666,31 @@ public final class CloudApiClient
 		return t;
 	}
 
+	/**
+	 * Executes {@code request}; on transport failure while still on the primary API host, sticks to
+	 * the web host and retries once (same path under {@code /api/v1}).
+	 */
+	private Response executeWithFailover(Request request) throws IOException
+	{
+		try
+		{
+			return http.newCall(request).execute();
+		}
+		catch (IOException first)
+		{
+			if (useWebApi)
+			{
+				throw first;
+			}
+			useWebApi = true;
+			HttpUrl web = HttpUrl.parse(CloudEndpoints.WEB_BASE_URL);
+			log.info("API host unreachable; falling back to {}", CloudEndpoints.WEB_BASE_URL);
+			return http.newCall(request.newBuilder()
+				.url(request.url().newBuilder().host(web.host()).build())
+				.build()).execute();
+		}
+	}
+
 	/** Resolves and parses the API URL for {@code pathAndQuery}, throwing if the configured base URL is invalid. */
 	private HttpUrl requireApiUrl(String pathAndQuery) throws CloudApiException
 	{
@@ -671,6 +698,11 @@ public final class CloudApiClient
 		if (url == null)
 		{
 			throw new CloudApiException(0, "invalid_base_url", "Invalid API base URL: " + CloudEndpoints.API_BASE_URL);
+		}
+		if (useWebApi)
+		{
+			HttpUrl web = HttpUrl.parse(CloudEndpoints.WEB_BASE_URL);
+			url = url.newBuilder().host(web.host()).build();
 		}
 		return url;
 	}
@@ -689,7 +721,7 @@ public final class CloudApiClient
 			}
 			b.header("If-None-Match", etag);
 		}
-		return http.newCall(b.build()).execute();
+		return executeWithFailover(b.build());
 	}
 
 	/** Reads the response body, throwing {@link CloudApiException} if the response was not successful. */
