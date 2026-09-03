@@ -8,7 +8,6 @@ import com.google.gson.JsonObject;
 import com.osrstcg.cloud.session.ProfileKeyHasher;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import org.junit.Rule;
 import org.junit.Test;
@@ -20,38 +19,13 @@ public class CreditAttestQueueAccountIsolationTest
 	public TemporaryFolder tmp = new TemporaryFolder();
 
 	@Test
-	public void eventAccountHashReadsStamp()
-	{
-		JsonObject stamped = new JsonObject();
-		stamped.addProperty("accountHash", "99");
-		assertEquals(99L, CreditAttestQueue.eventAccountHash(stamped));
-
-		assertEquals(-1L, CreditAttestQueue.eventAccountHash(new JsonObject()));
-		assertEquals(-1L, CreditAttestQueue.eventAccountHash(null));
-	}
-
-	@Test
-	public void unstampedLegacyEventsBelongToLoadAccount()
-	{
-		JsonObject legacy = new JsonObject();
-		legacy.addProperty("type", "xp_chunk");
-		assertTrue(CreditAttestQueue.eventBelongsToAccount(legacy, 10L));
-		assertFalse(CreditAttestQueue.eventBelongsToAccount(legacy, -1L));
-
-		JsonObject foreign = new JsonObject();
-		foreign.addProperty("accountHash", "11");
-		assertFalse(CreditAttestQueue.eventBelongsToAccount(foreign, 10L));
-		assertTrue(CreditAttestQueue.eventBelongsToAccount(foreign, 11L));
-	}
-
-	@Test
 	public void spillFilesStayUnderPerAccountDirs() throws Exception
 	{
 		Path profilesRoot = tmp.newFolder("profiles").toPath();
 		CreditAttestSpillStore store = new CreditAttestSpillStore(profilesRoot);
 
-		JsonObject forA = eventFor(1L, "xp_chunk");
-		JsonObject forB = eventFor(2L, "activity");
+		JsonObject forA = event("xp_chunk");
+		JsonObject forB = event("activity");
 		store.save(1L, List.of(forA));
 		store.save(2L, List.of(forB));
 
@@ -72,38 +46,24 @@ public class CreditAttestQueueAccountIsolationTest
 	}
 
 	@Test
-	public void filteringPendingKeepsOnlyCurrentAccountEvents()
+	public void savingOneAccountDoesNotOverwriteAnother() throws Exception
 	{
-		List<JsonObject> pending = new ArrayList<>();
-		pending.add(eventFor(1L, "a"));
-		pending.add(eventFor(2L, "b"));
-		pending.add(eventFor(1L, "c"));
+		Path profilesRoot = tmp.newFolder("profiles").toPath();
+		CreditAttestSpillStore store = new CreditAttestSpillStore(profilesRoot);
 
-		long current = 1L;
-		List<JsonObject> forCurrent = new ArrayList<>();
-		List<JsonObject> foreign = new ArrayList<>();
-		for (JsonObject event : pending)
-		{
-			if (CreditAttestQueue.eventBelongsToAccount(event, current))
-			{
-				forCurrent.add(event);
-			}
-			else
-			{
-				foreign.add(event);
-			}
-		}
+		store.save(10L, List.of(event("a")));
+		store.save(20L, List.of(event("b")));
+		store.save(10L, List.of(event("a2"), event("a3")));
 
-		assertEquals(2, forCurrent.size());
-		assertEquals(1, foreign.size());
-		assertEquals("b", foreign.get(0).get("type").getAsString());
+		assertEquals(2, store.load(10L).size());
+		assertEquals(1, store.load(20L).size());
+		assertEquals("b", store.load(20L).get(0).get("type").getAsString());
 	}
 
-	private static JsonObject eventFor(long accountHash, String type)
+	private static JsonObject event(String type)
 	{
 		JsonObject event = new JsonObject();
 		event.addProperty("type", type);
-		event.addProperty("accountHash", Long.toString(accountHash));
 		event.addProperty("at", 1L);
 		event.add("evidence", new JsonObject());
 		return event;
