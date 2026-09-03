@@ -410,6 +410,8 @@ public class OsrsTcgPlugin extends Plugin
 	@Subscribe
 	public void onRuneScapeProfileChanged(RuneScapeProfileChanged event)
 	{
+		loadedAccountHash = -1L;
+		loadStateIfLoggedIn();
 		cloudSessionCoordinator.connect();
 	}
 

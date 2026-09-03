@@ -112,9 +112,13 @@ final class CloudProfileConsentService
 		{
 			session.setState(CloudConnectionState.CONNECTING, "Connecting…");
 			api.getHealth();
+			if (CloudTokenStore.shouldClearForAccount(tokens.getBoundAccountHash(), tokens.hasRefreshToken(), accountHash))
+			{
+				tokens.clear();
+			}
 			if (tokens.hasRefreshToken())
 			{
-				api.applyTokenResponse(api.refresh(tokens.getRefreshToken(), profileHash));
+				api.applyTokenResponse(api.refresh(tokens.getRefreshToken(), profileHash), accountHash);
 			}
 			else
 			{

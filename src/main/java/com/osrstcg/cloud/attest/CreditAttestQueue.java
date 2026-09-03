@@ -210,7 +210,12 @@ public final class CreditAttestQueue
 		boolean spikeFlush = false;
 		synchronized (lock)
 		{
-			resolveAccountHash();
+			long hash = resolveAccountHashLocked();
+			if (hash == -1L)
+			{
+				return;
+			}
+			event.addProperty("accountHash", Long.toString(hash));
 			pendingRaw.add(event);
 			int coalescedEstimate = CreditAttestCoalescer.estimateCoalescedCount(pendingRaw);
 			if (coalescedEstimate >= CreditAttestCoalescer.EARLY_FLUSH_COALESCED)
@@ -224,6 +229,8 @@ public final class CreditAttestQueue
 				spikeFlush = true;
 			}
 		}
+		// Reload if resolveAccountHashLocked switched accounts after the first ensureSpillLoaded.
+		ensureSpillLoaded();
 		persistSpillFromPending();
 		applyOptimistic(optimisticCredits);
 		if (spikeFlush)
@@ -249,20 +256,61 @@ public final class CreditAttestQueue
 		return flushSafe(true);
 	}
 
-	/** Reads the current account hash from the client, caching it and invalidating spill-loaded state on account change. */
+	/**
+	 * Reads the current account hash from the client, caching it. On account change, clears in-memory
+	 * pending events for the previous account (old spill file is left on disk for that account's next login).
+	 */
 	long resolveAccountHash()
+	{
+		synchronized (lock)
+		{
+			return resolveAccountHashLocked();
+		}
+	}
+
+	/** Same as {@link #resolveAccountHash()} but caller already holds {@link #lock}. */
+	private long resolveAccountHashLocked()
 	{
 		long hash = client.getAccountHash();
 		if (hash != -1L)
 		{
 			if (lastAccountHash != -1L && lastAccountHash != hash)
 			{
+				pendingRaw.clear();
 				spillLoadedAccountHash = -1L;
 			}
 			lastAccountHash = hash;
 			return hash;
 		}
 		return lastAccountHash;
+	}
+
+	/** Account hash stamped on an event, or {@code -1} if missing/unparseable. */
+	static long eventAccountHash(JsonObject event)
+	{
+		if (event == null || !event.has("accountHash") || event.get("accountHash").isJsonNull())
+		{
+			return -1L;
+		}
+		try
+		{
+			return Long.parseLong(event.get("accountHash").getAsString());
+		}
+		catch (RuntimeException ex)
+		{
+			return -1L;
+		}
+	}
+
+	/** Whether {@code event} belongs to {@code accountHash} (unstamped legacy events match the dir they were loaded from). */
+	static boolean eventBelongsToAccount(JsonObject event, long accountHash)
+	{
+		if (accountHash == -1L)
+		{
+			return false;
+		}
+		long stamped = eventAccountHash(event);
+		return stamped == -1L || stamped == accountHash;
 	}
 
 	/** Reads and sanitizes the local player's RSN, caching the last known value for use when unavailable. */
@@ -303,7 +351,7 @@ public final class CreditAttestQueue
 			{
 				return;
 			}
-			resolveAccountHash();
+			resolveAccountHashLocked();
 			if (lastAccountHash != hash)
 			{
 				return;
@@ -311,12 +359,25 @@ public final class CreditAttestQueue
 			spillLoadedAccountHash = hash;
 			if (!loaded.isEmpty())
 			{
-				pendingRaw.addAll(0, loaded);
+				List<JsonObject> accepted = new ArrayList<>();
 				for (JsonObject event : loaded)
 				{
+					if (!eventBelongsToAccount(event, hash))
+					{
+						continue;
+					}
+					if (eventAccountHash(event) == -1L)
+					{
+						event.addProperty("accountHash", Long.toString(hash));
+					}
+					accepted.add(event);
 					optimisticTotal += CreditAttestCoalescer.optimisticOf(event);
 				}
-				log.debug("Loaded {} credit attest spill event(s) for accountHash={}", loaded.size(), "<redacted>");
+				if (!accepted.isEmpty())
+				{
+					pendingRaw.addAll(0, accepted);
+				}
+				log.debug("Loaded {} credit attest spill event(s) for accountHash={}", accepted.size(), "<redacted>");
 			}
 		}
 		if (optimisticTotal > 0L)
@@ -325,11 +386,12 @@ public final class CreditAttestQueue
 		}
 	}
 
-	/** Writes a snapshot of the current pending list to disk for the current account. */
+	/** Writes a snapshot of pending events for the current account to that account's spill file. */
 	private void persistSpillFromPending()
 	{
 		long hash;
 		List<JsonObject> snapshot;
+		Map<Long, List<JsonObject>> foreign = null;
 		synchronized (lock)
 		{
 			hash = lastAccountHash;
@@ -337,9 +399,46 @@ public final class CreditAttestQueue
 			{
 				return;
 			}
-			snapshot = CreditAttestSpillStore.copyEvents(pendingRaw);
+			snapshot = new ArrayList<>();
+			for (JsonObject event : pendingRaw)
+			{
+				long stamped = eventAccountHash(event);
+				if (stamped == -1L || stamped == hash)
+				{
+					if (stamped == -1L)
+					{
+						event.addProperty("accountHash", Long.toString(hash));
+					}
+					snapshot.add(event.deepCopy());
+				}
+				else
+				{
+					if (foreign == null)
+					{
+						foreign = new LinkedHashMap<>();
+					}
+					foreign.computeIfAbsent(stamped, ignored -> new ArrayList<>()).add(event.deepCopy());
+				}
+			}
+			if (foreign != null)
+			{
+				pendingRaw.removeIf(event -> {
+					long stamped = eventAccountHash(event);
+					return stamped != -1L && stamped != hash;
+				});
+			}
 		}
 		spillStore.save(hash, snapshot);
+		if (foreign != null)
+		{
+			for (Map.Entry<Long, List<JsonObject>> entry : foreign.entrySet())
+			{
+				List<JsonObject> existing = spillStore.load(entry.getKey());
+				List<JsonObject> merged = new ArrayList<>(existing);
+				merged.addAll(entry.getValue());
+				spillStore.save(entry.getKey(), merged);
+			}
+		}
 	}
 
 	/** Adds an optimistic credit estimate to local state and notifies the economy listener, if positive. */
@@ -438,15 +537,42 @@ public final class CreditAttestQueue
 			while (true)
 			{
 				List<JsonObject> raw;
+				boolean hadForeign;
 				synchronized (lock)
 				{
 					if (pendingRaw.isEmpty())
 					{
 						break;
 					}
-					resolveAccountHash();
-					raw = new ArrayList<>(pendingRaw);
+					long hash = resolveAccountHashLocked();
+					raw = new ArrayList<>();
+					List<JsonObject> keep = new ArrayList<>();
+					for (JsonObject event : pendingRaw)
+					{
+						if (eventBelongsToAccount(event, hash))
+						{
+							if (eventAccountHash(event) == -1L && hash != -1L)
+							{
+								event.addProperty("accountHash", Long.toString(hash));
+							}
+							raw.add(event);
+						}
+						else
+						{
+							keep.add(event);
+						}
+					}
 					pendingRaw.clear();
+					pendingRaw.addAll(keep);
+					hadForeign = !keep.isEmpty();
+				}
+				if (hadForeign)
+				{
+					persistSpillFromPending();
+				}
+				if (raw.isEmpty())
+				{
+					break;
 				}
 
 				int rawCount = raw.size();

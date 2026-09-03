@@ -165,13 +165,16 @@ public final class CloudSessionService
 	/** Whether the session is active and no gate (consent/lock/restricted world) is blocking traffic. */
 	public boolean isReady()
 	{
-		return isSessionActive() && cloudGatesOpen();
+		return isSessionActive() && cloudGatesOpen() && tokens.tokensBoundTo(client.getAccountHash());
 	}
 
-	/** Whether credit attests may currently be collected, regardless of session state. */
+	/**
+	 * Whether credit attests may currently be collected: gates open and cloud tokens are bound to
+	 * the live Jagex account hash (prevents enqueue while another account's JWTs are still stored).
+	 */
 	public boolean canCollectAttests()
 	{
-		return cloudGatesOpen();
+		return cloudGatesOpen() && tokens.tokensBoundTo(client.getAccountHash());
 	}
 
 	/** True unless cloud consent is pending, the account is locked, or the world is restricted. */
@@ -368,7 +371,17 @@ public final class CloudSessionService
 	/** Whether pending credit attests may be flushed to the server right now. */
 	public boolean canAttestFlush()
 	{
-		return tokens.getAccessToken() != null && !needsCloudConsent() && !isAccountLocked();
+		if (tokens.getAccessToken() == null || needsCloudConsent() || isAccountLocked())
+		{
+			return false;
+		}
+		long live = client.getAccountHash();
+		if (live != -1L)
+		{
+			return tokens.tokensBoundTo(live);
+		}
+		// Logout teardown: hash already cleared; allow flush if tokens remain bound to an account.
+		return tokens.getBoundAccountHash() != -1L;
 	}
 
 	/** Whether this profile still needs to complete the cloud consent/migration flow. */
@@ -428,6 +441,11 @@ public final class CloudSessionService
 			setState(CloudConnectionState.DISCONNECTED, CONSENT_WAITING_STATUS);
 			return;
 		}
+		if (CloudTokenStore.shouldClearForAccount(tokens.getBoundAccountHash(), tokens.hasRefreshToken(), accountHash))
+		{
+			log.info("Clearing cloud credentials bound to a different account");
+			tokens.clear();
+		}
 		String displayName = resolveDisplayName();
 		boolean needsDisplayName = !tokens.hasRefreshToken();
 		if (needsDisplayName && displayNameMissing(displayName))
@@ -450,7 +468,7 @@ public final class CloudSessionService
 			{
 				try
 				{
-					api.applyTokenResponse(api.refresh(tokens.getRefreshToken(), profileHash));
+					api.applyTokenResponse(api.refresh(tokens.getRefreshToken(), profileHash), accountHash);
 				}
 				catch (CloudApiException refreshEx)
 				{
@@ -573,7 +591,7 @@ public final class CloudSessionService
 		throws CloudApiException, IOException
 	{
 		JsonObject start = api.pairStart(displayName, profileHash, accountHash);
-		api.applyTokenResponse(start);
+		api.applyTokenResponse(start, accountHash);
 	}
 
 	/** Whether the local state has any credits, opened packs, or owned cards worth migrating. */

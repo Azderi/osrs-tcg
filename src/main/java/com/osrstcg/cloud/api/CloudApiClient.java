@@ -397,8 +397,11 @@ public final class CloudApiClient
 		return out;
 	}
 
-	/** Persists {@code accessToken}/{@code refreshToken}/{@code accountId}/{@code status} from an auth response, and marks migrated if indicated. */
-	public void applyTokenResponse(JsonObject tokens)
+	/**
+	 * Persists {@code accessToken}/{@code refreshToken}/{@code accountId}/{@code status} from an auth
+	 * response, binds them to {@code boundAccountHash}, and marks migrated if indicated.
+	 */
+	public void applyTokenResponse(JsonObject tokens, long boundAccountHash)
 	{
 		if (tokens == null)
 		{
@@ -408,7 +411,8 @@ public final class CloudApiClient
 			text(tokens, "accessToken"),
 			text(tokens, "refreshToken"),
 			text(tokens, "accountId"),
-			text(tokens, "status"));
+			text(tokens, "status"),
+			boundAccountHash);
 		if (textTrimmed(tokens, "migratedAt") != null || readBoolean(tokens, "migrated"))
 		{
 			tokenStore.setMigrated(true);
@@ -447,13 +451,14 @@ public final class CloudApiClient
 	{
 		String refresh = tokenStore.getRefreshToken();
 		String profileHash = profileKeyHasher.currentProfileKeyHash();
-		if (refresh == null || profileHash == null)
+		long boundAccountHash = tokenStore.getBoundAccountHash();
+		if (refresh == null || profileHash == null || boundAccountHash == -1L)
 		{
 			return false;
 		}
 		try
 		{
-			applyTokenResponse(refresh(refresh, profileHash));
+			applyTokenResponse(refresh(refresh, profileHash), boundAccountHash);
 			return true;
 		}
 		catch (CloudApiException e)
