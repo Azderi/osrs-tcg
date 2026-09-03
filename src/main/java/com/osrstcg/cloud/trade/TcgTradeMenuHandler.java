@@ -1,5 +1,6 @@
 package com.osrstcg.cloud.trade;
 
+import com.osrstcg.OsrsTcgConfig;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
@@ -19,12 +20,14 @@ public class TcgTradeMenuHandler
 
 	private final Client client;
 	private final TradeCloudService tradeCloudService;
+	private final OsrsTcgConfig config;
 
 	@Inject
-	public TcgTradeMenuHandler(Client client, TradeCloudService tradeCloudService)
+	public TcgTradeMenuHandler(Client client, TradeCloudService tradeCloudService, OsrsTcgConfig config)
 	{
 		this.client = client;
 		this.tradeCloudService = tradeCloudService;
+		this.config = config;
 	}
 
 	/**
@@ -33,6 +36,10 @@ public class TcgTradeMenuHandler
 	 */
 	public void onMenuEntryAdded(MenuEntryAdded event)
 	{
+		if (!config.friendsMenuOption())
+		{
+			return;
+		}
 		if (event == null || !"Message".equals(event.getOption()))
 		{
 			return;

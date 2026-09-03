@@ -223,6 +223,19 @@ public interface OsrsTcgConfig extends Config
 		return new Color(0xC4, 0x94, 0x1A);
 	}
 
+	/** Whether chat message right-click menus include a TCG trade request option. */
+	@ConfigItem(
+		keyName = "friendsMenuOption",
+		name = "Friends menu option",
+		description = "Show a TCG trade request option on chat message right-click menus.",
+		section = generalSection,
+		position = 3
+	)
+	default boolean friendsMenuOption()
+	{
+		return true;
+	}
+
 	@ConfigSection(
 		name = "Pull notifications",
 		description = "Alerts for notable pack pulls.",
