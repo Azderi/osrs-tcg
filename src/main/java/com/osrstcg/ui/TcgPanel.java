@@ -19,6 +19,7 @@ import com.osrstcg.state.TcgStateService;
 import com.osrstcg.ui.account.AccountPanelLauncher;
 import com.osrstcg.ui.account.CreateProfileController;
 import com.osrstcg.ui.account.SidebarNoticeView;
+import com.osrstcg.ui.collection.CardPreviewPanel;
 import com.osrstcg.ui.collection.CollectionListModel;
 import com.osrstcg.ui.collection.CollectionTab;
 import com.osrstcg.ui.layout.PackCloseSnapshot;
@@ -128,6 +129,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	private final JList<CollectionListModel.Row> collectionList = new JList<>();
 	private final JScrollPane collectionListScrollPane = new JScrollPane(collectionList);
 	private final JLabel collectionEmptyLabel = new JLabel("No owned cards match these filters.");
+	private final CardPreviewPanel collectionPreviewPanel;
 	private final JPanel shopContent = new JPanel(new BorderLayout(0, 8));
 	private final JPanel shopHeaderPanel = new JPanel();
 	private final JPanel packsContent = new JPanel();
@@ -212,11 +214,13 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		this.createProfileButton.addActionListener(e -> createProfileController.createProfile());
 		this.sidebarNoticeView = new SidebarNoticeView(
 			openAccountPanelButton, albumFooterWrap, cloudSessionService, this::updateManageAccountState);
+		this.collectionPreviewPanel = new CardPreviewPanel(imageCacheService, this::liveSidebarContentWidth);
 		this.collectionTab = new CollectionTab(
 			cardDatabase, packCatalogService, scheduler,
 			this::liveSidebarContentWidth, this::capturePackCloseSnapshot,
 			this::onCollectionTabRendered, () -> selectedTab == Tab.COLLECTION,
-			collectionContent, collectionListHost, collectionList, collectionListScrollPane, collectionEmptyLabel);
+			collectionContent, collectionListHost, collectionList, collectionListScrollPane, collectionEmptyLabel,
+			collectionPreviewPanel);
 		this.shopTab = new ShopTab(
 			stateService, cardDatabase, packRevealService,
 			packOpenCoordinator, packCatalogService, imageCacheService, config, cloudSessionService,
@@ -247,6 +251,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		emptyWrap.setOpaque(false);
 		emptyWrap.add(collectionEmptyLabel, BorderLayout.NORTH);
 		collectionListHost.add(emptyWrap, CollectionTab.EMPTY_CARD);
+		collectionListHost.add(collectionPreviewPanel, CollectionTab.PREVIEW_CARD);
 		collectionContent.add(collectionListHost, BorderLayout.CENTER);
 		shopContent.setOpaque(false);
 		shopHeaderPanel.setLayout(new BoxLayout(shopHeaderPanel, BoxLayout.Y_AXIS));

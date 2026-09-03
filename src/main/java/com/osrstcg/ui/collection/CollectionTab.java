@@ -16,13 +16,19 @@ import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.GridLayout;
+import java.awt.Point;
+import java.awt.Rectangle;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
@@ -61,6 +67,8 @@ public final class CollectionTab
 	public static final String LIST_CARD = "list";
 	/** {@link CardLayout} key for the placeholder panel shown when the filtered list is empty. */
 	public static final String EMPTY_CARD = "empty";
+	/** {@link CardLayout} key for the full card-face preview shown when a card name is clicked. */
+	public static final String PREVIEW_CARD = "preview";
 	private static final int ROW_HEIGHT = 24;
 
 	private final CardDatabase cardDatabase;
@@ -78,11 +86,16 @@ public final class CollectionTab
 	private final JScrollPane collectionListScrollPane;
 	private final JLabel collectionEmptyLabel;
 	private final JTextField collectionSearchField;
+	private final CardPreviewPanel collectionPreviewPanel;
 
 	private String collectionPackFilterId;
 	private RarityMath.Tier collectionRarityFilter;
 	private CollectionListModel.SortMode collectionSortMode = CollectionListModel.SortMode.SCORE_DESC;
 	private String collectionSearchQuery = "";
+	/** Whichever of {@link #LIST_CARD}/{@link #EMPTY_CARD} was last shown, so the preview's back button returns to the right one. */
+	private String lastListCard = LIST_CARD;
+	/** True while the full card preview is showing, so a background rebuild ({@link #applyCollectionRows}) doesn't silently kick the user out of it. */
+	private boolean previewOpen;
 
 	/** Wires the collaborators and the pre-built Swing components this controller drives. */
 	public CollectionTab(
@@ -97,7 +110,8 @@ public final class CollectionTab
 		JPanel collectionListHost,
 		JList<CollectionListModel.Row> collectionList,
 		JScrollPane collectionListScrollPane,
-		JLabel collectionEmptyLabel)
+		JLabel collectionEmptyLabel,
+		CardPreviewPanel collectionPreviewPanel)
 	{
 		this.cardDatabase = cardDatabase;
 		this.packCatalogService = packCatalogService;
@@ -111,6 +125,8 @@ public final class CollectionTab
 		this.collectionList = collectionList;
 		this.collectionListScrollPane = collectionListScrollPane;
 		this.collectionEmptyLabel = collectionEmptyLabel;
+		this.collectionPreviewPanel = collectionPreviewPanel;
+		this.collectionPreviewPanel.setOnBack(this::closePreview);
 		this.collectionSearchField = createCollectionSearchField();
 	}
 
@@ -155,6 +171,70 @@ public final class CollectionTab
 				syncCellWidth();
 			}
 		});
+
+		MouseAdapter rowInteraction = new MouseAdapter()
+		{
+			/** Opens the full card preview for the row under the click, if any. */
+			@Override
+			public void mouseClicked(MouseEvent e)
+			{
+				openPreviewAt(e.getPoint());
+			}
+
+			/** Shows a hand cursor while hovering a row, to signal it's clickable. */
+			@Override
+			public void mouseMoved(MouseEvent e)
+			{
+				boolean overRow = rowBoundsAt(e.getPoint()) != null;
+				collectionList.setCursor(Cursor.getPredefinedCursor(
+					overRow ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
+			}
+		};
+		collectionList.addMouseListener(rowInteraction);
+		collectionList.addMouseMotionListener(rowInteraction);
+	}
+
+	/** The clicked row's cell bounds if {@code point} lands inside an actual row, else {@code null}. */
+	private Rectangle rowBoundsAt(Point point)
+	{
+		int index = collectionList.locationToIndex(point);
+		if (index < 0)
+		{
+			return null;
+		}
+		Rectangle bounds = collectionList.getCellBounds(index, index);
+		return bounds != null && bounds.contains(point) ? bounds : null;
+	}
+
+	/** Resolves the row under {@code point} to its {@link CardDefinition} and swaps the panel to the full preview. */
+	private void openPreviewAt(Point point)
+	{
+		if (rowBoundsAt(point) == null)
+		{
+			return;
+		}
+		int index = collectionList.locationToIndex(point);
+		CollectionListModel.Row row = collectionList.getModel().getElementAt(index);
+		if (row == null || row.getName().isBlank())
+		{
+			return;
+		}
+		CardDefinition def = CollectionListModel.indexByLowerName(cardDatabase.getCards())
+			.get(row.getName().trim().toLowerCase(Locale.ROOT));
+		if (def == null)
+		{
+			return;
+		}
+		collectionPreviewPanel.show(def, row.isFoil(), row.getTier());
+		previewOpen = true;
+		((CardLayout) collectionListHost.getLayout()).show(collectionListHost, PREVIEW_CARD);
+	}
+
+	/** Swaps back from the preview to whichever of {@link #LIST_CARD}/{@link #EMPTY_CARD} was last showing. */
+	public void closePreview()
+	{
+		previewOpen = false;
+		((CardLayout) collectionListHost.getLayout()).show(collectionListHost, lastListCard);
 	}
 
 	/** Bumps the build generation so any in-flight background row rebuild discards its result once done. */
@@ -272,12 +352,16 @@ public final class CollectionTab
 		if (rows == null || rows.isEmpty())
 		{
 			collectionList.setListData(new CollectionListModel.Row[0]);
-			cards.show(collectionListHost, EMPTY_CARD);
+			lastListCard = EMPTY_CARD;
 		}
 		else
 		{
 			collectionList.setListData(rows.toArray(new CollectionListModel.Row[0]));
-			cards.show(collectionListHost, LIST_CARD);
+			lastListCard = LIST_CARD;
+		}
+		if (!previewOpen)
+		{
+			cards.show(collectionListHost, lastListCard);
 		}
 		syncCellWidth();
 		collectionListHost.revalidate();
