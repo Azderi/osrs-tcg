@@ -107,12 +107,11 @@ public final class CreditAttestQueue
 		ensureSpillLoaded();
 	}
 
-	/** Stops periodic flushing and resets retry/spill/rate-cap state for the next session. */
+	/** Stops periodic flushing and resets retry/rate-cap state for the next session. */
 	public void stop()
 	{
 		attestScheduler.stop();
 		consecutiveRetryFailures.set(0);
-		spillLoadedAccountHash = -1L;
 		rateCapNotifier.reset();
 	}
 
