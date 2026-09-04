@@ -299,9 +299,9 @@ final class HiscoresSettleService
 		}
 		if (accepted > 0L)
 		{
-			String toast = "You have been automatically credited "
+			String toast = "Automatically credited "
 				+ NumberFormatting.format(accepted)
-				+ " credits based on hiscores!";
+				+ " credits based on the hiscores!";
 			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, toast);
 		}
 	}
