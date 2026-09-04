@@ -176,23 +176,28 @@ public final class CloudTokenStore
 	/** Removes stored access/refresh tokens, account id, bound hash, and status (does not clear the migrated flag). */
 	public void clear()
 	{
-		long hash = resolveAccountHash();
-		if (hash != -1L)
-		{
-			sessionFileStore.delete(hash);
-		}
-		cachedAccountHash = -1L;
-		cached = null;
-		unsetLegacyTokenKeys();
+		evictLocal(false);
 	}
 
 	/** Deletes the entire on-disk profile folder for the current account (save + session). */
 	public void wipeAccountProfileDir()
 	{
+		evictLocal(true);
+	}
+
+	private void evictLocal(boolean wipeDir)
+	{
 		long hash = resolveAccountHash();
 		if (hash != -1L)
 		{
-			sessionFileStore.deleteAccountDir(hash);
+			if (wipeDir)
+			{
+				sessionFileStore.deleteAccountDir(hash);
+			}
+			else
+			{
+				sessionFileStore.delete(hash);
+			}
 		}
 		cachedAccountHash = -1L;
 		cached = null;

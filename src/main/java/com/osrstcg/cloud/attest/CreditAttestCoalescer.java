@@ -11,10 +11,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import static com.osrstcg.cloud.attest.CreditAttestQueue.evidenceInt;
-import static com.osrstcg.cloud.attest.CreditAttestQueue.evidenceLong;
-import static com.osrstcg.cloud.attest.CreditAttestQueue.evidenceObject;
-import static com.osrstcg.cloud.attest.CreditAttestQueue.evidenceString;
 
 /**
  * Stateless helper that merges raw credit-attest events (xp/level-up/npc-kill/activity) into fewer,
@@ -73,7 +69,7 @@ public final class CreditAttestCoalescer
 			{
 				continue;
 			}
-			JsonObject evidence = evidenceObject(raw);
+			JsonObject evidence = JsonObjects.objectOrEmpty(raw, "evidence");
 			long at = atOf(raw);
 			long optimistic = optimisticOf(raw);
 
@@ -134,12 +130,6 @@ public final class CreditAttestCoalescer
 		}
 		out.addAll(activities);
 		return out;
-	}
-
-	/** Convenience for checking the early-flush threshold without keeping the coalesced result. */
-	public static int estimateCoalescedCount(List<JsonObject> rawEvents)
-	{
-		return coalesce(rawEvents).size();
 	}
 
 	/**
@@ -220,7 +210,7 @@ public final class CreditAttestCoalescer
 			{
 				return false;
 			}
-			String skill = evidenceString(evidenceObject(event), "skill", "");
+			String skill = textOrEmpty(JsonObjects.objectOrEmpty(event, "evidence"), "skill");
 			if (!isHitpointsSkillName(skill))
 			{
 				return false;
@@ -239,6 +229,12 @@ public final class CreditAttestCoalescer
 		return skill.trim().toUpperCase(Locale.ROOT);
 	}
 
+	private static String textOrEmpty(JsonObject o, String key)
+	{
+		String value = JsonObjects.text(o, key);
+		return value == null ? "" : value;
+	}
+
 	/** Floors an epoch-millis timestamp to its hour bucket, clamping negative input to 0. */
 	public static long epochHour(long atMs)
 	{
@@ -253,12 +249,12 @@ public final class CreditAttestCoalescer
 	/** Adds one xp_chunk's delta into its skill+hour bucket; skips combat skills and non-positive deltas. */
 	private static void mergeXp(Map<String, XpAgg> xpBySkillHour, JsonObject evidence, long at, long optimistic)
 	{
-		String skill = evidenceString(evidence, "skill", "");
+		String skill = textOrEmpty(evidence, "skill");
 		if (isCombatSkillName(skill))
 		{
 			return;
 		}
-		long xpDelta = evidenceLong(evidence, "xpDelta", 0L);
+		long xpDelta = JsonObjects.readLong(evidence, "xpDelta");
 		if (xpDelta <= 0L)
 		{
 			return;
@@ -284,9 +280,9 @@ public final class CreditAttestCoalescer
 	/** Widens a skill's level-up bucket to cover [min fromLevel, max toLevel]; skips non-progressing entries. */
 	private static void mergeLevelUp(Map<String, LevelAgg> levelBySkill, JsonObject evidence, long at, long optimistic)
 	{
-		String skill = evidenceString(evidence, "skill", "");
-		int fromLevel = evidenceInt(evidence, "fromLevel", 0);
-		int toLevel = evidenceInt(evidence, "toLevel", 0);
+		String skill = textOrEmpty(evidence, "skill");
+		int fromLevel = JsonObjects.readInt(evidence, "fromLevel");
+		int toLevel = JsonObjects.readInt(evidence, "toLevel");
 		if (toLevel <= fromLevel)
 		{
 			return;
@@ -323,10 +319,10 @@ public final class CreditAttestCoalescer
 	/** Adds one npc_kill's amount into its npc+combat-level+hour bucket. */
 	private static void mergeKill(Map<KillKey, KillAgg> kills, JsonObject evidence, long at, long optimistic)
 	{
-		String npcName = evidenceString(evidence, "npcName", "");
-		int combatLevel = evidenceInt(evidence, "combatLevel", 0);
-		int npcId = evidenceInt(evidence, "npcId", 0);
-		int amount = Math.max(1, evidenceInt(evidence, "amount", 1));
+		String npcName = textOrEmpty(evidence, "npcName");
+		int combatLevel = JsonObjects.readInt(evidence, "combatLevel");
+		int npcId = JsonObjects.readInt(evidence, "npcId");
+		int amount = Math.max(1, (int) JsonObjects.readLong(evidence, "amount", 1L));
 		KillKey key = new KillKey(npcId, npcName, combatLevel, epochHour(at));
 		KillAgg agg = kills.get(key);
 		if (agg == null)
@@ -343,19 +339,19 @@ public final class CreditAttestCoalescer
 	private static long priorityScore(JsonObject event)
 	{
 		String type = JsonObjects.text(event, "type");
-		JsonObject evidence = evidenceObject(event);
+		JsonObject evidence = JsonObjects.objectOrEmpty(event, "evidence");
 		if (TYPE_LEVEL_UP.equals(type))
 		{
-			int span = Math.max(0, evidenceInt(evidence, "toLevel", 0) - evidenceInt(evidence, "fromLevel", 0));
+			int span = Math.max(0, JsonObjects.readInt(evidence, "toLevel") - JsonObjects.readInt(evidence, "fromLevel"));
 			return 1_000_000_000L + span * 1_000L;
 		}
 		if (TYPE_XP_CHUNK.equals(type))
 		{
-			return 500_000_000L + Math.min(evidenceLong(evidence, "xpDelta", 0L), 400_000_000L);
+			return 500_000_000L + Math.min(JsonObjects.readLong(evidence, "xpDelta"), 400_000_000L);
 		}
 		if (TYPE_NPC_KILL.equals(type))
 		{
-			return 250_000_000L + Math.min(evidenceInt(evidence, "amount", 1), 200_000_000);
+			return 250_000_000L + Math.min((int) JsonObjects.readLong(evidence, "amount", 1L), 200_000_000);
 		}
 		if (TYPE_ACTIVITY.equals(type))
 		{

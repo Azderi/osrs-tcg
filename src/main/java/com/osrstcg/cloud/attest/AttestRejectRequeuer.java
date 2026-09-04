@@ -75,17 +75,21 @@ final class AttestRejectRequeuer
 			{
 				continue;
 			}
-			JsonObject evidence = CreditAttestQueue.evidenceObject(original);
-			int amount = Math.max(1, CreditAttestQueue.evidenceInt(evidence, "amount", 1));
+			JsonObject evidence = JsonObjects.objectOrEmpty(original, "evidence");
+			int amount = Math.max(1, (int) JsonObjects.readLong(evidence, "amount", 1L));
 			if (amount <= CreditAttestCoalescer.MAX_KILL_AMOUNT)
 			{
 				log.warn("npc_kill rejected as {} with amount {} (≤{}); leaving to server reconcile",
 					REASON_KILL_AMT_TOO_LARGE, amount, CreditAttestCoalescer.MAX_KILL_AMOUNT);
 				continue;
 			}
-			String npcName = CreditAttestQueue.evidenceString(evidence, "npcName", "");
-			int combatLevel = CreditAttestQueue.evidenceInt(evidence, "combatLevel", 0);
-			int npcId = CreditAttestQueue.evidenceInt(evidence, "npcId", 0);
+			String npcName = JsonObjects.text(evidence, "npcName");
+			if (npcName == null)
+			{
+				npcName = "";
+			}
+			int combatLevel = JsonObjects.readInt(evidence, "combatLevel");
+			int npcId = JsonObjects.readInt(evidence, "npcId");
 			long at = original.has("at") && !original.get("at").isJsonNull()
 				? original.get("at").getAsLong()
 				: System.currentTimeMillis();
@@ -104,7 +108,7 @@ final class AttestRejectRequeuer
 				{
 					splitEvidence.addProperty("npcId", npcId);
 				}
-				if (npcName != null && !npcName.isEmpty())
+				if (!npcName.isEmpty())
 				{
 					splitEvidence.addProperty("npcName", npcName);
 				}
@@ -127,7 +131,7 @@ final class AttestRejectRequeuer
 		if (!requeue.isEmpty())
 		{
 			queue.prependPending(requeue);
-			queue.scheduleEarlyFlush();
+			queue.attestScheduler.scheduleEarlyFlush();
 		}
 		return result;
 	}

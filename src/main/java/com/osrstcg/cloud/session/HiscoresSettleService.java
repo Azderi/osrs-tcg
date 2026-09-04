@@ -13,9 +13,9 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.client.chat.ChatMessageManager;
-import net.runelite.client.util.Text;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
+import com.osrstcg.cloud.api.JsonObjects;
 import com.osrstcg.cloud.trade.TradeCloudService;
 import javax.inject.Provider;
 
@@ -33,7 +33,7 @@ final class HiscoresSettleService
 	/** Longer than default {@code HISCORES_SETTLE_MIN_INTERVAL_MS} (60s) so throttle can clear. */
 	private static final long SETTLE_THROTTLE_RETRY_DELAY_SEC = 70L;
 
-	private String lastDisplayName;
+	private final CachedDisplayName displayName = new CachedDisplayName();
 
 	private final Client client;
 	private final CloudApiClient api;
@@ -323,16 +323,7 @@ final class HiscoresSettleService
 	/** Current local player's sanitized name, falling back to the last known name if unavailable. */
 	private String resolveDisplayName()
 	{
-		if (client.getLocalPlayer() != null && client.getLocalPlayer().getName() != null)
-		{
-			String name = Text.sanitize(client.getLocalPlayer().getName());
-			if (name != null && !name.isEmpty())
-			{
-				lastDisplayName = name;
-				return name;
-			}
-		}
-		return lastDisplayName;
+		return displayName.resolve(client);
 	}
 
 	/**
@@ -346,38 +337,35 @@ final class HiscoresSettleService
 			return;
 		}
 
-		boolean skipped = response.has("skipped") && !response.get("skipped").isJsonNull()
-			&& response.get("skipped").getAsBoolean();
+		boolean skipped = JsonObjects.readBoolean(response, "skipped");
 		boolean hasCredits = response.has("credits") && !response.get("credits").isJsonNull();
-
-		if (skipped && !hasCredits)
-		{
-			log.debug("Hiscores settle throttled/skipped: {}",
-				response.has("reason") ? response.get("reason").getAsString() : "settle_throttle");
-			return;
-		}
 
 		if (skipped)
 		{
-			log.debug("Hiscores settle throttled/skipped (refreshing sidebar credits): {}",
-				response.has("reason") ? response.get("reason").getAsString() : "settle_throttle");
+			String reason = JsonObjects.text(response, "reason");
+			if (reason == null)
+			{
+				reason = "settle_throttle";
+			}
+			if (!hasCredits)
+			{
+				log.debug("Hiscores settle throttled/skipped: {}", reason);
+				return;
+			}
+			log.debug("Hiscores settle throttled/skipped (refreshing sidebar credits): {}", reason);
 		}
 
 		if (hasCredits || response.has("openedPacks") || response.has("totalCreditsGained"))
 		{
 			applySidebarStats.accept(response);
 		}
-		if (response.has("revision") && !response.get("revision").isJsonNull())
+		Double revision = JsonObjects.readNullableDouble(response, "revision");
+		if (revision != null)
 		{
-			tradeCloudProvider.get().noteRevision(response.get("revision").getAsLong());
+			tradeCloudProvider.get().noteRevision(Math.round(revision));
 		}
 
-		long accepted = 0L;
-		if (response.has("accepted") && !response.get("accepted").isJsonNull()
-			&& response.get("accepted").isJsonPrimitive())
-		{
-			accepted = response.get("accepted").getAsLong();
-		}
+		long accepted = JsonObjects.readLong(response, "accepted", 0L);
 		if (accepted > 0L)
 		{
 			String toast = "Automatically credited "

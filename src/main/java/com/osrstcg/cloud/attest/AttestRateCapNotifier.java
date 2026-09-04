@@ -3,8 +3,8 @@ package com.osrstcg.cloud.attest;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.osrstcg.cloud.api.JsonObjects;
 import com.osrstcg.util.TcgPluginGameMessages;
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -29,6 +29,14 @@ public final class AttestRateCapNotifier
 	static final long MINUTE_MS = 60_000L;
 
 	private static final String RATE_CAP_PREFIX = "rate_cap";
+
+	private static final String[][] SPECIFIC_MESSAGES = {
+		{"skill", "Credit rate limit hit: Some skill XP was not credited this hour. Try again later."},
+		{"level_up", "Credit rate limit hit: Some level-up credits were not applied. Try again later."},
+		{"kill", "Credit rate limit hit: Some NPC kills were not credited this hour. Try again later."},
+		{"activity", "Credit rate limit hit: Some activity credits were skipped. Try again later."},
+		{"global", "Credit rate limit hit: Hourly or daily credit cap reached. Try again later."},
+	};
 
 	private final Consumer<String> chatSink;
 	private final AtomicLong lastRateCapWarnAtMs = new AtomicLong(0L);
@@ -70,9 +78,7 @@ public final class AttestRateCapNotifier
 			return;
 		}
 
-		boolean quarantined = response.has("quarantined")
-			&& !response.get("quarantined").isJsonNull()
-			&& response.get("quarantined").getAsBoolean();
+		boolean quarantined = JsonObjects.readBoolean(response, "quarantined");
 
 		long rateCapAfterMs = CreditAttestQueue.parseRateCapAfterMs(response);
 		if (rateCapAfterMs > 0L)
@@ -90,7 +96,7 @@ public final class AttestRateCapNotifier
 			}
 			else
 			{
-				log.debug("Credit attest rejects (no rate_cap): {}", formatAllRejectReasons(response));
+				log.debug("Credit attest rejects (no rate_cap): {}", CreditAttestQueue.formatRejectedReasons(response));
 			}
 		}
 
@@ -115,20 +121,7 @@ public final class AttestRateCapNotifier
 			{
 				continue;
 			}
-			JsonObject row = el.getAsJsonObject();
-			if (!row.has("reason") || row.get("reason").isJsonNull())
-			{
-				continue;
-			}
-			String reason;
-			try
-			{
-				reason = row.get("reason").getAsString();
-			}
-			catch (RuntimeException ex)
-			{
-				continue;
-			}
+			String reason = JsonObjects.text(el.getAsJsonObject(), "reason");
 			if (reason != null && isRateCapReason(reason))
 			{
 				reasons.add(reason.trim());
@@ -188,61 +181,25 @@ public final class AttestRateCapNotifier
 		{
 			return null;
 		}
-		boolean skill = false;
-		boolean level = false;
-		boolean kills = false;
-		boolean activity = false;
-		boolean global = false;
+		int match = -1;
 		for (String r : reasons)
 		{
 			String key = r.toLowerCase(Locale.ROOT);
-			if (key.contains("skill"))
+			for (int i = 0; i < SPECIFIC_MESSAGES.length; i++)
 			{
-				skill = true;
-			}
-			else if (key.contains("level_up"))
-			{
-				level = true;
-			}
-			else if (key.contains("kill"))
-			{
-				kills = true;
-			}
-			else if (key.contains("activity"))
-			{
-				activity = true;
-			}
-			else if (key.contains("global"))
-			{
-				global = true;
+				if (!key.contains(SPECIFIC_MESSAGES[i][0]))
+				{
+					continue;
+				}
+				if (match >= 0 && match != i)
+				{
+					return null;
+				}
+				match = i;
+				break;
 			}
 		}
-		int kinds = (skill ? 1 : 0) + (level ? 1 : 0) + (kills ? 1 : 0) + (activity ? 1 : 0) + (global ? 1 : 0);
-		if (kinds != 1)
-		{
-			return null;
-		}
-		if (skill)
-		{
-			return "Credit rate limit hit: Some skill XP was not credited this hour. Try again later.";
-		}
-		if (level)
-		{
-			return "Credit rate limit hit: Some level-up credits were not applied. Try again later.";
-		}
-		if (kills)
-		{
-			return "Credit rate limit hit: Some NPC kills were not credited this hour. Try again later.";
-		}
-		if (activity)
-		{
-			return "Credit rate limit hit: Some activity credits were skipped. Try again later.";
-		}
-		if (global)
-		{
-			return "Credit rate limit hit: Hourly or daily credit cap reached. Try again later.";
-		}
-		return null;
+		return match < 0 ? null : SPECIFIC_MESSAGES[match][1];
 	}
 
 	/** Posts {@code message} unless a rate-cap warning was already sent within {@link #RATE_CAP_THROTTLE_MS}. */
@@ -262,34 +219,5 @@ public final class AttestRateCapNotifier
 				return;
 			}
 		}
-	}
-
-	/** Formats every {@code reason} found in {@code response.rejected} as a bracketed list, for debug logging. */
-	private static String formatAllRejectReasons(JsonObject response)
-	{
-		if (response == null || !response.has("rejected") || !response.get("rejected").isJsonArray())
-		{
-			return "[]";
-		}
-		List<String> out = new ArrayList<>();
-		for (JsonElement el : response.getAsJsonArray("rejected"))
-		{
-			if (el == null || !el.isJsonObject())
-			{
-				continue;
-			}
-			JsonObject row = el.getAsJsonObject();
-			if (row.has("reason") && !row.get("reason").isJsonNull())
-			{
-				try
-				{
-					out.add(row.get("reason").getAsString());
-				}
-				catch (RuntimeException ignored)
-				{
-				}
-			}
-		}
-		return out.toString();
 	}
 }

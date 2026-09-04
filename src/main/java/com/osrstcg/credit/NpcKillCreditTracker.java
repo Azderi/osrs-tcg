@@ -143,7 +143,7 @@ public final class NpcKillCreditTracker
 		int npcId = npc.getId();
 		String npcName = normalizeName(lastKnownNpcName.getOrDefault(npcIndex, npc.getName()));
 
-		if (isExcludedNpc(npcId))
+		if (activityConfigService.getCompiled().isExcludedNpc(npcId))
 		{
 			cleanupAfterLogging(npcIndex);
 			return;
@@ -217,12 +217,6 @@ public final class NpcKillCreditTracker
 			return "Unnamed NPC";
 		}
 		return npcName.replaceAll("<.*?>", "").trim();
-	}
-
-	/** Whether {@code npcId} is excluded from kill credit by activity config. */
-	private boolean isExcludedNpc(int npcId)
-	{
-		return activityConfigService.getCompiled().isExcludedNpc(npcId);
 	}
 
 	/** Whether the NPC at {@code npcIndex} was interacted with/hit within {@link #INTERACT_TIMEOUT_TICKS}. */

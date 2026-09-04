@@ -28,7 +28,6 @@ public class CreditAttestCoalescerTest
 		assertEquals(CreditAttestCoalescer.TYPE_XP_CHUNK, event.get("type").getAsString());
 		assertEquals(3500L, event.getAsJsonObject("evidence").get("xpDelta").getAsLong());
 		assertEquals(T0 + 60_000L, event.get("at").getAsLong());
-		assertEquals(1, CreditAttestCoalescer.estimateCoalescedCount(raw));
 	}
 
 	@Test
@@ -42,7 +41,6 @@ public class CreditAttestCoalescerTest
 		);
 		List<JsonObject> out = CreditAttestCoalescer.coalesce(raw);
 		assertEquals(2, out.size());
-		assertEquals(2, CreditAttestCoalescer.estimateCoalescedCount(raw));
 
 		List<JsonObject> sorted = new ArrayList<>(out);
 		sorted.sort(Comparator.comparingLong(e -> e.get("at").getAsLong()));
@@ -89,7 +87,6 @@ public class CreditAttestCoalescerTest
 		);
 		List<JsonObject> out = CreditAttestCoalescer.coalesce(raw);
 		assertEquals(2, out.size());
-		assertEquals(2, CreditAttestCoalescer.estimateCoalescedCount(raw));
 		for (JsonObject event : out)
 		{
 			assertEquals(CreditAttestCoalescer.TYPE_NPC_KILL, event.get("type").getAsString());

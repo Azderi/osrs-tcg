@@ -30,8 +30,6 @@ public final class ActivityConfigModels
 	/** Multiplier applied to combat-level optimistic credits for a specific NPC id. */
 	public static final class KillCreditMultiplierDto
 	{
-		/** Display name from the server (metadata only; matching is by NPC id). */
-		public String npcName;
 		public double multiplier;
 	}
 

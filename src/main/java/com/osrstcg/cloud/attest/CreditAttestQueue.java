@@ -16,10 +16,10 @@ import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.client.chat.ChatMessageManager;
-import net.runelite.client.util.Text;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
 import com.osrstcg.cloud.api.JsonObjects;
+import com.osrstcg.cloud.session.CachedDisplayName;
 import com.osrstcg.cloud.session.CloudSessionService;
 import com.osrstcg.cloud.trade.TradeCloudService;
 import com.osrstcg.util.TcgPluginGameMessages;
@@ -62,9 +62,9 @@ public final class CreditAttestQueue
 	private final AtomicInteger consecutiveRetryFailures = new AtomicInteger(0);
 	private final AttestRejectRequeuer rejectRequeuer;
 	private final CreditAttestPoster poster;
-	private final CreditAttestScheduler attestScheduler;
+	final CreditAttestScheduler attestScheduler;
 	private volatile long lastAccountHash = -1L;
-	private volatile String lastDisplayName;
+	private final CachedDisplayName displayName = new CachedDisplayName();
 
 	/** Injected constructor; wires up the sub-scheduler with a flush callback and initial default interval. */
 	@Inject
@@ -205,12 +205,13 @@ public final class CreditAttestQueue
 		long xpDelta = 0L;
 		if (CreditAttestCoalescer.TYPE_XP_CHUNK.equals(type))
 		{
-			skill = evidenceString(evidence, "skill", "");
+			String skillText = JsonObjects.text(evidence, "skill");
+			skill = skillText == null ? "" : skillText;
 			if (CreditAttestCoalescer.isCombatSkillName(skill))
 			{
 				return;
 			}
-			xpDelta = evidenceLong(evidence, "xpDelta", 0L);
+			xpDelta = JsonObjects.readLong(evidence, "xpDelta");
 			if (xpDelta <= 0L)
 			{
 				return;
@@ -222,8 +223,8 @@ public final class CreditAttestQueue
 		}
 		if (CreditAttestCoalescer.TYPE_LEVEL_UP.equals(type))
 		{
-			int fromLevel = evidenceInt(evidence, "fromLevel", 0);
-			int toLevel = evidenceInt(evidence, "toLevel", 0);
+			int fromLevel = JsonObjects.readInt(evidence, "fromLevel");
+			int toLevel = JsonObjects.readInt(evidence, "toLevel");
 			if (toLevel <= fromLevel)
 			{
 				return;
@@ -247,7 +248,7 @@ public final class CreditAttestQueue
 				return;
 			}
 			pendingRaw.add(event);
-			int coalescedEstimate = CreditAttestCoalescer.estimateCoalescedCount(pendingRaw);
+			int coalescedEstimate = CreditAttestCoalescer.coalesce(pendingRaw).size();
 			if (coalescedEstimate >= CreditAttestCoalescer.EARLY_FLUSH_COALESCED)
 			{
 				spikeFlush = true;
@@ -314,16 +315,7 @@ public final class CreditAttestQueue
 	/** Reads and sanitizes the local player's RSN, caching the last known value for use when unavailable. */
 	String resolveDisplayName()
 	{
-		if (client.getLocalPlayer() != null && client.getLocalPlayer().getName() != null)
-		{
-			String name = Text.sanitize(client.getLocalPlayer().getName());
-			if (name != null && !name.isEmpty())
-			{
-				lastDisplayName = name;
-				return name;
-			}
-		}
-		return lastDisplayName;
+		return displayName.resolve(client);
 	}
 
 	/** Adds an optimistic credit estimate to local state and notifies the economy listener, if positive. */
@@ -334,12 +326,6 @@ public final class CreditAttestQueue
 			stateService.addOptimisticCredits(optimisticCredits);
 			notifyEconomyListener();
 		}
-	}
-
-	/** Delegates to {@link CreditAttestScheduler#scheduleEarlyFlush()}. */
-	void scheduleEarlyFlush()
-	{
-		attestScheduler.scheduleEarlyFlush();
 	}
 
 	/**
@@ -651,46 +637,5 @@ public final class CreditAttestQueue
 		{
 			listener.run();
 		}
-	}
-
-	/** Returns an event's {@code evidence} object, or an empty object if missing/not an object. */
-	static JsonObject evidenceObject(JsonObject event)
-	{
-		if (event != null && event.has("evidence") && event.get("evidence").isJsonObject())
-		{
-			return event.getAsJsonObject("evidence");
-		}
-		return new JsonObject();
-	}
-
-	/** Reads a string field from an evidence object, returning {@code defaultValue} if missing/null. */
-	static String evidenceString(JsonObject evidence, String key, String defaultValue)
-	{
-		if (evidence == null || !evidence.has(key) || evidence.get(key).isJsonNull())
-		{
-			return defaultValue;
-		}
-		String value = evidence.get(key).getAsString();
-		return value == null ? defaultValue : value;
-	}
-
-	/** Reads an int field from an evidence object, returning {@code defaultValue} if missing/null. */
-	static int evidenceInt(JsonObject evidence, String key, int defaultValue)
-	{
-		if (evidence == null || !evidence.has(key) || evidence.get(key).isJsonNull())
-		{
-			return defaultValue;
-		}
-		return evidence.get(key).getAsInt();
-	}
-
-	/** Reads a long field from an evidence object, returning {@code defaultValue} if missing/null. */
-	static long evidenceLong(JsonObject evidence, String key, long defaultValue)
-	{
-		if (evidence == null || !evidence.has(key) || evidence.get(key).isJsonNull())
-		{
-			return defaultValue;
-		}
-		return evidence.get(key).getAsLong();
 	}
 }

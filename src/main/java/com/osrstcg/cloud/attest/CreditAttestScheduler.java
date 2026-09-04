@@ -66,9 +66,10 @@ final class CreditAttestScheduler
 		{
 			running.set(false);
 			rateCapPaused.set(false);
-			cancelScheduledLocked();
-			cancelRetryFlushLocked();
-			cancelRateCapResumeLocked();
+			flushFuture = cancel(flushFuture);
+			retryFlushFuture = cancel(retryFlushFuture);
+			retryFlushScheduled.set(false);
+			rateCapResumeFuture = cancel(rateCapResumeFuture);
 		}
 	}
 
@@ -91,9 +92,10 @@ final class CreditAttestScheduler
 				return;
 			}
 			rateCapPaused.set(true);
-			cancelScheduledLocked();
-			cancelRetryFlushLocked();
-			cancelRateCapResumeLocked();
+			flushFuture = cancel(flushFuture);
+			retryFlushFuture = cancel(retryFlushFuture);
+			retryFlushScheduled.set(false);
+			rateCapResumeFuture = cancel(rateCapResumeFuture);
 			rateCapResumeFuture = scheduler.schedule(this::resumeAfterRateCap, Math.max(0L, delayMs), TimeUnit.MILLISECONDS);
 		}
 	}
@@ -215,34 +217,13 @@ final class CreditAttestScheduler
 		flushFuture = scheduler.schedule(this::flushTick, Math.max(0L, delayMs), TimeUnit.MILLISECONDS);
 	}
 
-	/** Cancels the pending periodic flush, if any; must be called while holding {@link #scheduleLock}. */
-	private void cancelScheduledLocked()
+	/** Cancels {@code future} if non-null; must hold {@link #scheduleLock}. Returns null for clearing the field. */
+	private static ScheduledFuture<?> cancel(ScheduledFuture<?> future)
 	{
-		if (flushFuture != null)
+		if (future != null)
 		{
-			flushFuture.cancel(false);
-			flushFuture = null;
+			future.cancel(false);
 		}
-	}
-
-	/** Cancels the pending retry flush, if any, and clears its scheduled flag; must hold {@link #scheduleLock}. */
-	private void cancelRetryFlushLocked()
-	{
-		if (retryFlushFuture != null)
-		{
-			retryFlushFuture.cancel(false);
-			retryFlushFuture = null;
-		}
-		retryFlushScheduled.set(false);
-	}
-
-	/** Cancels a pending rate-cap resume, if any; must hold {@link #scheduleLock}. */
-	private void cancelRateCapResumeLocked()
-	{
-		if (rateCapResumeFuture != null)
-		{
-			rateCapResumeFuture.cancel(false);
-			rateCapResumeFuture = null;
-		}
+		return null;
 	}
 }
