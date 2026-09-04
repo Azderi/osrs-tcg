@@ -566,12 +566,6 @@ public final class CloudSessionService
 		setState(CloudConnectionState.DISCONNECTED, "Disconnected");
 	}
 
-	/** Delegates to {@link HiscoresSettleService#snapshotOnLogout()}. Blocking. */
-	public void snapshotHiscoresOnLogout()
-	{
-		hiscoresSettle.snapshotOnLogout();
-	}
-
 	/** Delegates to {@link CloudCollectionSyncService#applySidebarStats(JsonObject)}. */
 	public void applySidebarStats(JsonObject stats)
 	{

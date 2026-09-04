@@ -17,8 +17,7 @@ import com.osrstcg.cloud.trade.TradeCloudService;
 import javax.inject.Provider;
 
 /**
- * Settles offline hiscores gains into cloud credits once per login, and snapshots hiscores on
- * logout so offline progress since the snapshot can be settled next login. Handles transient
+ * Settles offline hiscores gains into cloud credits once per login. Handles transient
  * {@code hiscores_unavailable} failures with a single delayed retry. Blocking: methods issue
  * synchronous HTTP calls via {@link CloudApiClient} and must not run on the client/EDT thread,
  * except the scheduled retry body which runs on {@link #scheduler}.
@@ -75,56 +74,7 @@ final class HiscoresSettleService
 	}
 
 	/**
-	 * Records a hiscores snapshot at logout so future gains can be settled next login. No-op if the
-	 * account is locked, consent is pending, no access token, the world is restricted, or the account
-	 * hash/display name aren't known. Failures are logged at debug level and swallowed.
-	 */
-	void snapshotOnLogout()
-	{
-		if (isAccountLocked.getAsBoolean()
-			|| tokens.getAccessToken() == null || needsCloudConsent.getAsBoolean())
-		{
-			return;
-		}
-		if (restrictedWorldGuard != null && restrictedWorldGuard.isRestricted())
-		{
-			return;
-		}
-		long accountHash = client.getAccountHash();
-		if (accountHash == -1L)
-		{
-			return;
-		}
-		String displayName = resolveDisplayName();
-		if (displayName == null)
-		{
-			return;
-		}
-
-		try
-		{
-			JsonObject response = api.settleHiscores(displayName, accountHash, true);
-			if (response != null && response.has("skipped") && !response.get("skipped").isJsonNull()
-				&& response.get("skipped").getAsBoolean())
-			{
-				log.debug("Hiscores logout snapshot skipped: {}",
-					response.has("reason") ? response.get("reason").getAsString() : "skipped");
-				return;
-			}
-			log.debug("Hiscores logout snapshot stored");
-		}
-		catch (CloudApiException ex)
-		{
-			log.debug("Hiscores logout snapshot failed: {} {}", ex.getCode(), ex.getMessage());
-		}
-		catch (Exception ex)
-		{
-			log.debug("Hiscores logout snapshot failed", ex);
-		}
-	}
-
-	/**
-	 * Settles offline hiscores gains since the last snapshot into credits, once per login (guarded by
+	 * Settles offline hiscores gains into credits, once per login (guarded by
 	 * {@link #hiscoresSettledThisLogin}). On error, delegates to {@link #handleSettleError}.
 	 */
 	void settleAfterCloudLogin()

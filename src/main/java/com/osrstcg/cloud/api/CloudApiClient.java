@@ -272,24 +272,12 @@ public final class CloudApiClient
 	}
 
 	/** {@code POST /credits/settle-hiscores}. Blocking call. */
-	/** {@code POST /credits/settle-hiscores} with optional logout {@code snapshot}. */
-	public JsonObject settleHiscores(String displayName, long accountHash, boolean snapshot)
-		throws CloudApiException, IOException
+	public JsonObject settleHiscores(String displayName, long accountHash) throws CloudApiException, IOException
 	{
 		JsonObject body = new JsonObject();
 		body.addProperty("displayName", displayName);
 		body.addProperty("accountHash", Long.toString(accountHash));
-		if (snapshot)
-		{
-			body.addProperty("snapshot", true);
-		}
 		return requestAuthed("POST", "/credits/settle-hiscores", body);
-	}
-
-	/** {@link #settleHiscores(String, long, boolean)} without requesting a snapshot. */
-	public JsonObject settleHiscores(String displayName, long accountHash) throws CloudApiException, IOException
-	{
-		return settleHiscores(displayName, accountHash, false);
 	}
 
 	/** {@code GET /config/activities/version} (unauthenticated). Blocking call. */

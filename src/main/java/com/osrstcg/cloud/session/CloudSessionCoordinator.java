@@ -171,8 +171,7 @@ public class CloudSessionCoordinator
 
 	/**
 	 * Tears down the cloud session on logout. If the account is locked, discards pending attests
-	 * without flushing; otherwise blocks flushing pending attests and snapshotting hiscores before
-	 * disconnecting.
+	 * without flushing; otherwise blocks flushing pending attests before disconnecting.
 	 */
 	public void disconnect()
 	{
@@ -186,7 +185,6 @@ public class CloudSessionCoordinator
 			return;
 		}
 		creditAttestQueue.flushBlocking();
-		cloudSessionService.snapshotHiscoresOnLogout();
 		creditAttestQueue.stop();
 		tradeCloudService.stop();
 		cloudSessionService.disconnectQuietly();
@@ -333,9 +331,8 @@ public class CloudSessionCoordinator
 	}
 
 	/**
-	 * Client-shutdown hook: blocking-flushes pending attests and snapshots hiscores (unless the
-	 * account is locked), logging rather than throwing on failure, then always stops attest/trade
-	 * traffic and disconnects.
+	 * Client-shutdown hook: blocking-flushes pending attests (unless the account is locked), logging
+	 * rather than throwing on failure, then always stops attest/trade traffic and disconnects.
 	 */
 	public void flushAttestsForShutdown()
 	{
@@ -344,7 +341,6 @@ public class CloudSessionCoordinator
 			if (!cloudSessionService.isAccountLocked())
 			{
 				creditAttestQueue.flushBlocking();
-				cloudSessionService.snapshotHiscoresOnLogout();
 			}
 		}
 		catch (Exception e)
