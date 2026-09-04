@@ -27,7 +27,6 @@ import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
-
 /**
  * Shared layout/styling helpers for the plugin sidebar panels: sizing constants, scroll pane and button
  * styling, text formatting utilities, and Swing width-clamping helpers used across the tab controllers.
@@ -47,14 +46,12 @@ public final class SidebarLayout
 	private SidebarLayout()
 	{
 	}
-
-	/** Usable content width inside the RuneLite plugin panel, after its border and the tab scrollbar, floored at 160px. */
+/** Usable content width inside the RuneLite plugin panel, after its border and the tab scrollbar, floored at 160px. */
 	public static int sidebarInnerWidth()
 	{
 		return Math.max(160, PluginPanel.PANEL_WIDTH - 2 * PluginPanel.BORDER_OFFSET - TAB_SCROLLBAR_WIDTH);
 	}
-
-	/** Applies the sidebar's standard scroll pane chrome: no horizontal scroll, borderless/transparent, styled thin thumb. */
+/** Applies the sidebar's standard scroll pane chrome: no horizontal scroll, borderless/transparent, styled thin thumb. */
 	public static void configureTabScrollPane(JScrollPane scrollPane)
 	{
 		scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
@@ -80,24 +77,21 @@ public final class SidebarLayout
 			}
 		});
 	}
-
-	/** Revalidates and repaints a tab scroll pane and its viewport after content changes size. */
+/** Revalidates and repaints a tab scroll pane and its viewport after content changes size. */
 	public static void revalidateTabScrollPane(JScrollPane scrollPane)
 	{
 		scrollPane.getViewport().revalidate();
 		scrollPane.revalidate();
 		scrollPane.repaint();
 	}
-
-	/** Configures a tab's content panel as a transparent, left-aligned vertical stack. */
+/** Configures a tab's content panel as a transparent, left-aligned vertical stack. */
 	public static void initializeTabContentPanel(JPanel panel)
 	{
 		panel.setLayout(new javax.swing.BoxLayout(panel, javax.swing.BoxLayout.Y_AXIS));
 		panel.setOpaque(false);
 		panel.setAlignmentX(JComponent.LEFT_ALIGNMENT);
 	}
-
-	/** Transparent fixed-width spacer used at each end of the tab rail to mirror {@link #MAIN_PANEL_INSET}. */
+/** Transparent fixed-width spacer used at each end of the tab rail to mirror {@link #MAIN_PANEL_INSET}. */
 	public static JComponent tabRailWing()
 	{
 		JPanel wing = new JPanel();
@@ -106,8 +100,7 @@ public final class SidebarLayout
 		wing.setMinimumSize(new Dimension(MAIN_PANEL_INSET, 1));
 		return wing;
 	}
-
-	/** Applies the sidebar's primary (bold, outlined, dark) footer button styling. */
+/** Applies the sidebar's primary (bold, outlined, dark) footer button styling. */
 	public static void stylePrimaryFooterButton(JButton button)
 	{
 		button.setFont(FontManager.getRunescapeBoldFont());
@@ -116,8 +109,7 @@ public final class SidebarLayout
 		button.setForeground(Color.WHITE);
 		styleOutlinedButton(button, ColorScheme.LIGHT_GRAY_COLOR.darker(), 10, 14, 10, 14);
 	}
-
-	/** Sets a 1px matte border in {@code borderColor} with the given padding inside it. */
+/** Sets a 1px matte border in {@code borderColor} with the given padding inside it. */
 	public static void styleOutlinedButton(JComponent component, Color borderColor,
 		int top, int left, int bottom, int right)
 	{
@@ -126,8 +118,7 @@ public final class SidebarLayout
 			new EmptyBorder(top, left, bottom, right)
 		));
 	}
-
-	/** Clamps a footer block's max height to its current preferred height, so it can't be stretched by its parent layout. No-op if invisible. */
+/** Clamps a footer block's max height to its current preferred height, so it can't be stretched by its parent layout. No-op if invisible. */
 	public static void lockFooterBlockHeight(JComponent block)
 	{
 		if (block == null || !block.isVisible())
@@ -139,8 +130,7 @@ public final class SidebarLayout
 		Dimension preferred = block.getPreferredSize();
 		block.setMaximumSize(new Dimension(Integer.MAX_VALUE, Math.max(1, preferred.height)));
 	}
-
-	/**
+/**
 	 * Builds a clickable icon label that opens {@code url} in the default browser; returns {@code null}
 	 * if the classpath image resource can't be loaded.
 	 */
@@ -164,14 +154,13 @@ public final class SidebarLayout
 		link.setMaximumSize(size);
 		link.addMouseListener(new java.awt.event.MouseAdapter()
 		{
-			/** Re-asserts the hand cursor on re-entry. */
+/** Re-asserts the hand cursor on re-entry. */
 			@Override
 			public void mouseEntered(java.awt.event.MouseEvent e)
 			{
 				link.setCursor(hand);
 			}
-
-			/** Opens {@code url} in the default browser on left-click. */
+/** Opens {@code url} in the default browser on left-click. */
 			@Override
 			public void mouseClicked(java.awt.event.MouseEvent e)
 			{
@@ -183,14 +172,12 @@ public final class SidebarLayout
 		});
 		return link;
 	}
-
-	/** Delegates to {@link NumberFormatting#format(long)} for the sidebar's standard number display format. */
+/** Delegates to {@link NumberFormatting#format(long)} for the sidebar's standard number display format. */
 	public static String format(long value)
 	{
 		return NumberFormatting.format(value);
 	}
-
-	/** Escapes {@code &amp;}, {@code &lt;}, {@code &gt;} for safe use inside a Swing HTML label; null becomes {@code ""}. */
+/** Escapes {@code &amp;}, {@code &lt;}, {@code &gt;} for safe use inside a Swing HTML label; null becomes {@code ""}. */
 	public static String htmlEscape(String value)
 	{
 		if (value == null)
@@ -199,8 +186,7 @@ public final class SidebarLayout
 		}
 		return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
 	}
-
-	/** Truncates {@code value} to {@code maxLen} characters, appending "..." when it was longer (short limits truncate without ellipsis). */
+/** Truncates {@code value} to {@code maxLen} characters, appending "..." when it was longer (short limits truncate without ellipsis). */
 	public static String shorten(String value, int maxLen)
 	{
 		if (value == null || value.length() <= maxLen)
@@ -213,21 +199,19 @@ public final class SidebarLayout
 		}
 		return value.substring(0, maxLen - 3) + "...";
 	}
-
-	/** Applies the sidebar's standard stat label styling: white, small font, vertically centered. */
+/** Applies the sidebar's standard stat label styling: white, small font, vertically centered. */
 	public static void applySidebarStatLabelStyle(JLabel label)
 	{
 		label.setForeground(Color.WHITE);
 		label.setVerticalAlignment(SwingConstants.CENTER);
 		label.setFont(FontManager.getRunescapeSmallFont());
 	}
-
-	/** Builds a styled label that re-applies {@link #applySidebarStatLabelStyle} after any Look-and-Feel change. */
+/** Builds a styled label that re-applies {@link #applySidebarStatLabelStyle} after any Look-and-Feel change. */
 	public static JLabel textPanel(String text)
 	{
 		JLabel label = new JLabel(text)
 		{
-			/** Re-applies the stat label style after a Look-and-Feel change resets it. */
+/** Re-applies the stat label style after a Look-and-Feel change resets it. */
 			@Override
 			public void updateUI()
 			{
@@ -238,16 +222,14 @@ public final class SidebarLayout
 		applySidebarStatLabelStyle(label);
 		return label;
 	}
-
-	/** Left-aligns the panel and clamps its max height to its current preferred height (unbounded width). */
+/** Left-aligns the panel and clamps its max height to its current preferred height (unbounded width). */
 	public static void clampPanelWidth(JPanel panel)
 	{
 		panel.setAlignmentX(Component.LEFT_ALIGNMENT);
 		Dimension preferred = panel.getPreferredSize();
 		panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, preferred.height));
 	}
-
-	/** Left-aligns the component and pins its width to a fixed value, keeping its current preferred height. */
+/** Left-aligns the component and pins its width to a fixed value, keeping its current preferred height. */
 	public static void clampFixedWidth(JComponent component, int width)
 	{
 		component.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -257,8 +239,7 @@ public final class SidebarLayout
 		component.setMaximumSize(new Dimension(width, h));
 		component.setMinimumSize(new Dimension(0, h));
 	}
-
-	/** Resolves the welcome panel's font: bold RuneScape font when {@code bold}, else regular or small by {@code fontSize} threshold. */
+/** Resolves the welcome panel's font: bold RuneScape font when {@code bold}, else regular or small by {@code fontSize} threshold. */
 	public static Font resolveWelcomeFont(boolean bold, int fontSize)
 	{
 		if (bold)

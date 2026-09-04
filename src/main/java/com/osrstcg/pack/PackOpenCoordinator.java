@@ -22,7 +22,6 @@ import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 import net.runelite.client.chat.ChatMessageManager;
-
 /**
  * Shared pending-reveal + {@code buyAndOpenPack} sequence used by the infobox, {@code ::tcg-open},
  * and the shop buy button.
@@ -40,8 +39,7 @@ public class PackOpenCoordinator
 	private final ScheduledExecutorService scheduler;
 	private final ChatMessageManager chatMessageManager;
 	private final OsrsTcgConfig config;
-
-	/** Wires the collaborators used to buy packs, run the reveal state machine, and refresh the UI afterwards. */
+/** Wires the collaborators used to buy packs, run the reveal state machine, and refresh the UI afterwards. */
 	@Inject
 	public PackOpenCoordinator(
 		PackRevealService packRevealService,
@@ -66,8 +64,7 @@ public class PackOpenCoordinator
 		this.chatMessageManager = chatMessageManager;
 		this.config = config;
 	}
-
-	/** Infobox / {@code ::tcg-open}: freeze sidebar, chat credits on success, resume on the client thread. */
+/** Infobox / {@code ::tcg-open}: freeze sidebar, chat credits on success, resume on the client thread. */
 	public void openFromPlugin(BoosterPackDefinition booster, Consumer<Runnable> invokeLater)
 	{
 		SidebarRefresh panel = sidebarRefreshProvider.get();
@@ -80,8 +77,7 @@ public class PackOpenCoordinator
 			panel::refresh,
 			invokeLater));
 	}
-
-	/** Shop buy button: optional in-flight guard, resume on the EDT. */
+/** Shop buy button: optional in-flight guard, resume on the EDT. */
 	public void openFromShop(BoosterPackDefinition booster, AtomicBoolean inFlight, Runnable beginFreeze,
 		Runnable clearFreeze, Runnable refresh, Consumer<Runnable> invokeLater)
 	{
@@ -94,8 +90,7 @@ public class PackOpenCoordinator
 			refresh,
 			invokeLater));
 	}
-
-	/**
+/**
 	 * Guards against concurrent opens, freezes the sidebar, snapshots pre-owned cards, begins the
 	 * pending reveal, then buys/opens the pack on {@link #scheduler} and resumes on {@code ui.invokeLater}.
 	 * Must be called on the client thread.
@@ -150,8 +145,7 @@ public class PackOpenCoordinator
 			});
 		});
 	}
-
-	/**
+/**
 	 * Async continuation of {@link #open}, run on the UI thread after the buy/open call returns: unfreezes
 	 * the sidebar and reports failure, or hands successful pulls to the reveal service and announces credits.
 	 */
@@ -195,8 +189,7 @@ public class PackOpenCoordinator
 		}
 		ui.refresh.run();
 	}
-
-	/** Caller-specific UI callbacks/flags that let {@link #open} and {@link #applyOpenResult} stay caller-agnostic. */
+/** Caller-specific UI callbacks/flags that let {@link #open} and {@link #applyOpenResult} stay caller-agnostic. */
 	private static final class UiHooks
 	{
 		final boolean announceCreditsOnSuccess;
@@ -206,8 +199,7 @@ public class PackOpenCoordinator
 		final Runnable clearFreeze;
 		final Runnable refresh;
 		final Consumer<Runnable> invokeLater;
-
-		/** Stores the caller-supplied flags and callbacks verbatim. */
+/** Stores the caller-supplied flags and callbacks verbatim. */
 		UiHooks(boolean announceCreditsOnSuccess, boolean chatWhenBusy,
 			AtomicBoolean inFlight, Runnable beginFreeze, Runnable clearFreeze, Runnable refresh,
 			Consumer<Runnable> invokeLater)

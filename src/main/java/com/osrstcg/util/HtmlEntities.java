@@ -2,19 +2,16 @@ package com.osrstcg.util;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 /** Decode common HTML character references for catalog display strings. */
 public final class HtmlEntities
 {
 	private static final Pattern DECIMAL_REF = Pattern.compile("&#(\\d+);");
 	private static final Pattern HEX_REF = Pattern.compile("&#x([0-9a-fA-F]+);", Pattern.CASE_INSENSITIVE);
-
-	/** No instances. */
+/** No instances. */
 	private HtmlEntities()
 	{
 	}
-
-	/**
+/**
 	 * Decodes {@code &amp;}/{@code &lt;}/{@code &gt;}/{@code &quot;}/{@code &apos;} and numeric
 	 * (decimal and hex) character references in {@code value}. Returns {@code value} unchanged if
 	 * it's {@code null}, empty, or contains no {@code &}.
@@ -35,8 +32,7 @@ public final class HtmlEntities
 		s = replaceRefs(s, HEX_REF, 16);
 		return s;
 	}
-
-	/** Replaces every match of {@code pattern} (a numeric char-ref pattern) with the character it encodes, parsed in {@code radix}. */
+/** Replaces every match of {@code pattern} (a numeric char-ref pattern) with the character it encodes, parsed in {@code radix}. */
 	private static String replaceRefs(String input, Pattern pattern, int radix)
 	{
 		Matcher matcher = pattern.matcher(input);

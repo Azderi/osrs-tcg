@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Locale;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-
 /**
  * Hardcoded welcome-tab paragraphs (previously loaded from Welcome.json).
  */
@@ -35,14 +34,12 @@ public class WelcomeContent
 	public WelcomeContent()
 	{
 	}
-
-	/** @return the fixed list of welcome-tab paragraphs, in display order. */
+/** @return the fixed list of welcome-tab paragraphs, in display order. */
 	public List<WelcomeParagraph> getParagraphs()
 	{
 		return PARAGRAPHS;
 	}
-
-	/**
+/**
 	 * Resolves a paragraph's color string: a handful of named colors, otherwise a hex string
 	 * (with or without a leading {@code #}), falling back to {@link #DEFAULT_COLOR} if blank or unparsable.
 	 */
@@ -80,14 +77,12 @@ public class WelcomeContent
 			return DEFAULT_COLOR;
 		}
 	}
-
-	/** @return true only if {@code bold} is non-null and {@code true}. */
+/** @return true only if {@code bold} is non-null and {@code true}. */
 	public static boolean isBold(Boolean bold)
 	{
 		return Boolean.TRUE.equals(bold);
 	}
-
-	/** @return point size to apply, or {@code <= 0} to keep the base font size */
+/** @return point size to apply, or {@code <= 0} to keep the base font size */
 	public static int resolveFontSize(Integer size)
 	{
 		return size == null ? 0 : size;

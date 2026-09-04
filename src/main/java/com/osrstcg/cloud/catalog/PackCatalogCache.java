@@ -6,7 +6,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
 /** In-memory snapshot of {@code GET /api/v1/packs}. Empty when disconnected. */
 public final class PackCatalogCache
 {
@@ -14,8 +13,7 @@ public final class PackCatalogCache
 	private final int packSize;
 	private final List<BoosterPackDefinition> packs;
 	private final boolean fromServer;
-
-	/**
+/**
 	 * @param packSize clamped to a minimum of 0.
 	 * @param packs defensively copied into an unmodifiable list; null treated as empty.
 	 * @param fromServer whether this cache reflects an actual server fetch, vs. the empty placeholder.
@@ -33,38 +31,32 @@ public final class PackCatalogCache
 			: Collections.unmodifiableList(List.copyOf(packs));
 		this.fromServer = fromServer;
 	}
-
-	/** Server-reported catalog version, or {@code ""} if unknown. */
+/** Server-reported catalog version, or {@code ""} if unknown. */
 	public String getCatalogVersion()
 	{
 		return catalogVersion;
 	}
-
-	/** Number of cards in a booster pack per this catalog. */
+/** Number of cards in a booster pack per this catalog. */
 	public int getPackSize()
 	{
 		return packSize;
 	}
-
-	/** Unmodifiable list of packs in this catalog. */
+/** Unmodifiable list of packs in this catalog. */
 	public List<BoosterPackDefinition> getPacks()
 	{
 		return packs;
 	}
-
-	/** True when this cache was populated from an actual server response, as opposed to the empty placeholder. */
+/** True when this cache was populated from an actual server response, as opposed to the empty placeholder. */
 	public boolean isFromServer()
 	{
 		return fromServer;
 	}
-
-	/** True when this catalog has no packs. */
+/** True when this catalog has no packs. */
 	public boolean isEmpty()
 	{
 		return packs.isEmpty();
 	}
-
-	/** Builds a lookup map keyed by trimmed pack id, keeping the first pack seen for any duplicate id. */
+/** Builds a lookup map keyed by trimmed pack id, keeping the first pack seen for any duplicate id. */
 	public Map<String, BoosterPackDefinition> byId()
 	{
 		Map<String, BoosterPackDefinition> map = new LinkedHashMap<>();
@@ -78,8 +70,7 @@ public final class PackCatalogCache
 		}
 		return Collections.unmodifiableMap(map);
 	}
-
-	/** Looks up a pack by id (via {@link #byId()}); empty when {@code packId} is null/blank or not found. */
+/** Looks up a pack by id (via {@link #byId()}); empty when {@code packId} is null/blank or not found. */
 	public Optional<BoosterPackDefinition> get(String packId)
 	{
 		if (packId == null || packId.isBlank())

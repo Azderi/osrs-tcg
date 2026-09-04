@@ -2,14 +2,13 @@ package com.osrstcg.catalog;
 
 import java.awt.Color;
 import java.util.Optional;
-
 /**
  * Presentation helpers for rarity tiers (labels/colors). Score and foil values come
  * precomputed from the live catalog / pack pulls - do not recompute curves here.
  */
 public final class RarityMath
 {
-	/** Rarity tiers from most to least common, each with a display label and UI color. */
+/** Rarity tiers from most to least common, each with a display label and UI color. */
 	public enum Tier
 	{
 		COMMON("Common", new Color(0xFFFFFF)),
@@ -22,21 +21,18 @@ public final class RarityMath
 
 		private final String label;
 		private final Color color;
-
-		/** Stores the tier's display label and color. */
+/** Stores the tier's display label and color. */
 		Tier(String label, Color color)
 		{
 			this.label = label;
 			this.color = color;
 		}
-
-		/** The tier's display label (e.g. "Legendary"). */
+/** The tier's display label (e.g. "Legendary"). */
 		public String getLabel()
 		{
 			return label;
 		}
-
-		/** The tier's UI color. */
+/** The tier's UI color. */
 		public Color getColor()
 		{
 			return color;
@@ -46,8 +42,7 @@ public final class RarityMath
 	private RarityMath()
 	{
 	}
-
-	/** Parses {@code label} against each {@link Tier#getLabel()}, case-insensitively; empty if null/blank/unmatched. */
+/** Parses {@code label} against each {@link Tier#getLabel()}, case-insensitively; empty if null/blank/unmatched. */
 	public static Optional<Tier> tryParseTierLabel(String label)
 	{
 		if (label == null)
@@ -68,8 +63,7 @@ public final class RarityMath
 		}
 		return Optional.empty();
 	}
-
-	/** Like {@link #tryParseTierLabel}, but defaults to {@link Tier#COMMON} instead of empty. */
+/** Like {@link #tryParseTierLabel}, but defaults to {@link Tier#COMMON} instead of empty. */
 	public static Tier tierFromLabel(String label)
 	{
 		return tryParseTierLabel(label).orElse(Tier.COMMON);

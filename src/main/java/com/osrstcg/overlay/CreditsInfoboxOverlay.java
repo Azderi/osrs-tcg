@@ -20,7 +20,6 @@ import net.runelite.client.ui.overlay.components.ImageComponent;
 import net.runelite.client.ui.overlay.components.LineComponent;
 import net.runelite.client.ui.overlay.components.SplitComponent;
 import net.runelite.client.util.ImageUtil;
-
 /**
  * Movable plain-text overlay for current credits and a configurable-window credits/h rate.
  * Shift+right-click lists affordable visible booster packs to buy and open, and Reset for Credits/h.
@@ -41,19 +40,17 @@ public class CreditsInfoboxOverlay extends OverlayPanel
 	private final TcgStateService stateService;
 	private final CreditsRateTracker creditsRateTracker;
 	private final PackCatalogService packCatalogService;
-
-	/** Cache of the last painted credits value; render()-thread only, used to skip rebuilding components when unchanged. */
+/** Cache of the last painted credits value; render()-thread only, used to skip rebuilding components when unchanged. */
 	private long lastCredits = Long.MIN_VALUE;
-	/** Cache of the last painted credits/h value; render()-thread only. */
+/** Cache of the last painted credits/h value; render()-thread only. */
 	private Long lastCreditsPerHour;
-	/** Cache of the last "show rate" config flag; render()-thread only. */
+/** Cache of the last "show rate" config flag; render()-thread only. */
 	private boolean lastShowRate;
-	/** Cache of the last "show infobox" config flag; render()-thread only. */
+/** Cache of the last "show infobox" config flag; render()-thread only. */
 	private boolean lastShowInfobox = true;
-	/** Hash of the menu-entry-relevant state as of the last {@link #refreshMenuEntries()} call; render()-thread only. */
+/** Hash of the menu-entry-relevant state as of the last {@link #refreshMenuEntries()} call; render()-thread only. */
 	private int lastMenuFingerprint = Integer.MIN_VALUE;
-
-	/** Wires the collaborators used to read credits/rate/catalog state and positions the overlay top-left. */
+/** Wires the collaborators used to read credits/rate/catalog state and positions the overlay top-left. */
 	@Inject
 	CreditsInfoboxOverlay(
 		OsrsTcgConfig config,
@@ -68,8 +65,7 @@ public class CreditsInfoboxOverlay extends OverlayPanel
 		setPosition(OverlayPosition.TOP_LEFT);
 		setClearChildren(false);
 	}
-
-	/**
+/**
 	 * Paints the credits/credits-per-hour panel, rebuilding the child components only when the
 	 * displayed values changed, and refreshing the right-click menu only when its contents changed.
 	 * Called on the client's rendering thread. Returns null (and clears state) while the infobox is
@@ -129,8 +125,7 @@ public class CreditsInfoboxOverlay extends OverlayPanel
 
 		return super.render(graphics);
 	}
-
-	/** Combines credits, the rate-display flag, and each affordable visible booster into a change-detection hash. */
+/** Combines credits, the rate-display flag, and each affordable visible booster into a change-detection hash. */
 	private int menuFingerprint(long credits, boolean showRate)
 	{
 		int hash = showRate ? 1 : 0;
@@ -147,8 +142,7 @@ public class CreditsInfoboxOverlay extends OverlayPanel
 		}
 		return hash;
 	}
-
-	/** Display name used as the overlay menu target for a pack. */
+/** Display name used as the overlay menu target for a pack. */
 	public static String packMenuTarget(BoosterPackDefinition booster)
 	{
 		if (booster == null)
@@ -165,8 +159,7 @@ public class CreditsInfoboxOverlay extends OverlayPanel
 		}
 		return "Pack";
 	}
-
-	/** Rebuilds the overlay's right-click menu: a Reset entry when the rate is shown, and an Open entry per affordable visible booster. */
+/** Rebuilds the overlay's right-click menu: a Reset entry when the rate is shown, and an Open entry per affordable visible booster. */
 	private void refreshMenuEntries()
 	{
 		getMenuEntries().clear();

@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-
 /**
  * Helpers for parsing and normalizing category/region tags, which may be compound values joined
  * with {@code &} (e.g. {@code "Bosses & Slayer"}).
@@ -14,8 +13,7 @@ public final class CategoryTagUtil
 	private CategoryTagUtil()
 	{
 	}
-
-	/** Splits {@code raw} on {@code &} into its trimmed, non-empty parts; empty list if {@code raw} is null/blank. */
+/** Splits {@code raw} on {@code &} into its trimmed, non-empty parts; empty list if {@code raw} is null/blank. */
 	public static List<String> expandCompoundParts(String raw)
 	{
 		if (raw == null)
@@ -38,8 +36,7 @@ public final class CategoryTagUtil
 		}
 		return out;
 	}
-
-	/** Lowercased, trimmed form of a single (non-compound) tag part, used as a comparison/lookup key; empty string if null. */
+/** Lowercased, trimmed form of a single (non-compound) tag part, used as a comparison/lookup key; empty string if null. */
 	public static String canonicalKey(String singleTagPart)
 	{
 		if (singleTagPart == null)
@@ -48,8 +45,7 @@ public final class CategoryTagUtil
 		}
 		return singleTagPart.trim().toLowerCase(Locale.ROOT);
 	}
-
-	/** Title-cases each whitespace-separated word of {@code canonicalKey} for display (e.g. "bosses" to "Bosses"). */
+/** Title-cases each whitespace-separated word of {@code canonicalKey} for display (e.g. "bosses" to "Bosses"). */
 	public static String toDisplayLabel(String canonicalKey)
 	{
 		if (canonicalKey == null || canonicalKey.isEmpty())

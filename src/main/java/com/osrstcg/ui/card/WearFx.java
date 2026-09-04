@@ -6,7 +6,6 @@ import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Value;
-
 /**
  * Deterministic wear (condition damage) layout for a card: a seeded set of scratches and dirt spots plus
  * dirt/edge mix ratios, generated from the card's grade and pull identity so the same card always renders
@@ -15,7 +14,7 @@ import lombok.Value;
 @Getter
 public final class WearFx
 {
-	/** Silhouette used to render one dirt {@link Spot}. */
+/** Silhouette used to render one dirt {@link Spot}. */
 	public enum SpotShape
 	{
 		ROUND,
@@ -24,19 +23,16 @@ public final class WearFx
 		BLOB,
 		SPLOTCH
 	}
-
-	/** Seeded Mulberry32 PRNG producing doubles in [0, 1), used for deterministic wear generation. */
+/** Seeded Mulberry32 PRNG producing doubles in [0, 1), used for deterministic wear generation. */
 	public static final class Mulberry32
 	{
 		private int a;
-
-		/** Seeds the generator; a zero seed is replaced with a fixed non-zero constant. */
+/** Seeds the generator; a zero seed is replaced with a fixed non-zero constant. */
 		public Mulberry32(int seed)
 		{
 			this.a = seed == 0 ? 0x9E3779B9 : seed;
 		}
-
-		/** Advances the generator and returns the next pseudo-random value in [0, 1). */
+/** Advances the generator and returns the next pseudo-random value in [0, 1). */
 		public double next()
 		{
 			a = a + 0x6D2B79F5;
@@ -45,8 +41,7 @@ public final class WearFx
 			return ((t ^ (t >>> 14)) & 0xFFFFFFFFL) / 4294967296.0d;
 		}
 	}
-
-	/** A single scratch mark: position (percent), length (percent of width), rotation angle, and opacity. */
+/** A single scratch mark: position (percent), length (percent of width), rotation angle, and opacity. */
 	@Value
 	public static class Scratch
 	{
@@ -56,8 +51,7 @@ public final class WearFx
 		double angle;
 		double opacity;
 	}
-
-	/** A single dirt spot: position/size (percent), rotation, per-corner border radius, blur amount, shape, and opacity. */
+/** A single dirt spot: position/size (percent), rotation, per-corner border radius, blur amount, shape, and opacity. */
 	@Value
 	public static class Spot
 	{
@@ -71,8 +65,7 @@ public final class WearFx
 		double blur;
 		SpotShape shape;
 		double opacity;
-
-		/** Defensive copy of the 8-element per-corner border radius array. */
+/** Defensive copy of the 8-element per-corner border radius array. */
 		public double[] getBorderRadius()
 		{
 			return borderRadius.clone();
@@ -85,8 +78,7 @@ public final class WearFx
 	private final double edgeMix;
 	private final List<Scratch> scratches;
 	private final List<Spot> spots;
-
-	/** Stores the seed, grade, mix ratios, and wraps the scratch/spot lists as unmodifiable. */
+/** Stores the seed, grade, mix ratios, and wraps the scratch/spot lists as unmodifiable. */
 	private WearFx(int seed, CardGrade grade, double dirtMix, double edgeMix, List<Scratch> scratches, List<Spot> spots)
 	{
 		this.seed = seed;
@@ -96,8 +88,7 @@ public final class WearFx
 		this.scratches = Collections.unmodifiableList(scratches);
 		this.spots = Collections.unmodifiableList(spots);
 	}
-
-	/** FNV-1a hash of a string to a 32-bit seed value. */
+/** FNV-1a hash of a string to a 32-bit seed value. */
 	public static int hashStringToSeed(String str)
 	{
 		int h = 0x811C9DC5;
@@ -112,8 +103,7 @@ public final class WearFx
 		}
 		return h;
 	}
-
-	/**
+/**
 	 * Derives a wear seed by hashing the card name, puller, and pull time together, so wear stays stable
 	 * across renders of the same pulled copy. Falls back to {@code fallback} (or 1) when all three are empty/zero;
 	 * a zero hash result is also mapped to 1 (a valid Mulberry32 seed).
@@ -130,8 +120,7 @@ public final class WearFx
 		int h = hashStringToSeed(name + "|" + by + "|" + at);
 		return h == 0 ? 1 : h;
 	}
-
-	/**
+/**
 	 * Builds a {@link WearFx} for a card copy from its condition/beta status and pull identity. Returns null
 	 * for a grade with zero intensity and fade (i.e. mint/beta condition needs no wear effect). Seeds a PRNG
 	 * from the pull identity and, for grades below A, generates randomized scratches; all non-mint grades get
@@ -211,8 +200,7 @@ public final class WearFx
 
 		return new WearFx(seed, grade, dirtMix, edgeMix, scratches, spots);
 	}
-
-	/** Derives a fallback seed from the raw condition value (scaled to an int) when no pull identity is available; never returns 0. */
+/** Derives a fallback seed from the raw condition value (scaled to an int) when no pull identity is available; never returns 0. */
 	private static int conditionFallbackSeed(Double condition)
 	{
 		if (condition == null || condition.isNaN() || condition.isInfinite())
@@ -226,8 +214,7 @@ public final class WearFx
 		}
 		return (int) v;
 	}
-
-	/** Intermediate geometry (shape, size, rotation, border radii, blur) for one dirt spot before wrapping in a {@link Spot}. */
+/** Intermediate geometry (shape, size, rotation, border radii, blur) for one dirt spot before wrapping in a {@link Spot}. */
 	private static final class SpotGeom
 	{
 		final SpotShape shape;
@@ -236,8 +223,7 @@ public final class WearFx
 		final double rotate;
 		final double[] borderRadius;
 		final double blur;
-
-		/** Stores the computed spot geometry fields verbatim. */
+/** Stores the computed spot geometry fields verbatim. */
 		SpotGeom(SpotShape shape, double w, double h, double rotate, double[] borderRadius, double blur)
 		{
 			this.shape = shape;
@@ -248,8 +234,7 @@ public final class WearFx
 			this.blur = blur;
 		}
 	}
-
-	/** Random per-corner border radii (8 values, 22-80%) for an organic (blob/splotch) spot outline. */
+/** Random per-corner border radii (8 values, 22-80%) for an organic (blob/splotch) spot outline. */
 	private static double[] organicBorderRadius(Mulberry32 rand)
 	{
 		double[] corners = new double[8];
@@ -259,8 +244,7 @@ public final class WearFx
 		}
 		return corners;
 	}
-
-	/** All 8 border-radius corners set to the same percentage (used for round/ellipse/smear spots). */
+/** All 8 border-radius corners set to the same percentage (used for round/ellipse/smear spots). */
 	private static double[] uniformRadius(double percent)
 	{
 		double[] corners = new double[8];
@@ -270,8 +254,7 @@ public final class WearFx
 		}
 		return corners;
 	}
-
-	/** Randomly picks a spot shape (weighted round/ellipse/smear/blob/splotch) and generates its size, rotation, border radii, and blur. */
+/** Randomly picks a spot shape (weighted round/ellipse/smear/blob/splotch) and generates its size, rotation, border radii, and blur. */
 	private static SpotGeom spotGeometry(Mulberry32 rand, double baseSize)
 	{
 		double pick = rand.next();

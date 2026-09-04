@@ -6,7 +6,6 @@ import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import javax.swing.JPanel;
-
 /**
  * Fixed-size dual-segment progress bar for a shop tile: a green fill for standard-owned cards overlaid
  * with a yellow fill for foil-owned cards, both as a percentage of the set total. Immutable once
@@ -25,8 +24,7 @@ public final class ShopPackProgressBar extends JPanel
 	private final int barWidthPx;
 	private final int standardFillPx;
 	private final int foilFillPx;
-
-	/** Precomputes fill widths (clamped to 0-100%) from the owned/total counts for painting. */
+/** Precomputes fill widths (clamped to 0-100%) from the owned/total counts for painting. */
 	public ShopPackProgressBar(int barWidthPx, int standardOwn, int foilOwn, int total)
 	{
 		this.barWidthPx = barWidthPx;
@@ -43,8 +41,7 @@ public final class ShopPackProgressBar extends JPanel
 		setMaximumSize(size);
 		setAlignmentX(Component.CENTER_ALIGNMENT);
 	}
-
-	/** Paints the bordered track, then the standard and foil fill segments over it. */
+/** Paints the bordered track, then the standard and foil fill segments over it. */
 	@Override
 	protected void paintComponent(Graphics g)
 	{

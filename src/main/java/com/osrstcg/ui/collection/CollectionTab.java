@@ -48,7 +48,6 @@ import javax.swing.event.DocumentListener;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
-
 /**
  * Collection tab controller: owns the filter/sort/search toolbar and the card list, and rebuilds the row
  * list on a background executor so filtering/sorting large collections doesn't block the EDT. All Swing
@@ -57,9 +56,9 @@ import net.runelite.client.ui.FontManager;
 @Slf4j
 public final class CollectionTab
 {
-	/** {@link CardLayout} key for the card-list panel when it has rows to show. */
+/** {@link CardLayout} key for the card-list panel when it has rows to show. */
 	public static final String LIST_CARD = "list";
-	/** {@link CardLayout} key for the placeholder panel shown when the filtered list is empty. */
+/** {@link CardLayout} key for the placeholder panel shown when the filtered list is empty. */
 	public static final String EMPTY_CARD = "empty";
 	private static final int ROW_HEIGHT = 24;
 
@@ -83,8 +82,7 @@ public final class CollectionTab
 	private RarityMath.Tier collectionRarityFilter;
 	private CollectionListModel.SortMode collectionSortMode = CollectionListModel.SortMode.SCORE_DESC;
 	private String collectionSearchQuery = "";
-
-	/** Wires the collaborators and the pre-built Swing components this controller drives. */
+/** Wires the collaborators and the pre-built Swing components this controller drives. */
 	public CollectionTab(
 		CardDatabase cardDatabase,
 		PackCatalogService packCatalogService,
@@ -113,8 +111,7 @@ public final class CollectionTab
 		this.collectionEmptyLabel = collectionEmptyLabel;
 		this.collectionSearchField = createCollectionSearchField();
 	}
-
-	/**
+/**
 	 * One-time setup of the card list's appearance and behavior: styling, fixed row height, the shared row
 	 * renderer, a no-op selection model (the list is display-only), and width sync on scroll pane resize.
 	 * Must be called on the EDT.
@@ -131,13 +128,12 @@ public final class CollectionTab
 		collectionList.setCellRenderer(new CollectionRowRenderer(contentWidth));
 		collectionList.setSelectionModel(new DefaultListSelectionModel()
 		{
-			/** No-op: the collection list is not selectable. */
+/** No-op: the collection list is not selectable. */
 			@Override
 			public void setSelectionInterval(int index0, int index1)
 			{
 			}
-
-			/** No-op: the collection list is not selectable. */
+/** No-op: the collection list is not selectable. */
 			@Override
 			public void addSelectionInterval(int index0, int index1)
 			{
@@ -148,7 +144,7 @@ public final class CollectionTab
 		syncCellWidth();
 		collectionListScrollPane.addComponentListener(new ComponentAdapter()
 		{
-			/** Keeps the list's fixed cell width matched to the scroll pane's current viewport width. */
+/** Keeps the list's fixed cell width matched to the scroll pane's current viewport width. */
 			@Override
 			public void componentResized(ComponentEvent e)
 			{
@@ -156,20 +152,17 @@ public final class CollectionTab
 			}
 		});
 	}
-
-	/** Bumps the build generation so any in-flight background row rebuild discards its result once done. */
+/** Bumps the build generation so any in-flight background row rebuild discards its result once done. */
 	public void cancelPendingRebuilds()
 	{
 		buildGen.incrementAndGet();
 	}
-
-	/** Clears the visible list data without touching filters or triggering a rebuild. */
+/** Clears the visible list data without touching filters or triggering a rebuild. */
 	public void clearList()
 	{
 		collectionList.setListData(new CollectionListModel.Row[0]);
 	}
-
-	/** Applies {@link #contentWidth} to the list's fixed cell width if it has changed. */
+/** Applies {@link #contentWidth} to the list's fixed cell width if it has changed. */
 	private void syncCellWidth()
 	{
 		int w = contentWidth.getAsInt();
@@ -178,8 +171,7 @@ public final class CollectionTab
 			collectionList.setFixedCellWidth(w);
 		}
 	}
-
-	/**
+/**
 	 * Rebuilds the toolbar and swaps it plus the list host into {@link #collectionContent}, then kicks off
 	 * an async rebuild of the row list for the current filters. Must be called on the EDT.
 	 */
@@ -200,8 +192,7 @@ public final class CollectionTab
 
 		scheduleCollectionListRebuild(snap, allCards, selectedPack);
 	}
-
-	/** Looks up the current pack filter in {@code packs}; clears the filter if it no longer matches any pack. */
+/** Looks up the current pack filter in {@code packs}; clears the filter if it no longer matches any pack. */
 	private BoosterPackDefinition resolveSelectedPack(List<BoosterPackDefinition> packs)
 	{
 		BoosterPackDefinition selected = PackCatalogService.findById(packs, collectionPackFilterId);
@@ -212,8 +203,7 @@ public final class CollectionTab
 		}
 		return selected;
 	}
-
-	/**
+/**
 	 * Snapshots the current filter/sort state and schedules the row build on {@link #scheduler}, applying
 	 * the result back on the EDT only if no newer rebuild has been started ({@link #buildGen} check) and
 	 * falling back to an empty list on failure.
@@ -259,8 +249,7 @@ public final class CollectionTab
 			}
 		});
 	}
-
-	/** Pushes a completed row build into the list and flips the {@link CardLayout} between empty/list cards. Must run on the EDT. */
+/** Pushes a completed row build into the list and flips the {@link CardLayout} between empty/list cards. Must run on the EDT. */
 	private void applyCollectionRows(long gen, List<CollectionListModel.Row> rows)
 	{
 		if (gen != buildGen.get())
@@ -283,8 +272,7 @@ public final class CollectionTab
 		collectionListHost.revalidate();
 		collectionListHost.repaint();
 	}
-
-	/** Builds the search field, pack/rarity/sort combo rows, and the progress label above the list. */
+/** Builds the search field, pack/rarity/sort combo rows, and the progress label above the list. */
 	private JPanel buildCollectionToolbar(
 		List<BoosterPackDefinition> packs,
 		BoosterPackDefinition selectedPack,
@@ -347,8 +335,7 @@ public final class CollectionTab
 
 		return toolbar;
 	}
-
-	/**
+/**
 	 * Builds the "X: owned / total (pct%)" label: overall collection stats when no pack filter is active,
 	 * or that pack's set-completion progress otherwise.
 	 */
@@ -389,15 +376,13 @@ public final class CollectionTab
 		progressLabel.setMaximumSize(new Dimension(Integer.MAX_VALUE, progressLabel.getPreferredSize().height));
 		return progressLabel;
 	}
-
-	/** Re-renders the tab after a filter change, then notifies the host panel via {@link #onRendered}. */
+/** Re-renders the tab after a filter change, then notifies the host panel via {@link #onRendered}. */
 	private void refreshCollectionTabUi()
 	{
 		render();
 		onRendered.run();
 	}
-
-	/** Visible boosters that have category filters and a distinct collection key, deduplicated by that key. */
+/** Visible boosters that have category filters and a distinct collection key, deduplicated by that key. */
 	private List<BoosterPackDefinition> collectionFilterPacks()
 	{
 		List<BoosterPackDefinition> out = new ArrayList<>();
@@ -417,8 +402,7 @@ public final class CollectionTab
 		}
 		return out;
 	}
-
-	/** Wraps a filter control with a left-aligned text label. */
+/** Wraps a filter control with a left-aligned text label. */
 	private JPanel labeledCollectionFilter(String labelText, JComponent field)
 	{
 		JPanel row = new JPanel(new BorderLayout(6, 0));
@@ -430,8 +414,7 @@ public final class CollectionTab
 		row.add(field, BorderLayout.CENTER);
 		return row;
 	}
-
-	/** Builds the styled search text field, wiring its document listener to {@link #onCollectionSearchEdited}. */
+/** Builds the styled search text field, wiring its document listener to {@link #onCollectionSearchEdited}. */
 	private JTextField createCollectionSearchField()
 	{
 		JTextField field = new JTextField();
@@ -443,8 +426,7 @@ public final class CollectionTab
 		field.getDocument().addDocumentListener(documentListener(this::onCollectionSearchEdited));
 		return field;
 	}
-
-	/** Stores the new search text and, while the tab is active, schedules a row rebuild for it (without a full re-render). */
+/** Stores the new search text and, while the tab is active, schedules a row rebuild for it (without a full re-render). */
 	private void onCollectionSearchEdited()
 	{
 		String next = collectionSearchField.getText() == null ? "" : collectionSearchField.getText();
@@ -463,8 +445,7 @@ public final class CollectionTab
 			cardDatabase.getCards(),
 			resolveSelectedPack(packs));
 	}
-
-	/** Adapts a {@link DocumentListener}'s three callbacks onto a single {@code onChange} callback. */
+/** Adapts a {@link DocumentListener}'s three callbacks onto a single {@code onChange} callback. */
 	private static DocumentListener documentListener(Runnable onChange)
 	{
 		return new DocumentListener()
@@ -488,8 +469,7 @@ public final class CollectionTab
 			}
 		};
 	}
-
-	/**
+/**
 	 * Wires a combo box so selecting a genuinely different item (per {@code unchanged}) applies it via
 	 * {@code apply} and triggers a full tab re-render.
 	 */
@@ -507,8 +487,7 @@ public final class CollectionTab
 			refreshCollectionTabUi();
 		});
 	}
-
-	/** Applies the common font/color/focus styling shared by the collection tab's filter combo boxes. */
+/** Applies the common font/color/focus styling shared by the collection tab's filter combo boxes. */
 	private static <T> JComboBox<T> styleCollectionCombo(JComboBox<T> combo)
 	{
 		combo.setFont(FontManager.getRunescapeSmallFont());

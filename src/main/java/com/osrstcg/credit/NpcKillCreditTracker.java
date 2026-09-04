@@ -19,7 +19,6 @@ import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.InteractingChanged;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.Subscribe;
-
 /**
  * Awards credits for player-caused NPC kills. Tracks which NPCs the player has recently interacted with or
  * hit so a death is only credited when it was actually caused by the player within a short timeout.
@@ -28,7 +27,7 @@ import net.runelite.client.eventbus.Subscribe;
 @Singleton
 public final class NpcKillCreditTracker
 {
-	/** Ticks after the last player interaction/hit on an NPC before it's no longer considered engaged. */
+/** Ticks after the last player interaction/hit on an NPC before it's no longer considered engaged. */
 	private static final int INTERACT_TIMEOUT_TICKS = 12;
 
 	private final Client client;
@@ -37,12 +36,11 @@ public final class NpcKillCreditTracker
 	private final CreditAttestQueue attestQueue;
 	private final ActivityConfigService activityConfigService;
 	private final SidebarRefresh sidebarRefresh;
-
-	/** Last known display name per NPC index. */
+/** Last known display name per NPC index. */
 	private final Map<Integer, String> lastKnownNpcName = new ConcurrentHashMap<>();
-	/** Tick of the last player interaction/hit per NPC index, for the engagement timeout. */
+/** Tick of the last player interaction/hit per NPC index, for the engagement timeout. */
 	private final Map<Integer, Integer> lastInteractionTicks = new ConcurrentHashMap<>();
-	/** Whether the player has interacted with or hit the NPC at this index recently enough to credit its death. */
+/** Whether the player has interacted with or hit the NPC at this index recently enough to credit its death. */
 	private final Map<Integer, Boolean> wasNpcEngaged = new ConcurrentHashMap<>();
 
 	@Inject
@@ -61,16 +59,14 @@ public final class NpcKillCreditTracker
 		this.activityConfigService = activityConfigService;
 		this.sidebarRefresh = sidebarRefresh;
 	}
-
-	/** Clears all tracked NPC interaction state. */
+/** Clears all tracked NPC interaction state. */
 	public void shutdown()
 	{
 		lastKnownNpcName.clear();
 		lastInteractionTicks.clear();
 		wasNpcEngaged.clear();
 	}
-
-	/** Marks an NPC the player has just targeted as engaged, so a fast/one-hit kill still qualifies. */
+/** Marks an NPC the player has just targeted as engaged, so a fast/one-hit kill still qualifies. */
 	@Subscribe
 	public void onInteractingChanged(InteractingChanged event)
 	{
@@ -94,8 +90,7 @@ public final class NpcKillCreditTracker
 			wasNpcEngaged.put(npcIndex, true);
 		}
 	}
-
-	/** Marks an NPC hit by the player's own hitsplat as engaged and refreshes its interaction timeout. */
+/** Marks an NPC hit by the player's own hitsplat as engaged and refreshes its interaction timeout. */
 	@Subscribe
 	public void onHitsplatApplied(HitsplatApplied event)
 	{
@@ -118,8 +113,7 @@ public final class NpcKillCreditTracker
 			wasNpcEngaged.put(npcIndex, true);
 		}
 	}
-
-	/**
+/**
 	 * On an NPC death, awards npc-kill credit if the player was recently engaged with it. Deferred to the
 	 * client thread since engagement state can be checked/cleared from event handlers on the same tick.
 	 */
@@ -169,8 +163,7 @@ public final class NpcKillCreditTracker
 			}
 		});
 	}
-
-	/** Expires stale interaction timestamps once past {@link #INTERACT_TIMEOUT_TICKS}. */
+/** Expires stale interaction timestamps once past {@link #INTERACT_TIMEOUT_TICKS}. */
 	@Subscribe
 	public void onGameTick(GameTick event)
 	{
@@ -178,8 +171,7 @@ public final class NpcKillCreditTracker
 		lastInteractionTicks.keySet().removeIf(npcIndex ->
 			(currentTick - lastInteractionTicks.get(npcIndex)) > INTERACT_TIMEOUT_TICKS);
 	}
-
-	/**
+/**
 	 * Enqueues an {@code npc_kill} attest event; optimistic credits are
 	 * {@code round(combatLevel * killCreditMultiplier)}, defaulting to 1× when unset.
 	 */
@@ -208,8 +200,7 @@ public final class NpcKillCreditTracker
 		}
 		attestQueue.enqueue("npc_kill", evidence, optimisticCredits);
 	}
-
-	/** Strips RuneLite formatting tags from an NPC name, defaulting to "Unnamed NPC" for {@code null}. */
+/** Strips RuneLite formatting tags from an NPC name, defaulting to "Unnamed NPC" for {@code null}. */
 	private static String normalizeName(String npcName)
 	{
 		if (npcName == null)
@@ -218,15 +209,13 @@ public final class NpcKillCreditTracker
 		}
 		return npcName.replaceAll("<.*?>", "").trim();
 	}
-
-	/** Whether the NPC at {@code npcIndex} was interacted with/hit within {@link #INTERACT_TIMEOUT_TICKS}. */
+/** Whether the NPC at {@code npcIndex} was interacted with/hit within {@link #INTERACT_TIMEOUT_TICKS}. */
 	private boolean isInteractionValid(int npcIndex)
 	{
 		Integer lastTick = lastInteractionTicks.get(npcIndex);
 		return lastTick != null && (client.getTickCount() - lastTick) <= INTERACT_TIMEOUT_TICKS;
 	}
-
-	/** Removes tracked interaction state for an NPC index after its death has been handled. */
+/** Removes tracked interaction state for an NPC index after its death has been handled. */
 	private void cleanupAfterLogging(int npcIndex)
 	{
 		lastKnownNpcName.remove(npcIndex);

@@ -4,7 +4,6 @@ import com.google.gson.annotations.JsonAdapter;
 import java.util.Collections;
 import java.util.List;
 import lombok.Data;
-
 /**
  * Catalog definition of a single card: identity, artwork, rarity tier, and the raw/override
  * score fields used to compute display and pack-odds values.
@@ -30,20 +29,19 @@ public class CardDefinition
 	private Long score;
 	private Long foilScore;
 	private String tierLabel;
-	/**
+/**
 	 * @deprecated Prefer {@link #score}; kept as an alias populated from {@code tcg.score}.
 	 */
 	@Deprecated
 	private Long overrideScore;
-	/**
+/**
 	 * @deprecated Prefer {@link #foilScore}.
 	 */
 	@Deprecated
 	private Long overrideFoilScore;
 	private String examine;
 	private String wikiPage;
-
-	/**
+/**
 	 * The score to display/use for odds math. When {@code foil} is true, prefers {@link #foilScore}
 	 * then {@link #overrideFoilScore} (both must be non-negative); otherwise, and as a fallback,
 	 * uses {@link #score} then {@link #overrideScore}, clamped to non-negative. Defaults to 0.
@@ -74,20 +72,17 @@ public class CardDefinition
 		}
 		return 0L;
 	}
-
-	/** {@link #category}, or an empty list if unset. */
+/** {@link #category}, or an empty list if unset. */
 	public List<String> getCategoryTags()
 	{
 		return category == null ? Collections.emptyList() : category;
 	}
-
-	/** {@link #regions}, or an empty list if unset. */
+/** {@link #regions}, or an empty list if unset. */
 	public List<String> getRegionTags()
 	{
 		return regions == null ? Collections.emptyList() : regions;
 	}
-
-	/** Display label for the first part of the first category tag (e.g. "Skilling"), or "Unknown" if none. */
+/** Display label for the first part of the first category tag (e.g. "Skilling"), or "Unknown" if none. */
 	public String getPrimaryCategory()
 	{
 		List<String> tags = getCategoryTags();

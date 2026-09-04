@@ -18,7 +18,6 @@ import com.osrstcg.cloud.api.CloudApiException;
 import com.osrstcg.cloud.api.JsonObjects;
 import com.osrstcg.cloud.trade.TradeCloudService;
 import javax.inject.Provider;
-
 /**
  * Settles offline hiscores gains into cloud credits once per login. Never called on logout —
  * {@link #clearGate()} cancels any pending retry so a delayed settle cannot fire after disconnect.
@@ -30,7 +29,7 @@ import javax.inject.Provider;
 final class HiscoresSettleService
 {
 	private static final long HISCORES_RETRY_DELAY_SEC = 30L;
-	/** Longer than default {@code HISCORES_SETTLE_MIN_INTERVAL_MS} (60s) so throttle can clear. */
+/** Longer than default {@code HISCORES_SETTLE_MIN_INTERVAL_MS} (60s) so throttle can clear. */
 	private static final long SETTLE_THROTTLE_RETRY_DELAY_SEC = 70L;
 
 	private final CachedDisplayName displayName = new CachedDisplayName();
@@ -47,12 +46,11 @@ final class HiscoresSettleService
 	private final AtomicBoolean hiscoresRetryScheduled;
 	private final java.util.function.BooleanSupplier needsCloudConsent;
 	private final java.util.function.BooleanSupplier isAccountLocked;
-	/** Bumped by {@link #clearGate()} so in-flight/scheduled retries become no-ops after logout. */
+/** Bumped by {@link #clearGate()} so in-flight/scheduled retries become no-ops after logout. */
 	private final AtomicLong settleEpoch = new AtomicLong(0L);
 	private final Object retryLock = new Object();
 	private ScheduledFuture<?> retryFuture;
-
-	/** Wires collaborators and the shared login/retry flags owned by {@link CloudSessionService}. */
+/** Wires collaborators and the shared login/retry flags owned by {@link CloudSessionService}. */
 	HiscoresSettleService(
 		Client client,
 		CloudApiClient api,
@@ -80,8 +78,7 @@ final class HiscoresSettleService
 		this.needsCloudConsent = needsCloudConsent;
 		this.isAccountLocked = isAccountLocked;
 	}
-
-	/**
+/**
 	 * Settles offline hiscores gains into credits, once per login (guarded by
 	 * {@link #hiscoresSettledThisLogin}). No-op when not logged into RuneScape (never on logout).
 	 * On error, delegates to {@link #handleSettleError}.
@@ -131,8 +128,7 @@ final class HiscoresSettleService
 			log.warn("Hiscores settle failed", ex);
 		}
 	}
-
-	/**
+/**
 	 * Invalidates settle for this session: bumps the epoch, cancels any pending retry, and resets
 	 * once-per-login flags. Called on logout/disconnect/lock so settle cannot fire afterward.
 	 */
@@ -143,8 +139,7 @@ final class HiscoresSettleService
 		hiscoresRetryScheduled.set(false);
 		cancelRetry();
 	}
-
-	/** True only while logged into RuneScape with tokens/consent/world gates open. */
+/** True only while logged into RuneScape with tokens/consent/world gates open. */
 	private boolean canSettleNow()
 	{
 		if (client.getGameState() != GameState.LOGGED_IN)
@@ -162,8 +157,7 @@ final class HiscoresSettleService
 	{
 		return settleEpoch.get() == epoch;
 	}
-
-	/**
+/**
 	 * Applies sidebar credits from a settle response. Soft-skips ({@code hiscores_stale},
 	 * {@code settle_throttle}) refresh credits but do not consume the once-per-login gate — a single
 	 * delayed retry is scheduled so Jagex lag / cooldown can clear. Terminal successes mark settled.
@@ -199,8 +193,7 @@ final class HiscoresSettleService
 
 		hiscoresSettledThisLogin.set(true);
 	}
-
-	/**
+/**
 	 * Classifies a settle failure: "not found"/forbidden/locked codes are treated as terminal for
 	 * this login (marks settled, no retry); {@code hiscores_unavailable}/503 schedules one retry;
 	 * anything else is just logged.
@@ -234,8 +227,7 @@ final class HiscoresSettleService
 		}
 		log.warn("Hiscores settle failed: {} {}", code, ex.getMessage());
 	}
-
-	/**
+/**
 	 * Schedules a single delayed settle retry (guarded by {@link #hiscoresRetryScheduled} so only one
 	 * retry is ever pending). The retry re-checks preconditions and the settle epoch before calling
 	 * settle again; {@link #clearGate()} cancels it on logout.
@@ -319,14 +311,12 @@ final class HiscoresSettleService
 			future.cancel(false);
 		}
 	}
-
-	/** Current local player's sanitized name, falling back to the last known name if unavailable. */
+/** Current local player's sanitized name, falling back to the last known name if unavailable. */
 	private String resolveDisplayName()
 	{
 		return displayName.resolve(client);
 	}
-
-	/**
+/**
 	 * Applies a settle response's sidebar credits/revision. Posts a chat toast when hiscores credits
 	 * were accepted.
 	 */

@@ -33,7 +33,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.RuneLite;
-
 /**
  * Fetches, caches, and compiles the server-driven activity config (chat-based credit rules and NPC
  * exclusions) used to award activity credits. Holds the current {@link CompiledActivityConfig} in an
@@ -57,8 +56,7 @@ public final class ActivityConfigService
 	private final AtomicBoolean softRefreshScheduled = new AtomicBoolean(false);
 	private final Object pollLock = new Object();
 	private ScheduledFuture<?> quietPollFuture;
-
-	/** Wires collaborators and registers to be notified when the cloud API observes a new remote version. */
+/** Wires collaborators and registers to be notified when the cloud API observes a new remote version. */
 	@Inject
 	ActivityConfigService(CloudApiClient api, Gson gson, ScheduledExecutorService scheduler)
 	{
@@ -67,8 +65,7 @@ public final class ActivityConfigService
 		this.scheduler = scheduler;
 		api.setActivitiesVersionListener(this::noteRemoteVersion);
 	}
-
-	/** Synchronously loads the on-disk cached config, if any, so a compiled config is available before any network fetch. Blocks on disk I/O; call off the client thread during startup. */
+/** Synchronously loads the on-disk cached config, if any, so a compiled config is available before any network fetch. Blocks on disk I/O; call off the client thread during startup. */
 	public void loadDiskCacheIfPresent()
 	{
 		Path file = diskCacheFile();
@@ -92,21 +89,18 @@ public final class ActivityConfigService
 			log.warn("Failed reading activity config disk cache {}", file, ex);
 		}
 	}
-
-	/** Kicks off an async, best-effort refresh without blocking the caller. */
+/** Kicks off an async, best-effort refresh without blocking the caller. */
 	public void prefetchAsync()
 	{
 		scheduler.execute(this::ensureFreshSafe);
 	}
-
-	/** Starts the periodic quiet poll and triggers an immediate async refresh; call once per login. */
+/** Starts the periodic quiet poll and triggers an immediate async refresh; call once per login. */
 	public void refreshOnLogin()
 	{
 		startQuietPoll();
 		scheduler.execute(this::ensureFreshSafe);
 	}
-
-	/** Cancels the periodic quiet poll, if running; call on logout. */
+/** Cancels the periodic quiet poll, if running; call on logout. */
 	public void stopQuietPoll()
 	{
 		synchronized (pollLock)
@@ -118,8 +112,7 @@ public final class ActivityConfigService
 			}
 		}
 	}
-
-	/**
+/**
 	 * Callback for {@link CloudApiClient}'s version listener: if {@code remoteVersion} differs from the
 	 * cached version, schedules a single async refresh (coalesced via {@link #softRefreshScheduled} so
 	 * repeated notifications don't queue duplicate refreshes).
@@ -152,8 +145,7 @@ public final class ActivityConfigService
 			}
 		});
 	}
-
-	/**
+/**
 	 * Synchronously checks the remote version and, if stale, fetches and applies a fresh config; a single
 	 * refresh runs at a time ({@link #ensureInFlight} guards re-entry) and failures are logged and swallowed,
 	 * keeping the last-good compiled config. Performs blocking network I/O; call from {@link #scheduler}, not
@@ -184,8 +176,7 @@ public final class ActivityConfigService
 			ensureInFlight.set(false);
 		}
 	}
-
-	/** {@link #ensureFresh()} wrapped with a catch-all so a scheduled task never dies from an unexpected exception. */
+/** {@link #ensureFresh()} wrapped with a catch-all so a scheduled task never dies from an unexpected exception. */
 	private void ensureFreshSafe()
 	{
 		try
@@ -197,8 +188,7 @@ public final class ActivityConfigService
 			log.warn("Activity config refresh failed; keeping last-good", ex);
 		}
 	}
-
-	/**
+/**
 	 * Does the actual version check and conditional-GET fetch: skips the fetch entirely if a lightweight
 	 * version check confirms the cache is current, and skips applying the body on a 304. Blocking network I/O.
 	 */
@@ -239,26 +229,22 @@ public final class ActivityConfigService
 		log.info("Refreshed activity config (version={}, chatRules={})",
 			getVersion(), getChatRules().size());
 	}
-
-	/** Version of the currently compiled config; non-blocking. */
+/** Version of the currently compiled config; non-blocking. */
 	public String getVersion()
 	{
 		return compiled.get().getVersion();
 	}
-
-	/** Chat rules from the currently compiled config; non-blocking. */
+/** Chat rules from the currently compiled config; non-blocking. */
 	public List<CompiledActivityConfig.CompiledChatRule> getChatRules()
 	{
 		return compiled.get().getChatRules();
 	}
-
-	/** Currently compiled config snapshot; non-blocking. */
+/** Currently compiled config snapshot; non-blocking. */
 	public CompiledActivityConfig getCompiled()
 	{
 		return compiled.get();
 	}
-
-	/** Starts a fixed-rate background refresh poll if one isn't already running. */
+/** Starts a fixed-rate background refresh poll if one isn't already running. */
 	private void startQuietPoll()
 	{
 		synchronized (pollLock)
@@ -274,8 +260,7 @@ public final class ActivityConfigService
 				TimeUnit.MINUTES);
 		}
 	}
-
-	/** Compiles {@code dto} and publishes it as the current config, optionally persisting the raw DTO to disk. */
+/** Compiles {@code dto} and publishes it as the current config, optionally persisting the raw DTO to disk. */
 	private void applyDto(ActivityConfigDto dto, boolean persistDisk)
 	{
 		CompiledActivityConfig next = compile(dto);
@@ -285,8 +270,7 @@ public final class ActivityConfigService
 			persistDiskCache(dto);
 		}
 	}
-
-	/**
+/**
 	 * Converts a raw {@link ActivityConfigDto} into an immutable {@link CompiledActivityConfig}: compiles
 	 * each chat rule (dropping invalid ones), expands NPC exclusion ids/ranges into a flat id set, and
 	 * parses per-NPC kill credit multipliers.
@@ -369,8 +353,7 @@ public final class ActivityConfigService
 		String version = dto.version == null ? "" : dto.version.trim();
 		return new CompiledActivityConfig(version, rules, npcIds, killMultipliers);
 	}
-
-	/**
+/**
 	 * Compiles one raw chat rule, or returns null if it's missing required fields or (for a regex rule)
 	 * has an invalid pattern.
 	 */
@@ -399,8 +382,7 @@ public final class ActivityConfigService
 		return new CompiledActivityConfig.CompiledChatRule(
 			rule.activityId.trim(), rule.credits, rule.label, rule.value, null);
 	}
-
-	/** Best-effort atomic write of the raw DTO JSON to the disk cache; failures are logged and swallowed. */
+/** Best-effort atomic write of the raw DTO JSON to the disk cache; failures are logged and swallowed. */
 	private void persistDiskCache(ActivityConfigDto dto)
 	{
 		Path target = diskCacheFile();
@@ -413,14 +395,12 @@ public final class ActivityConfigService
 			log.debug("Activity config disk cache write failed", ex);
 		}
 	}
-
-	/** Directory under the RuneLite home dir holding the activity config disk cache. */
+/** Directory under the RuneLite home dir holding the activity config disk cache. */
 	private static Path diskCacheDir()
 	{
 		return Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG", "activities");
 	}
-
-	/** Path to the cached raw activity config JSON file. */
+/** Path to the cached raw activity config JSON file. */
 	private static Path diskCacheFile()
 	{
 		return diskCacheDir().resolve("activities.json");

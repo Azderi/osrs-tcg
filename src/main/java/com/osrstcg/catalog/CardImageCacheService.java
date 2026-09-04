@@ -39,7 +39,6 @@ import net.runelite.client.RuneLite;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
-
 /**
  * Loads and caches card/pack artwork fetched over HTTP. Keeps a bounded in-memory LRU of decoded
  * images plus an on-disk cache keyed by a normalized URL identity, deduplicates concurrent fetches
@@ -70,7 +69,7 @@ public class CardImageCacheService
 	private final Map<String, BufferedImage> memoryCache = Collections.synchronizedMap(
 		new LinkedHashMap<String, BufferedImage>(MEMORY_CACHE_MAX_ENTRIES + 1, 0.75f, true)
 		{
-			/** Evicts the least-recently-used entry once the cache exceeds {@link #MEMORY_CACHE_MAX_ENTRIES}. */
+/** Evicts the least-recently-used entry once the cache exceeds {@link #MEMORY_CACHE_MAX_ENTRIES}. */
 			@Override
 			protected boolean removeEldestEntry(Map.Entry<String, BufferedImage> eldest)
 			{
@@ -81,16 +80,14 @@ public class CardImageCacheService
 	private final ConcurrentHashMap<String, Long> failedAtMs = new ConcurrentHashMap<>();
 	private static final long FAIL_COOLDOWN_MS = 60_000L;
 	private static final long PACK_FAIL_COOLDOWN_MS = 5_000L;
-
-	/** Wires the HTTP client used to fetch images and the token store used to gate osrs-tcg.net requests. */
+/** Wires the HTTP client used to fetch images and the token store used to gate osrs-tcg.net requests. */
 	@Inject
 	public CardImageCacheService(OkHttpClient okHttpClient, CloudTokenStore tokenStore)
 	{
 		this.okHttpClient = okHttpClient;
 		this.tokenStore = tokenStore;
 	}
-
-	/** Kicks off background loads for every non-blank URL and returns a future that completes once they've all settled. */
+/** Kicks off background loads for every non-blank URL and returns a future that completes once they've all settled. */
 	public CompletableFuture<Void> preloadAsync(Collection<String> urls)
 	{
 		if (urls == null)
@@ -110,8 +107,7 @@ public class CardImageCacheService
 		}
 		return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new));
 	}
-
-	/**
+/**
 	 * Non-blocking lookup: returns the decoded image if it's already in the memory cache, otherwise
 	 * kicks off a background load (unless the URL is in its failure cooldown) and returns {@code null}.
 	 */
@@ -136,8 +132,7 @@ public class CardImageCacheService
 		}
 		return null;
 	}
-
-	/**
+/**
 	 * Returns the in-flight or newly-started load future for {@code rawUrl}, or {@code null} if the
 	 * URL can't be resolved, is already cached, or is in its failure cooldown. Loads run on
 	 * {@link #imageLoadExecutor} gated by {@link #loadPermits}; on completion the result is written
@@ -193,8 +188,7 @@ public class CardImageCacheService
 				loadingFutures.remove(key);
 			}));
 	}
-
-	/** Whether {@code cacheKey} failed recently enough to still be within its cooldown window (pack/card-back URLs use a shorter one); clears expired entries. */
+/** Whether {@code cacheKey} failed recently enough to still be within its cooldown window (pack/card-back URLs use a shorter one); clears expired entries. */
 	private boolean isInFailCooldown(String cacheKey, String fetchUrl)
 	{
 		Long failedAt = failedAtMs.get(cacheKey);
@@ -212,8 +206,7 @@ public class CardImageCacheService
 		}
 		return true;
 	}
-
-	/**
+/**
 	 * Loads one image: tries disk cache first, then (for {@code https://} URLs, and gated by cloud
 	 * consent for osrs-tcg.net hosts) fetches over HTTP, persisting the bytes to disk and re-reading
 	 * via {@link #tryLoadFromDisk} so the result is subsampled the same way either path takes.
@@ -294,8 +287,7 @@ public class CardImageCacheService
 		}
 		return null;
 	}
-
-	/**
+/**
 	 * Reads at most {@code maxBytes} from {@code in}. Returns {@code null} if the stream exceeds the cap;
 	 * otherwise the full contents (possibly empty).
 	 */
@@ -316,8 +308,7 @@ public class CardImageCacheService
 		}
 		return out.toByteArray();
 	}
-
-	/** Bilinearly downscales {@code source} so its longer edge is at most {@code maxEdgePx}; returns it unchanged if already within the cap. */
+/** Bilinearly downscales {@code source} so its longer edge is at most {@code maxEdgePx}; returns it unchanged if already within the cap. */
 	private static BufferedImage downscaleForMemoryCache(BufferedImage source, int maxEdgePx)
 	{
 		if (source == null)
@@ -346,8 +337,7 @@ public class CardImageCacheService
 		}
 		return scaled;
 	}
-
-	/** Deletes disk cache directories from prior cache-format versions, freeing space left behind by upgrades. */
+/** Deletes disk cache directories from prior cache-format versions, freeing space left behind by upgrades. */
 	public void deleteObsoleteImageCacheDirs()
 	{
 		Path root = tcgCacheRoot();
@@ -355,8 +345,7 @@ public class CardImageCacheService
 		deleteDirectoryQuietly(root.resolve("images-v2"));
 		deleteDirectoryQuietly(root.resolve("images"));
 	}
-
-	/** Recursively deletes {@code dir} if it exists, logging but not throwing on failure. */
+/** Recursively deletes {@code dir} if it exists, logging but not throwing on failure. */
 	private static void deleteDirectoryQuietly(Path dir)
 	{
 		if (dir == null || !Files.isDirectory(dir))
@@ -383,8 +372,7 @@ public class CardImageCacheService
 			log.debug("Failed walking image cache dir {}", dir, ex);
 		}
 	}
-
-	/** Disk cache path for {@code cacheKey}: a name derived from the pack/card-back URL for pack assets, else a hashed filename under the general cache dir. */
+/** Disk cache path for {@code cacheKey}: a name derived from the pack/card-back URL for pack assets, else a hashed filename under the general cache dir. */
 	private Path diskCacheFile(String cacheKey)
 	{
 		String packName = ImageCacheIdentity.packDiskFileName(cacheKey);
@@ -394,8 +382,7 @@ public class CardImageCacheService
 		}
 		return diskCacheDir().resolve(TcgStateHash.hexOfUtf8(cacheKey) + ".png");
 	}
-
-	/**
+/**
 	 * Reads and decodes the disk-cached image for {@code cacheKey}, if present and readable, subsampling
 	 * during decode so the result is already near the target memory-cache size (deletes the file and
 	 * returns {@code null} if it can't be decoded as an image).
@@ -458,8 +445,7 @@ public class CardImageCacheService
 			return null;
 		}
 	}
-
-	/** Writes {@code bytes} to the disk cache file for {@code cacheKey}, atomically; no-ops on empty input and logs (not throws) on write failure. */
+/** Writes {@code bytes} to the disk cache file for {@code cacheKey}, atomically; no-ops on empty input and logs (not throws) on write failure. */
 	private void persistBytesToDisk(String cacheKey, byte[] bytes)
 	{
 		if (bytes == null || bytes.length == 0)
@@ -476,8 +462,7 @@ public class CardImageCacheService
 			log.debug("Disk cache write failed for {}", target, ex);
 		}
 	}
-
-	/** Resolves {@code rawUrl} to an absolute fetchable URL via {@link CloudEndpoints#resolvePublicUrl}, or {@code null} if it can't be resolved. */
+/** Resolves {@code rawUrl} to an absolute fetchable URL via {@link CloudEndpoints#resolvePublicUrl}, or {@code null} if it can't be resolved. */
 	private static String resolveFetchUrl(String rawUrl)
 	{
 		if (rawUrl == null)
@@ -491,20 +476,17 @@ public class CardImageCacheService
 		}
 		return fetchUrl;
 	}
-
-	/** The plugin's cache root directory under the RuneLite data dir. */
+/** The plugin's cache root directory under the RuneLite data dir. */
 	private static Path tcgCacheRoot()
 	{
 		return Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG");
 	}
-
-	/** Disk cache directory for general card images (current format version). */
+/** Disk cache directory for general card images (current format version). */
 	private Path diskCacheDir()
 	{
 		return tcgCacheRoot().resolve("images-v4");
 	}
-
-	/** Disk cache directory for pack sleeve/card-back assets, kept separate since they're keyed by filename rather than hash. */
+/** Disk cache directory for pack sleeve/card-back assets, kept separate since they're keyed by filename rather than hash. */
 	private Path packDiskCacheDir()
 	{
 		return tcgCacheRoot().resolve("packs");

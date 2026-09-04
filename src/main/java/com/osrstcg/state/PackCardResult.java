@@ -2,7 +2,6 @@ package com.osrstcg.state;
 
 import com.osrstcg.cloud.api.JsonObjects;
 import lombok.Getter;
-
 /** One card pulled from a booster pack, with its foil/tier/scoring/artist metadata and provenance. */
 @Getter
 public class PackCardResult
@@ -23,14 +22,12 @@ public class PackCardResult
 	private final String pulledBy;
 	private final Long pulledAtEpochMs;
 	private final String wikiPage;
-
-	/** Minimal pull with just name and foil flag; all other fields default to null/zero. */
+/** Minimal pull with just name and foil flag; all other fields default to null/zero. */
 	public PackCardResult(String cardName, boolean foil)
 	{
 		this(cardName, foil, null, null, 0L, null, null, null, null, null, null, null, null, null, null, null);
 	}
-
-	/** Full pull with server-provided metadata; blank strings are normalized to null. */
+/** Full pull with server-provided metadata; blank strings are normalized to null. */
 	public PackCardResult(
 		String cardName,
 		boolean foil,
@@ -66,8 +63,7 @@ public class PackCardResult
 		this.pulledAtEpochMs = pulledAtEpochMs;
 		this.wikiPage = JsonObjects.blankToNull(wikiPage);
 	}
-
-	/** Returns a copy of this pull with who/when it was pulled filled in. */
+/** Returns a copy of this pull with who/when it was pulled filled in. */
 	public PackCardResult withProvenance(String pulledBy, long pulledAtEpochMs)
 	{
 		return new PackCardResult(
@@ -88,8 +84,7 @@ public class PackCardResult
 			wikiPage,
 			displayName);
 	}
-
-	/** Normalizes line endings and trims; returns null for blank/null input. */
+/** Normalizes line endings and trims; returns null for blank/null input. */
 	private static String normalizeExamine(String value)
 	{
 		if (value == null)
@@ -100,8 +95,7 @@ public class PackCardResult
 		String trimmed = normalized.trim();
 		return trimmed.isEmpty() ? null : trimmed;
 	}
-
-	/** True when the server assigned a non-blank display tier for this pull. */
+/** True when the server assigned a non-blank display tier for this pull. */
 	public boolean hasServerTier()
 	{
 		return tierLabel != null && !tierLabel.isBlank();

@@ -12,7 +12,6 @@ import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
-
 /**
  * Per-account cloud session file ({@code cloud-session.json}) under the account-hash profile folder.
  * Blocking I/O — call off the client thread when possible.
@@ -37,22 +36,19 @@ public final class CloudSessionFileStore
 	{
 		this.profilesRoot = profilesRoot;
 	}
-
-	/** Session file path for an account, or {@code null} if the account hash is unset. */
+/** Session file path for an account, or {@code null} if the account hash is unset. */
 	Path sessionFile(long accountHash)
 	{
 		String id = ProfileKeyHasher.accountDirName(accountHash);
 		return id == null ? null : profilesRoot.resolve(id).resolve(SESSION_FILENAME);
 	}
-
-	/** Profile directory for an account, or {@code null} if unset. */
+/** Profile directory for an account, or {@code null} if unset. */
 	Path accountDir(long accountHash)
 	{
 		String id = ProfileKeyHasher.accountDirName(accountHash);
 		return id == null ? null : profilesRoot.resolve(id);
 	}
-
-	/** Loads the session for {@code accountHash}, or {@code null} if missing/invalid. */
+/** Loads the session for {@code accountHash}, or {@code null} if missing/invalid. */
 	public SessionData load(long accountHash)
 	{
 		Path file = sessionFile(accountHash);
@@ -80,8 +76,7 @@ public final class CloudSessionFileStore
 			return null;
 		}
 	}
-
-	/** Atomically writes the session file for {@code accountHash}. No-op if tokens or hash are invalid. */
+/** Atomically writes the session file for {@code accountHash}. No-op if tokens or hash are invalid. */
 	public void save(long accountHash, SessionData data)
 	{
 		if (accountHash == -1L || data == null || blank(data.accessToken) || blank(data.refreshToken))
@@ -109,8 +104,7 @@ public final class CloudSessionFileStore
 			log.warn("Failed writing cloud session for accountHash={}", ProfileKeyHasher.accountDirName(accountHash), ex);
 		}
 	}
-
-	/** Deletes the session file for an account. Failures are logged and swallowed. */
+/** Deletes the session file for an account. Failures are logged and swallowed. */
 	public void delete(long accountHash)
 	{
 		Path file = sessionFile(accountHash);
@@ -127,8 +121,7 @@ public final class CloudSessionFileStore
 			log.debug("Failed deleting cloud session for accountHash={}", ProfileKeyHasher.accountDirName(accountHash), ex);
 		}
 	}
-
-	/**
+/**
 	 * Deletes the entire per-account profile directory (save, session, leftovers).
 	 * Failures are logged and swallowed.
 	 */
@@ -163,8 +156,7 @@ public final class CloudSessionFileStore
 	{
 		return value == null || value.isBlank();
 	}
-
-	/** JSON shape for {@value #SESSION_FILENAME}. */
+/** JSON shape for {@value #SESSION_FILENAME}. */
 	public static final class SessionData
 	{
 		public int schemaVersion;

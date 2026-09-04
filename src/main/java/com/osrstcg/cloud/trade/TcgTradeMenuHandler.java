@@ -8,14 +8,13 @@ import net.runelite.api.MenuAction;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.client.util.Text;
-
 /**
  * Message-row “TCG trade request” menu entries (friends / friends chat / clan).
  */
 @Singleton
 public class TcgTradeMenuHandler
 {
-	/** Menu option text injected on message rows and matched back on click. */
+/** Menu option text injected on message rows and matched back on click. */
 	static final String TRADE_REQ_MENU_OPTION = "TCG trade request";
 
 	private final Client client;
@@ -29,8 +28,7 @@ public class TcgTradeMenuHandler
 		this.tradeCloudService = tradeCloudService;
 		this.config = config;
 	}
-
-	/**
+/**
 	 * Injects a "TCG trade request" entry onto "Message" menu rows (friends / friends chat / clan). Must run
 	 * on the client thread, as {@link MenuEntryAdded} handlers do.
 	 */
@@ -60,8 +58,7 @@ public class TcgTradeMenuHandler
 			.setType(MenuAction.RUNELITE)
 			.onClick(e -> tradeCloudService.sendTradeRequest(playerName));
 	}
-
-	/**
+/**
 	 * Handles clicks on the injected "TCG trade request" entry, sending the trade request for the clicked
 	 * player. Must run on the client thread, as {@link MenuOptionClicked} handlers do; the actual request is
 	 * dispatched asynchronously by {@link TradeCloudService#sendTradeRequest(String)}.

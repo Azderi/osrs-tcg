@@ -14,7 +14,6 @@ import javax.swing.SwingConstants;
 import javax.swing.border.EmptyBorder;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
-
 /**
  * Renders one {@link CollectionListModel.Row} in the Collection tab's card {@link JList}: card name
  * (tier-colored, foil-starred) on the left, compact score on the right. Reused as a shared cell renderer,
@@ -26,8 +25,7 @@ public final class CollectionRowRenderer extends JPanel
 	private final JLabel name = new JLabel();
 	private final JLabel score = new JLabel();
 	private final IntSupplier contentWidth;
-
-	/** Builds the fixed name/score label layout; {@code contentWidth} supplies the list's current cell width. */
+/** Builds the fixed name/score label layout; {@code contentWidth} supplies the list's current cell width. */
 	public CollectionRowRenderer(IntSupplier contentWidth)
 	{
 		this.contentWidth = contentWidth;
@@ -41,8 +39,7 @@ public final class CollectionRowRenderer extends JPanel
 		add(name, BorderLayout.CENTER);
 		add(score, BorderLayout.EAST);
 	}
-
-	/** Updates the shared row panel's text/color for {@code value} and clamps it to the list's current width. */
+/** Updates the shared row panel's text/color for {@code value} and clamps it to the list's current width. */
 	@Override
 	public Component getListCellRendererComponent(
 		JList<? extends CollectionListModel.Row> list,

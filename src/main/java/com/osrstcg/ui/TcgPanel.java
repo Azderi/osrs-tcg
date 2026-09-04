@@ -72,7 +72,6 @@ import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
-
 /**
  * RuneLite sidebar panel hosting the plugin's tabs (welcome, overview, collection, shop) plus the
  * title bar, tab strip, and footer (account/trade/create-profile actions). Owns the Swing component
@@ -90,8 +89,7 @@ import net.runelite.client.ui.PluginPanel;
 public class TcgPanel extends PluginPanel implements SidebarRefresh
 {
 	private static final int MAIN_PANEL_INSET = SidebarLayout.MAIN_PANEL_INSET;
-
-	/** The four sidebar tabs, in display order, each carrying its button label. */
+/** The four sidebar tabs, in display order, each carrying its button label. */
 	private enum Tab
 	{
 		WELCOME("Welcome"),
@@ -167,8 +165,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	private final CreateProfileController createProfileController;
 	private final AccountPanelLauncher accountLauncher;
 	private final SidebarNoticeView sidebarNoticeView;
-
-	/** Wires collaborators, builds the full Swing component tree (title, tabs, footer), and installs the resize/visibility listener. */
+/** Wires collaborators, builds the full Swing component tree (title, tabs, footer), and installs the resize/visibility listener. */
 	@Inject
 	public TcgPanel(
 		TcgStateService stateService,
@@ -276,22 +273,20 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 
 		addComponentListener(new ComponentAdapter()
 		{
-			/** Marks the panel visible and forces a refresh whenever RuneLite shows the sidebar. */
+/** Marks the panel visible and forces a refresh whenever RuneLite shows the sidebar. */
 			@Override
 			public void componentShown(ComponentEvent e)
 			{
 				panelVisible = true;
 				refresh();
 			}
-
-			/** Marks the panel hidden so refresh calls become no-ops until it's shown again. */
+/** Marks the panel hidden so refresh calls become no-ops until it's shown again. */
 			@Override
 			public void componentHidden(ComponentEvent e)
 			{
 				panelVisible = false;
 			}
-
-			/** Re-renders on a width change (content reflows), or just revalidates/repaints on a height-only change. */
+/** Re-renders on a width change (content reflows), or just revalidates/repaints on a height-only change. */
 			@Override
 			public void componentResized(ComponentEvent e)
 			{
@@ -323,8 +318,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 
 		panelVisible = isShowing();
 	}
-
-	/** Preferred size stretched to at least the parent's height so the panel fills the sidebar vertically. */
+/** Preferred size stretched to at least the parent's height so the panel fills the sidebar vertically. */
 	@Override
 	public Dimension getPreferredSize()
 	{
@@ -337,32 +331,28 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		}
 		return new Dimension(pref.width, height);
 	}
-
-	/** Minimum height of 0 so the panel can shrink freely; width matches the preferred width. */
+/** Minimum height of 0 so the panel can shrink freely; width matches the preferred width. */
 	@Override
 	public Dimension getMinimumSize()
 	{
 		Dimension pref = getPreferredSize();
 		return new Dimension(pref.width, 0);
 	}
-
-	/** Unbounded maximum height so the panel can grow to fill available vertical space. */
+/** Unbounded maximum height so the panel can grow to fill available vertical space. */
 	@Override
 	public Dimension getMaximumSize()
 	{
 		Dimension pref = getPreferredSize();
 		return new Dimension(pref.width, Integer.MAX_VALUE);
 	}
-
-	/** Registers the collection-change listener and does an initial refresh. Called by the plugin on startup. */
+/** Registers the collection-change listener and does an initial refresh. Called by the plugin on startup. */
 	public void start()
 	{
 		stateService.addCollectionChangeListener(onCollectionChanged);
 		updateCloudStatusIndicator();
 		refresh();
 	}
-
-	/** Unregisters listeners, cancels pending tab rebuilds, and clears tab content. Called by the plugin on shutdown. */
+/** Unregisters listeners, cancels pending tab rebuilds, and clears tab content. Called by the plugin on shutdown. */
 	public void stop()
 	{
 		stateService.removeCollectionChangeListener(onCollectionChanged);
@@ -375,8 +365,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		mainPanel.revalidate();
 		mainPanel.repaint();
 	}
-
-	/**
+/**
 	 * Rebuilds/redisplays the currently selected tab. No-op while the panel isn't visible. Safe to call
 	 * from any thread; hops to the EDT (coalescing concurrent calls) when not already on it.
 	 */
@@ -396,8 +385,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 
 		refreshNow();
 	}
-
-	/**
+/**
 	 * Refreshes just the displayed credits balance on the overview and shop tabs. Skipped while a pack
 	 * reveal is showing its frozen snapshot. Safe to call from any thread; hops to the EDT (coalescing
 	 * with a pending full refresh or credits refresh) when not already on it.
@@ -431,8 +419,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		overviewTab.updateCredits(credits);
 		shopTab.updateCredits(credits);
 	}
-
-	/**
+/**
 	 * Refreshes the sidebar once a pack reveal overlay closes: clears the reveal freeze, then
 	 * recomputes the overview/shop snapshot off the EDT (on the common {@link ForkJoinPool}) and applies
 	 * it back on the EDT, guarded by a generation counter so a stale async result can't clobber a newer
@@ -480,8 +467,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			}
 		});
 	}
-
-	/**
+/**
 	 * Applies a snapshot computed off-EDT by {@link #refreshAfterPackRevealClose()}: hops to the EDT if
 	 * needed, discards the result if a newer generation has since started or the panel isn't visible,
 	 * then renders the selected tab with the precomputed data.
@@ -508,15 +494,13 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		renderTab(selectedTab, TabRenderMode.PACK_CLOSE, snap, metrics, shopRows);
 		relayoutMainPanel();
 	}
-
-	/** Revalidates and repaints the main panel after content changes. Must be called on the EDT. */
+/** Revalidates and repaints the main panel after content changes. Must be called on the EDT. */
 	private void relayoutMainPanel()
 	{
 		mainPanel.revalidate();
 		mainPanel.repaint();
 	}
-
-	/** Schedules a {@link #refresh()} on the EDT, coalescing with any already-queued call. */
+/** Schedules a {@link #refresh()} on the EDT, coalescing with any already-queued call. */
 	private void queueRefreshOnEdt()
 	{
 		if (refreshQueued)
@@ -531,8 +515,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			refresh();
 		});
 	}
-
-	/** EDT-side body of {@link #refresh()}: clears any stale reveal freeze, updates chrome, and renders the selected tab. */
+/** EDT-side body of {@link #refresh()}: clears any stale reveal freeze, updates chrome, and renders the selected tab. */
 	private void refreshNow()
 	{
 		if (!packRevealService.isActive())
@@ -547,8 +530,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		renderSelectedTab();
 		relayoutMainPanel();
 	}
-
-	/**
+/**
 	 * Shows a full-panel blocking notice (logged out, account locked, restricted world) in place of tab
 	 * content when applicable; otherwise restores normal title/tab/footer chrome. Returns whether a
 	 * blocking notice was shown (and content rendering should be skipped).
@@ -579,8 +561,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		relayoutMainPanel();
 		return true;
 	}
-
-	/** Picks the initial tab (Welcome if no packs opened yet, else Overview) the first time chrome is applied. */
+/** Picks the initial tab (Welcome if no packs opened yet, else Overview) the first time chrome is applied. */
 	private void applyDefaultTabSelectionOnce()
 	{
 		if (defaultTabInitialized)
@@ -591,8 +572,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		long openedPacks = stateService.getState().getEconomyState().getOpenedPacks();
 		selectedTab = openedPacks == 0 ? Tab.WELCOME : Tab.OVERVIEW;
 	}
-
-	/** Builds the footer's layout and adds its three stacked blocks (create-profile prompt, trade button, account button). */
+/** Builds the footer's layout and adds its three stacked blocks (create-profile prompt, trade button, account button). */
 	private void populateFooterPanel()
 	{
 		footerPanel.setLayout(new BoxLayout(footerPanel, BoxLayout.Y_AXIS));
@@ -629,8 +609,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 
 		updateFooterVisibility();
 	}
-
-	/** Returns whether to show the logged-out welcome screen: panel is showing but the client isn't in a game world. */
+/** Returns whether to show the logged-out welcome screen: panel is showing but the client isn't in a game world. */
 	private boolean shouldShowLoggedOutPrompt()
 	{
 		if (!isShowing())
@@ -639,8 +618,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		}
 		return !isClientInGameWorld();
 	}
-
-	/** Forces the Welcome tab and renders it, used when the player isn't logged into a game world. */
+/** Forces the Welcome tab and renders it, used when the player isn't logged into a game world. */
 	private void showLoggedOutWelcome()
 	{
 		sidebarNoticeView.restoreAccountPanelToFooter();
@@ -651,8 +629,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		renderWelcomeTab(welcomeContent);
 		contentLayout.show(content, Tab.WELCOME.name());
 	}
-
-	/** Returns whether the RuneLite client is logged into a game world (checks game state, then local player as a fallback). */
+/** Returns whether the RuneLite client is logged into a game world (checks game state, then local player as a fallback). */
 	private boolean isClientInGameWorld()
 	{
 		if (client.getGameState() == GameState.LOGGED_IN)
@@ -661,8 +638,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		}
 		return client.getLocalPlayer() != null;
 	}
-
-	/**
+/**
 	 * Builds the title panel: the top title row (Discord/Patreon links, "OSRS TCG" label, cloud status
 	 * indicator) and the tab strip below it. Sets {@link #titleTabWrapper} to the tab strip.
 	 */
@@ -769,8 +745,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		updateTabStyles();
 		return title;
 	}
-
-	/** Paints the tab-rail underline beneath the active tab button, or no line if the active tab isn't showing/available. */
+/** Paints the tab-rail underline beneath the active tab button, or no line if the active tab isn't showing/available. */
 	private void paintTabRailLine(JComponent strip, Graphics g)
 	{
 		JButton active = tabButtonFor(selectedTab);
@@ -780,8 +755,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		}
 		SidebarChrome.paintTabRailLine(strip, g, active);
 	}
-
-	/** Returns the {@link JButton} for the given tab, or {@code null} for a null tab. */
+/** Returns the {@link JButton} for the given tab, or {@code null} for a null tab. */
 	private JButton tabButtonFor(Tab tab)
 	{
 		if (tab == null)
@@ -802,8 +776,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 				return null;
 		}
 	}
-
-	/** Repaints the cloud status indicator dot and its ancestor containers, then refreshes account/footer state that depends on it. */
+/** Repaints the cloud status indicator dot and its ancestor containers, then refreshes account/footer state that depends on it. */
 	public void updateCloudStatusIndicator()
 	{
 		SidebarChrome.updateCloudStatusIndicator(cloudStatusIndicator, cloudSessionService, stateService);
@@ -825,8 +798,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		updateManageAccountState();
 		updateFooterVisibility();
 	}
-
-	/** Best-effort footer content width for wrapping the create-profile prompt: footer width if laid out, else derived from the panel width. */
+/** Best-effort footer content width for wrapping the create-profile prompt: footer width if laid out, else derived from the panel width. */
 	private int footerContentWidth()
 	{
 		int footerW = footerPanel.getWidth();
@@ -841,8 +813,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		}
 		return Math.max(80, PluginPanel.PANEL_WIDTH - 12);
 	}
-
-	/** Styles a tab button and wires its click handler to switch to {@code tab} (ignored if unavailable or already selected). */
+/** Styles a tab button and wires its click handler to switch to {@code tab} (ignored if unavailable or already selected). */
 	private JButton configureTabButton(JButton button, Tab tab)
 	{
 		button.setFont(FontManager.getRunescapeSmallFont());
@@ -862,8 +833,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		});
 		return button;
 	}
-
-	/** Falls back to the Welcome tab if the current selection became unavailable, then restyles every tab button. */
+/** Falls back to the Welcome tab if the current selection became unavailable, then restyles every tab button. */
 	private void updateTabStyles()
 	{
 		if (!isTabAvailable(selectedTab))
@@ -881,8 +851,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		}
 		updateFooterVisibility();
 	}
-
-	/** Welcome is always available; the other tabs require being in a game world with no account lock/restricted world. */
+/** Welcome is always available; the other tabs require being in a game world with no account lock/restricted world. */
 	private boolean isTabAvailable(Tab tab)
 	{
 		if (tab == null)
@@ -897,8 +866,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			&& !cloudSessionService.isRestrictedWorld()
 			&& !cloudSessionService.isAccountLocked();
 	}
-
-	/**
+/**
 	 * Recomputes which footer blocks (create-profile prompt, account panel, trade button) are visible
 	 * based on world/session/cloud state and the selected tab, plus the spacer gaps between them.
 	 */
@@ -943,8 +911,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		SidebarLayout.lockFooterBlockHeight(albumFooterWrap);
 		SidebarLayout.lockFooterBlockHeight(tradeFooterWrap);
 	}
-
-	/** Builds the "Open trades" footer button, which opens the {@code /trades} web album page. */
+/** Builds the "Open trades" footer button, which opens the {@code /trades} web album page. */
 	private JButton createOpenTradesButton()
 	{
 		JButton button = new JButton(
@@ -954,8 +921,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		button.addActionListener(e -> accountLauncher.open("/trades"));
 		return button;
 	}
-
-	/** Applies enabled/active styling (colors, border, cursor, tooltip) to a single tab button. */
+/** Applies enabled/active styling (colors, border, cursor, tooltip) to a single tab button. */
 	private void applyTabStyle(JButton button, Tab tab)
 	{
 		boolean available = isTabAvailable(tab);
@@ -995,8 +961,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			button.setBorder(tabBorder(false, true));
 		}
 	}
-
-	/**
+/**
 	 * How a tab is rendered: {@code NORMAL} builds fresh from live state; {@code FROZEN} reuses/builds
 	 * once against the pack-reveal snapshot and is cached per tab in {@link #revealTabBuilt} until the
 	 * freeze clears; {@code PACK_CLOSE} rebuilds from a precomputed snapshot right after a reveal closes.
@@ -1007,8 +972,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		FROZEN,
 		PACK_CLOSE
 	}
-
-	/** Renders the currently selected tab, using {@code FROZEN} mode while a pack reveal snapshot is active. */
+/** Renders the currently selected tab, using {@code FROZEN} mode while a pack reveal snapshot is active. */
 	private void renderSelectedTab()
 	{
 		TabRenderMode mode = packRevealService.isActive() && sidebarRevealSpoilerSnap != null
@@ -1016,8 +980,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			: TabRenderMode.NORMAL;
 		renderTab(selectedTab, mode, null, null, null);
 	}
-
-	/**
+/**
 	 * Builds (or, if already built for {@code FROZEN} mode, reuses) the given tab's content per
 	 * {@code mode}, then switches the visible card via {@link #showRenderedTab}.
 	 */
@@ -1068,8 +1031,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		}
 		showRenderedTab(tab, mode);
 	}
-
-	/**
+/**
 	 * Switches the visible content card for {@code tab}, going through {@link #showTabContent} (which
 	 * also revalidates scroll panes) except when frozen/pack-close mode should keep showing the
 	 * currently-visible card unchanged.
@@ -1087,8 +1049,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			contentLayout.show(content, tab.name());
 		}
 	}
-
-	/** Switches the content {@link CardLayout} to {@code tab} and revalidates that tab's scroll pane (and shop chrome for the Shop tab). */
+/** Switches the content {@link CardLayout} to {@code tab} and revalidates that tab's scroll pane (and shop chrome for the Shop tab). */
 	private void showTabContent(Tab tab)
 	{
 		contentLayout.show(content, tab.name());
@@ -1111,8 +1072,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			shopContent.revalidate();
 		}
 	}
-
-	/** Builds a fresh {@link PackCloseSnapshot} from current state under the state service's lock. */
+/** Builds a fresh {@link PackCloseSnapshot} from current state under the state service's lock. */
 	private PackCloseSnapshot buildPackCloseSnapshot()
 	{
 		synchronized (stateService)
@@ -1127,8 +1087,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 				stateService.getCloudCollectionStats());
 		}
 	}
-
-	/** Returns the frozen reveal snapshot while a pack reveal is active, else builds a fresh one. */
+/** Returns the frozen reveal snapshot while a pack reveal is active, else builds a fresh one. */
 	private PackCloseSnapshot capturePackCloseSnapshot()
 	{
 		if (sidebarRevealSpoilerSnap != null && packRevealService.isActive())
@@ -1137,30 +1096,26 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		}
 		return buildPackCloseSnapshot();
 	}
-
-	/** Freezes the sidebar to a pre-reveal snapshot (so newly pulled cards don't spoil in the background) and resets built-tab caching. */
+/** Freezes the sidebar to a pre-reveal snapshot (so newly pulled cards don't spoil in the background) and resets built-tab caching. */
 	@Override
 	public void beginPackRevealSidebarFreeze()
 	{
 		sidebarRevealSpoilerSnap = capturePackCloseSnapshot();
 		resetRevealTabBuilt();
 	}
-
-	/** Clears the reveal freeze so subsequent renders use live state, and resets built-tab caching. */
+/** Clears the reveal freeze so subsequent renders use live state, and resets built-tab caching. */
 	@Override
 	public void clearPackRevealSidebarFreeze()
 	{
 		sidebarRevealSpoilerSnap = null;
 		resetRevealTabBuilt();
 	}
-
-	/** Marks every tab as needing a rebuild under {@link TabRenderMode#FROZEN}. */
+/** Marks every tab as needing a rebuild under {@link TabRenderMode#FROZEN}. */
 	private void resetRevealTabBuilt()
 	{
 		Arrays.fill(revealTabBuilt, false);
 	}
-
-	/** Best-effort content width for tab layout: the widest tab scroll pane viewport if laid out, else a fallback derived from panel insets. */
+/** Best-effort content width for tab layout: the widest tab scroll pane viewport if laid out, else a fallback derived from panel insets. */
 	private int liveSidebarContentWidth()
 	{
 		int viewportWidth = 0;
@@ -1182,8 +1137,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		int mainPanelHorizontalPad = 12;
 		return Math.max(80, raw - mainPanelHorizontalPad - SidebarLayout.TAB_SCROLLBAR_WIDTH);
 	}
-
-	/** Content width for the shop pack list: its scroll pane's viewport width if laid out, else {@link #liveSidebarContentWidth()}. */
+/** Content width for the shop pack list: its scroll pane's viewport width if laid out, else {@link #liveSidebarContentWidth()}. */
 	private int liveShopPacksContentWidth()
 	{
 		int viewportWidth = shopPacksScrollPane.getViewport().getWidth();
@@ -1193,8 +1147,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		}
 		return liveSidebarContentWidth();
 	}
-
-	/** Builds the border for a tab button: flat outline when disabled, bottom-open outline when active, full outline otherwise. */
+/** Builds the border for a tab button: flat outline when disabled, bottom-open outline when active, full outline otherwise. */
 	private Border tabBorder(boolean active, boolean enabled)
 	{
 		if (!enabled)
@@ -1216,50 +1169,43 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			new EmptyBorder(5, 2, 5, 2)
 		);
 	}
-
-	/** Delegates to {@link WelcomeTab#render} with the current content width. */
+/** Delegates to {@link WelcomeTab#render} with the current content width. */
 	private void renderWelcomeTab(JPanel target)
 	{
 		welcomeTab.render(target, liveSidebarContentWidth());
 	}
-
-	/** Captures a fresh (or frozen) snapshot and delegates to {@link OverviewTab#render} with its computed metrics. */
+/** Captures a fresh (or frozen) snapshot and delegates to {@link OverviewTab#render} with its computed metrics. */
 	private void renderOverviewTab(JPanel target)
 	{
 		PackCloseSnapshot snap = capturePackCloseSnapshot();
 		overviewTab.render(target, snap, overviewMetrics(snap));
 	}
-
-	/** Computes overview stats (owned/roll-pool counts etc.) for a snapshot via {@link TcgPublicStatsCalculator}. */
+/** Computes overview stats (owned/roll-pool counts etc.) for a snapshot via {@link TcgPublicStatsCalculator}. */
 	private CloudSidebarCollectionStats overviewMetrics(PackCloseSnapshot snap)
 	{
 		List<CardDefinition> all = cardDatabase.getCards();
 		return TcgPublicStatsCalculator.resolveOverview(snap, all, RollPoolFilter.filterRollPool(all));
 	}
-
-	/** Returns all four tabs' scroll panes, used to probe for a laid-out viewport width. */
+/** Returns all four tabs' scroll panes, used to probe for a laid-out viewport width. */
 	private JScrollPane[] tabScrollPanes()
 	{
 		return new JScrollPane[] {
 			welcomeScrollPane, overviewScrollPane, collectionListScrollPane, shopPacksScrollPane
 		};
 	}
-
-	/** Returns whether the footer should be hidden entirely because the account is locked or the world is restricted. */
+/** Returns whether the footer should be hidden entirely because the account is locked or the world is restricted. */
 	private boolean footerHiddenForBlockingState()
 	{
 		return isClientInGameWorld()
 			&& (cloudSessionService.isAccountLocked() || cloudSessionService.isRestrictedWorld());
 	}
-
-	/** Callback from {@link CollectionTab} once its (possibly async) rebuild finishes: shows it and relayouts. */
+/** Callback from {@link CollectionTab} once its (possibly async) rebuild finishes: shows it and relayouts. */
 	private void onCollectionTabRendered()
 	{
 		showTabContent(Tab.COLLECTION);
 		relayoutMainPanel();
 	}
-
-	/** Shows a full-panel blocking notice, hiding the title tab strip and footer via the callback passed to it. */
+/** Shows a full-panel blocking notice, hiding the title tab strip and footer via the callback passed to it. */
 	private void showSidebarBlockingNotice(Consumer<Runnable> show)
 	{
 		show.accept(() ->
@@ -1271,20 +1217,17 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		titlePanel.revalidate();
 		titlePanel.repaint();
 	}
-
-	/** Delegates to {@link AccountPanelLauncher#updateManageAccountState} to refresh the account/trades button state. */
+/** Delegates to {@link AccountPanelLauncher#updateManageAccountState} to refresh the account/trades button state. */
 	private void updateManageAccountState()
 	{
 		accountLauncher.updateManageAccountState(openAccountPanelButton, openTradesButton);
 	}
-
-	/** Delegates to {@link CreateProfileController#updateButtonState} to refresh the create-profile button state. */
+/** Delegates to {@link CreateProfileController#updateButtonState} to refresh the create-profile button state. */
 	private void updateCreateProfileState()
 	{
 		createProfileController.updateButtonState(createProfileButton);
 	}
-
-	/** Switches to the Overview tab, used after a profile is created. */
+/** Switches to the Overview tab, used after a profile is created. */
 	private void selectOverviewAfterCreate()
 	{
 		if (selectedTab != Tab.OVERVIEW)
@@ -1293,8 +1236,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			updateTabStyles();
 		}
 	}
-
-	/** Post-profile-creation UI refresh: create-profile button state, footer visibility, and cloud status indicator. */
+/** Post-profile-creation UI refresh: create-profile button state, footer visibility, and cloud status indicator. */
 	private void afterCreateProfileUi()
 	{
 		updateCreateProfileState();

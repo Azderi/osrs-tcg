@@ -8,7 +8,6 @@ import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.ConfigSection;
-
 /**
  * RuneLite config schema for OSRS TCG. Each default method is a config item; the value shown to
  * the player is driven by the {@code name}/{@code description} on the {@link ConfigItem}
@@ -30,8 +29,7 @@ public interface OsrsTcgConfig extends Config
 		position = 5
 	)
 	String creditsSection = "credits";
-
-	/** Whether to show the on-screen credits infobox. */
+/** Whether to show the on-screen credits infobox. */
 	@ConfigItem(
 		keyName = "creditsInfobox",
 		name = "Credits infobox",
@@ -44,8 +42,7 @@ public interface OsrsTcgConfig extends Config
 	{
 		return false;
 	}
-
-	/** Whether the credits infobox also shows a credits/hour rate. */
+/** Whether the credits infobox also shows a credits/hour rate. */
 	@ConfigItem(
 		keyName = "creditsPerHour",
 		name = "Credits per hour",
@@ -57,8 +54,7 @@ public interface OsrsTcgConfig extends Config
 	{
 		return true;
 	}
-
-	/** Sliding window used to compute the credits/hour rate shown on the infobox. */
+/** Sliding window used to compute the credits/hour rate shown on the infobox. */
 	@ConfigItem(
 		keyName = "creditsPerHourWindow",
 		name = "Credits/h window",
@@ -71,8 +67,7 @@ public interface OsrsTcgConfig extends Config
 	{
 		return CreditsPerHourWindow.PERSISTENT;
 	}
-
-	/** Whether to post a chat message when the credits threshold in {@link #creditNotificationAmount()} is reached. */
+/** Whether to post a chat message when the credits threshold in {@link #creditNotificationAmount()} is reached. */
 	@ConfigItem(
 		keyName = "creditNotifications",
 		name = "Credit notifications",
@@ -84,8 +79,7 @@ public interface OsrsTcgConfig extends Config
 	{
 		return true;
 	}
-
-	/** Credit balance threshold that triggers {@link #creditNotifications()}. */
+/** Credit balance threshold that triggers {@link #creditNotifications()}. */
 	@ConfigItem(
 		keyName = "creditNotificationAmount",
 		name = "Notification amount",
@@ -97,8 +91,7 @@ public interface OsrsTcgConfig extends Config
 	{
 		return 2500;
 	}
-
-	/** Whether credit notifications are also routed through RuneLite's OS-level notification service. */
+/** Whether credit notifications are also routed through RuneLite's OS-level notification service. */
 	@ConfigItem(
 		keyName = "runeliteNotifications",
 		name = "RuneLite notifications",
@@ -117,8 +110,7 @@ public interface OsrsTcgConfig extends Config
 		position = 7
 	)
 	String packOpeningSection = "packOpening";
-
-	/** Whether pack-opening sound effects play. */
+/** Whether pack-opening sound effects play. */
 	@ConfigItem(
 		keyName = "enableSounds",
 		name = "Enable pack opening sounds",
@@ -130,8 +122,7 @@ public interface OsrsTcgConfig extends Config
 	{
 		return true;
 	}
-
-	/** Whether condition/wear visual effects render on cards in the pack reveal overlay. */
+/** Whether condition/wear visual effects render on cards in the pack reveal overlay. */
 	@ConfigItem(
 		keyName = "showGradeWear",
 		name = "Show grade wear",
@@ -143,8 +134,7 @@ public interface OsrsTcgConfig extends Config
 	{
 		return true;
 	}
-
-	/** Whether hovering an unflipped pack card highlights it by rarity. */
+/** Whether hovering an unflipped pack card highlights it by rarity. */
 	@ConfigItem(
 		keyName = "packRarityHighlight",
 		name = "Rarity Highlight",
@@ -156,8 +146,7 @@ public interface OsrsTcgConfig extends Config
 	{
 		return true;
 	}
-
-	/** Whether hovering an unflipped pack card shows its rarity name as text (accessibility aid alongside the highlight color). */
+/** Whether hovering an unflipped pack card shows its rarity name as text (accessibility aid alongside the highlight color). */
 	@ConfigItem(
 		keyName = "packRarityText",
 		name = "Rarity Text",
@@ -170,8 +159,7 @@ public interface OsrsTcgConfig extends Config
 	{
 		return false;
 	}
-
-	/** Whether beta-variant copies are excluded when deciding if a pulled card counts as "new". */
+/** Whether beta-variant copies are excluded when deciding if a pulled card counts as "new". */
 	@ConfigItem(
 		keyName = "ignoreBetaForNewStatus",
 		name = "Ignore beta for new status",
@@ -183,8 +171,7 @@ public interface OsrsTcgConfig extends Config
 	{
 		return true;
 	}
-
-	/** Whether the sidebar shows the player's OSRS hiscores rank under overview stats after opening a pack. */
+/** Whether the sidebar shows the player's OSRS hiscores rank under overview stats after opening a pack. */
 	@ConfigItem(
 		keyName = "showSidebarRanks",
 		name = "Sidebar hiscores ranks",
@@ -196,8 +183,7 @@ public interface OsrsTcgConfig extends Config
 	{
 		return true;
 	}
-
-	/** Color of the "[OSRS TCG]" chat message prefix. */
+/** Color of the "[OSRS TCG]" chat message prefix. */
 	@ConfigItem(
 		keyName = "chatPrefixColor",
 		name = "Chat prefix colour",
@@ -209,8 +195,7 @@ public interface OsrsTcgConfig extends Config
 	{
 		return new Color(0xC4, 0x94, 0x1A);
 	}
-
-	/** Whether chat message right-click menus include a TCG trade request option. */
+/** Whether chat message right-click menus include a TCG trade request option. */
 	@ConfigItem(
 		keyName = "friendsMenuOption",
 		name = "Friends menu option",
@@ -229,8 +214,7 @@ public interface OsrsTcgConfig extends Config
 		position = 10
 	)
 	String pullNotificationsSection = "pullNotifications";
-
-	/** Minimum rarity tier that triggers a pull notification. */
+/** Minimum rarity tier that triggers a pull notification. */
 	@ConfigItem(
 		keyName = "notifyTier",
 		name = "Notify tier",
@@ -242,8 +226,7 @@ public interface OsrsTcgConfig extends Config
 	{
 		return PullNotifyTier.MYTHIC;
 	}
-
-	/** Minimum rarity tier that triggers a notification when the pull is a duplicate. */
+/** Minimum rarity tier that triggers a notification when the pull is a duplicate. */
 	@ConfigItem(
 		keyName = "duplicateNotifyTier",
 		name = "Duplicate notify tier",
@@ -255,8 +238,7 @@ public interface OsrsTcgConfig extends Config
 	{
 		return PullNotifyTier.LEGENDARY;
 	}
-
-	/** Whether non-foil (normal) card pulls can trigger notifications. */
+/** Whether non-foil (normal) card pulls can trigger notifications. */
 	@ConfigItem(
 		keyName = "notifyNonFoils",
 		name = "Notify non-foils",
@@ -268,8 +250,7 @@ public interface OsrsTcgConfig extends Config
 	{
 		return true;
 	}
-
-	/** Whether every foil card pull triggers a notification, regardless of rarity tier. */
+/** Whether every foil card pull triggers a notification, regardless of rarity tier. */
 	@ConfigItem(
 		keyName = "notifyFoils",
 		name = "Notify all foils",
@@ -281,8 +262,7 @@ public interface OsrsTcgConfig extends Config
 	{
 		return true;
 	}
-
-	/** Whether pull notifications are limited to cards new to the player's collection. */
+/** Whether pull notifications are limited to cards new to the player's collection. */
 	@ConfigItem(
 		keyName = "notifyNewCardsOnly",
 		name = "Only notify new cards",
@@ -294,8 +274,7 @@ public interface OsrsTcgConfig extends Config
 	{
 		return true;
 	}
-
-	/** Whether pull notifications fire per card as the pack is revealed, or as one summary at pack end. */
+/** Whether pull notifications fire per card as the pack is revealed, or as one summary at pack end. */
 	@ConfigItem(
 		keyName = "pullNotificationTrigger",
 		name = "Notification trigger",
@@ -307,8 +286,7 @@ public interface OsrsTcgConfig extends Config
 	{
 		return PullNotificationTrigger.EVERY_CARD;
 	}
-
-	/** Whether pull alerts are also posted to game chat and shared with party members. */
+/** Whether pull alerts are also posted to game chat and shared with party members. */
 	@ConfigItem(
 		keyName = "partyAnnouncePulls",
 		name = "Party/chat announcements",
@@ -320,8 +298,7 @@ public interface OsrsTcgConfig extends Config
 	{
 		return true;
 	}
-
-	/** Discord webhook URL that pull alerts are posted to; empty disables webhook posting. */
+/** Discord webhook URL that pull alerts are posted to; empty disables webhook posting. */
 	@ConfigItem(
 		keyName = "pullWebhookUrl",
 		name = "Webhook URL",
@@ -333,8 +310,7 @@ public interface OsrsTcgConfig extends Config
 	{
 		return "";
 	}
-
-	/** Whether pull alerts are also sent through the Dink plugin's notification channel. */
+/** Whether pull alerts are also sent through the Dink plugin's notification channel. */
 	@ConfigItem(
 		keyName = "dinkNotifications",
 		name = "Enable Dink notifications",
@@ -353,8 +329,7 @@ public interface OsrsTcgConfig extends Config
 		position = 15
 	)
 	String debugSection = "debug";
-
-	/** Whether verbose debug messages are printed to chat. */
+/** Whether verbose debug messages are printed to chat. */
 	@ConfigItem(
 		keyName = "debugMessages",
 		name = "Debug messages",

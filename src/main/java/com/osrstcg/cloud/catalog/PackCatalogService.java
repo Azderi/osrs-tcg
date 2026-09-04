@@ -15,7 +15,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import com.osrstcg.cloud.api.CloudApiClient;
-
 /**
  * Holds the in-memory {@link PackCatalogCache} for the shop, fetching it from {@code GET /packs}
  * on login or after a catalog-mismatch error and preloading pack images. Fetches run on the
@@ -46,20 +45,17 @@ public final class PackCatalogService
 		this.imageCacheService = imageCacheService;
 		this.cache.set(emptyCache());
 	}
-
-	/** Registers a callback invoked (not necessarily on the client thread) whenever the pack catalog changes. */
+/** Registers a callback invoked (not necessarily on the client thread) whenever the pack catalog changes. */
 	public void setChangeListener(Runnable listener)
 	{
 		changeListener.set(listener);
 	}
-
-	/** Current catalog snapshot; never null (an empty placeholder before the first successful fetch). */
+/** Current catalog snapshot; never null (an empty placeholder before the first successful fetch). */
 	public PackCatalogCache getCache()
 	{
 		return cache.get();
 	}
-
-	/** Packs to show in the shop: empty until a real server catalog has been loaded. */
+/** Packs to show in the shop: empty until a real server catalog has been loaded. */
 	public List<BoosterPackDefinition> getVisibleBoosters()
 	{
 		PackCatalogCache current = getCache();
@@ -69,8 +65,7 @@ public final class PackCatalogService
 		}
 		return current.getPacks();
 	}
-
-	/** Finds a pack by collection key or id; returns null if not found or if either argument is unusable. */
+/** Finds a pack by collection key or id; returns null if not found or if either argument is unusable. */
 	public static BoosterPackDefinition findById(List<BoosterPackDefinition> packs, String packId)
 	{
 		if (packId == null || packId.isBlank() || packs == null)
@@ -90,8 +85,7 @@ public final class PackCatalogService
 		}
 		return null;
 	}
-
-	/** Current catalog version, preferring the cache's, falling back to the API client's last-seen value. */
+/** Current catalog version, preferring the cache's, falling back to the API client's last-seen value. */
 	public String requireCatalogVersion()
 	{
 		String version = getCache().getCatalogVersion();
@@ -102,8 +96,7 @@ public final class PackCatalogService
 		String fromApi = api.getCachedCatalogVersion();
 		return fromApi == null ? "" : fromApi.trim();
 	}
-
-	/** Fetches the pack catalog once per login: no-op if already attempted since the last {@link #clear()}. */
+/** Fetches the pack catalog once per login: no-op if already attempted since the last {@link #clear()}. */
 	public CompletableFuture<Void> refreshOnLogin()
 	{
 		if (!loginFetchAttempted.compareAndSet(false, true))
@@ -112,22 +105,19 @@ public final class PackCatalogService
 		}
 		return CompletableFuture.runAsync(this::fetchAndApplyLogin, scheduler);
 	}
-
-	/** Forces an async refetch after the server reports a {@code catalog_mismatch} error. */
+/** Forces an async refetch after the server reports a {@code catalog_mismatch} error. */
 	public CompletableFuture<Void> refreshAfterCatalogMismatch()
 	{
 		return CompletableFuture.runAsync(this::fetchAndApplyMismatch, scheduler);
 	}
-
-	/** Resets to the empty catalog and allows {@link #refreshOnLogin()} to fetch again (e.g. on logout). */
+/** Resets to the empty catalog and allows {@link #refreshOnLogin()} to fetch again (e.g. on logout). */
 	public void clear()
 	{
 		loginFetchAttempted.set(false);
 		cache.set(emptyCache());
 		notifyChanged();
 	}
-
-	/**
+/**
 	 * Blocking login fetch-and-apply cycle. Leaves the previous cache in place (shop stays empty
 	 * or unchanged) if the fetch fails or the server returns no packs. Kicks off image preload
 	 * on success.
@@ -154,8 +144,7 @@ public final class PackCatalogService
 			log.warn("Login pack catalog fetch failed; shop stays empty", e);
 		}
 	}
-
-	/**
+/**
 	 * Blocking refetch after a {@code catalog_mismatch} error. Keeps the previous cache if the
 	 * fetch fails or the server returns no packs; otherwise applies it and marks the login-fetch
 	 * gate satisfied.
@@ -183,8 +172,7 @@ public final class PackCatalogService
 			log.warn("catalog_mismatch pack catalog refetch failed", e);
 		}
 	}
-
-	/** Kicks off async preloading of every hosted thumbnail/image URL referenced by the catalog. */
+/** Kicks off async preloading of every hosted thumbnail/image URL referenced by the catalog. */
 	private CompletableFuture<Void> preloadPackImages(PackCatalogCache catalog)
 	{
 		if (catalog == null || imageCacheService == null)
@@ -213,8 +201,7 @@ public final class PackCatalogService
 		}
 		return imageCacheService.preloadAsync(urls);
 	}
-
-	/** Parses a {@code GET /packs} response body into a {@link PackCatalogCache}, tolerating missing/null fields. */
+/** Parses a {@code GET /packs} response body into a {@link PackCatalogCache}, tolerating missing/null fields. */
 	static PackCatalogCache parseServerCatalog(JsonObject json)
 	{
 		String version = "";
@@ -246,8 +233,7 @@ public final class PackCatalogService
 		}
 		return new PackCatalogCache(version, packSize, packs, true);
 	}
-
-	/** Parses one {@code packs[]} entry; returns null when {@code id} is missing/blank. */
+/** Parses one {@code packs[]} entry; returns null when {@code id} is missing/blank. */
 	private static BoosterPackDefinition parsePackEntry(JsonObject o)
 	{
 		if (o == null || !o.has("id") || o.get("id").isJsonNull())
@@ -309,14 +295,12 @@ public final class PackCatalogService
 		}
 		return pack;
 	}
-
-	/** The placeholder cache used before any successful server fetch, or after {@link #clear()}. */
+/** The placeholder cache used before any successful server fetch, or after {@link #clear()}. */
 	private static PackCatalogCache emptyCache()
 	{
 		return new PackCatalogCache("", 0, List.of(), false);
 	}
-
-	/** Invokes the registered change listener, if any. */
+/** Invokes the registered change listener, if any. */
 	private void notifyChanged()
 	{
 		Runnable listener = changeListener.get();

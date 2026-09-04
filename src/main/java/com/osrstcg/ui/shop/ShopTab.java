@@ -31,7 +31,6 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import net.runelite.client.ui.ColorScheme;
-
 /**
  * Shop tab controller: renders the credits header and the booster tile grid, keeps buy-button enabled
  * state in sync with credits/reveal/consent state, and routes buy clicks through {@link PackOpenCoordinator}.
@@ -61,8 +60,7 @@ public final class ShopTab
 	private JLabel creditsValueLabel;
 	private final List<JButton> buyButtons = new ArrayList<>();
 	private final List<Integer> buyPrices = new ArrayList<>();
-
-	/** Wires the collaborators and the pre-built Swing panels this controller drives. */
+/** Wires the collaborators and the pre-built Swing panels this controller drives. */
 	public ShopTab(
 		TcgStateService stateService,
 		CardDatabase cardDatabase,
@@ -96,8 +94,7 @@ public final class ShopTab
 		this.shopHeaderPanel = shopHeaderPanel;
 		this.packsContent = packsContent;
 	}
-
-	/** Empties the header and pack panels and drops cached buy-button/price/credits-label state. */
+/** Empties the header and pack panels and drops cached buy-button/price/credits-label state. */
 	public void clear()
 	{
 		shopHeaderPanel.removeAll();
@@ -106,8 +103,7 @@ public final class ShopTab
 		buyPrices.clear();
 		creditsValueLabel = null;
 	}
-
-	/** Computes fresh set-completion progress from the current state and renders the shop from it. */
+/** Computes fresh set-completion progress from the current state and renders the shop from it. */
 	public void render()
 	{
 		PackCloseSnapshot displaySnap = snapshotSupplier.get();
@@ -116,8 +112,7 @@ public final class ShopTab
 			shopVisibleBoosters());
 		renderFromPackClose(displaySnap, shopRows);
 	}
-
-	/**
+/**
 	 * Renders the shop from an already-computed snapshot and row list (used right after a pack close, when
 	 * progress was already recalculated): preloads thumbnails, rebuilds the header, and rebuilds the tile grid.
 	 */
@@ -132,8 +127,7 @@ public final class ShopTab
 		packsContent.revalidate();
 		packsContent.repaint();
 	}
-
-	/** Update the credits header and buy-button enabled state without rebuilding pack tiles. */
+/** Update the credits header and buy-button enabled state without rebuilding pack tiles. */
 	public void updateCredits(long credits)
 	{
 		if (creditsValueLabel != null)
@@ -142,16 +136,14 @@ public final class ShopTab
 		}
 		applyBuyButtonEnabledState(credits);
 	}
-
-	/** Computes set-completion progress rows for the currently visible boosters against {@code snap}. */
+/** Computes set-completion progress rows for the currently visible boosters against {@code snap}. */
 	public List<BoosterShopRow> computeRows(PackCloseSnapshot snap)
 	{
 		return ShopProgress.computeRows(
 			snap, cardDatabase.getCards(), RollPoolFilter.filterRollPool(cardDatabase.getCards()),
 			shopVisibleBoosters());
 	}
-
-	/** Kicks off async prefetch of hosted booster thumbnail images. */
+/** Kicks off async prefetch of hosted booster thumbnail images. */
 	private void preloadShopPackThumbnails(List<BoosterShopRow> shopRows)
 	{
 		if (shopRows == null || imageCacheService == null)
@@ -176,8 +168,7 @@ public final class ShopTab
 			imageCacheService.preloadAsync(urls);
 		}
 	}
-
-	/** Rebuilds the credits stat panel and caches its value label for later in-place updates via {@link #updateCredits}. */
+/** Rebuilds the credits stat panel and caches its value label for later in-place updates via {@link #updateCredits}. */
 	private void rebuildShopHeader(long credits)
 	{
 		shopHeaderPanel.removeAll();
@@ -189,8 +180,7 @@ public final class ShopTab
 		shopHeaderPanel.revalidate();
 		shopHeaderPanel.repaint();
 	}
-
-	/** Lays the booster tiles out as a two-column grid (or an info message when there are none), sized to {@link #shopWidth}. */
+/** Lays the booster tiles out as a two-column grid (or an info message when there are none), sized to {@link #shopWidth}. */
 	private JPanel boosterShopPanelFromPrecalc(long credits, List<BoosterShopRow> rows)
 	{
 		JPanel outer = new JPanel();
@@ -261,8 +251,7 @@ public final class ShopTab
 		SidebarLayout.clampFixedWidth(outer, shopWidth.getAsInt());
 		return outer;
 	}
-
-	/** Enables each buy button only when no reveal is in progress, cloud consent isn't pending, and credits cover its price. */
+/** Enables each buy button only when no reveal is in progress, cloud consent isn't pending, and credits cover its price. */
 	private void applyBuyButtonEnabledState(long credits)
 	{
 		boolean consentPending = cloudSessionService.needsCloudConsent();
@@ -283,21 +272,18 @@ public final class ShopTab
 			}
 		}
 	}
-
-	/** Mutable copy of the currently visible boosters from the catalog service. */
+/** Mutable copy of the currently visible boosters from the catalog service. */
 	private List<BoosterPackDefinition> shopVisibleBoosters()
 	{
 		return new ArrayList<>(packCatalogService.getVisibleBoosters());
 	}
-
-	/** Width of one booster tile: half the shop width (minus the grid gap), floored at 96px. */
+/** Width of one booster tile: half the shop width (minus the grid gap), floored at 96px. */
 	private int shopBoosterButtonWidth()
 	{
 		int inner = shopWidth.getAsInt();
 		return Math.max(96, (inner - BOOSTER_GRID_GAP) / 2);
 	}
-
-	/** Builds a simple bordered panel showing a status/info message (e.g. "no boosters available"). */
+/** Builds a simple bordered panel showing a status/info message (e.g. "no boosters available"). */
 	private JPanel infoPanel(String message)
 	{
 		JPanel panel = new JPanel(new BorderLayout());
@@ -309,8 +295,7 @@ public final class ShopTab
 		SidebarLayout.clampPanelWidth(panel);
 		return panel;
 	}
-
-	/** Cached thumbnail icon for a booster, or {@code null} if it has no hosted thumbnail or it's not yet cached. */
+/** Cached thumbnail icon for a booster, or {@code null} if it has no hosted thumbnail or it's not yet cached. */
 	private ImageIcon shopPackIcon(BoosterPackDefinition booster)
 	{
 		String thumbnail = booster == null ? null : booster.getThumbnail();
@@ -321,8 +306,7 @@ public final class ShopTab
 		java.awt.image.BufferedImage remote = imageCacheService.getCached(thumbnail.trim());
 		return remote != null ? new ImageIcon(remote) : null;
 	}
-
-	/** Builds one booster's buy button, wiring its click to open the pack via {@link #packOpenCoordinator}. */
+/** Builds one booster's buy button, wiring its click to open the pack via {@link #packOpenCoordinator}. */
 	private JButton createBoosterBuyButton(BoosterPackDefinition booster, int progressOwn, int progressFoilOwn, int progressTotal,
 		int buttonWidth)
 	{

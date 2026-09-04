@@ -1,7 +1,6 @@
 package com.osrstcg.ui.card;
 
 import java.awt.Color;
-
 /**
  * Color helpers shared by card rendering/effects: brightening, blending, alpha, clamping, and HSLA conversion.
  */
@@ -10,8 +9,7 @@ public final class CardColorMath
 	private CardColorMath()
 	{
 	}
-
-	/** Lifts each RGB channel toward white by 35%, preserving alpha; null input returns opaque white. */
+/** Lifts each RGB channel toward white by 35%, preserving alpha; null input returns opaque white. */
 	public static Color brighterColor(Color color)
 	{
 		if (color == null)
@@ -20,14 +18,12 @@ public final class CardColorMath
 		}
 		return new Color(lift(color.getRed()), lift(color.getGreen()), lift(color.getBlue()), color.getAlpha());
 	}
-
-	/** Moves a single 0-255 channel 35% of the way toward 255. */
+/** Moves a single 0-255 channel 35% of the way toward 255. */
 	private static int lift(int channel)
 	{
 		return Math.min(255, (int) Math.round(channel + (255 - channel) * 0.35d));
 	}
-
-	/**
+/**
 	 * Linearly interpolates RGB from {@code base} toward {@code tint} by {@code amount} (clamped 0-1),
 	 * keeping {@code base}'s alpha. Falls back to whichever color is non-null if the other is null.
 	 */
@@ -48,20 +44,17 @@ public final class CardColorMath
 			mix(base.getBlue(), tint.getBlue(), t),
 			base.getAlpha());
 	}
-
-	/** Linearly interpolates one 0-255 channel from {@code a} to {@code b} by {@code t}, clamped to 0-255. */
+/** Linearly interpolates one 0-255 channel from {@code a} to {@code b} by {@code t}, clamped to 0-255. */
 	private static int mix(int a, int b, double t)
 	{
 		return clamp255((int) Math.round(a + (b - a) * t));
 	}
-
-	/** Clamps a value to the 0-255 byte range. */
+/** Clamps a value to the 0-255 byte range. */
 	public static int clamp255(int value)
 	{
 		return Math.max(0, Math.min(255, value));
 	}
-
-	/** Returns {@code c} (white if null) with alpha set from {@code a} (0-1, clamped). */
+/** Returns {@code c} (white if null) with alpha set from {@code a} (0-1, clamped). */
 	public static Color withAlpha(Color c, double a)
 	{
 		if (c == null)
@@ -71,8 +64,7 @@ public final class CardColorMath
 		int av = clamp255((int) Math.round(Math.max(0.0d, Math.min(1.0d, a)) * 255.0d));
 		return new Color(c.getRed(), c.getGreen(), c.getBlue(), av);
 	}
-
-	/** Converts CSS-style HSLA ({@code hueDeg} any value, {@code saturation}/{@code lightness}/{@code alpha} 0-1) to an RGBA {@link Color}. */
+/** Converts CSS-style HSLA ({@code hueDeg} any value, {@code saturation}/{@code lightness}/{@code alpha} 0-1) to an RGBA {@link Color}. */
 	public static Color hsla(double hueDeg, double saturation, double lightness, double alpha)
 	{
 		double h = ((hueDeg % 360.0d) + 360.0d) % 360.0d / 360.0d;
@@ -103,8 +95,7 @@ public final class CardColorMath
 			clamp255((int) Math.round(b * 255.0d)),
 			clamp255((int) Math.round(Math.max(0.0d, Math.min(1.0d, alpha)) * 255.0d)));
 	}
-
-	/** Standard HSL-to-RGB helper: computes one channel from chroma bounds {@code p}/{@code q} at hue offset {@code t}. */
+/** Standard HSL-to-RGB helper: computes one channel from chroma bounds {@code p}/{@code q} at hue offset {@code t}. */
 	private static double hueToChannel(double p, double q, double t)
 	{
 		double tt = t;

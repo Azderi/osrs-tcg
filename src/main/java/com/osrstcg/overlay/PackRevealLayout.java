@@ -7,7 +7,6 @@ import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.DoubleConsumer;
-
 /**
  * Layout math for the pack reveal overlay: base/native card and pack sizes, the zoom level that fits
  * the pack and card grid within the viewport, and the resulting slot rectangles. Pure functions, called
@@ -34,13 +33,11 @@ final class PackRevealLayout
 	static final int NATIVE_PACK_W = Math.max(1, (int) Math.round(BASE_PACK_W * NATIVE_LAYOUT_SCALE));
 	static final int NATIVE_PACK_H = Math.max(1, (int) Math.round(BASE_PACK_H * NATIVE_LAYOUT_SCALE));
 	static final int NATIVE_CARD_GAP = Math.max(4, (int) Math.round(BASE_CARD_GAP * NATIVE_LAYOUT_SCALE));
-
-	/** No instances; all members are static. */
+/** No instances; all members are static. */
 	private PackRevealLayout()
 	{
 	}
-
-	/**
+/**
 	 * Picks the largest zoom multiplier (capped at {@code preferredZoomMul}) at which the pack (and, once
 	 * cards are shown, the card grid) fits inside {@code canvas} minus its edge padding, reports the chosen
 	 * multiplier to {@code onAppliedZoom} if non-null, and returns the resulting pack/card/gap pixel sizes.
@@ -65,16 +62,14 @@ final class PackRevealLayout
 			PackRevealZoomUtil.scalePx(NATIVE_CARD_H, zoomMul),
 			PackRevealZoomUtil.scalePx(NATIVE_CARD_GAP, zoomMul));
 	}
-
-	/** True while the reveal is still showing the unopened pack, before individual card slots are laid out. */
+/** True while the reveal is still showing the unopened pack, before individual card slots are laid out. */
 	static boolean isPackSizedPhase(PackRevealService.Phase phase)
 	{
 		return phase == PackRevealService.Phase.PACK_READY
 			|| phase == PackRevealService.Phase.PACK_FADING
 			|| phase == PackRevealService.Phase.AWAITING_PULLS;
 	}
-
-	/**
+/**
 	 * Lays out up to 2 cards on a top row and any remainder on a bottom row, both centered within
 	 * {@code canvas}, using the card/gap sizes from {@code layout}. Returns an empty list for {@code count <= 0}.
 	 */
@@ -111,8 +106,7 @@ final class PackRevealLayout
 		}
 		return out;
 	}
-
-	/** Edge padding for {@code canvas}: {@link #VIEWPORT_EDGE_PAD} at minimum, scaling down to 1/40 of the short side. */
+/** Edge padding for {@code canvas}: {@link #VIEWPORT_EDGE_PAD} at minimum, scaling down to 1/40 of the short side. */
 	static int viewportEdgePad(Rectangle canvas)
 	{
 		if (canvas == null)
@@ -122,20 +116,17 @@ final class PackRevealLayout
 		int shortSide = Math.min(canvas.width, canvas.height);
 		return Math.max(VIEWPORT_EDGE_PAD, Math.min(16, shortSide / 40));
 	}
-
-	/** Unscaled (base-size) grid width for {@code count} cards laid out as {@link #layoutCardSlots} would. */
+/** Unscaled (base-size) grid width for {@code count} cards laid out as {@link #layoutCardSlots} would. */
 	private static int naturalGridWidth(int count)
 	{
 		return naturalGridWidthWithSize(count, BASE_CARD_W, BASE_CARD_GAP);
 	}
-
-	/** Unscaled (base-size) grid height for {@code count} cards laid out as {@link #layoutCardSlots} would. */
+/** Unscaled (base-size) grid height for {@code count} cards laid out as {@link #layoutCardSlots} would. */
 	private static int naturalGridHeight(int count)
 	{
 		return naturalGridHeightWithSize(count, BASE_CARD_H, BASE_CARD_GAP);
 	}
-
-	/** Grid width for {@code count} cards at the given card width/gap: up to 2 cards per row, rows centered. */
+/** Grid width for {@code count} cards at the given card width/gap: up to 2 cards per row, rows centered. */
 	private static int naturalGridWidthWithSize(int count, int cardW, int gap)
 	{
 		if (count <= 0)
@@ -148,8 +139,7 @@ final class PackRevealLayout
 		int bottomWidth = (bottomCount * cardW) + (Math.max(0, bottomCount - 1) * gap);
 		return Math.max(topWidth, bottomWidth);
 	}
-
-	/** Grid height for {@code count} cards at the given card height/gap: one row, or two rows plus gap if a second row exists. */
+/** Grid height for {@code count} cards at the given card height/gap: one row, or two rows plus gap if a second row exists. */
 	private static int naturalGridHeightWithSize(int count, int cardH, int gap)
 	{
 		if (count <= 0)
@@ -160,8 +150,7 @@ final class PackRevealLayout
 		int bottomCount = Math.max(0, count - topCount);
 		return (bottomCount > 0) ? (cardH * 2) + gap : cardH;
 	}
-
-	/**
+/**
 	 * True if, at zoom multiplier {@code mul}, the pack alone ({@code packOnly}) or the pack plus the
 	 * {@code cardCount}-card grid fits within {@code availW}x{@code availH}.
 	 */
@@ -182,8 +171,7 @@ final class PackRevealLayout
 		int needH = Math.max(packH, gridH);
 		return needW <= availW && needH <= availH;
 	}
-
-	/**
+/**
 	 * Computes {@link #NATIVE_LAYOUT_SCALE}: the scale factor applied to base sizes so the reference
 	 * "classic" canvas size fits the max-visible-card grid, clamped to [{@link #MIN_OVERLAY_SCALE}, 1.0].
 	 */
@@ -203,8 +191,7 @@ final class PackRevealLayout
 		double fitS = defaultFitScale(canvas, scaleH, containS);
 		return Math.max(MIN_OVERLAY_SCALE, Math.min(1.0d, fitS));
 	}
-
-	/** On short canvases, fits to height alone (may crop width); otherwise uses the contain scale for both axes. */
+/** On short canvases, fits to height alone (may crop width); otherwise uses the contain scale for both axes. */
 	private static double defaultFitScale(Rectangle canvas, double scaleH, double containS)
 	{
 		if (canvas != null && canvas.height <= SMALL_CANVAS_HEIGHT_PX)
@@ -213,8 +200,7 @@ final class PackRevealLayout
 		}
 		return containS;
 	}
-
-	/** Resolved pixel sizes (at the currently applied zoom) for the pack, a card, and the gap between cards. */
+/** Resolved pixel sizes (at the currently applied zoom) for the pack, a card, and the gap between cards. */
 	static final class ViewportLayout
 	{
 		final int packW;
@@ -222,8 +208,7 @@ final class PackRevealLayout
 		final int cardW;
 		final int cardH;
 		final int gap;
-
-		/** Stores the resolved pixel sizes verbatim. */
+/** Stores the resolved pixel sizes verbatim. */
 		ViewportLayout(int packW, int packH, int cardW, int cardH, int gap)
 		{
 			this.packW = packW;
@@ -232,8 +217,7 @@ final class PackRevealLayout
 			this.cardH = cardH;
 			this.gap = gap;
 		}
-
-		/** Returns the pack's rect, sized per this layout and centered within {@code canvas}. */
+/** Returns the pack's rect, sized per this layout and centered within {@code canvas}. */
 		Rectangle packRect(Rectangle canvas)
 		{
 			int x = canvas.x + (canvas.width - packW) / 2;

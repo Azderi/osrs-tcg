@@ -1,5 +1,4 @@
 package com.osrstcg.cloud.api;
-
 /** Base URLs for the cloud API/web backend and helpers for building/rewriting URLs against them. */
 public final class CloudEndpoints
 {
@@ -9,8 +8,7 @@ public final class CloudEndpoints
 	private CloudEndpoints()
 	{
 	}
-
-	/** Resolves a path (or already-absolute {@code https://} URL) against {@link #API_BASE_URL}. */
+/** Resolves a path (or already-absolute {@code https://} URL) against {@link #API_BASE_URL}. */
 	public static String apiUrl(String pathAndQuery)
 	{
 		if (pathAndQuery == null || pathAndQuery.isBlank())
@@ -20,14 +18,12 @@ public final class CloudEndpoints
 		String joined = joinHttps(API_BASE_URL, pathAndQuery);
 		return joined.isEmpty() ? API_BASE_URL : joined;
 	}
-
-	/** Resolves a path (or already-absolute {@code https://} URL) against {@link #WEB_BASE_URL}. */
+/** Resolves a path (or already-absolute {@code https://} URL) against {@link #WEB_BASE_URL}. */
 	public static String webUrl(String pathOrUrl)
 	{
 		return joinHttps(WEB_BASE_URL, pathOrUrl);
 	}
-
-	/**
+/**
 	 * Resolves a value that may be an absolute URL, an {@code /api/v1/...} path, another
 	 * {@code /api/...} path, or a bare web path, into an absolute {@code https://} URL.
 	 * Returns {@code ""} for null/blank input.
@@ -57,8 +53,7 @@ public final class CloudEndpoints
 		}
 		return webUrl(raw);
 	}
-
-	/**
+/**
 	 * Rewrites a server-provided URL (any host) or path onto {@link #WEB_BASE_URL}, keeping only
 	 * the path/query. Returns null for null/blank input.
 	 */
@@ -80,8 +75,7 @@ public final class CloudEndpoints
 		}
 		return WEB_BASE_URL + (raw.startsWith("/") ? raw : "/" + raw);
 	}
-
-	/** Joins {@code pathOrUrl} onto {@code httpsBase} unless it is already an absolute {@code https://} URL. */
+/** Joins {@code pathOrUrl} onto {@code httpsBase} unless it is already an absolute {@code https://} URL. */
 	private static String joinHttps(String httpsBase, String pathOrUrl)
 	{
 		if (pathOrUrl == null)

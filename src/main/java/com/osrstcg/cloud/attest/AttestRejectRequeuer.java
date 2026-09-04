@@ -6,7 +6,6 @@ import com.osrstcg.cloud.api.JsonObjects;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
-
 /**
  * Reinterprets rejected events from an attest response and re-queues fixed-up versions of them onto
  * {@link CreditAttestQueue}. Handles {@code kill_amount_too_large} by splitting an oversized npc_kill
@@ -24,8 +23,7 @@ final class AttestRejectRequeuer
 	{
 		this.queue = queue;
 	}
-
-	/**
+/**
 	 * Walks {@code response.rejected}, matching each rejection's {@code index} back to the sent
 	 * {@code batch}, and re-queues a corrected event for the reasons this class knows how to fix.
 	 * Any events produced are prepended to the queue's pending list and an early flush is scheduled.
@@ -135,8 +133,7 @@ final class AttestRejectRequeuer
 		}
 		return result;
 	}
-
-	/** Reasons seen and batch indexes requeued for a single {@link #requeueRejectedEvents} call. */
+/** Reasons seen and batch indexes requeued for a single {@link #requeueRejectedEvents} call. */
 	static final class RequeueResult
 	{
 		final List<Integer> requeuedIndexes = new ArrayList<>();

@@ -3,7 +3,6 @@ package com.osrstcg.state;
 import com.google.gson.JsonObject;
 import com.osrstcg.cloud.api.JsonObjects;
 import lombok.Value;
-
 /** Collection stats shown for {@code !tcg} chat command (matches sidebar overview semantics). */
 @Value
 public class TcgPublicStats
@@ -18,8 +17,7 @@ public class TcgPublicStats
 	int totalCardsOwned;
 	long foilOwned;
 	boolean customRates;
-
-	/** Parse flat {@code GET /api/v1/players/:name/stats} JSON (or equivalent). */
+/** Parse flat {@code GET /api/v1/players/:name/stats} JSON (or equivalent). */
 	public static TcgPublicStats fromPlayerStatsJson(JsonObject json)
 	{
 		if (json == null)

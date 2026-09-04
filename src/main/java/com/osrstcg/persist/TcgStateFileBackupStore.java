@@ -15,7 +15,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
-
 /**
  * Reads and writes the per-account {@code tcg.save} file on disk: resolves the account's save
  * directory, and performs atomic, hash-verified writes and best-effort reads. All I/O here is
@@ -32,8 +31,7 @@ public class TcgStateFileBackupStore
 	private final Client client;
 	private final TcgStateCodec stateCodec;
 	private volatile long lastKnownAccountHash = -1L;
-
-	/** Stores the RuneLite client (for account hash lookups) and the state codec used to parse loaded saves. */
+/** Stores the RuneLite client (for account hash lookups) and the state codec used to parse loaded saves. */
 	@Inject
 	public TcgStateFileBackupStore(
 		Client client,
@@ -42,8 +40,7 @@ public class TcgStateFileBackupStore
 		this.client = client;
 		this.stateCodec = stateCodec;
 	}
-
-	/** Atomically writes {@code encodedBlob} to {@value #MASTER_FILENAME} in the current account's save directory. */
+/** Atomically writes {@code encodedBlob} to {@value #MASTER_FILENAME} in the current account's save directory. */
 	public boolean writeMaster(String encodedBlob)
 	{
 		if (encodedBlob == null || encodedBlob.isEmpty())
@@ -54,8 +51,7 @@ public class TcgStateFileBackupStore
 		String hashHex = TcgStateHash.hexOfUtf8(encodedBlob).toLowerCase(Locale.ROOT);
 		return writeMasterFile(encodedBlob, hashHex);
 	}
-
-	/** Reads and decodes {@value #MASTER_FILENAME} from the current account's save directory, if present and valid. */
+/** Reads and decodes {@value #MASTER_FILENAME} from the current account's save directory, if present and valid. */
 	public Optional<TcgState> loadMaster()
 	{
 		Path dir = saveDirectory();
@@ -65,8 +61,7 @@ public class TcgStateFileBackupStore
 		}
 		return tryLoadEncodedFile(dir.resolve(MASTER_FILENAME));
 	}
-
-	/** Returns the client's current account hash, or the last known one if logged out (-1). */
+/** Returns the client's current account hash, or the last known one if logged out (-1). */
 	long resolveAccountHashForIo()
 	{
 		long hash = client.getAccountHash();
@@ -77,32 +72,27 @@ public class TcgStateFileBackupStore
 		}
 		return lastKnownAccountHash;
 	}
-
-	/** Hashed directory name for the current account, as used under {@link #profilesRoot()}. */
+/** Hashed directory name for the current account, as used under {@link #profilesRoot()}. */
 	public String currentAccountDirName()
 	{
 		return ProfileKeyHasher.accountDirName(resolveAccountHashForIo());
 	}
-
-	/** Root directory containing one subdirectory per account. */
+/** Root directory containing one subdirectory per account. */
 	Path profilesRoot()
 	{
 		return ProfileKeyHasher.profilesRoot();
 	}
-
-	/** Root directory for legacy per-account backup subdirectories, kept for old save layouts. */
+/** Root directory for legacy per-account backup subdirectories, kept for old save layouts. */
 	Path legacyBackupsRoot()
 	{
 		return ProfileKeyHasher.tcgRoot().resolve("backups");
 	}
-
-	/** Save directory for the current account. */
+/** Save directory for the current account. */
 	Path saveDirectory()
 	{
 		return saveDirectory(null);
 	}
-
-	/**
+/**
 	 * Save directory for {@code accountDirId}, or the current account's when null/blank.
 	 * Returns null when {@code accountDirId} doesn't resolve to a valid directory name.
 	 */
@@ -118,8 +108,7 @@ public class TcgStateFileBackupStore
 			: legacyBackupsRoot();
 		return root.resolve(dirName);
 	}
-
-	/**
+/**
 	 * Resolves {@code accountDirId} to a validated directory name: current account when null/blank,
 	 * the legacy "default" directory verbatim, or a lowercased 64-hex-char account hash; else null.
 	 */
@@ -140,8 +129,7 @@ public class TcgStateFileBackupStore
 		}
 		return trimmed.toLowerCase(Locale.ROOT);
 	}
-
-	/**
+/**
 	 * Writes {@code encodedBlob} to a temp file in the save directory, verifies it hashes to
 	 * {@code expectedHash} by reading it back, then atomically renames it onto {@value #MASTER_FILENAME}.
 	 * The temp file is always removed afterwards.
@@ -187,8 +175,7 @@ public class TcgStateFileBackupStore
 			return false;
 		}
 	}
-
-	/** Reads {@code file}, hash-validates and decodes its contents, and parses it into a {@link TcgState}. */
+/** Reads {@code file}, hash-validates and decodes its contents, and parses it into a {@link TcgState}. */
 	private Optional<TcgState> tryLoadEncodedFile(Path file)
 	{
 		if (file == null || !Files.isRegularFile(file))
@@ -212,8 +199,7 @@ public class TcgStateFileBackupStore
 			return Optional.empty();
 		}
 	}
-
-	/** Checks {@code encoded}'s hash against {@code expectedHash} (when given) and that it parses into a state. */
+/** Checks {@code encoded}'s hash against {@code expectedHash} (when given) and that it parses into a state. */
 	private boolean validateMasterContent(String encoded, String expectedHash)
 	{
 		if (expectedHash != null && !expectedHash.equalsIgnoreCase(TcgStateHash.hexOfUtf8(encoded)))
@@ -222,8 +208,7 @@ public class TcgStateFileBackupStore
 		}
 		return tryParseEncodedBlob(encoded).isPresent();
 	}
-
-	/** Decodes the storage blob to JSON via {@link TcgStateStorageEncoding} and parses it with {@link #stateCodec}. */
+/** Decodes the storage blob to JSON via {@link TcgStateStorageEncoding} and parses it with {@link #stateCodec}. */
 	private Optional<TcgState> tryParseEncodedBlob(String encoded)
 	{
 		String json = TcgStateStorageEncoding.decode(encoded);

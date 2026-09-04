@@ -12,7 +12,6 @@ import com.osrstcg.cloud.api.CloudConnectionState;
 import com.osrstcg.cloud.catalog.CardCatalogService;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.state.TcgStateService;
-
 /**
  * Handles the one-time cloud profile creation/consent flow: pairing or refreshing a session,
  * marking the profile migrated, and adopting an already-migrated server collection when local
@@ -34,8 +33,7 @@ final class CloudProfileConsentService
 	private final PackCatalogService packCatalogService;
 	private final CardCatalogService cardCatalogService;
 	private final ActivityConfigService activityConfigService;
-
-	/** Wires collaborators; no side effects. */
+/** Wires collaborators; no side effects. */
 	CloudProfileConsentService(
 		CloudSessionService session,
 		CloudCollectionSyncService collectionSync,
@@ -63,8 +61,7 @@ final class CloudProfileConsentService
 		this.cardCatalogService = cardCatalogService;
 		this.activityConfigService = activityConfigService;
 	}
-
-	/**
+/**
 	 * Creates (or completes consent for) the cloud profile for the current RuneScape account: requires
 	 * being logged in with a known account hash, display name, and RuneLite profile key. Runs the
 	 * pairing/migration flow inside {@link CloudApiClient#openConsentTraffic()} so consent-gated
@@ -97,8 +94,7 @@ final class CloudProfileConsentService
 			createProfileAllowed(accountHash, displayName, profileHash);
 		}
 	}
-
-	/**
+/**
 	 * Ensures a session is active (refreshing or pairing as needed), adopts an already-migrated
 	 * server collection if applicable, then marks the profile migrated and finishes consent if it
 	 * wasn't already.
@@ -140,8 +136,7 @@ final class CloudProfileConsentService
 			"Created cloud profile.");
 		finishConsentSuccess();
 	}
-
-	/**
+/**
 	 * Post-consent bring-up: refreshes local cache from cloud, settles offline hiscores, marks the
 	 * session connected, clears obsolete local caches, and refreshes pack/card catalogs and activity
 	 * config. Bails out early if the account becomes locked (banned/quarantined) partway through.
@@ -165,8 +160,7 @@ final class CloudProfileConsentService
 		cardCatalogService.refreshNow();
 		activityConfigService.refreshOnLogin();
 	}
-
-	/**
+/**
 	 * If this profile hasn't recorded migration locally but has local progress (credits/packs/cards)
 	 * and has an access token, checks the server state: if the server shows the account already
 	 * migrated (has a migration timestamp or cards), adopts that server collection/economy locally

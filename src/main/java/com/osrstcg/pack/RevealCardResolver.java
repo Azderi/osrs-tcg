@@ -17,7 +17,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
-
 /**
  * Resolves server pack pulls into overlay {@link PackRevealService.RevealCard}s (placeholders,
  * catalog materialization, rarity index). Callers must hold the reveal-service lock.
@@ -32,8 +31,7 @@ final class RevealCardResolver
 	{
 		this.cardDatabase = cardDatabase;
 	}
-
-	/** Rebuilds the card-name-to-rarity-tier lookup from the current catalog; call before resolving a reveal. */
+/** Rebuilds the card-name-to-rarity-tier lookup from the current catalog; call before resolving a reveal. */
 	void rebuildRarityTierIndex()
 	{
 		rarityTierByCardName.clear();
@@ -47,8 +45,7 @@ final class RevealCardResolver
 			rarityTierByCardName.put(card.getName().toLowerCase(), tier);
 		}
 	}
-
-	/** Builds {@code count} face-down common placeholder cards shown while server pulls are pending. */
+/** Builds {@code count} face-down common placeholder cards shown while server pulls are pending. */
 	List<PackRevealService.RevealCard> createPlaceholderCards(int count)
 	{
 		if (count <= 0)
@@ -68,8 +65,7 @@ final class RevealCardResolver
 		}
 		return List.copyOf(out);
 	}
-
-	/**
+/**
 	 * Converts server pack pulls into {@link PackRevealService.RevealCard}s: resolves each pull against the
 	 * card catalog, materializes a display definition, resolves rarity tier, and flags cards not already
 	 * present in {@code preOwnedCards} as new. Pulls with a null card name are dropped.
@@ -101,8 +97,7 @@ final class RevealCardResolver
 		}
 		return resolved;
 	}
-
-	/**
+/**
 	 * Prefer server {@code tierLabel} for cloud pack pulls; otherwise local catalog display tier.
 	 */
 	RarityMath.Tier tierForPackPull(PackCardResult pull, String catalogCardName)
@@ -120,8 +115,7 @@ final class RevealCardResolver
 		}
 		return tierForCard(catalogCardName);
 	}
-
-	/**
+/**
 	 * Builds the {@link CardDefinition} shown for a pull: starts from the local catalog entry when found
 	 * (falling back to a minimal definition otherwise), then overlays server-supplied image paths, artist
 	 * credit, examine text, wiki page, and score/tier for pulls carrying server data.
@@ -212,8 +206,7 @@ final class RevealCardResolver
 		}
 		return definition;
 	}
-
-	/** Case-insensitive lookup of a catalog card by name. */
+/** Case-insensitive lookup of a catalog card by name. */
 	private Optional<CardDefinition> findCard(String name)
 	{
 		return cardDatabase.getCards().stream()
@@ -221,8 +214,7 @@ final class RevealCardResolver
 			.filter(c -> c.getName() != null && c.getName().equalsIgnoreCase(name))
 			.findFirst();
 	}
-
-	/** Looks up the local catalog display tier for a card name, defaulting to {@code COMMON} when unknown. */
+/** Looks up the local catalog display tier for a card name, defaulting to {@code COMMON} when unknown. */
 	private RarityMath.Tier tierForCard(String cardName)
 	{
 		if (cardName == null)
@@ -231,8 +223,7 @@ final class RevealCardResolver
 		}
 		return rarityTierByCardName.getOrDefault(cardName.toLowerCase(), RarityMath.Tier.COMMON);
 	}
-
-	/** Builds a case-insensitive, foil-aware dedup key for pre-owned-card comparisons. */
+/** Builds a case-insensitive, foil-aware dedup key for pre-owned-card comparisons. */
 	private static String normalizeKey(String cardName, boolean foil)
 	{
 		return (cardName == null ? "" : cardName.trim().toLowerCase()) + "|" + (foil ? "1" : "0");

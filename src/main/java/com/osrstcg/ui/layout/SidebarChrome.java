@@ -13,15 +13,13 @@ import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.SwingUtilities;
 import net.runelite.client.ui.ColorScheme;
-
 /** Title-row status dot and tab-rail paint for the plugin sidebar. */
 public final class SidebarChrome
 {
 	private SidebarChrome()
 	{
 	}
-
-	/**
+/**
 	 * Builds the small colored status dot shown in the sidebar title row. Its fill color and tooltip are
 	 * driven later by {@link #updateCloudStatusIndicator} via client properties; starts red/"disconnected".
 	 * Must be called on the EDT.
@@ -33,7 +31,7 @@ public final class SidebarChrome
 		final Color errorRed = new Color(0xE0, 0x4B, 0x4B);
 		JComponent dot = new JComponent()
 		{
-			/** Paints a filled circle using the color stashed in the {@code cloudIndicatorColor} client property. */
+/** Paints a filled circle using the color stashed in the {@code cloudIndicatorColor} client property. */
 			@Override
 			protected void paintComponent(Graphics g)
 			{
@@ -58,22 +56,19 @@ public final class SidebarChrome
 					g2.dispose();
 				}
 			}
-
-			/** Fixed 8x8 dot size. */
+/** Fixed 8x8 dot size. */
 			@Override
 			public Dimension getPreferredSize()
 			{
 				return new Dimension(8, 8);
 			}
-
-			/** Same as {@link #getPreferredSize()}; the dot never shrinks. */
+/** Same as {@link #getPreferredSize()}; the dot never shrinks. */
 			@Override
 			public Dimension getMinimumSize()
 			{
 				return getPreferredSize();
 			}
-
-			/** Same as {@link #getPreferredSize()}; the dot never grows. */
+/** Same as {@link #getPreferredSize()}; the dot never grows. */
 			@Override
 			public Dimension getMaximumSize()
 			{
@@ -88,8 +83,7 @@ public final class SidebarChrome
 		dot.setToolTipText("Cloud disconnected");
 		return dot;
 	}
-
-	/**
+/**
 	 * Paints the horizontal divider under the tab rail: a full-width medium-gray line, with a dark-gray
 	 * segment punched out under the currently active tab button so it reads as connected to its content
 	 * below. Must be called from a component's {@code paintComponent}, on the EDT.
@@ -122,8 +116,7 @@ public final class SidebarChrome
 			g2.dispose();
 		}
 	}
-
-	/**
+/**
 	 * Resolves the cloud status dot's color and tooltip from current session state (account lock, RS login,
 	 * restricted world, pending consent, connection state) in that priority order, then repaints it. Must
 	 * be called on the EDT.

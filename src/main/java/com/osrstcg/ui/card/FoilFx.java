@@ -7,7 +7,6 @@ import java.util.Collections;
 import java.util.List;
 import lombok.Getter;
 import lombok.Value;
-
 /**
  * Deterministic foil sparkle layout for a card: a seeded set of {@link Sparkle}s (position, size, timing,
  * color) generated from the pull identity so the same card always renders the same foil pattern.
@@ -16,8 +15,7 @@ import lombok.Value;
 public final class FoilFx
 {
 	public static final int DEFAULT_SPARKLE_COUNT = 22;
-
-	/** One sparkle's position (percent of card), size, animation timing, and HSL color. */
+/** One sparkle's position (percent of card), size, animation timing, and HSL color. */
 	@Value
 	public static class Sparkle
 	{
@@ -33,15 +31,13 @@ public final class FoilFx
 
 	private final int seed;
 	private final List<Sparkle> sparkles;
-
-	/** Stores the seed and wraps the sparkle list as unmodifiable. */
+/** Stores the seed and wraps the sparkle list as unmodifiable. */
 	private FoilFx(int seed, List<Sparkle> sparkles)
 	{
 		this.seed = seed;
 		this.sparkles = Collections.unmodifiableList(sparkles);
 	}
-
-	/**
+/**
 	 * Builds a {@link FoilFx} for a pulled card: seeds a PRNG from the pull identity ({@code cardName}/{@code pulledAt}),
 	 * derives a base hue from the card's rarity tier (silver/near-white sparkles for commons, hue-tinted for
 	 * everything else), and generates {@code count} randomly placed and timed sparkles.
@@ -85,8 +81,7 @@ public final class FoilFx
 
 		return new FoilFx(seed, sparkles);
 	}
-
-	/**
+/**
 	 * Resolves the rarity tier to drive sparkle color: prefers a valid {@code tierLabel}; otherwise falls back
 	 * to common unless {@code tierColor} carries a distinguishable hue, in which case its hue is used via
 	 * {@link #foilBaseHue}.
@@ -105,8 +100,7 @@ public final class FoilFx
 		}
 		return fromLabel;
 	}
-
-	/** Fixed sparkle hue per known rarity tier; for common or any unlisted tier, derives hue from {@code tierColor} instead (0 if none). */
+/** Fixed sparkle hue per known rarity tier; for common or any unlisted tier, derives hue from {@code tierColor} instead (0 if none). */
 	static double foilBaseHue(RarityMath.Tier tier, Color tierColor)
 	{
 		if (tier == null || tier == RarityMath.Tier.COMMON)
@@ -132,8 +126,7 @@ public final class FoilFx
 				return fromColor == null ? 0.0d : fromColor;
 		}
 	}
-
-	/** Extracts the HSV hue (0-360) from an RGB color, or null if the color is too close to gray to have a meaningful hue. */
+/** Extracts the HSV hue (0-360) from an RGB color, or null if the color is too close to gray to have a meaningful hue. */
 	static Double hueFromColor(Color color)
 	{
 		if (color == null)
@@ -170,8 +163,7 @@ public final class FoilFx
 		}
 		return h;
 	}
-
-	/** Wraps a hue value into the [0, 360) range. */
+/** Wraps a hue value into the [0, 360) range. */
 	static double wrapHue(double hue)
 	{
 		double h = hue % 360.0d;

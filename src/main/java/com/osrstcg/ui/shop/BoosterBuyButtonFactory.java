@@ -16,7 +16,6 @@ import javax.swing.SwingConstants;
 import javax.swing.border.EmptyBorder;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
-
 /** Shop booster tile chrome (icon, progress, buy button). */
 final class BoosterBuyButtonFactory
 {
@@ -25,8 +24,7 @@ final class BoosterBuyButtonFactory
 	private BoosterBuyButtonFactory()
 	{
 	}
-
-	/**
+/**
 	 * Builds one shop booster tile: title, optional pack icon (swapped for a grayscale version when the
 	 * button is disabled), price, progress bar, owned/total counts, and a buy action. Must be called on the EDT.
 	 */
@@ -102,13 +100,12 @@ final class BoosterBuyButtonFactory
 		}
 		return button;
 	}
-
-	/** Centered, white, small-font label used for the booster tile's title/price/progress text rows. */
+/** Centered, white, small-font label used for the booster tile's title/price/progress text rows. */
 	static JLabel shopBoosterTextLabel(String text)
 	{
 		JLabel label = new JLabel(text, SwingConstants.CENTER)
 		{
-			/** Re-applies the label style after a Look-and-Feel change resets it. */
+/** Re-applies the label style after a Look-and-Feel change resets it. */
 			@Override
 			public void updateUI()
 			{
@@ -119,8 +116,7 @@ final class BoosterBuyButtonFactory
 		applyBoostBtnLabelStyle(label);
 		return label;
 	}
-
-	/** Applies the shared alignment/color/font styling for booster tile text labels. */
+/** Applies the shared alignment/color/font styling for booster tile text labels. */
 	private static void applyBoostBtnLabelStyle(JLabel label)
 	{
 		label.setAlignmentX(Component.CENTER_ALIGNMENT);

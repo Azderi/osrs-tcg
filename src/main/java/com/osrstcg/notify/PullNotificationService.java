@@ -19,7 +19,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.client.chat.ChatMessageManager;
 import com.osrstcg.catalog.RarityMath;
-
 /**
  * Entry point for pull/collection-add notifications: routes each pull to chat, party, Dink, and
  * webhook notifications according to config (per-card vs. end-of-pack summary, tier/foil filters).
@@ -33,8 +32,7 @@ public class PullNotificationService
 	private final PullNotifySupport pullNotifySupport;
 	private final DinkNotificationService dinkNotificationService;
 	private final PullExternalNotificationService externalNotifyService;
-
-	/** Wires config, chat, the card database, the shared pull-content builder, and the Dink/webhook sub-services. */
+/** Wires config, chat, the card database, the shared pull-content builder, and the Dink/webhook sub-services. */
 	@Inject
 	PullNotificationService(
 		OsrsTcgConfig config,
@@ -51,8 +49,7 @@ public class PullNotificationService
 		this.dinkNotificationService = dinkNotificationService;
 		this.externalNotifyService = externalNotifyService;
 	}
-
-	/**
+/**
 	 * Handles a single card pull: chats and party-broadcasts the collection add, then (if the pull
 	 * meets the configured notify thresholds and the trigger is per-card) fires the webhook and Dink
 	 * notifications immediately.
@@ -79,8 +76,7 @@ public class PullNotificationService
 		}
 		return config.partyAnnouncePulls();
 	}
-
-	/** Queues the "you added" chat line for one card, resolving rarity color from the card database if not supplied. */
+/** Queues the "you added" chat line for one card, resolving rarity color from the card database if not supplied. */
 	public void postCollectionAddChat(String cardName, boolean newForCollection, boolean foil, Color rarityColor)
 	{
 		if (PullNotificationMessages.isBlank(cardName))
@@ -91,8 +87,7 @@ public class PullNotificationService
 		Color rarity = rarityColor != null ? rarityColor : cardDatabase.chatRarityColorForCardName(trimmed);
 		queueCollectionAddChat(trimmed, newForCollection, foil, rarity);
 	}
-
-	/**
+/**
 	 * Chats a "you added" line for every pull in a batch (e.g. a full pack open), computing
 	 * new-vs-duplicate per card against the pre-open owned-card snapshot.
 	 */
@@ -127,8 +122,7 @@ public class PullNotificationService
 			postCollectionAddChat(name, isNew, pull.isFoil(), rarity);
 		}
 	}
-
-	/** Chats a "you added" line for a reveal-service card, deriving its display name and rarity color. */
+/** Chats a "you added" line for a reveal-service card, deriving its display name and rarity color. */
 	public void postCollectionAddChat(RevealCard card)
 	{
 		if (card == null || card.getPull() == null)
@@ -154,8 +148,7 @@ public class PullNotificationService
 			: cardDatabase.chatRarityColorForCardName(name);
 		postCollectionAddChat(name, card.isNew(), pull.isFoil(), rarity);
 	}
-
-	/**
+/**
 	 * Fires the end-of-pack webhook/Dink summary notification for a whole pack's pulls, when the
 	 * notification trigger is set to end-of-pack rather than per-card.
 	 */
@@ -174,8 +167,7 @@ public class PullNotificationService
 			}
 		});
 	}
-
-	/** Queues the formatted+plain "you added" chat message, if party-announce (which gates local chat too) is on. */
+/** Queues the formatted+plain "you added" chat message, if party-announce (which gates local chat too) is on. */
 	private void queueCollectionAddChat(String cardName, boolean newForCollection, boolean foil, Color rarityColor)
 	{
 		if (!config.partyAnnouncePulls())
@@ -187,8 +179,7 @@ public class PullNotificationService
 		String plain = TcgPluginGameMessages.plainYouAddedCollection(cardName, newForCollection, foil);
 		TcgPluginGameMessages.queueFormattedGameMessage(chatMessageManager, formatted, plain);
 	}
-
-	/** Builds a case-insensitive "name|foil" key for matching pulls against the pre-owned card snapshot. */
+/** Builds a case-insensitive "name|foil" key for matching pulls against the pre-owned card snapshot. */
 	private static String normalizeOwnedKey(String cardName, boolean foil)
 	{
 		String name = cardName == null ? "" : cardName.trim().toLowerCase(Locale.ROOT);

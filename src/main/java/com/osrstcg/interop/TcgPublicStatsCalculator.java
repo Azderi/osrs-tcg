@@ -18,7 +18,6 @@ import com.osrstcg.catalog.CollectionSetCompletionUtil;
 import com.osrstcg.catalog.RollPoolFilter;
 import com.osrstcg.state.TcgStateService;
 import com.osrstcg.ui.layout.PackCloseSnapshot;
-
 /**
  * Computes {@link TcgPublicStats}/{@link CloudSidebarCollectionStats} summaries of the local player's
  * collection, for sharing with other players/plugins (e.g. chat stats, sidebar overview).
@@ -28,16 +27,14 @@ public class TcgPublicStatsCalculator
 {
 	private final TcgStateService stateService;
 	private final CardDatabase cardDatabase;
-
-	/** Stores the state service and card database used to compute stats. */
+/** Stores the state service and card database used to compute stats. */
 	@Inject
 	public TcgPublicStatsCalculator(TcgStateService stateService, CardDatabase cardDatabase)
 	{
 		this.stateService = stateService;
 		this.cardDatabase = cardDatabase;
 	}
-
-	/** Computes shareable stats for the current player from cloud overview data if available, else locally. */
+/** Computes shareable stats for the current player from cloud overview data if available, else locally. */
 	public TcgPublicStats computeLive()
 	{
 		CloudSidebarCollectionStats cloud = stateService.getCloudCollectionStats();
@@ -78,8 +75,7 @@ public class TcgPublicStatsCalculator
 			overview.getFoilOwned(),
 			false);
 	}
-
-	/** Computes a fresh local {@link CloudSidebarCollectionStats} overview from the current owned collection. */
+/** Computes a fresh local {@link CloudSidebarCollectionStats} overview from the current owned collection. */
 	public CloudSidebarCollectionStats computeLocalSidebarStats()
 	{
 		Map<CardCollectionKey, Integer> owned;
@@ -91,8 +87,7 @@ public class TcgPublicStatsCalculator
 		List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(all);
 		return computeLocalOverview(owned, all, rollPool);
 	}
-
-	/** Uses {@code snap}'s pre-computed overview if it has one, else computes it locally from {@code snap.owned}. */
+/** Uses {@code snap}'s pre-computed overview if it has one, else computes it locally from {@code snap.owned}. */
 	public static CloudSidebarCollectionStats resolveOverview(
 		PackCloseSnapshot snap,
 		List<CardDefinition> allCards,
@@ -104,8 +99,7 @@ public class TcgPublicStatsCalculator
 		}
 		return computeLocalOverview(snap == null ? null : snap.owned, allCards, rollPool);
 	}
-
-	/**
+/**
 	 * Derives a {@link CloudSidebarCollectionStats} overview from {@code owned}, restricted to cards in
 	 * {@code rollPool}: unique/foil counts, total copies, completion percentages, and the display-score sum.
 	 */

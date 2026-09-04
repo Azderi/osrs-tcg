@@ -4,15 +4,13 @@ import com.google.gson.JsonObject;
 import com.osrstcg.cloud.api.JsonObjects;
 import com.osrstcg.state.PackCardResult;
 import java.util.UUID;
-
 /** Parses {@code POST /packs/open} {@code cards[]} elements into {@link PackCardResult}. */
 public final class PackPullParser
 {
 	private PackPullParser()
 	{
 	}
-
-	/**
+/**
 	 * Parses one {@code cards[]} element into a {@link PackCardResult}. Returns null when the
 	 * element is null or missing {@code cardName}. Generates a random {@code instanceId} when
 	 * the server didn't supply one.

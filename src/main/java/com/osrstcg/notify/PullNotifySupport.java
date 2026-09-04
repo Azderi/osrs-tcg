@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-
 /**
  * Shared logic for building notification content and deciding eligibility, used by chat, party,
  * webhook, and Dink notifiers so they stay in sync on filtering rules and message text.
@@ -23,36 +22,32 @@ import javax.inject.Singleton;
 @Singleton
 public class PullNotifySupport
 {
-	/** Pre-built end-of-pack summary: sections, thumbnail image, and rarity tier for the embed color. */
+/** Pre-built end-of-pack summary: sections, thumbnail image, and rarity tier for the embed color. */
 	public static final class PackSummaryContent
 	{
 		public final PullNotificationMessages.PackSummarySections sections;
 		public final String imageUrl;
 		public final RarityMath.Tier tier;
-
-		/** Stores the summary sections, thumbnail image URL, and tier verbatim. */
+/** Stores the summary sections, thumbnail image URL, and tier verbatim. */
 		PackSummaryContent(PullNotificationMessages.PackSummarySections sections, String imageUrl, RarityMath.Tier tier)
 		{
 			this.sections = sections;
 			this.imageUrl = imageUrl;
 			this.tier = tier;
 		}
-
-		/** Renders the summary message with the given opener name substituted in. */
+/** Renders the summary message with the given opener name substituted in. */
 		public String messageFor(String opener)
 		{
 			return PullNotificationMessages.packSummaryMessage(opener, sections);
 		}
 	}
-
-	/** Pre-built per-card notification content: message text, card image URL, and inspect link. */
+/** Pre-built per-card notification content: message text, card image URL, and inspect link. */
 	public static final class PullCardContent
 	{
 		public final String description;
 		public final String imageUrl;
 		public final String inspectUrl;
-
-		/** Stores the description, image URL, and inspect URL verbatim. */
+/** Stores the description, image URL, and inspect URL verbatim. */
 		PullCardContent(String description, String imageUrl, String inspectUrl)
 		{
 			this.description = description;
@@ -65,8 +60,7 @@ public class PullNotifySupport
 	private final CardDatabase cardDatabase;
 	private final TcgPublicStatsCalculator tcgPublicStatsCalculator;
 	private final TcgChatStatsShareService tcgChatStatsShareService;
-
-	/** Wires config, the card database, and the public-stats calculator/share service used to build stats lines. */
+/** Wires config, the card database, and the public-stats calculator/share service used to build stats lines. */
 	@Inject
 	PullNotifySupport(
 		OsrsTcgConfig config,
@@ -79,8 +73,7 @@ public class PullNotifySupport
 		this.tcgPublicStatsCalculator = tcgPublicStatsCalculator;
 		this.tcgChatStatsShareService = tcgChatStatsShareService;
 	}
-
-	/**
+/**
 	 * Decides whether a pull is eligible for external notification (webhook/Dink), applying the
 	 * new-cards-only, foil, non-foil, and per-category tier-floor config settings.
 	 */
@@ -105,15 +98,13 @@ public class PullNotifySupport
 		}
 		return meetsTier(tier, floor);
 	}
-
-	/** Returns the configured notification trigger, defaulting to per-card when unset. */
+/** Returns the configured notification trigger, defaulting to per-card when unset. */
 	public PullNotificationTrigger notificationTrigger()
 	{
 		PullNotificationTrigger trigger = config.pullNotificationTrigger();
 		return trigger == null ? PullNotificationTrigger.EVERY_CARD : trigger;
 	}
-
-	/** Converts reveal-service cards into {@link PullNotificationMessages.PackPull}s, computing notify-eligibility for each. */
+/** Converts reveal-service cards into {@link PullNotificationMessages.PackPull}s, computing notify-eligibility for each. */
 	public List<PullNotificationMessages.PackPull> packPullsFromCards(List<RevealCard> cards)
 	{
 		List<PullNotificationMessages.PackPull> pulls = new ArrayList<>();
@@ -137,8 +128,7 @@ public class PullNotifySupport
 		}
 		return pulls;
 	}
-
-	/**
+/**
 	 * Builds the end-of-pack summary content, or empty if no pull is notification-eligible or both
 	 * summary sections end up empty.
 	 */
@@ -158,8 +148,7 @@ public class PullNotifySupport
 		RarityMath.Tier tier = thumbnailPull == null ? null : thumbnailPull.tier;
 		return Optional.of(new PackSummaryContent(sections, imageUrl, tier));
 	}
-
-	/** Builds the message text, card image URL, and inspect URL for a single-card notification. */
+/** Builds the message text, card image URL, and inspect URL for a single-card notification. */
 	public PullCardContent pullCardContent(
 		String cardName, boolean newForCollection, boolean foil, String instanceId, String opener)
 	{
@@ -170,8 +159,7 @@ public class PullNotifySupport
 			cardImageUrl(trimmed),
 			inspectUrl);
 	}
-
-	/** Resolves a card's public image URL (as .webp), or "" if the card is unknown or has no image. */
+/** Resolves a card's public image URL (as .webp), or "" if the card is unknown or has no image. */
 	public String cardImageUrl(String cardName)
 	{
 		return cardDatabase.findByName(cardName)
@@ -180,8 +168,7 @@ public class PullNotifySupport
 			.map(PullNotifySupport::toWebpUrl)
 			.orElse("");
 	}
-
-	/** Rewrites a ".png" image URL to ".webp"; passes other URLs through unchanged. */
+/** Rewrites a ".png" image URL to ".webp"; passes other URLs through unchanged. */
 	private static String toWebpUrl(String url)
 	{
 		if (url == null || url.isEmpty())
@@ -190,20 +177,17 @@ public class PullNotifySupport
 		}
 		return url.endsWith(".png") ? url.substring(0, url.length() - 4) + ".webp" : url;
 	}
-
-	/** Renders the plain-text public collection stats line shown on external notifications. */
+/** Renders the plain-text public collection stats line shown on external notifications. */
 	public String statsPlainLine()
 	{
 		return tcgChatStatsShareService.buildPlainLine(tcgPublicStatsCalculator.computeLive());
 	}
-
-	/** Appends the public stats line to a notification message, separated by a blank line. */
+/** Appends the public stats line to a notification message, separated by a blank line. */
 	public String messageWithStatsLine(String message)
 	{
 		return message + "\n\n" + statsPlainLine();
 	}
-
-	/** True if {@code tier} meets or exceeds {@code floor} (defaulting to MYTHIC, the strictest, when floor is unset). */
+/** True if {@code tier} meets or exceeds {@code floor} (defaulting to MYTHIC, the strictest, when floor is unset). */
 	private static boolean meetsTier(RarityMath.Tier tier, PullNotifyTier floor)
 	{
 		if (tier == null)

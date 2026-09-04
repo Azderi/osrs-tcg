@@ -6,7 +6,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
 import net.runelite.client.config.ConfigManager;
-
 /** Session JWT store (access/refresh). Not account credentials. Consent stays in RS-profile config. */
 @Singleton
 public final class CloudTokenStore
@@ -34,22 +33,19 @@ public final class CloudTokenStore
 		this.client = client;
 		this.sessionFileStore = sessionFileStore;
 	}
-
-	/** Returns the stored access token, or {@code null} if none is set. */
+/** Returns the stored access token, or {@code null} if none is set. */
 	public String getAccessToken()
 	{
 		SessionData data = session();
 		return data == null ? null : JsonObjects.blankToNull(data.accessToken);
 	}
-
-	/** Returns the stored refresh token, or {@code null} if none is set. */
+/** Returns the stored refresh token, or {@code null} if none is set. */
 	public String getRefreshToken()
 	{
 		SessionData data = session();
 		return data == null ? null : JsonObjects.blankToNull(data.refreshToken);
 	}
-
-	/**
+/**
 	 * Jagex account hash these tokens were issued for, or {@code -1} if unset/unparseable.
 	 * Used to refuse refresh when a different account is logged in on the same RS profile.
 	 */
@@ -62,14 +58,12 @@ public final class CloudTokenStore
 		}
 		return data.boundAccountHash != 0L ? data.boundAccountHash : -1L;
 	}
-
-	/** Whether stored tokens are bound to {@code accountHash} (and that hash is valid). */
+/** Whether stored tokens are bound to {@code accountHash} (and that hash is valid). */
 	public boolean tokensBoundTo(long accountHash)
 	{
 		return isBoundTo(getBoundAccountHash(), accountHash);
 	}
-
-	/**
+/**
 	 * Whether existing credentials must be cleared before connecting as {@code liveAccountHash}.
 	 * Unbound legacy tokens ({@code boundAccountHash == -1}) also force a re-pair.
 	 */
@@ -90,8 +84,7 @@ public final class CloudTokenStore
 		}
 		return boundAccountHash == accountHash;
 	}
-
-	/** Parses a stored bound-hash string; {@code -1} if null/blank/unparseable. */
+/** Parses a stored bound-hash string; {@code -1} if null/blank/unparseable. */
 	static long parseBoundAccountHash(String raw)
 	{
 		String value = JsonObjects.blankToNull(raw);
@@ -108,14 +101,12 @@ public final class CloudTokenStore
 			return -1L;
 		}
 	}
-
-	/** Whether this profile has completed the one-time cloud migration/consent flow. */
+/** Whether this profile has completed the one-time cloud migration/consent flow. */
 	public boolean isMigrated()
 	{
 		return "true".equalsIgnoreCase(configManager.getRSProfileConfiguration(GROUP, MIGRATED));
 	}
-
-	/**
+/**
 	 * Persists the access/refresh token pair, optional account id/status, and the Jagex account
 	 * hash these tokens belong to. No-op if either token is null/empty or {@code boundAccountHash}
 	 * is {@code -1}.
@@ -147,14 +138,12 @@ public final class CloudTokenStore
 		cached = data;
 		unsetLegacyTokenKeys();
 	}
-
-	/** Marks (or unmarks) this profile as having completed cloud migration/consent. */
+/** Marks (or unmarks) this profile as having completed cloud migration/consent. */
 	public void setMigrated(boolean migrated)
 	{
 		configManager.setRSProfileConfiguration(GROUP, MIGRATED, migrated ? "true" : "false");
 	}
-
-	/** Persists the account status (e.g. banned/quarantined). No-op if {@code status} is null/empty. */
+/** Persists the account status (e.g. banned/quarantined). No-op if {@code status} is null/empty. */
 	public void setAccountStatus(String status)
 	{
 		if (status == null || status.isEmpty())
@@ -172,14 +161,12 @@ public final class CloudTokenStore
 		cachedAccountHash = hash;
 		cached = data;
 	}
-
-	/** Removes stored access/refresh tokens, account id, bound hash, and status (does not clear the migrated flag). */
+/** Removes stored access/refresh tokens, account id, bound hash, and status (does not clear the migrated flag). */
 	public void clear()
 	{
 		evictLocal(false);
 	}
-
-	/** Deletes the entire on-disk profile folder for the current account (save + session). */
+/** Deletes the entire on-disk profile folder for the current account (save + session). */
 	public void wipeAccountProfileDir()
 	{
 		evictLocal(true);
@@ -203,8 +190,7 @@ public final class CloudTokenStore
 		cached = null;
 		unsetLegacyTokenKeys();
 	}
-
-	/** Whether a refresh token is currently stored. */
+/** Whether a refresh token is currently stored. */
 	public boolean hasRefreshToken()
 	{
 		return getRefreshToken() != null;
@@ -255,8 +241,7 @@ public final class CloudTokenStore
 		}
 		return lastKnownAccountHash;
 	}
-
-	/**
+/**
 	 * One-time move of RS-profile token keys into {@code cloud-session.json} for the live account.
 	 * Mismatched bound hash → drop legacy keys (force re-pair). Never moves {@code cloudMigrated}.
 	 */

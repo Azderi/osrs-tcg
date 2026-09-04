@@ -14,7 +14,6 @@ import lombok.extern.slf4j.Slf4j;
 import com.osrstcg.credit.CreditsRateTracker;
 import com.osrstcg.notify.CreditNotificationService;
 import com.osrstcg.OsrsTcgConfig;
-
 /**
  * Single owner of the live {@link TcgState} for the plugin session: exposes mutation methods that
  * replace the state and notify listeners, and delegates persistence to {@link TcgStateStore}.
@@ -50,8 +49,7 @@ public class TcgStateService
 		this.creditsRateTracker = creditsRateTracker;
 		this.config = config;
 	}
-
-	/** Test/standalone constructor: no store, no notifications; starts from the given state (or {@code empty()}). */
+/** Test/standalone constructor: no store, no notifications; starts from the given state (or {@code empty()}). */
 	public TcgStateService(TcgState initialState)
 	{
 		this.stateStore = null;
@@ -60,8 +58,7 @@ public class TcgStateService
 		this.config = null;
 		this.state = initialState == null ? TcgState.empty() : initialState;
 	}
-
-	/**
+/**
 	 * Loads state from {@link #stateStore}, replacing the in-memory state and clearing optimistic
 	 * credits, then applies any pending schema-upgrade fixups. Returns an {@link TcgStateLoadSource#EMPTY}
 	 * result with the current in-memory state if this service was constructed without a store.
@@ -85,8 +82,7 @@ public class TcgStateService
 
 		return result;
 	}
-
-	/** Ensures the loaded state has a non-null skill credit baseline, defaulting to {@code absent()}. */
+/** Ensures the loaded state has a non-null skill credit baseline, defaulting to {@code absent()}. */
 	private boolean ensureSkillBaselineSchema()
 	{
 		SkillCreditBaseline baseline = state.getSkillCreditBaseline();
@@ -97,8 +93,7 @@ public class TcgStateService
 		}
 		return baseline.needsSchemaUpgradePersist();
 	}
-
-	/** Backfills {@code profileCreatedAtUnix} to now for profiles saved before that field existed. */
+/** Backfills {@code profileCreatedAtUnix} to now for profiles saved before that field existed. */
 	private boolean ensureProfileMetaSchemaFields()
 	{
 		boolean changed = false;
@@ -109,8 +104,7 @@ public class TcgStateService
 		}
 		return changed;
 	}
-
-	/** Replaces the skill credit baseline; a no-op if it already equals {@code baseline}. */
+/** Replaces the skill credit baseline; a no-op if it already equals {@code baseline}. */
 	public synchronized void replaceSkillCreditBaseline(SkillCreditBaseline baseline)
 	{
 		SkillCreditBaseline next = baseline == null ? SkillCreditBaseline.absent() : baseline;
@@ -120,8 +114,7 @@ public class TcgStateService
 		}
 		state = state.withSkillCreditBaseline(next);
 	}
-
-	/** Stamps the profile-saved timestamp and delegates an incremental checkpoint save to the store. */
+/** Stamps the profile-saved timestamp and delegates an incremental checkpoint save to the store. */
 	public synchronized boolean saveCheckpoint(TcgSaveTrigger trigger)
 	{
 		if (stateStore == null)
@@ -131,8 +124,7 @@ public class TcgStateService
 		state = state.withProfileSavedAtUnix(TcgState.currentUnixSeconds());
 		return stateStore.saveCheckpoint(state, trigger == null ? TcgSaveTrigger.MANUAL : trigger);
 	}
-
-	/** Stamps the profile-saved timestamp and delegates a full checkpoint save to the store. */
+/** Stamps the profile-saved timestamp and delegates a full checkpoint save to the store. */
 	public synchronized boolean saveFullCheckpoint(TcgSaveTrigger trigger)
 	{
 		if (stateStore == null)
@@ -142,50 +134,42 @@ public class TcgStateService
 		state = state.withProfileSavedAtUnix(TcgState.currentUnixSeconds());
 		return stateStore.saveFullCheckpoint(state, trigger == null ? TcgSaveTrigger.LOGOUT : trigger);
 	}
-
-	/** Registers a listener invoked on any state change (economy, collection, ranks, etc). */
+/** Registers a listener invoked on any state change (economy, collection, ranks, etc). */
 	public void addCollectionChangeListener(Runnable listener)
 	{
 		notifier.addStateChangeListener(listener);
 	}
-
-	/** Unregisters a listener added via {@link #addCollectionChangeListener}. */
+/** Unregisters a listener added via {@link #addCollectionChangeListener}. */
 	public void removeCollectionChangeListener(Runnable listener)
 	{
 		notifier.removeStateChangeListener(listener);
 	}
-
-	/** Registers a listener invoked specifically when the owned card collection is mutated. */
+/** Registers a listener invoked specifically when the owned card collection is mutated. */
 	public void addOwnedCollectionListener(Runnable listener)
 	{
 		notifier.addOwnedCollectionListener(listener);
 	}
-
-	/** Unregisters a listener added via {@link #addOwnedCollectionListener}. */
+/** Unregisters a listener added via {@link #addOwnedCollectionListener}. */
 	public void removeOwnedCollectionListener(Runnable listener)
 	{
 		notifier.removeOwnedCollectionListener(listener);
 	}
-
-	/** Fires all general state-change listeners. */
+/** Fires all general state-change listeners. */
 	private void notifyStateChangeListeners()
 	{
 		notifier.notifyStateChangeListeners();
 	}
-
-	/** Fires the collection-mutated notification path (general listeners plus owned-collection listeners). */
+/** Fires the collection-mutated notification path (general listeners plus owned-collection listeners). */
 	private void notifyCollectionMutated()
 	{
 		notifier.notifyCollectionMutated();
 	}
-
-	/** Returns the current state snapshot. */
+/** Returns the current state snapshot. */
 	public TcgState getState()
 	{
 		return state;
 	}
-
-	/** Sets the pack reveal overlay zoom, clamped to the valid range; a no-op if unchanged. */
+/** Sets the pack reveal overlay zoom, clamped to the valid range; a no-op if unchanged. */
 	public synchronized void setPackRevealOverlayScale(double multiplier)
 	{
 		double clamped = PackRevealZoomUtil.clamp(multiplier);
@@ -195,32 +179,27 @@ public class TcgStateService
 		}
 		state = state.withPackRevealOverlayScale(clamped);
 	}
-
-	/** Returns the display credit balance: persisted credits plus any pending optimistic credits. */
+/** Returns the display credit balance: persisted credits plus any pending optimistic credits. */
 	public long getCredits()
 	{
 		return getAuthoritativeCredits() + optimistic.get();
 	}
-
-	/** Returns the persisted credit balance, excluding any optimistic/unconfirmed credits. */
+/** Returns the persisted credit balance, excluding any optimistic/unconfirmed credits. */
 	public synchronized long getAuthoritativeCredits()
 	{
 		return state.getEconomyState().getCredits();
 	}
-
-	/** Returns the amount of credits currently shown optimistically but not yet confirmed by the server. */
+/** Returns the amount of credits currently shown optimistically but not yet confirmed by the server. */
 	public synchronized long getPendingOptimisticCredits()
 	{
 		return optimistic.get();
 	}
-
-	/** Returns whether debug chat messages are enabled in config (false if no config is available). */
+/** Returns whether debug chat messages are enabled in config (false if no config is available). */
 	public boolean isDebugChatEnabled()
 	{
 		return config != null && config.get().debugMessages();
 	}
-
-	/**
+/**
 	 * Applies a server-confirmed economy snapshot (credits, opened packs, lifetime total) without
 	 * touching the collection, then notifies state-change listeners.
 	 */
@@ -232,8 +211,7 @@ public class TcgStateService
 			credits, pending, getCredits());
 		notifyStateChangeListeners();
 	}
-
-	/**
+/**
 	 * Replaces the full state (collection and economy) from a cloud sync response, updates the
 	 * cached sidebar stats and collection hash, and notifies collection-mutated listeners.
 	 */
@@ -259,8 +237,7 @@ public class TcgStateService
 			nextEconomy.getCredits(), pending, getCredits());
 		notifyCollectionMutated();
 	}
-
-	/** Updates the cloud revision/hash markers if they differ from the current ones (case-insensitive hash compare). */
+/** Updates the cloud revision/hash markers if they differ from the current ones (case-insensitive hash compare). */
 	public synchronized void applyCloudSyncMarkers(long revision, String stateHash)
 	{
 		long nextRevision = Math.max(0L, revision);
@@ -272,14 +249,12 @@ public class TcgStateService
 		}
 		state = state.withCloudSyncMarkers(nextRevision, nextHash);
 	}
-
-	/** Returns the current sidebar rank order, or null if unset. */
+/** Returns the current sidebar rank order, or null if unset. */
 	public int[] getSidebarRanks()
 	{
 		return state.getSidebarRanks();
 	}
-
-	/** Validates and replaces the sidebar ranks; a no-op if unchanged, otherwise notifies state-change listeners. */
+/** Validates and replaces the sidebar ranks; a no-op if unchanged, otherwise notifies state-change listeners. */
 	public synchronized void replaceSidebarRanks(int[] ranks)
 	{
 		int[] next = TcgState.copyRanks(ranks);
@@ -291,34 +266,29 @@ public class TcgStateService
 		state = state.withSidebarRanks(next);
 		notifyStateChangeListeners();
 	}
-
-	/** Replaces the cached cloud sidebar collection stats and notifies state-change listeners. */
+/** Replaces the cached cloud sidebar collection stats and notifies state-change listeners. */
 	public synchronized void replaceCollectionStatsCache(CloudSidebarCollectionStats stats)
 	{
 		this.cloudCollectionStats = stats;
 		notifyStateChangeListeners();
 	}
-
-	/** Returns the cached cloud collection hash (never null). */
+/** Returns the cached cloud collection hash (never null). */
 	public String getCloudCollectionHash()
 	{
 		String hash = cloudCollectionHash;
 		return hash == null ? "" : hash;
 	}
-
-	/** Returns the cached cloud sidebar collection stats, or null if none cached. */
+/** Returns the cached cloud sidebar collection stats, or null if none cached. */
 	public CloudSidebarCollectionStats getCloudCollectionStats()
 	{
 		return cloudCollectionStats;
 	}
-
-	/** Clears the cached cloud sidebar collection stats. */
+/** Clears the cached cloud sidebar collection stats. */
 	public synchronized void clearCollectionStatsCache()
 	{
 		this.cloudCollectionStats = null;
 	}
-
-	/** Sets the cloud group key (trimmed; blank/null clears it); a no-op if unchanged, otherwise notifies owned-collection listeners. */
+/** Sets the cloud group key (trimmed; blank/null clears it); a no-op if unchanged, otherwise notifies owned-collection listeners. */
 	public synchronized void replaceCloudGroupKey(String groupKey)
 	{
 		String next = groupKey == null || groupKey.isBlank() ? null : groupKey.trim();
@@ -329,26 +299,22 @@ public class TcgStateService
 		cloudGroupKey = next;
 		notifier.notifyOwnedCollectionListeners();
 	}
-
-	/** Returns the current cloud group key, or null if not in a cloud group. */
+/** Returns the current cloud group key, or null if not in a cloud group. */
 	public String getCloudGroupKey()
 	{
 		return cloudGroupKey;
 	}
-
-	/** Clears the cloud group key. */
+/** Clears the cloud group key. */
 	public synchronized void clearCloudGroupKey()
 	{
 		replaceCloudGroupKey(null);
 	}
-
-	/** Clears any pending optimistic (unconfirmed) credits. */
+/** Clears any pending optimistic (unconfirmed) credits. */
 	public synchronized void clearOptimisticCredits()
 	{
 		optimistic.clear();
 	}
-
-	/**
+/**
 	 * Adds an optimistic credit gain (shown immediately, ahead of server confirmation), records it
 	 * for the credits-per-hour rate tracker, and fires the credit-increase notification. A no-op for
 	 * non-positive amounts.
@@ -373,8 +339,7 @@ public class TcgStateService
 			creditNotificationService.get().onCreditsIncreased(creditsBefore, creditsAfter);
 		}
 	}
-
-	/** Clears a specific amount of pending optimistic credits (e.g. once the server confirms that portion). */
+/** Clears a specific amount of pending optimistic credits (e.g. once the server confirms that portion). */
 	public synchronized void clearOptimisticCredits(long amount)
 	{
 		if (amount <= 0 || optimistic.get() <= 0)
@@ -383,8 +348,7 @@ public class TcgStateService
 		}
 		optimistic.clearAmount(amount);
 	}
-
-	/** Appends newly-pulled card instances to the collection and notifies collection-mutated listeners. */
+/** Appends newly-pulled card instances to the collection and notifies collection-mutated listeners. */
 	public synchronized void addOwnedCardInstances(List<OwnedCardInstance> instances)
 	{
 		if (instances == null || instances.isEmpty())
@@ -394,15 +358,13 @@ public class TcgStateService
 		state = state.withCollection(state.getCollectionState().withInstancesAdded(instances));
 		notifyCollectionMutated();
 	}
-
-	/** Replaces the entire owned card collection wholesale and notifies collection-mutated listeners. */
+/** Replaces the entire owned card collection wholesale and notifies collection-mutated listeners. */
 	public synchronized void setCollectionInstances(List<OwnedCardInstance> replacement)
 	{
 		state = state.withCollection(CollectionState.copyOf(replacement == null ? List.of() : replacement));
 		notifyCollectionMutated();
 	}
-
-	/** Resets to a fresh empty state, clears optimistic credits, persists a full checkpoint, and notifies listeners. */
+/** Resets to a fresh empty state, clears optimistic credits, persists a full checkpoint, and notifies listeners. */
 	public synchronized void resetAll()
 	{
 		optimistic.clear();

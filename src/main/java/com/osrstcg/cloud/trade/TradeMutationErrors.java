@@ -6,12 +6,11 @@ import com.osrstcg.cloud.api.CloudApiException;
  */
 final class TradeMutationErrors
 {
-	/** Static-only utility class; not instantiable. */
+/** Static-only utility class; not instantiable. */
 	private TradeMutationErrors()
 	{
 	}
-
-	/** @return player-facing body after {@code [OSRS TCG] }, or {@code null} to use a generic fallback */
+/** @return player-facing body after {@code [OSRS TCG] }, or {@code null} to use a generic fallback */
 	static String messageFor(CloudApiException ex)
 	{
 		if (ex == null)

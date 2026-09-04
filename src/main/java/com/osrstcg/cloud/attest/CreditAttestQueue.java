@@ -25,7 +25,6 @@ import com.osrstcg.cloud.trade.TradeCloudService;
 import com.osrstcg.util.TcgPluginGameMessages;
 import java.util.LinkedHashMap;
 import java.util.Map;
-
 /**
  * In-memory queue of raw credit-earning events (xp, level-ups, npc kills, activities) awaiting
  * attestation to the cloud. Buffers events as they occur, coalesces and prioritizes them at flush
@@ -57,7 +56,7 @@ public final class CreditAttestQueue
 	private final AtomicBoolean earlyFlushScheduled = new AtomicBoolean(false);
 	private final AtomicBoolean running = new AtomicBoolean(false);
 	private final AtomicLong lastGoodAttestAfterMs = new AtomicLong(DEFAULT_ATTEST_AFTER_MS);
-	/** Wall-clock deadline while server rate-cap pause is active; 0 means not paused. */
+/** Wall-clock deadline while server rate-cap pause is active; 0 means not paused. */
 	private final AtomicLong rateCapUntilMs = new AtomicLong(0L);
 	private final AtomicInteger consecutiveRetryFailures = new AtomicInteger(0);
 	private final AttestRejectRequeuer rejectRequeuer;
@@ -65,8 +64,7 @@ public final class CreditAttestQueue
 	final CreditAttestScheduler attestScheduler;
 	private volatile long lastAccountHash = -1L;
 	private final CachedDisplayName displayName = new CachedDisplayName();
-
-	/** Injected constructor; wires up the sub-scheduler with a flush callback and initial default interval. */
+/** Injected constructor; wires up the sub-scheduler with a flush callback and initial default interval. */
 	@Inject
 	CreditAttestQueue(
 		CloudApiClient api,
@@ -91,20 +89,17 @@ public final class CreditAttestQueue
 			scheduler, running, lastGoodAttestAfterMs, earlyFlushScheduled, DEFAULT_ATTEST_AFTER_MS,
 			() -> flushSafe(false), running::get);
 	}
-
-	/** Registers a callback invoked whenever attest processing changes credits/pending totals; replaces any prior listener. */
+/** Registers a callback invoked whenever attest processing changes credits/pending totals; replaces any prior listener. */
 	public void setEconomyListener(Runnable listener)
 	{
 		economyListener.set(listener);
 	}
-
-	/** Starts periodic flushing. */
+/** Starts periodic flushing. */
 	public void start()
 	{
 		attestScheduler.start();
 	}
-
-	/** Stops periodic flushing and resets retry/rate-cap state for the next session. */
+/** Stops periodic flushing and resets retry/rate-cap state for the next session. */
 	public void stop()
 	{
 		attestScheduler.stop();
@@ -112,21 +107,18 @@ public final class CreditAttestQueue
 		consecutiveRetryFailures.set(0);
 		rateCapNotifier.reset();
 	}
-
-	/** True while a server {@code rateCapAfterMs} pause is still in effect. */
+/** True while a server {@code rateCapAfterMs} pause is still in effect. */
 	boolean isRateCapActive()
 	{
 		return isRateCapActive(System.currentTimeMillis());
 	}
-
-	/** True when {@code nowMs} is before the rate-cap pause deadline. */
+/** True when {@code nowMs} is before the rate-cap pause deadline. */
 	boolean isRateCapActive(long nowMs)
 	{
 		long until = rateCapUntilMs.get();
 		return until > 0L && nowMs < until;
 	}
-
-	/** Clamps a server-provided attest interval to at least {@link #DEFAULT_ATTEST_AFTER_MS}, falling back when unset. */
+/** Clamps a server-provided attest interval to at least {@link #DEFAULT_ATTEST_AFTER_MS}, falling back when unset. */
 	private static long resolveAttestAfterMs(long ms, long fallbackMs)
 	{
 		if (ms <= 0L)
@@ -136,8 +128,7 @@ public final class CreditAttestQueue
 		}
 		return ms;
 	}
-
-	/** Updates the periodic flush interval from the server's {@code attestAfterMs}/{@code pollAfterMs} hint, if present. */
+/** Updates the periodic flush interval from the server's {@code attestAfterMs}/{@code pollAfterMs} hint, if present. */
 	void noteAttestAfterMs(JsonObject response)
 	{
 		long fallback = lastGoodAttestAfterMs.get();
@@ -145,8 +136,7 @@ public final class CreditAttestQueue
 		long ms = parsed == null ? 0L : Math.round(parsed);
 		lastGoodAttestAfterMs.set(resolveAttestAfterMs(ms, fallback));
 	}
-
-	/**
+/**
 	 * Enters a rate-cap pause when {@code response} includes a positive {@code rateCapAfterMs}: discards
 	 * pending events, clears remaining optimistic credits, and schedules resume via the attest scheduler.
 	 * Call after a skip-flush credits sync. No-op when the field is omitted or {@code <= 0}.
@@ -166,8 +156,7 @@ public final class CreditAttestQueue
 		attestScheduler.pauseFor(ms);
 		log.info("Credit attest rate-cap pause for {}ms (until={})", ms, rateCapUntilMs.get());
 	}
-
-	/** Reads {@code rateCapAfterMs} from an attest response, or 0 when absent/invalid. */
+/** Reads {@code rateCapAfterMs} from an attest response, or 0 when absent/invalid. */
 	static long parseRateCapAfterMs(JsonObject response)
 	{
 		Double parsed = JsonObjects.readNumber(response, "rateCapAfterMs");
@@ -178,8 +167,7 @@ public final class CreditAttestQueue
 		long ms = Math.round(parsed);
 		return ms > 0L ? ms : 0L;
 	}
-
-	/** Drops all in-memory pending events without flushing. */
+/** Drops all in-memory pending events without flushing. */
 	public void discardPending()
 	{
 		synchronized (lock)
@@ -187,8 +175,7 @@ public final class CreditAttestQueue
 			pendingRaw.clear();
 		}
 	}
-
-	/**
+/**
 	 * Records one raw credit-earning event for later attestation. Filters out combat-skill xp and
 	 * non-progressing level-ups, applies the optimistic credit estimate to local state immediately,
 	 * and triggers an early flush on a coalesced-count or xp-spike threshold. No-op if the session
@@ -266,14 +253,12 @@ public final class CreditAttestQueue
 			attestScheduler.scheduleEarlyFlush();
 		}
 	}
-
-	/** Schedules an immediate, non-blocking flush on the executor. */
+/** Schedules an immediate, non-blocking flush on the executor. */
 	public void flushNow()
 	{
 		scheduler.execute(() -> flushSafe(false));
 	}
-
-	/**
+/**
 	 * Runs a teardown flush synchronously on the calling thread (used on shutdown/logout). Must not be
 	 * called from the client thread.
 	 *
@@ -283,8 +268,7 @@ public final class CreditAttestQueue
 	{
 		return flushSafe(true);
 	}
-
-	/**
+/**
 	 * Reads the current account hash from the client, caching it. On account change, clears in-memory
 	 * pending events for the previous account.
 	 */
@@ -295,8 +279,7 @@ public final class CreditAttestQueue
 			return resolveAccountHashLocked();
 		}
 	}
-
-	/** Same as {@link #resolveAccountHash()} but caller already holds {@link #lock}. */
+/** Same as {@link #resolveAccountHash()} but caller already holds {@link #lock}. */
 	private long resolveAccountHashLocked()
 	{
 		long hash = client.getAccountHash();
@@ -311,14 +294,12 @@ public final class CreditAttestQueue
 		}
 		return lastAccountHash;
 	}
-
-	/** Reads and sanitizes the local player's RSN, caching the last known value for use when unavailable. */
+/** Reads and sanitizes the local player's RSN, caching the last known value for use when unavailable. */
 	String resolveDisplayName()
 	{
 		return displayName.resolve(client);
 	}
-
-	/** Adds an optimistic credit estimate to local state and notifies the economy listener, if positive. */
+/** Adds an optimistic credit estimate to local state and notifies the economy listener, if positive. */
 	private void applyOptimistic(long optimisticCredits)
 	{
 		if (optimisticCredits > 0)
@@ -327,8 +308,7 @@ public final class CreditAttestQueue
 			notifyEconomyListener();
 		}
 	}
-
-	/**
+/**
 	 * On a retryable failure (and not during teardown), schedules a backing-off retry flush up to
 	 * {@link #ATTEST_RETRY_ATTEMPTS} times; otherwise resets the failure counter.
 	 */
@@ -350,8 +330,7 @@ public final class CreditAttestQueue
 			attempt, ATTEST_RETRY_ATTEMPTS, delayMs, ex.toString());
 		attestScheduler.scheduleRetryFlush(delayMs);
 	}
-
-	/** Inserts events at the front of the pending list, so they're the next candidates for flushing. */
+/** Inserts events at the front of the pending list, so they're the next candidates for flushing. */
 	void prependPending(List<JsonObject> events)
 	{
 		synchronized (lock)
@@ -359,8 +338,7 @@ public final class CreditAttestQueue
 			pendingRaw.addAll(0, events);
 		}
 	}
-
-	/** Runs {@link #flush} and swallows/logs any exception so scheduler callbacks never throw. */
+/** Runs {@link #flush} and swallows/logs any exception so scheduler callbacks never throw. */
 	private boolean flushSafe(boolean teardown)
 	{
 		try
@@ -378,8 +356,7 @@ public final class CreditAttestQueue
 			return false;
 		}
 	}
-
-	/**
+/**
 	 * Drains and posts all pending events, one coalesced+prioritized batch at a time, until the pending
 	 * list is empty. Serialized via {@link #flushGate} so only one flush runs at a time. A batch that's
 	 * only hitpoints xp is held back rather than sent. On a post failure, the batch (and any remaining
@@ -473,8 +450,7 @@ public final class CreditAttestQueue
 			return changed;
 		}
 	}
-
-	/**
+/**
 	 * Determines how many optimistic credits to clear after a batch is posted: prefers the server's
 	 * accepted-credits sum when present, otherwise falls back to the batch's optimistic estimate minus
 	 * whatever was held back for requeued (not yet resolved) events.
@@ -503,8 +479,7 @@ public final class CreditAttestQueue
 		}
 		return Math.max(0L, batchOptimisticEstimate - holdBack);
 	}
-
-	/** Sums the credit amounts of {@code response.accepted}, or -1 if the field is absent/malformed. */
+/** Sums the credit amounts of {@code response.accepted}, or -1 if the field is absent/malformed. */
 	private static long sumAcceptedCredits(JsonObject response)
 	{
 		if (response == null || !response.has("accepted") || !response.get("accepted").isJsonArray())
@@ -534,8 +509,7 @@ public final class CreditAttestQueue
 		}
 		return sawAmount ? sum : -1L;
 	}
-
-	/** Posts a debug-chat summary of an outgoing attest batch (event type counts, optimistic estimate), if debug chat is on. */
+/** Posts a debug-chat summary of an outgoing attest batch (event type counts, optimistic estimate), if debug chat is on. */
 	void debugCreditAttestSend(List<JsonObject> batch, long optimisticEstimate)
 	{
 		if (!stateService.isDebugChatEnabled() || batch == null || batch.isEmpty())
@@ -568,8 +542,7 @@ public final class CreditAttestQueue
 		}
 		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, message);
 	}
-
-	/** Posts a debug-chat summary of an attest response (credits, cleared/pending optimistic, rejects), if debug chat is on. */
+/** Posts a debug-chat summary of an attest response (credits, cleared/pending optimistic, rejects), if debug chat is on. */
 	void debugCreditAttestResponse(JsonObject response, long clearOptimistic, long pendingBefore)
 	{
 		if (!stateService.isDebugChatEnabled() || response == null)
@@ -597,8 +570,7 @@ public final class CreditAttestQueue
 		}
 		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, message.toString());
 	}
-
-	/** Formats {@code response.rejected} reasons as a bracketed, comma-separated list for logging/chat. */
+/** Formats {@code response.rejected} reasons as a bracketed, comma-separated list for logging/chat. */
 	static String formatRejectedReasons(JsonObject response)
 	{
 		if (response == null || !response.has("rejected") || !response.get("rejected").isJsonArray())
@@ -628,8 +600,7 @@ public final class CreditAttestQueue
 		sb.append(']');
 		return sb.toString();
 	}
-
-	/** Invokes the registered economy listener, if any. */
+/** Invokes the registered economy listener, if any. */
 	void notifyEconomyListener()
 	{
 		Runnable listener = economyListener.get();

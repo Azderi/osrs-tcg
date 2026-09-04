@@ -6,7 +6,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
-
 /** Timer and early-flush scheduling for {@link CreditAttestQueue}. */
 final class CreditAttestScheduler
 {
@@ -23,8 +22,7 @@ final class CreditAttestScheduler
 	private ScheduledFuture<?> flushFuture;
 	private ScheduledFuture<?> retryFlushFuture;
 	private ScheduledFuture<?> rateCapResumeFuture;
-
-	/** @param flushSafeFalse invoked to run a non-teardown flush; {@code stillRunning} checked after each tick to decide whether to reschedule */
+/** @param flushSafeFalse invoked to run a non-teardown flush; {@code stillRunning} checked after each tick to decide whether to reschedule */
 	CreditAttestScheduler(
 		ScheduledExecutorService scheduler,
 		AtomicBoolean running,
@@ -42,8 +40,7 @@ final class CreditAttestScheduler
 		this.flushSafeFalse = flushSafeFalse;
 		this.stillRunning = stillRunning;
 	}
-
-	/** Starts the periodic flush timer at the default interval, if not already running. Idempotent. */
+/** Starts the periodic flush timer at the default interval, if not already running. Idempotent. */
 	void start()
 	{
 		synchronized (scheduleLock)
@@ -58,8 +55,7 @@ final class CreditAttestScheduler
 			scheduleNextLocked(lastGoodAttestAfterMs.get());
 		}
 	}
-
-	/** Stops the scheduler and cancels any pending periodic, retry, or rate-cap resume flush. */
+/** Stops the scheduler and cancels any pending periodic, retry, or rate-cap resume flush. */
 	void stop()
 	{
 		synchronized (scheduleLock)
@@ -72,14 +68,12 @@ final class CreditAttestScheduler
 			rateCapResumeFuture = cancel(rateCapResumeFuture);
 		}
 	}
-
-	/** True while a server rate-cap pause is holding periodic/early/retry flushes. */
+/** True while a server rate-cap pause is holding periodic/early/retry flushes. */
 	boolean isRateCapPaused()
 	{
 		return rateCapPaused.get();
 	}
-
-	/**
+/**
 	 * Cancels periodic and retry flushes and schedules a single resume after {@code delayMs} that
 	 * restarts the normal attest interval. Leaves {@code running} true. No-op if stopped.
 	 */
@@ -99,8 +93,7 @@ final class CreditAttestScheduler
 			rateCapResumeFuture = scheduler.schedule(this::resumeAfterRateCap, Math.max(0L, delayMs), TimeUnit.MILLISECONDS);
 		}
 	}
-
-	/** Clears the rate-cap pause and reschedules the periodic flush using {@code lastGoodAttestAfterMs}. */
+/** Clears the rate-cap pause and reschedules the periodic flush using {@code lastGoodAttestAfterMs}. */
 	private void resumeAfterRateCap()
 	{
 		synchronized (scheduleLock)
@@ -115,8 +108,7 @@ final class CreditAttestScheduler
 			scheduleNextLocked(lastGoodAttestAfterMs.get());
 		}
 	}
-
-	/** Runs a flush immediately on the executor, coalescing concurrent requests via {@code earlyFlushScheduled}. */
+/** Runs a flush immediately on the executor, coalescing concurrent requests via {@code earlyFlushScheduled}. */
 	void scheduleEarlyFlush()
 	{
 		if (rateCapPaused.get() || !running.get())
@@ -142,8 +134,7 @@ final class CreditAttestScheduler
 			}
 		});
 	}
-
-	/**
+/**
 	 * Schedules a single flush retry after {@code delayMs}, unless the scheduler is stopped, rate-cap
 	 * paused, or a retry is already pending (only one retry flush may be in flight at a time).
 	 */
@@ -184,8 +175,7 @@ final class CreditAttestScheduler
 			}, Math.max(0L, delayMs), TimeUnit.MILLISECONDS);
 		}
 	}
-
-	/** Periodic timer callback: runs a flush, then reschedules itself using the latest attest-after interval. */
+/** Periodic timer callback: runs a flush, then reschedules itself using the latest attest-after interval. */
 	void flushTick()
 	{
 		try
@@ -206,8 +196,7 @@ final class CreditAttestScheduler
 			}
 		}
 	}
-
-	/** Schedules the next periodic {@link #flushTick()}; must be called while holding {@link #scheduleLock}. */
+/** Schedules the next periodic {@link #flushTick()}; must be called while holding {@link #scheduleLock}. */
 	private void scheduleNextLocked(long delayMs)
 	{
 		if (!running.get() || rateCapPaused.get())
@@ -216,8 +205,7 @@ final class CreditAttestScheduler
 		}
 		flushFuture = scheduler.schedule(this::flushTick, Math.max(0L, delayMs), TimeUnit.MILLISECONDS);
 	}
-
-	/** Cancels {@code future} if non-null; must hold {@link #scheduleLock}. Returns null for clearing the field. */
+/** Cancels {@code future} if non-null; must hold {@link #scheduleLock}. Returns null for clearing the field. */
 	private static ScheduledFuture<?> cancel(ScheduledFuture<?> future)
 	{
 		if (future != null)

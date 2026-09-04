@@ -5,21 +5,18 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
 /** Builds and expands {@link CardEntry} rows for profile persistence and web share payloads. */
 public final class CardEntrySerializer
 {
 	private CardEntrySerializer()
 	{
 	}
-
-	/** Groups instances into {@link CardEntry} rows for profile/web-share persistence. */
+/** Groups instances into {@link CardEntry} rows for profile/web-share persistence. */
 	public static List<CardEntry> buildProfileEntries(List<OwnedCardInstance> instances)
 	{
 		return buildEntries(instances);
 	}
-
-	/**
+/**
 	 * Reverses {@link #buildProfileEntries}: expands each {@link CardVariant} back into one or more
 	 * {@link OwnedCardInstance} rows, honoring the legacy {@code quantity} field by repeating the
 	 * variant (only the first repeated row keeps the original instance id). Null/invalid entries and
@@ -63,8 +60,7 @@ public final class CardEntrySerializer
 		}
 		return rows;
 	}
-
-	/**
+/**
 	 * Filters out invalid instances, sorts them by name/foil/pulled-at/pulled-by for stable output,
 	 * then groups by card name into {@link CardEntry} rows with variants sorted the same way.
 	 */
@@ -131,8 +127,7 @@ public final class CardEntrySerializer
 
 		return new ArrayList<>(byName.values());
 	}
-
-	/** Returns whether a variant is marked foil (treats null/absent as non-foil). */
+/** Returns whether a variant is marked foil (treats null/absent as non-foil). */
 	private static boolean isFoil(CardVariant variant)
 	{
 		return variant != null && Boolean.TRUE.equals(variant.foil);

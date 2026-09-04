@@ -9,7 +9,6 @@ import javax.inject.Singleton;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.events.OverlayMenuClicked;
 import net.runelite.client.ui.overlay.OverlayMenuEntry;
-
 /**
  * Credits-infobox overlay menus: open pack and reset credits/h.
  */
@@ -21,8 +20,7 @@ public class CreditsInfoboxMenuHandler
 	private final PackCatalogService packCatalogService;
 	private final PackOpenCoordinator packOpenCoordinator;
 	private final ClientThread clientThread;
-
-	/** Wires the collaborators needed to match clicked menu entries back to boosters and open them. */
+/** Wires the collaborators needed to match clicked menu entries back to boosters and open them. */
 	@Inject
 	public CreditsInfoboxMenuHandler(
 		CreditsInfoboxOverlay creditsInfoboxOverlay,
@@ -37,8 +35,7 @@ public class CreditsInfoboxMenuHandler
 		this.packOpenCoordinator = packOpenCoordinator;
 		this.clientThread = clientThread;
 	}
-
-	/**
+/**
 	 * Handles a click on one of {@link CreditsInfoboxOverlay}'s menu entries: resets the credits/h
 	 * tracker, or matches the clicked target back to a visible booster and opens it.
 	 */

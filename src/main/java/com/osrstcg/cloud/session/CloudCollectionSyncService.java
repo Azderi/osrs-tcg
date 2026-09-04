@@ -9,7 +9,6 @@ import javax.inject.Provider;
 import lombok.extern.slf4j.Slf4j;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
-
 /**
  * Pulls cloud economy/collection state and reconciles it into local {@link TcgStateService}.
  * Compares local vs server revisions and collection hashes to decide whether a full {@code /me/cards}
@@ -26,8 +25,7 @@ final class CloudCollectionSyncService
 	private final Provider<CreditAttestQueue> attestQueueProvider;
 	private final TcgPublicStatsCalculator publicStatsCalculator;
 	private final CloudCollectionPager pager;
-
-	/** Wires collaborators; no side effects. */
+/** Wires collaborators; no side effects. */
 	CloudCollectionSyncService(
 		CloudSessionService session,
 		CloudApiClient api,
@@ -45,8 +43,7 @@ final class CloudCollectionSyncService
 		this.publicStatsCalculator = publicStatsCalculator;
 		this.pager = pager;
 	}
-
-	/**
+/**
 	 * Updates cached economy (credits/opened packs/total gained) and collection sidebar stats from a
 	 * {@code stats}-shaped response, and applies any account status it carries. No-op if {@code stats}
 	 * is null.
@@ -80,8 +77,7 @@ final class CloudCollectionSyncService
 			session.applyAccountStatus(stats.get("status").getAsString());
 		}
 	}
-
-	/**
+/**
 	 * Reacts to a push/inbox stats update: logs (does not itself resolve) a mismatch between server
 	 * and locally-computed sidebar counts, then delegates to {@link #reconcileCollectionWithCloud}
 	 * to pull a fresh collection if needed. No-op while cloud consent is pending, or if {@code stats}
@@ -128,8 +124,7 @@ final class CloudCollectionSyncService
 			log.debug("Collection reconcile from inbox failed", e);
 		}
 	}
-
-	/**
+/**
 	 * Flushes any pending credit attests, then re-fetches and applies server stats, clearing the
 	 * local optimistic credit adjustment. No-op if there's no access token, consent is pending, or
 	 * the account is locked.
@@ -138,8 +133,7 @@ final class CloudCollectionSyncService
 	{
 		refreshCreditsFromServer(true);
 	}
-
-	/**
+/**
 	 * Re-fetches and applies server stats ({@code GET /me/stats}), clearing local optimistic credits.
 	 * When {@code flushFirst} is true, flushes pending attests first. Use {@code flushFirst=false}
 	 * when already inside an attest flush (avoids re-entering the flush gate).
@@ -165,16 +159,14 @@ final class CloudCollectionSyncService
 		applySidebarStats(stats);
 		stateService.clearOptimisticCredits();
 	}
-
-	/** Fetches server stats, applies them, and reconciles the local collection against the cloud copy. */
+/** Fetches server stats, applies them, and reconciles the local collection against the cloud copy. */
 	void refreshLocalCacheFromCloud() throws Exception
 	{
 		JsonObject stats = api.getStats();
 		applySidebarStats(stats);
 		reconcileCollectionWithCloud(stats);
 	}
-
-	/**
+/**
 	 * Compares local sync markers against {@code stats} and, if the collection hash differs (or the
 	 * legacy revision is behind with no hash to compare), pulls the full player state and cards from
 	 * {@code /me/state} via {@link CloudCollectionPager} and replaces local collection/economy state.
@@ -242,8 +234,7 @@ final class CloudCollectionSyncService
 		log.info("Synced collection from cloud (revision={}, cards={}, migratedAtPresent={})",
 			parsed.revision, parsed.cards.size(), parsed.migrated);
 	}
-
-	/** Delegates to {@link CloudCollectionPager#loadCloudPlayerStateWithCards}. */
+/** Delegates to {@link CloudCollectionPager#loadCloudPlayerStateWithCards}. */
 	CloudPlayerStateParser.ParsedCloudPlayerState loadCloudPlayerStateWithCards(JsonObject stateJson) throws Exception
 	{
 		return pager.loadCloudPlayerStateWithCards(stateJson);

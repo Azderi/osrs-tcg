@@ -15,7 +15,6 @@ import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
-
 /**
  * In-memory holder for the loaded card catalog. Owns the normalized card list plus indexes
  * (lookup by name, chat rarity color by name) rebuilt whenever the catalog is replaced.
@@ -27,20 +26,17 @@ public class CardDatabase
 	private List<CardDefinition> cards = Collections.emptyList();
 	private Map<String, Color> chatRarityColors = Map.of();
 	private Map<String, CardDefinition> byLowerCaseName = Map.of();
-
-	/** No-arg constructor for DI. */
+/** No-arg constructor for DI. */
 	@Inject
 	public CardDatabase()
 	{
 	}
-
-	/** The current catalog, in load order. */
+/** The current catalog, in load order. */
 	public synchronized List<CardDefinition> getCards()
 	{
 		return cards;
 	}
-
-	/** Card counts grouped by primary category, in first-seen order. */
+/** Card counts grouped by primary category, in first-seen order. */
 	public synchronized Map<String, Long> categoryCounts()
 	{
 		return cards.stream()
@@ -50,14 +46,12 @@ public class CardDatabase
 				Collectors.counting()
 			));
 	}
-
-	/** Number of cards currently loaded. */
+/** Number of cards currently loaded. */
 	public synchronized int size()
 	{
 		return cards.size();
 	}
-
-	/** Case-insensitive lookup by trimmed card name; first card wins on duplicate names. */
+/** Case-insensitive lookup by trimmed card name; first card wins on duplicate names. */
 	public synchronized Optional<CardDefinition> findByName(String cardName)
 	{
 		if (isBlank(cardName))
@@ -67,8 +61,7 @@ public class CardDatabase
 		String key = cardName.trim().toLowerCase(Locale.ROOT);
 		return Optional.ofNullable(byLowerCaseName.get(key));
 	}
-
-	/** Normalizes and swaps in a new catalog, rebuilds the lookup indexes, and logs the load. */
+/** Normalizes and swaps in a new catalog, rebuilds the lookup indexes, and logs the load. */
 	public synchronized void replaceCards(List<CardDefinition> incoming, String sourceLabel)
 	{
 		List<CardDefinition> normalized = normalize(incoming == null ? List.of() : incoming);
@@ -77,8 +70,7 @@ public class CardDatabase
 		log.info("Loaded {} cards from {}", cards.size(),
 			sourceLabel == null || sourceLabel.isBlank() ? "catalog" : sourceLabel);
 	}
-
-	/** Chat prefix color for {@code cardName}'s rarity tier, or {@link Color#WHITE} if unknown/blank. */
+/** Chat prefix color for {@code cardName}'s rarity tier, or {@link Color#WHITE} if unknown/blank. */
 	public synchronized Color chatRarityColorForCardName(String cardName)
 	{
 		if (cardName == null || cardName.trim().isEmpty())
@@ -88,8 +80,7 @@ public class CardDatabase
 		Color c = chatRarityColors.get(cardName.trim().toLowerCase(Locale.ROOT));
 		return c != null ? c : Color.WHITE;
 	}
-
-	/** Rebuilds {@link #chatRarityColors} and {@link #byLowerCaseName} from {@link #cards}; Godly uses the default chat prefix color instead of its tier color. */
+/** Rebuilds {@link #chatRarityColors} and {@link #byLowerCaseName} from {@link #cards}; Godly uses the default chat prefix color instead of its tier color. */
 	private void rebuildIndexes()
 	{
 		if (cards.isEmpty())
@@ -118,8 +109,7 @@ public class CardDatabase
 		chatRarityColors = Collections.unmodifiableMap(chatMap);
 		byLowerCaseName = Collections.unmodifiableMap(nameMap);
 	}
-
-	/** Drops nameless cards, decodes HTML entities in name/examine text, and normalizes tags and image paths for the rest. */
+/** Drops nameless cards, decodes HTML entities in name/examine text, and normalizes tags and image paths for the rest. */
 	private List<CardDefinition> normalize(List<CardDefinition> parsed)
 	{
 		List<CardDefinition> normalized = new ArrayList<>();
@@ -156,8 +146,7 @@ public class CardDatabase
 
 		return normalized;
 	}
-
-	/** Trims {@code raw}, returning {@code null} for a null or blank value. */
+/** Trims {@code raw}, returning {@code null} for a null or blank value. */
 	static String normalizeImageUrl(String raw)
 	{
 		if (raw == null)
@@ -167,14 +156,12 @@ public class CardDatabase
 		String url = raw.trim();
 		return url.isEmpty() ? null : url;
 	}
-
-	/** Same trimming rule as {@link #normalizeImageUrl}, applied to a foil image path. */
+/** Same trimming rule as {@link #normalizeImageUrl}, applied to a foil image path. */
 	static String normalizeFoilImagePath(String raw)
 	{
 		return normalizeImageUrl(raw);
 	}
-
-	/** Replaces {@code card}'s category list with a trimmed, blank-filtered copy (empty list if null). */
+/** Replaces {@code card}'s category list with a trimmed, blank-filtered copy (empty list if null). */
 	private static void normalizeCategoryTags(CardDefinition card)
 	{
 		List<String> raw = card.getCategory();
@@ -193,14 +180,12 @@ public class CardDatabase
 		}
 		card.setCategory(trimmed);
 	}
-
-	/** {@code rawCategory} trimmed, or {@code "Unknown"} if blank. */
+/** {@code rawCategory} trimmed, or {@code "Unknown"} if blank. */
 	private static String safeCategory(String rawCategory)
 	{
 		return isBlank(rawCategory) ? "Unknown" : rawCategory.trim();
 	}
-
-	/** Whether {@code value} is null or all-whitespace. */
+/** Whether {@code value} is null or all-whitespace. */
 	private static boolean isBlank(String value)
 	{
 		return value == null || value.trim().isEmpty();

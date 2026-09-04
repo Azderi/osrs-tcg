@@ -13,7 +13,6 @@ import net.runelite.api.events.CommandExecuted;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.config.ConfigManager;
-
 /**
  * Implements the {@code ::tcg-reset} chat command: clears cloud consent and the current account's
  * on-disk profile folder, then reconnects the cloud session. Plugin settings are left alone.
@@ -31,8 +30,7 @@ public class TcgResetCommand
 	private final SidebarRefresh sidebarRefresh;
 	private final ConfigManager configManager;
 	private final CloudTokenStore tokenStore;
-
-	/** Stores the collaborators used to clear consent, wipe account data, reconnect, and refresh the UI. */
+/** Stores the collaborators used to clear consent, wipe account data, reconnect, and refresh the UI. */
 	@Inject
 	public TcgResetCommand(
 		Client client,
@@ -51,8 +49,7 @@ public class TcgResetCommand
 		this.configManager = configManager;
 		this.tokenStore = tokenStore;
 	}
-
-	/** Dispatches {@code ::tcg-reset} to {@link #handleResetCommand()}; ignores every other command. */
+/** Dispatches {@code ::tcg-reset} to {@link #handleResetCommand()}; ignores every other command. */
 	public void onCommandExecuted(CommandExecuted event)
 	{
 		if (event == null || event.getCommand() == null)
@@ -65,8 +62,7 @@ public class TcgResetCommand
 		}
 		handleResetCommand();
 	}
-
-	/**
+/**
 	 * Clears cloud consent, wipes the logged-in account's profile folder, reconnects if logged in,
 	 * and chats a summary. Does not change plugin settings.
 	 */

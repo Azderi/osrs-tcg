@@ -3,7 +3,6 @@ package com.osrstcg.party;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import net.runelite.client.party.messages.PartyMemberMessage;
-
 /**
  * Party websocket payload: a party member completed every card in a primary-category set (roll pool).
  */
@@ -11,6 +10,6 @@ import net.runelite.client.party.messages.PartyMemberMessage;
 @EqualsAndHashCode(callSuper = false)
 public class TcgCollectionSetCompletePartyMessage extends PartyMemberMessage
 {
-	/** Display name of the completed collection/set. */
+/** Display name of the completed collection/set. */
 	private String collectionName;
 }

@@ -19,7 +19,6 @@ import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
-
 /**
  * Converts between {@link TcgState} and its JSON save-file representation (schema versioning,
  * legacy field migration, and null/default coercion on load and save).
@@ -29,15 +28,13 @@ import lombok.extern.slf4j.Slf4j;
 public class TcgStateCodec
 {
 	private final Gson gson;
-
-	/** Stores the Gson instance used for (de)serialization. */
+/** Stores the Gson instance used for (de)serialization. */
 	@Inject
 	public TcgStateCodec(Gson gson)
 	{
 		this.gson = gson;
 	}
-
-	/** Parses raw save JSON into a {@link TcgState}, returning empty on blank input or malformed JSON. */
+/** Parses raw save JSON into a {@link TcgState}, returning empty on blank input or malformed JSON. */
 	public Optional<TcgState> tryFromJson(String rawState)
 	{
 		try
@@ -62,14 +59,12 @@ public class TcgStateCodec
 			return Optional.empty();
 		}
 	}
-
-	/** Same as {@link #tryFromJson} but returns {@link TcgState#empty()} instead of an empty {@link Optional}. */
+/** Same as {@link #tryFromJson} but returns {@link TcgState#empty()} instead of an empty {@link Optional}. */
 	public TcgState fromJson(String rawState)
 	{
 		return tryFromJson(rawState).orElseGet(TcgState::empty);
 	}
-
-	/** Builds a {@link TcgState} from a deserialized {@link SerializedState}, clamping/defaulting each field. */
+/** Builds a {@link TcgState} from a deserialized {@link SerializedState}, clamping/defaulting each field. */
 	private TcgState parseSerializedState(SerializedState stored)
 	{
 		List<OwnedCardInstance> rows = parseCollectionRows(stored);
@@ -108,8 +103,7 @@ public class TcgStateCodec
 			sidebarRanks
 		);
 	}
-
-	/** Prefers the current {@code cardEntries} format, falling back to the legacy {@code cardInstances} list. */
+/** Prefers the current {@code cardEntries} format, falling back to the legacy {@code cardInstances} list. */
 	private static List<OwnedCardInstance> parseCollectionRows(SerializedState stored)
 	{
 		if (stored.cardEntries != null && !stored.cardEntries.isEmpty())
@@ -118,8 +112,7 @@ public class TcgStateCodec
 		}
 		return parseLegacyCardInstances(stored.cardInstances);
 	}
-
-	/** Converts pre-{@code cardEntries} per-instance rows into {@link OwnedCardInstance}s, skipping unnamed entries. */
+/** Converts pre-{@code cardEntries} per-instance rows into {@link OwnedCardInstance}s, skipping unnamed entries. */
 	private static List<OwnedCardInstance> parseLegacyCardInstances(List<SerializedInstance> cardInstances)
 	{
 		List<OwnedCardInstance> rows = new ArrayList<>();
@@ -141,8 +134,7 @@ public class TcgStateCodec
 		}
 		return rows;
 	}
-
-	/** Serializes a {@link TcgState} (or {@link TcgState#empty()} if null) to save-file JSON via {@link SerializedState}. */
+/** Serializes a {@link TcgState} (or {@link TcgState#empty()} if null) to save-file JSON via {@link SerializedState}. */
 	public String toJson(TcgState state)
 	{
 		TcgState s = Objects.requireNonNullElse(state, TcgState.empty());
@@ -174,8 +166,7 @@ public class TcgStateCodec
 
 		return gson.toJson(serialized);
 	}
-
-	/**
+/**
 	 * Parses a stored skill-credit baseline, migrating the legacy single {@code uncreditedXp} remainder
 	 * (dropped with a warning, since it can't be attributed to a specific skill) to the per-skill map.
 	 */
@@ -231,8 +222,7 @@ public class TcgStateCodec
 		}
 		return SkillCreditBaseline.of(xp, uncreditedBySkill);
 	}
-
-	/** Converts a {@link SkillCreditBaseline} to its serialized form, writing empty maps when absent. */
+/** Converts a {@link SkillCreditBaseline} to its serialized form, writing empty maps when absent. */
 	private static SerializedSkillCreditBaseline serializeSkillCreditBaseline(SkillCreditBaseline baseline)
 	{
 		SkillCreditBaseline b = baseline == null ? SkillCreditBaseline.absent() : baseline;
@@ -248,8 +238,7 @@ public class TcgStateCodec
 		out.uncreditedXpBySkill = new LinkedHashMap<>(b.getUncreditedXpBySkill());
 		return out;
 	}
-
-	/** Gson-mapped shape of the on-disk save JSON; field names are the wire format. */
+/** Gson-mapped shape of the on-disk save JSON; field names are the wire format. */
 	private static class SerializedState
 	{
 		private int schemaVersion = TcgState.CURRENT_SCHEMA_VERSION;
@@ -266,16 +255,14 @@ public class TcgStateCodec
 		private String cloudStateHash;
 		private int[] sidebarRanks;
 	}
-
-	/** Gson-mapped shape of the serialized skill-credit baseline, including the legacy {@code uncreditedXp} field. */
+/** Gson-mapped shape of the serialized skill-credit baseline, including the legacy {@code uncreditedXp} field. */
 	private static class SerializedSkillCreditBaseline
 	{
 		private Map<String, Integer> skillXp;
 		private Map<String, Long> uncreditedXpBySkill;
 		private Long uncreditedXp;
 	}
-
-	/** Gson-mapped shape of a legacy pre-{@code cardEntries} per-instance row. */
+/** Gson-mapped shape of a legacy pre-{@code cardEntries} per-instance row. */
 	private static class SerializedInstance
 	{
 		private String id;

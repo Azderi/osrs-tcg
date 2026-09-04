@@ -7,7 +7,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
 import net.runelite.api.WorldType;
-
 /**
  * Detects world types (PvP arena, Deadman, seasonal, etc.) where cloud credits/attests must be
  * disabled, and describes which blocked types are active on the current world.
@@ -33,14 +32,12 @@ public final class RestrictedWorldGuard
 	{
 		this.client = client;
 	}
-
-	/** Whether the current world (per the client) has a blocked world type. */
+/** Whether the current world (per the client) has a blocked world type. */
 	public boolean isRestricted()
 	{
 		return isRestricted(client == null ? null : client.getWorldType());
 	}
-
-	/** Whether any of {@code types} is a blocked world type. */
+/** Whether any of {@code types} is a blocked world type. */
 	public static boolean isRestricted(EnumSet<WorldType> types)
 	{
 		if (types == null || types.isEmpty())
@@ -56,8 +53,7 @@ public final class RestrictedWorldGuard
 		}
 		return false;
 	}
-
-	/** Comma-joined names of the blocked world types present on the current world, or {@code ""} if none. */
+/** Comma-joined names of the blocked world types present on the current world, or {@code ""} if none. */
 	public String describeBlockedTypes()
 	{
 		EnumSet<WorldType> types = client == null ? null : client.getWorldType();

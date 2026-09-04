@@ -6,7 +6,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.Value;
-
 /**
  * Collection overview counters shown in the sidebar (unique/foil/total owned, completion, score).
  * Immutable; instances are either parsed from server JSON or derived locally via the {@code with*}/{@code
@@ -23,8 +22,7 @@ public class CloudSidebarCollectionStats
 	double completionPct;
 	double foilCompletionPct;
 	long collectionScore;
-
-	/** Parses a collection overview payload, tolerating either canonical or legacy alias field names. */
+/** Parses a collection overview payload, tolerating either canonical or legacy alias field names. */
 	public static CloudSidebarCollectionStats fromStatsJson(JsonObject stats)
 	{
 		if (stats == null)
@@ -46,8 +44,7 @@ public class CloudSidebarCollectionStats
 			JsonObjects.readDouble(stats, "foilCompletionPct"),
 			collectionScore == null ? 0L : Math.round(collectionScore));
 	}
-
-	/**
+/**
 	 * True when this object is a real collection overview payload.
 	 * Ignores loose aliases like {@code score}/{@code cardCount} alone - those appear on pack-open JSON.
 	 */
@@ -67,8 +64,7 @@ public class CloudSidebarCollectionStats
 			|| stats.has("foilCompletionPct")
 			|| stats.has("collectionScore");
 	}
-
-	/**
+/**
 	 * Applies pack pulls on top of a base overview before the server confirms them, so the sidebar updates
 	 * immediately. {@code ownedBefore} is the pre-pull owned quantities keyed by name/foil; used to detect
 	 * newly-unique names and foil upgrades.
@@ -139,8 +135,7 @@ public class CloudSidebarCollectionStats
 			foilCompletionPct,
 			Math.max(0L, collectionScore));
 	}
-
-	/** True when the four raw ownership counts match between a server and a local overview (null-safe: true if either is null). */
+/** True when the four raw ownership counts match between a server and a local overview (null-safe: true if either is null). */
 	public static boolean countsAgree(CloudSidebarCollectionStats server, CloudSidebarCollectionStats local)
 	{
 		if (server == null || local == null)
@@ -152,14 +147,12 @@ public class CloudSidebarCollectionStats
 			&& server.getTotalCardsOwned() == local.getTotalCardsOwned()
 			&& server.getFoilOwned() == local.getFoilOwned();
 	}
-
-	/** Total owned quantity of a card name across both foil and non-foil variants. */
+/** Total owned quantity of a card name across both foil and non-foil variants. */
 	private static int qtyByName(Map<CardCollectionKey, Integer> owned, String cardName)
 	{
 		return qty(owned, cardName, false) + qty(owned, cardName, true);
 	}
-
-	/** Owned quantity for one name/foil key; 0 if absent or the map/name is null. */
+/** Owned quantity for one name/foil key; 0 if absent or the map/name is null. */
 	private static int qty(Map<CardCollectionKey, Integer> owned, String cardName, boolean foil)
 	{
 		if (owned == null || cardName == null)

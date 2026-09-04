@@ -25,7 +25,6 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.RuneLite;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
-
 /**
  * Loads the card catalog from disk cache on startup and keeps it fresh from the cloud
  * {@code catalog/cards/live} endpoint, updating {@link CardDatabase} in place and persisting
@@ -63,14 +62,12 @@ public final class CardCatalogService
 		this.cardDatabase = cardDatabase;
 		this.scheduler = scheduler;
 	}
-
-	/** Registers a callback invoked (not necessarily on the client thread) whenever the catalog changes. */
+/** Registers a callback invoked (not necessarily on the client thread) whenever the catalog changes. */
 	public void setChangeListener(Runnable listener)
 	{
 		changeListener.set(listener);
 	}
-
-	/**
+/**
 	 * Populates {@link CardDatabase} synchronously from the on-disk cache, preferring the live
 	 * cache format and falling back to the legacy {@code Card.json} format. No-op if neither
 	 * file is present or parseable. Also deletes the now-obsolete card-art overlay cache files.
@@ -117,14 +114,12 @@ public final class CardCatalogService
 			log.warn("Failed reading legacy card catalog disk cache {}", legacy, ex);
 		}
 	}
-
-	/** Kicks off an async catalog fetch on the scheduler; does not gate on the login-fetch flag. */
+/** Kicks off an async catalog fetch on the scheduler; does not gate on the login-fetch flag. */
 	public CompletableFuture<Void> prefetchAsync()
 	{
 		return CompletableFuture.runAsync(this::fetchAndApply, scheduler);
 	}
-
-	/** Fetches the catalog once per login: no-op if already attempted since the last {@link #resetLoginFetchGate()}. */
+/** Fetches the catalog once per login: no-op if already attempted since the last {@link #resetLoginFetchGate()}. */
 	public CompletableFuture<Void> refreshOnLogin()
 	{
 		if (!loginFetchAttempted.compareAndSet(false, true))
@@ -133,21 +128,18 @@ public final class CardCatalogService
 		}
 		return CompletableFuture.runAsync(this::fetchAndApply, scheduler);
 	}
-
-	/** Allows {@link #refreshOnLogin()} to fetch again (e.g. after logout/login). */
+/** Allows {@link #refreshOnLogin()} to fetch again (e.g. after logout/login). */
 	public void resetLoginFetchGate()
 	{
 		loginFetchAttempted.set(false);
 	}
-
-	/** Forces an async catalog fetch regardless of the login-fetch gate, and marks that gate as satisfied. */
+/** Forces an async catalog fetch regardless of the login-fetch gate, and marks that gate as satisfied. */
 	public CompletableFuture<Void> refreshNow()
 	{
 		loginFetchAttempted.set(true);
 		return CompletableFuture.runAsync(this::fetchAndApply, scheduler);
 	}
-
-	/**
+/**
 	 * Blocking fetch-and-apply cycle: sends the cached catalog version as an ETag, and on a 304
 	 * loads the disk cache if the in-memory database is still empty; on 200 parses and applies
 	 * the new catalog, persisting it to disk. Swallows all exceptions (logging them), except a
@@ -206,8 +198,7 @@ public final class CardCatalogService
 			log.warn("Live card catalog fetch failed", ex);
 		}
 	}
-
-	/** Best-effort removal of the obsolete card-art overlay cache files, ignoring failures. */
+/** Best-effort removal of the obsolete card-art overlay cache files, ignoring failures. */
 	private void deleteStaleCardArtCache()
 	{
 		Path dir = diskCacheDir();
@@ -221,15 +212,13 @@ public final class CardCatalogService
 			log.debug("Failed deleting obsolete card-art overlay cache", ex);
 		}
 	}
-
-	/** Parses a raw live-catalog JSON string (as stored on disk) into card definitions. */
+/** Parses a raw live-catalog JSON string (as stored on disk) into card definitions. */
 	private static List<CardDefinition> parseLiveJson(String json)
 	{
 		JsonObject obj = new JsonParser().parse(json).getAsJsonObject();
 		return LiveCardsCatalogParser.parse(obj);
 	}
-
-	/** Invokes the registered change listener, if any, swallowing its exceptions. */
+/** Invokes the registered change listener, if any, swallowing its exceptions. */
 	private void notifyChanged()
 	{
 		Runnable listener = changeListener.get();
@@ -245,8 +234,7 @@ public final class CardCatalogService
 			}
 		}
 	}
-
-	/** Writes the raw catalog JSON and version to disk atomically; failures are logged and ignored. */
+/** Writes the raw catalog JSON and version to disk atomically; failures are logged and ignored. */
 	private void persistDiskCache(String json, String version)
 	{
 		Path dir = diskCacheDir();
@@ -264,8 +252,7 @@ public final class CardCatalogService
 			log.debug("Card catalog disk cache write failed", ex);
 		}
 	}
-
-	/** Reads the last persisted catalog version from disk, or null if absent/unreadable. */
+/** Reads the last persisted catalog version from disk, or null if absent/unreadable. */
 	private static String readDiskVersion()
 	{
 		Path file = diskCacheDir().resolve(LIVE_VERSION_FILE);
@@ -283,21 +270,18 @@ public final class CardCatalogService
 			return null;
 		}
 	}
-
-	/** Directory under the RuneLite home folder used for the card catalog disk cache. */
+/** Directory under the RuneLite home folder used for the card catalog disk cache. */
 	private static Path diskCacheDir()
 	{
 		return Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG", "catalog");
 	}
-
-	/** Clears the cached catalog version and deletes the entire disk cache directory. */
+/** Clears the cached catalog version and deletes the entire disk cache directory. */
 	public void deleteDiskCache()
 	{
 		cachedCatalogVersion.set(null);
 		deleteDirectoryQuietly(diskCacheDir());
 	}
-
-	/** Recursively deletes a directory, best-effort, logging but not throwing on failure. */
+/** Recursively deletes a directory, best-effort, logging but not throwing on failure. */
 	private static void deleteDirectoryQuietly(Path dir)
 	{
 		if (dir == null || !Files.isDirectory(dir))

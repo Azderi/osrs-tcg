@@ -22,7 +22,6 @@ import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.util.List;
 import net.runelite.client.ui.ColorScheme;
-
 /**
  * Rasterizes card faces and backs (banded and full-art layouts) for {@link TcgPanel} and other card
  * UI. Rendering itself is pure AWT/Graphics2D work with no threading requirement; callers on the EDT
@@ -43,13 +42,11 @@ public final class SharedCardRenderer
 	private static final int BANDED_TITLE_FIT_STEPS = 10;
 
 	public static final String CARD_BACK_PATH = "/images/Cardback_new.png";
-
-	/** Not instantiated; all members are static. */
+/** Not instantiated; all members are static. */
 	private SharedCardRenderer()
 	{
 	}
-
-	/**
+/**
 	 * Paints the request's face into {@code bounds} only if already rasterized in {@link CardFaceCache};
 	 * does not render on a miss. Returns whether it painted anything.
 	 */
@@ -67,8 +64,7 @@ public final class SharedCardRenderer
 		paintCachedFace(g, bounds, req, face);
 		return true;
 	}
-
-	/** Blits a pre-rendered face image and, for foil requests, overlays an animated sparkle pass on top. */
+/** Blits a pre-rendered face image and, for foil requests, overlays an animated sparkle pass on top. */
 	private static void paintCachedFace(Graphics2D g, Rectangle bounds, CardFaceDrawRequest req, BufferedImage face)
 	{
 		g.drawImage(face, bounds.x, bounds.y, null);
@@ -89,8 +85,7 @@ public final class SharedCardRenderer
 				System.nanoTime() / 1_000_000_000.0d);
 		}
 	}
-
-	/** Draws the card back into {@code bounds}: the given image if provided, else a plain foil/dark placeholder. */
+/** Draws the card back into {@code bounds}: the given image if provided, else a plain foil/dark placeholder. */
 	public static void drawCardBack(Graphics2D g, Rectangle bounds, boolean foil,
 		BufferedImage cardBack)
 	{
@@ -122,8 +117,7 @@ public final class SharedCardRenderer
 			g2.dispose();
 		}
 	}
-
-	/** Maps a rarity color back to its {@link RarityMath.Tier} label; falls back to Common if no tier matches. */
+/** Maps a rarity color back to its {@link RarityMath.Tier} label; falls back to Common if no tier matches. */
 	public static String tierLabelForRarityColor(Color color)
 	{
 		if (color == null)
@@ -139,8 +133,7 @@ public final class SharedCardRenderer
 		}
 		return RarityMath.Tier.COMMON.getLabel();
 	}
-
-	/** Renders and caches a face ahead of paint time, skipping requests with no size or missing art. */
+/** Renders and caches a face ahead of paint time, skipping requests with no size or missing art. */
 	public static void prewarmFace(int w, int h, CardFaceDrawRequest req)
 	{
 		if (req == null || w < 4 || h < 4 || CardFaceCache.expectsArtButMissing(req))
@@ -149,8 +142,7 @@ public final class SharedCardRenderer
 		}
 		CardFaceCache.cachedFace(w, h, req);
 	}
-
-	/** Returns whether {@code req} already has a rendered face cached at this size, without rendering it. */
+/** Returns whether {@code req} already has a rendered face cached at this size, without rendering it. */
 	public static boolean isFaceCached(int w, int h, CardFaceDrawRequest req)
 	{
 		if (req == null || w < 4 || h < 4)
@@ -159,8 +151,7 @@ public final class SharedCardRenderer
 		}
 		return CardFaceCache.contains(w, h, req);
 	}
-
-	/**
+/**
 	 * Fully rasterizes a card face at {@code w}x{@code h}: banded or full-art layout per
 	 * {@link CardFaceDrawRequest#isFullArt()}, then wear filter/overlay if the request carries a
 	 * {@link WearFx}. Called by {@link CardFaceCache} on a cache miss.
@@ -196,8 +187,7 @@ public final class SharedCardRenderer
 		}
 		return face;
 	}
-
-	/** Paints the classic five-band layout: title, art, tier, examine text, and score bands stacked vertically. */
+/** Paints the classic five-band layout: title, art, tier, examine text, and score bands stacked vertically. */
 	private static void paintBanded(Graphics2D g2, Geometry geo, CardFaceDrawRequest req)
 	{
 		CardDefinition card = req.getCard();
@@ -242,8 +232,7 @@ public final class SharedCardRenderer
 		CardTextLayout.drawCenteredText(g2, geo.score, "Score: " + scoreText(req),
 			CardFonts.bold(geo.scale), Color.WHITE, geo.bandPadX);
 	}
-
-	/**
+/**
 	 * Paints the full-bleed art layout: art fills the inner well with title/examine/score overlaid as
 	 * scrimmed, shadowed text. Disables text antialiasing/fractional metrics for crisper small text,
 	 * restoring both hints in the {@code finally} block.
@@ -350,8 +339,7 @@ public final class SharedCardRenderer
 			}
 		}
 	}
-
-	/** Strokes a thin rounded-rect ring just inside the card's outer edge, e.g. the foil highlight ring. */
+/** Strokes a thin rounded-rect ring just inside the card's outer edge, e.g. the foil highlight ring. */
 	private static void drawInsetRing(Graphics2D g2, Geometry geo, Color color)
 	{
 		float ringWidth = (float) Math.max(1.0d, Math.round(geo.scale));
@@ -364,8 +352,7 @@ public final class SharedCardRenderer
 		g2.draw(ring);
 		g2.setStroke(new BasicStroke(1f));
 	}
-
-	/** Fills {@code rect} with a black gradient that fades out away from the top (or bottom) edge, used behind overlaid text. */
+/** Fills {@code rect} with a black gradient that fades out away from the top (or bottom) edge, used behind overlaid text. */
 	private static void paintVerticalScrim(Graphics2D g2, Rectangle rect, boolean fromTop)
 	{
 		if (rect.height <= 0 || rect.width <= 0)
@@ -386,8 +373,7 @@ public final class SharedCardRenderer
 		g2.setPaint(paint);
 		g2.fillRect(rect.x, rect.y, rect.width, rect.height);
 	}
-
-	/** Draws pre-wrapped full-art examine text, one centered stroked/shadowed line at a time. */
+/** Draws pre-wrapped full-art examine text, one centered stroked/shadowed line at a time. */
 	private static void drawFullArtExamine(Graphics2D g2, int left, int top, int width,
 		List<String> lines, Font font, int lineHeight, double scale)
 	{
@@ -402,8 +388,7 @@ public final class SharedCardRenderer
 			y += lineHeight;
 		}
 	}
-
-	/** Draws {@code text} as a glyph outline with a soft drop shadow and a dark stroke around the fill, for legibility over art. */
+/** Draws {@code text} as a glyph outline with a soft drop shadow and a dark stroke around the fill, for legibility over art. */
 	private static void drawStrokedShadowedString(Graphics2D g2, String text, int x, int y,
 		Color fill, float strokeWidth, double scale)
 	{
@@ -422,8 +407,7 @@ public final class SharedCardRenderer
 		g2.fill(outline);
 		g2.setStroke(new BasicStroke(1f));
 	}
-
-	/**
+/**
 	 * Centers (or top-aligns) shadowed text within {@code rect}, optionally ellipsizing to fit, clipped
 	 * to the rect while drawing.
 	 */
@@ -452,8 +436,7 @@ public final class SharedCardRenderer
 			g2.setClip(clip);
 		}
 	}
-
-	/** Draws multi-pass drop-shadowed/outlined text (title and score overlays) using {@code drawString}, cheaper than glyph outlines. */
+/** Draws multi-pass drop-shadowed/outlined text (title and score overlays) using {@code drawString}, cheaper than glyph outlines. */
 	private static void drawTitleScoreShadow(Graphics2D g2, String text, int x, int y, Color color, double scale)
 	{
 		int drop = Math.max(1, (int) Math.round(1.0d * scale));
@@ -468,15 +451,13 @@ public final class SharedCardRenderer
 		g2.setColor(color == null ? Color.WHITE : color);
 		g2.drawString(text, x, y);
 	}
-
-	/** Fills a banded-layout section with a solid rounded-rect color. */
+/** Fills a banded-layout section with a solid rounded-rect color. */
 	private static void fillBand(Graphics2D g2, Rectangle band, Color fill, int radius)
 	{
 		g2.setColor(fill);
 		g2.fillRoundRect(band.x, band.y, band.width, band.height, radius * 2, radius * 2);
 	}
-
-	/** Draws the banded layout's art band: the card's art image fit-centered, or a loading/placeholder message if art isn't loaded. */
+/** Draws the banded layout's art band: the card's art image fit-centered, or a loading/placeholder message if art isn't loaded. */
 	private static void drawArt(Graphics2D g2, Geometry geo, CardFaceDrawRequest req)
 	{
 		Rectangle inner = inset(geo.art, geo.artPad);
@@ -493,8 +474,7 @@ public final class SharedCardRenderer
 		CardTextLayout.drawCenteredText(g2, geo.art, artText, CardFonts.body(geo.scale),
 			ColorScheme.LIGHT_GRAY_COLOR, geo.bandPadX);
 	}
-
-	/** Draws the banded layout's examine text: fits an em size that wraps within the band, then wraps and centers each line. */
+/** Draws the banded layout's examine text: fits an em size that wraps within the band, then wraps and centers each line. */
 	private static void drawExamine(Graphics2D g2, Geometry geo, String examine)
 	{
 		String text = CardTextLayout.valueOrFallback(examine, "No examine text.");
@@ -529,8 +509,7 @@ public final class SharedCardRenderer
 			g2.setClip(clip);
 		}
 	}
-
-	/** Formats the score to display: the server-supplied display score if present, else the card's computed (foil-adjusted) score, or "-" with no card. */
+/** Formats the score to display: the server-supplied display score if present, else the card's computed (foil-adjusted) score, or "-" with no card. */
 	static String scoreText(CardFaceDrawRequest req)
 	{
 		Long server = req.getDisplayScore();
@@ -546,8 +525,7 @@ public final class SharedCardRenderer
 		boolean foil = req.isFullArt() || req.isUseFoilAdjustedScore();
 		return NumberFormatting.format(card.displayScore(foil));
 	}
-
-	/** Pre-computed layout for a card of a given pixel size: outer/inner bounds and the five band rectangles. */
+/** Pre-computed layout for a card of a given pixel size: outer/inner bounds and the five band rectangles. */
 	private static final class Geometry
 	{
 		private final int width;
@@ -568,8 +546,7 @@ public final class SharedCardRenderer
 		private final Rectangle tier;
 		private final Rectangle examine;
 		private final Rectangle score;
-
-		/** Computes scale-relative paddings/radii and divides the inner well into five bands per {@link #BAND_FRACTIONS}. */
+/** Computes scale-relative paddings/radii and divides the inner well into five bands per {@link #BAND_FRACTIONS}. */
 		private Geometry(int width, int height)
 		{
 			this.width = width;
@@ -616,26 +593,22 @@ public final class SharedCardRenderer
 			this.score = bands[4];
 		}
 	}
-
-	/** Corner radius scaled proportionally to card width, relative to {@link #DEFAULT_CARD_WIDTH}. */
+/** Corner radius scaled proportionally to card width, relative to {@link #DEFAULT_CARD_WIDTH}. */
 	private static double outerRadius(int width)
 	{
 		return Math.max(1.0d, 11.0d * width / (double) DEFAULT_CARD_WIDTH);
 	}
-
-	/** Rounded-rect arc diameter (2x radius) matching {@link #outerRadius(int)}, for callers that need Swing's arc-diameter convention. */
+/** Rounded-rect arc diameter (2x radius) matching {@link #outerRadius(int)}, for callers that need Swing's arc-diameter convention. */
 	public static int outerArcDiameter(int width)
 	{
 		return Math.max(2, (int) Math.round(outerRadius(width) * 2.0d));
 	}
-
-	/** Shrinks a rectangle by {@code pad} on all sides, clamping width/height to at least 1. */
+/** Shrinks a rectangle by {@code pad} on all sides, clamping width/height to at least 1. */
 	private static Rectangle inset(Rectangle r, int pad)
 	{
 		return new Rectangle(r.x + pad, r.y + pad, Math.max(1, r.width - pad * 2), Math.max(1, r.height - pad * 2));
 	}
-
-	/**
+/**
 	 * Binary-searches the largest title em size (down to {@link #BANDED_TITLE_EM_MIN}) that fits
 	 * {@code title} within {@code maxWidth} at the banded layout's title font.
 	 */
@@ -667,8 +640,7 @@ public final class SharedCardRenderer
 		}
 		return CardFonts.title(scale, bestEm);
 	}
-
-	/** Draws {@code image} scaled to fit entirely within {@code rect} (letterboxed), centered, clipped to the rect. */
+/** Draws {@code image} scaled to fit entirely within {@code rect} (letterboxed), centered, clipped to the rect. */
 	private static void drawFitCentered(Graphics2D g2, BufferedImage image, Rectangle rect)
 	{
 		int sourceWidth = image.getWidth();
@@ -693,8 +665,7 @@ public final class SharedCardRenderer
 			g2.setClip(clip);
 		}
 	}
-
-	/** Draws {@code image} scaled to fully cover {@code rect} (cropped, not letterboxed), centered. Caller must clip if needed. */
+/** Draws {@code image} scaled to fully cover {@code rect} (cropped, not letterboxed), centered. Caller must clip if needed. */
 	private static void drawCoverCentered(Graphics2D g2, BufferedImage image, Rectangle rect)
 	{
 		int sourceWidth = image.getWidth();
@@ -710,8 +681,7 @@ public final class SharedCardRenderer
 		int y = rect.y + (rect.height - h) / 2;
 		g2.drawImage(image, x, y, w, h, null);
 	}
-
-	/** Turns on antialiasing, bilinear interpolation, and pure stroke control for higher-quality rendering. */
+/** Turns on antialiasing, bilinear interpolation, and pure stroke control for higher-quality rendering. */
 	private static void enableQuality(Graphics2D g2)
 	{
 		g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);

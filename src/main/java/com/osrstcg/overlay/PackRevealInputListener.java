@@ -12,7 +12,6 @@ import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.input.KeyListener;
 import net.runelite.client.input.MouseListener;
 import net.runelite.client.input.MouseWheelListener;
-
 /**
  * RuneLite mouse/keyboard listener that intercepts and consumes game input while a pack reveal is
  * active, routing clicks/keys to the reveal service and overlay instead. Callbacks run on RuneLite's
@@ -25,8 +24,7 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 	private final PackRevealOverlay overlay;
 	private final SidebarRefresh sidebarRefresh;
 	private final ChatMessageManager chatMessageManager;
-
-	/** Wires the collaborators used to detect an active reveal, forward input to it, and refresh the sidebar after close. */
+/** Wires the collaborators used to detect an active reveal, forward input to it, and refresh the sidebar after close. */
 	@Inject
 	public PackRevealInputListener(
 		PackRevealService revealService,
@@ -39,8 +37,7 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 		this.sidebarRefresh = sidebarRefresh;
 		this.chatMessageManager = chatMessageManager;
 	}
-
-	/**
+/**
 	 * Aborts the active reveal (no-op if none), optionally chat-announcing {@code reasonMessage} first,
 	 * then refreshes the sidebar.
 	 */
@@ -57,14 +54,12 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 		revealService.abortActiveReveal();
 		sidebarRefresh.refreshAfterPackRevealClose();
 	}
-
-	/** Consumes game input only while a pack reveal overlay is active. */
+/** Consumes game input only while a pack reveal overlay is active. */
 	private boolean revealBlocksGameInput()
 	{
 		return revealService.isActive();
 	}
-
-	/** Updates the overlay's hover point from {@code e} while a reveal is active, else clears it. */
+/** Updates the overlay's hover point from {@code e} while a reveal is active, else clears it. */
 	private void syncRevealHoverCanvasFromEvent(java.awt.event.MouseEvent e)
 	{
 		if (e == null)
@@ -78,8 +73,7 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 		}
 		overlay.setRevealHoverCanvasPoint(e.getPoint());
 	}
-
-	/** Consumes clicks while a reveal is active; otherwise passes the event through unconsumed. */
+/** Consumes clicks while a reveal is active; otherwise passes the event through unconsumed. */
 	@Override
 	public MouseEvent mouseClicked(MouseEvent mouseEvent)
 	{
@@ -90,8 +84,7 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 		mouseEvent.consume();
 		return mouseEvent;
 	}
-
-	/**
+/**
 	 * Syncs the hover point, then while a reveal is active: right-click pins the card info tip; left-click
 	 * hits the pinned tip, the close button, or forwards to {@link PackRevealService#handleClick}, refreshing
 	 * the sidebar if that ends the reveal. Consumes the event whenever a reveal is active.
@@ -142,8 +135,7 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 		mouseEvent.consume();
 		return mouseEvent;
 	}
-
-	/** Consumes the release while a reveal is active; otherwise passes it through unconsumed. */
+/** Consumes the release while a reveal is active; otherwise passes it through unconsumed. */
 	@Override
 	public MouseEvent mouseReleased(MouseEvent mouseEvent)
 	{
@@ -154,8 +146,7 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 		mouseEvent.consume();
 		return mouseEvent;
 	}
-
-	/** Consumes the enter event while a reveal is active; otherwise passes it through unconsumed. */
+/** Consumes the enter event while a reveal is active; otherwise passes it through unconsumed. */
 	@Override
 	public MouseEvent mouseEntered(MouseEvent mouseEvent)
 	{
@@ -166,8 +157,7 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 		mouseEvent.consume();
 		return mouseEvent;
 	}
-
-	/** Clears the overlay's hover point, then consumes the exit event while a reveal is active. */
+/** Clears the overlay's hover point, then consumes the exit event while a reveal is active. */
 	@Override
 	public MouseEvent mouseExited(MouseEvent mouseEvent)
 	{
@@ -179,8 +169,7 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 		mouseEvent.consume();
 		return mouseEvent;
 	}
-
-	/** Syncs the hover point, then consumes the drag event while a reveal is active. */
+/** Syncs the hover point, then consumes the drag event while a reveal is active. */
 	@Override
 	public MouseEvent mouseDragged(MouseEvent mouseEvent)
 	{
@@ -196,8 +185,7 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 		mouseEvent.consume();
 		return mouseEvent;
 	}
-
-	/** Syncs the hover point, then consumes the move event while a reveal is active. */
+/** Syncs the hover point, then consumes the move event while a reveal is active. */
 	@Override
 	public MouseEvent mouseMoved(MouseEvent mouseEvent)
 	{
@@ -213,8 +201,7 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 		mouseEvent.consume();
 		return mouseEvent;
 	}
-
-	/** Syncs the hover point, then nudges the reveal's zoom level and consumes the event while a reveal is active. */
+/** Syncs the hover point, then nudges the reveal's zoom level and consumes the event while a reveal is active. */
 	@Override
 	public MouseWheelEvent mouseWheelMoved(MouseWheelEvent event)
 	{
@@ -231,8 +218,7 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 		event.consume();
 		return event;
 	}
-
-	/** Consumes typed characters while a reveal is active; otherwise leaves the event alone. */
+/** Consumes typed characters while a reveal is active; otherwise leaves the event alone. */
 	@Override
 	public void keyTyped(KeyEvent e)
 	{
@@ -242,8 +228,7 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 		}
 		e.consume();
 	}
-
-	/**
+/**
 	 * While a reveal is active: Escape force-closes the reveal, Space advances it (refreshing the sidebar
 	 * if that ends the reveal); all other keys are simply consumed.
 	 */
@@ -271,8 +256,7 @@ public class PackRevealInputListener implements MouseListener, KeyListener, Mous
 		}
 		e.consume();
 	}
-
-	/** Consumes the key release while a reveal is active; otherwise leaves the event alone. */
+/** Consumes the key release while a reveal is active; otherwise leaves the event alone. */
 	@Override
 	public void keyReleased(KeyEvent e)
 	{

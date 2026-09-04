@@ -1,5 +1,4 @@
 package com.osrstcg.config;
-
 /** Config option choices for the rolling window used to compute a credits-per-hour rate. */
 public enum CreditsPerHourWindow
 {
@@ -9,10 +8,9 @@ public enum CreditsPerHourWindow
 	PERSISTENT("Persistent", null);
 
 	private final String label;
-	/** {@code null} when history never auto-expires. */
+/** {@code null} when history never auto-expires. */
 	private final Long windowMs;
-
-	/**
+/**
 	 * @param label display label shown in config UI.
 	 * @param windowMs window length in ms, or {@code null} for persistent (never expires).
 	 */
@@ -21,14 +19,12 @@ public enum CreditsPerHourWindow
 		this.label = label;
 		this.windowMs = windowMs;
 	}
-
-	/** @return window length in ms, or {@code null} when history never auto-expires. */
+/** @return window length in ms, or {@code null} when history never auto-expires. */
 	public Long getWindowMs()
 	{
 		return windowMs;
 	}
-
-	/** @return display label shown in config UI. */
+/** @return display label shown in config UI. */
 	@Override
 	public String toString()
 	{

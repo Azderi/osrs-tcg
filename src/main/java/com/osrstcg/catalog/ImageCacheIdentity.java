@@ -3,7 +3,6 @@ package com.osrstcg.catalog;
 import com.osrstcg.persist.TcgStateHash;
 import java.util.Locale;
 import okhttp3.HttpUrl;
-
 /**
  * URL classification and normalization helpers for {@link CardImageCacheService}: strips volatile
  * query params to derive a stable cache key, and picks decode-size caps and disk filenames by URL shape.
@@ -17,8 +16,7 @@ final class ImageCacheIdentity
 	private ImageCacheIdentity()
 	{
 	}
-
-	/** Stable cache key for {@code absoluteUrl}: strips all query params for artwork-file paths (their auth tokens vary per request), else strips only the {@code token} query param. */
+/** Stable cache key for {@code absoluteUrl}: strips all query params for artwork-file paths (their auth tokens vary per request), else strips only the {@code token} query param. */
 	static String cacheIdentity(String absoluteUrl)
 	{
 		if (absoluteUrl == null || absoluteUrl.isEmpty())
@@ -33,8 +31,7 @@ final class ImageCacheIdentity
 		}
 		return stripQueryParam(absoluteUrl, "token");
 	}
-
-	/** Whether {@code absoluteUrl} is an artwork-file URL carrying a short-lived auth token, meaning fetch failures shouldn't be cached as a cooldown. */
+/** Whether {@code absoluteUrl} is an artwork-file URL carrying a short-lived auth token, meaning fetch failures shouldn't be cached as a cooldown. */
 	static boolean isEphemeralAuthUrl(String absoluteUrl)
 	{
 		if (absoluteUrl == null || absoluteUrl.isEmpty())
@@ -44,8 +41,7 @@ final class ImageCacheIdentity
 		String lower = absoluteUrl.toLowerCase(Locale.ROOT);
 		return lower.contains("/artwork/files/") && lower.contains("token=");
 	}
-
-	/** Removes every occurrence of the query param named {@code paramName} from {@code absoluteUrl}, dropping the {@code ?} entirely if nothing remains. */
+/** Removes every occurrence of the query param named {@code paramName} from {@code absoluteUrl}, dropping the {@code ?} entirely if nothing remains. */
 	static String stripQueryParam(String absoluteUrl, String paramName)
 	{
 		if (absoluteUrl == null || paramName == null || paramName.isEmpty())
@@ -84,8 +80,7 @@ final class ImageCacheIdentity
 		}
 		return kept.length() == 0 ? base : base + '?' + kept;
 	}
-
-	/** Max decoded-image edge length (px) to keep in memory for {@code url}: larger for card backs, full-art/foil, and pack sleeves (thumbnails excepted); default otherwise. */
+/** Max decoded-image edge length (px) to keep in memory for {@code url}: larger for card backs, full-art/foil, and pack sleeves (thumbnails excepted); default otherwise. */
 	static int maxMemoryEdgeForUrl(String url)
 	{
 		if (url == null || url.isEmpty())
@@ -111,28 +106,24 @@ final class ImageCacheIdentity
 		}
 		return MAX_MEMORY_IMAGE_EDGE_PX;
 	}
-
-	/** Whether {@code normalizedUrl} points at a pack sleeve/thumbnail asset. */
+/** Whether {@code normalizedUrl} points at a pack sleeve/thumbnail asset. */
 	static boolean isPackAssetUrl(String normalizedUrl)
 	{
 		return normalizedUrl != null
 			&& normalizedUrl.toLowerCase(Locale.ROOT).contains("/images/packs/");
 	}
-
-	/** Whether {@code normalizedUrl} points at the card-back image. */
+/** Whether {@code normalizedUrl} points at the card-back image. */
 	static boolean isCardBackUrl(String normalizedUrl)
 	{
 		return normalizedUrl != null
 			&& normalizedUrl.toLowerCase(Locale.ROOT).contains("/images/cardback");
 	}
-
-	/** Whether {@code normalizedUrl} should use the shorter fetch-failure cooldown (pack/card-back assets, expected to be more transiently unavailable). */
+/** Whether {@code normalizedUrl} should use the shorter fetch-failure cooldown (pack/card-back assets, expected to be more transiently unavailable). */
 	static boolean isShortFailCooldownUrl(String normalizedUrl)
 	{
 		return isPackAssetUrl(normalizedUrl) || isCardBackUrl(normalizedUrl);
 	}
-
-	/**
+/**
 	 * Disk cache filename for a pack asset URL, or {@code null} if {@code normalizedUrl} isn't a pack
 	 * asset/card-back URL. Card backs always use {@code "cardback.png"}; other pack assets keep the
 	 * URL's last path segment with unsafe characters replaced by {@code _}, falling back to a hash
@@ -183,8 +174,7 @@ final class ImageCacheIdentity
 		}
 		return cleaned;
 	}
-
-	/** Whether {@code url}'s host is {@code osrs-tcg.net} or a subdomain of it. */
+/** Whether {@code url}'s host is {@code osrs-tcg.net} or a subdomain of it. */
 	static boolean isOsrsTcgNetUrl(String url)
 	{
 		HttpUrl parsed = HttpUrl.parse(url);

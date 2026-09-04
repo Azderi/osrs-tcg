@@ -13,7 +13,6 @@ import java.awt.geom.RoundRectangle2D;
 import java.util.List;
 import java.util.Map;
 import net.runelite.client.ui.FontManager;
-
 /**
  * Stateless renderer for the card-hover tooltip: measures the rounded-rect panel size for a given
  * {@link Content}, then paints it (title, detail rows, action rows with hover highlight) onto a
@@ -39,8 +38,7 @@ public final class CardInfoTipPainter
 	private CardInfoTipPainter()
 	{
 	}
-
-	/** Computes the pixel size of the tooltip panel needed to fit the title and rows of {@code content}. */
+/** Computes the pixel size of the tooltip panel needed to fit the title and rows of {@code content}. */
 	public static Dimension measure(Graphics2D g, Content content)
 	{
 		Font titleFont = tipTitleFont();
@@ -124,8 +122,7 @@ public final class CardInfoTipPainter
 		}
 		return new Dimension(width, height);
 	}
-
-	/**
+/**
 	 * Paints the tooltip panel at {@code (x, y + yOffset)}, with title/border/rows faded by {@code alpha}.
 	 * When {@code hoverX}/{@code hoverY} fall inside an action row, that row is highlighted; each action
 	 * row's screen bounds are recorded into {@code outActionBounds} (keyed by action id) if provided.
@@ -235,26 +232,22 @@ public final class CardInfoTipPainter
 			g2.dispose();
 		}
 	}
-
-	/** {@link #paint(Graphics2D, int, int, Content, Color, float, float, Integer, Integer, Map)} with no hover/action-bounds tracking. */
+/** {@link #paint(Graphics2D, int, int, Content, Color, float, float, Integer, Integer, Map)} with no hover/action-bounds tracking. */
 	public static void paint(Graphics2D g, int x, int y, Content content, Color titleColor, float alpha, float yOffset)
 	{
 		paint(g, x, y, content, titleColor, alpha, yOffset, null, null, null);
 	}
-
-	/** @return the font used for the tooltip title. */
+/** @return the font used for the tooltip title. */
 	private static Font tipTitleFont()
 	{
 		return FontManager.getRunescapeBoldFont();
 	}
-
-	/** @return the font used for tooltip detail/action rows. */
+/** @return the font used for tooltip detail/action rows. */
 	private static Font tipRowFont()
 	{
 		return FontManager.getRunescapeSmallFont();
 	}
-
-	/** Truncates {@code text} with a trailing ellipsis so it fits within {@code maxWidth} pixels under {@code fm}. */
+/** Truncates {@code text} with a trailing ellipsis so it fits within {@code maxWidth} pixels under {@code fm}. */
 	private static String ellipsize(String text, FontMetrics fm, int maxWidth)
 	{
 		String value = text == null ? "" : text;
