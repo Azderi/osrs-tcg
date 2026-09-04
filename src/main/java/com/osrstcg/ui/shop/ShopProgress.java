@@ -152,7 +152,9 @@ public final class ShopProgress
 	}
 /**
 	 * Display names of pack collections that became fully owned between {@code ownedBefore} and
-	 * {@code ownedAfter} (same eligibility as {@link #ownedTotal}). Deduped by collection key.
+	 * {@code ownedAfter} (same eligibility as {@link #ownedTotal}). Every booster is checked on its
+	 * own eligible set (shared {@code collectionKey} values are not skipped); announcement labels
+	 * are deduped by display name.
 	 */
 	public static List<String> newlyCompletedCollections(
 		Map<CardCollectionKey, Integer> ownedBefore,
@@ -165,7 +167,6 @@ public final class ShopProgress
 		{
 			return Collections.emptyList();
 		}
-		Set<String> seenKeys = new HashSet<>();
 		Set<String> names = new LinkedHashSet<>();
 		for (BoosterPackDefinition booster : boosters)
 		{
@@ -174,7 +175,7 @@ public final class ShopProgress
 				continue;
 			}
 			String key = booster.getCollectionKey();
-			if (key == null || key.isBlank() || !seenKeys.add(key))
+			if (key == null || key.isBlank())
 			{
 				continue;
 			}
