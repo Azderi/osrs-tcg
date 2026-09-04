@@ -1,7 +1,6 @@
 package com.osrstcg.ui.layout;
 
 import com.formdev.flatlaf.FlatClientProperties;
-import com.osrstcg.util.NumberFormatting;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
@@ -171,11 +170,6 @@ public final class SidebarLayout
 			}
 		});
 		return link;
-	}
-/** Delegates to {@link NumberFormatting#format(long)} for the sidebar's standard number display format. */
-	public static String format(long value)
-	{
-		return NumberFormatting.format(value);
 	}
 /** Escapes {@code &amp;}, {@code &lt;}, {@code &gt;} for safe use inside a Swing HTML label; null becomes {@code ""}. */
 	public static String htmlEscape(String value)

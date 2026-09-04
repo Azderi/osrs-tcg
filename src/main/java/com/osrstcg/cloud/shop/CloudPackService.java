@@ -11,7 +11,6 @@ import com.osrstcg.state.CloudSidebarCollectionStats;
 import com.osrstcg.state.OwnedCardInstance;
 import com.osrstcg.state.PackCardResult;
 import com.osrstcg.state.PackOpenResult;
-import com.osrstcg.catalog.RollPoolFilter;
 import com.osrstcg.party.TcgPartyAnnouncer;
 import com.osrstcg.state.TcgStateService;
 import com.osrstcg.ui.shop.ShopProgress;
@@ -222,9 +221,8 @@ public final class CloudPackService
 				ownedAfter = new HashMap<>(stateService.getState().getCollectionState().getOwnedCards());
 			}
 			List<CardDefinition> allCards = cardDatabase.getCards();
-			List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(allCards);
 			for (String collection : ShopProgress.newlyCompletedCollections(
-				ownedBefore, ownedAfter, allCards, rollPool, packCatalog.getVisibleBoosters()))
+				ownedBefore, ownedAfter, allCards, allCards, packCatalog.getVisibleBoosters()))
 			{
 				partyAnnouncer.announceSetComplete(collection);
 			}

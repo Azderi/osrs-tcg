@@ -2,6 +2,7 @@ package com.osrstcg.credit;
 
 import com.google.gson.JsonObject;
 import com.osrstcg.cloud.session.CloudSessionService;
+import com.osrstcg.cloud.attest.CreditAttestCoalescer;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
 import com.osrstcg.state.SkillCreditBaseline;
 import com.osrstcg.util.NumberFormatting;
@@ -356,7 +357,7 @@ public class CreditAwardService
 		evidence.addProperty("skill", skill.getName());
 		evidence.addProperty("fromLevel", previousLevel);
 		evidence.addProperty("toLevel", currentLevel);
-		attestQueue.enqueue("level_up", evidence, totalReward);
+		attestQueue.enqueue(CreditAttestCoalescer.TYPE_LEVEL_UP, evidence, totalReward);
 
 		debugAward(String.format("Level up %s: %d -> %d -> +%s credits (total %s)",
 			skill.getName(), previousLevel, currentLevel,
@@ -552,7 +553,7 @@ public class CreditAwardService
 		JsonObject evidence = new JsonObject();
 		evidence.addProperty("skill", skill == null ? "" : skill);
 		evidence.addProperty("xpDelta", xpDelta);
-		attestQueue.enqueue("xp_chunk", evidence, optimisticCredits);
+		attestQueue.enqueue(CreditAttestCoalescer.TYPE_XP_CHUNK, evidence, optimisticCredits);
 	}
 /** Persisted skill credit baseline, if one exists and is non-empty; {@code null} otherwise. */
 	private SkillCreditBaseline presentBaseline()

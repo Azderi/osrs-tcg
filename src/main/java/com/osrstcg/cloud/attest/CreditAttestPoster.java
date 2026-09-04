@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
+import com.osrstcg.cloud.api.CloudResponseSync;
 import com.osrstcg.cloud.api.JsonObjects;
 import java.io.IOException;
 import java.util.List;
@@ -81,11 +82,12 @@ final class CreditAttestPoster
 		boolean changed = false;
 		boolean appliedEconomy = false;
 
-		if (response.has("credits") || response.has("openedPacks") || response.has("totalCreditsGained"))
+		if (CloudResponseSync.hasEconomyFields(response))
 		{
-			long serverCredits = response.has("credits")
-				? response.get("credits").getAsLong()
-				: queue.stateService.getAuthoritativeCredits();
+			Double creditsNum = JsonObjects.readNumber(response, "credits");
+			long serverCredits = creditsNum == null
+				? queue.stateService.getAuthoritativeCredits()
+				: Math.round(creditsNum);
 			log.debug(
 				"Credit attest economy: serverCredits={} pendingBefore={} clearOptimistic={} pendingAfter={} rejected={}",
 				serverCredits,
@@ -93,7 +95,7 @@ final class CreditAttestPoster
 				clearOptimistic,
 				queue.stateService.getPendingOptimisticCredits(),
 				CreditAttestQueue.formatRejectedReasons(response));
-			queue.session.applySidebarStats(response);
+			CloudResponseSync.applyEconomyFields(response, queue.session::applySidebarStats);
 			appliedEconomy = true;
 			if (queue.stateService.getCredits() != creditsBefore)
 			{

@@ -18,6 +18,7 @@ import net.runelite.client.util.LinkBrowser;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
 import com.osrstcg.cloud.api.CloudEndpoints;
+import com.osrstcg.cloud.api.CloudResponseSync;
 import com.osrstcg.cloud.api.JsonObjects;
 import com.osrstcg.cloud.session.CloudSessionService;
 /**
@@ -347,19 +348,7 @@ public final class TradeCloudService
 /** Applies any credits/openedPacks/totalCreditsGained/revision fields present on a trade RPC response to session state. */
 	private void applyEconomyFieldsFromRpc(JsonObject response)
 	{
-		if (response == null)
-		{
-			return;
-		}
-		if (response.has("credits") || response.has("openedPacks") || response.has("totalCreditsGained"))
-		{
-			session.applySidebarStats(response);
-		}
-		Double revision = JsonObjects.readNumber(response, "revision");
-		if (revision != null)
-		{
-			noteRevision(Math.round(revision));
-		}
+		CloudResponseSync.applyEconomyAndRevision(response, session::applySidebarStats, this);
 	}
 /** Invokes the registered inbox listener, if any. */
 	private void notifyListener()

@@ -215,7 +215,7 @@ public final class LiveCardsCatalogParser
 		return out;
 	}
 /** Reads a JSON array of strings at {@code key}, trimming and dropping blanks; empty list if absent/not an array. */
-	private static List<String> parseStringList(JsonObject o, String key)
+	static List<String> parseStringList(JsonObject o, String key)
 	{
 		if (o == null || !o.has(key) || !o.get(key).isJsonArray())
 		{

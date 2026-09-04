@@ -4,7 +4,6 @@ import com.osrstcg.OsrsTcgConfig;
 import com.osrstcg.catalog.CardDatabase;
 import com.osrstcg.catalog.CardDefinition;
 import com.osrstcg.catalog.CardImageCacheService;
-import com.osrstcg.catalog.RollPoolFilter;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.cloud.session.CloudSessionService;
@@ -1184,7 +1183,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	private CloudSidebarCollectionStats overviewMetrics(PackCloseSnapshot snap)
 	{
 		List<CardDefinition> all = cardDatabase.getCards();
-		return TcgPublicStatsCalculator.resolveOverview(snap, all, RollPoolFilter.filterRollPool(all));
+		return TcgPublicStatsCalculator.resolveOverview(snap, all, all);
 	}
 /** Returns all four tabs' scroll panes, used to probe for a laid-out viewport width. */
 	private JScrollPane[] tabScrollPanes()

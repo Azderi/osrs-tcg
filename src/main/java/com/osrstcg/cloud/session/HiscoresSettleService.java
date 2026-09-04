@@ -16,6 +16,7 @@ import net.runelite.api.GameState;
 import net.runelite.client.chat.ChatMessageManager;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
+import com.osrstcg.cloud.api.CloudResponseSync;
 import com.osrstcg.cloud.api.JsonObjects;
 import com.osrstcg.cloud.trade.TradeCloudService;
 import javax.inject.Provider;
@@ -342,15 +343,7 @@ final class HiscoresSettleService
 			log.debug("Hiscores settle throttled/skipped (refreshing sidebar credits): {}", reason);
 		}
 
-		if (hasCredits || response.has("openedPacks") || response.has("totalCreditsGained"))
-		{
-			applySidebarStats.accept(response);
-		}
-		Double revision = JsonObjects.readNumber(response, "revision");
-		if (revision != null)
-		{
-			tradeCloudProvider.get().noteRevision(Math.round(revision));
-		}
+		CloudResponseSync.applyEconomyAndRevision(response, applySidebarStats, tradeCloudProvider.get());
 
 		long accepted = JsonObjects.readLong(response, "accepted", 0L);
 		if (accepted > 0L)

@@ -8,6 +8,7 @@ import com.google.gson.reflect.TypeToken;
 import com.osrstcg.catalog.CardDatabase;
 import com.osrstcg.catalog.CardDefinition;
 import com.osrstcg.util.AtomicFiles;
+import com.osrstcg.cloud.session.ProfileKeyHasher;
 import java.io.IOException;
 import java.io.Reader;
 import java.lang.reflect.Type;
@@ -22,7 +23,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.client.RuneLite;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
 /**
@@ -268,39 +268,12 @@ public final class CardCatalogService
 /** Directory under the RuneLite home folder used for the card catalog disk cache. */
 	private static Path diskCacheDir()
 	{
-		return Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG", "catalog");
+		return ProfileKeyHasher.tcgRoot().resolve("catalog");
 	}
 /** Clears the cached catalog version and deletes the entire disk cache directory. */
 	public void deleteDiskCache()
 	{
 		cachedCatalogVersion.set(null);
-		deleteDirectoryQuietly(diskCacheDir());
-	}
-/** Recursively deletes a directory, best-effort, logging but not throwing on failure. */
-	private static void deleteDirectoryQuietly(Path dir)
-	{
-		if (dir == null || !Files.isDirectory(dir))
-		{
-			return;
-		}
-		try (java.util.stream.Stream<Path> walk = Files.walk(dir))
-		{
-			walk.sorted(java.util.Comparator.reverseOrder()).forEach(path ->
-			{
-				try
-				{
-					Files.deleteIfExists(path);
-				}
-				catch (Exception ex)
-				{
-					log.debug("Failed deleting catalog cache path {}", path, ex);
-				}
-			});
-			log.info("Removed obsolete card catalog disk cache {}", dir);
-		}
-		catch (Exception ex)
-		{
-			log.debug("Failed walking catalog cache dir {}", dir, ex);
-		}
+		AtomicFiles.deleteDirectoryQuietly(diskCacheDir());
 	}
 }

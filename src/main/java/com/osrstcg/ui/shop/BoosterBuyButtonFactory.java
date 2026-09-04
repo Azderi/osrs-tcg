@@ -2,6 +2,7 @@ package com.osrstcg.ui.shop;
 
 import com.osrstcg.catalog.BoosterPackDefinition;
 import com.osrstcg.ui.layout.SidebarLayout;
+import com.osrstcg.util.NumberFormatting;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -64,10 +65,10 @@ final class BoosterBuyButtonFactory
 			packIconGray = null;
 		}
 
-		content.add(shopBoosterTextLabel(SidebarLayout.format(price) + " credits"));
+		content.add(shopBoosterTextLabel(NumberFormatting.format(price) + " credits"));
 
 		content.add(new ShopPackProgressBar(ShopPackProgressBar.WIDTH_PX, progressOwn, progressFoilOwn, progressTotal));
-		content.add(shopBoosterTextLabel(SidebarLayout.format(progressOwn) + " / " + SidebarLayout.format(progressTotal)));
+		content.add(shopBoosterTextLabel(NumberFormatting.format(progressOwn) + " / " + NumberFormatting.format(progressTotal)));
 		content.add(shopBoosterTextLabel("(" + String.format("%.2f", progressPct) + "%)"));
 
 		JButton button = new JButton();

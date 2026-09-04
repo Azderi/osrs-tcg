@@ -3,7 +3,6 @@ package com.osrstcg.ui.shop;
 import com.osrstcg.catalog.BoosterPackDefinition;
 import com.osrstcg.catalog.CardDatabase;
 import com.osrstcg.catalog.CardImageCacheService;
-import com.osrstcg.catalog.RollPoolFilter;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.cloud.session.CloudSessionService;
 import com.osrstcg.pack.PackOpenCoordinator;
@@ -12,6 +11,7 @@ import com.osrstcg.state.TcgStateService;
 import com.osrstcg.ui.layout.PackCloseSnapshot;
 import com.osrstcg.ui.layout.SidebarLayout;
 import com.osrstcg.ui.overview.OverviewTab;
+import com.osrstcg.util.NumberFormatting;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
@@ -108,7 +108,7 @@ public final class ShopTab
 	{
 		PackCloseSnapshot displaySnap = snapshotSupplier.get();
 		List<BoosterShopRow> shopRows = ShopProgress.computeRows(
-			displaySnap, cardDatabase.getCards(), RollPoolFilter.filterRollPool(cardDatabase.getCards()),
+			displaySnap, cardDatabase.getCards(), cardDatabase.getCards(),
 			shopVisibleBoosters());
 		renderFromPackClose(displaySnap, shopRows);
 	}
@@ -132,7 +132,7 @@ public final class ShopTab
 	{
 		if (creditsValueLabel != null)
 		{
-			creditsValueLabel.setText(SidebarLayout.format(credits));
+			creditsValueLabel.setText(NumberFormatting.format(credits));
 		}
 		applyBuyButtonEnabledState(credits);
 	}
@@ -140,7 +140,7 @@ public final class ShopTab
 	public List<BoosterShopRow> computeRows(PackCloseSnapshot snap)
 	{
 		return ShopProgress.computeRows(
-			snap, cardDatabase.getCards(), RollPoolFilter.filterRollPool(cardDatabase.getCards()),
+			snap, cardDatabase.getCards(), cardDatabase.getCards(),
 			shopVisibleBoosters());
 	}
 /** Kicks off async prefetch of hosted booster thumbnail images. */
@@ -172,7 +172,7 @@ public final class ShopTab
 	private void rebuildShopHeader(long credits)
 	{
 		shopHeaderPanel.removeAll();
-		JPanel creditsPanel = overviewTab.imageStatPanel("Credits", SidebarLayout.format(credits), SidebarLayout.CREDITS_IMAGE_PATH);
+		JPanel creditsPanel = overviewTab.imageStatPanel("Credits", NumberFormatting.format(credits), SidebarLayout.CREDITS_IMAGE_PATH);
 		Component east = ((BorderLayout) creditsPanel.getLayout()).getLayoutComponent(BorderLayout.EAST);
 		creditsValueLabel = east instanceof JLabel ? (JLabel) east : null;
 		shopHeaderPanel.add(creditsPanel);

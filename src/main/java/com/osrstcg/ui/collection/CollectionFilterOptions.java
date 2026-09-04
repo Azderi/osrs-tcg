@@ -98,18 +98,8 @@ public final class CollectionFilterOptions
 /** Builds the option for one pack, preferring its collection name over its own name/id as the label. */
 		public static PackFilterOption of(BoosterPackDefinition pack)
 		{
-			String key = pack.getCollectionKey();
-			String collectionName = pack.getCollectionName();
-			String label;
-			if (collectionName != null && !collectionName.isBlank())
-			{
-				label = collectionName.trim();
-			}
-			else
-			{
-				label = pack.getName() == null || pack.getName().isBlank() ? pack.getId() : pack.getName();
-			}
-			return new PackFilterOption(key, label == null ? "Pack" : label);
+			String label = pack.collectionDisplayName();
+			return new PackFilterOption(pack.getCollectionKey(), label == null || label.isBlank() ? "Pack" : label);
 		}
 /** The pack's collection key, or {@code null} for the "All" option. */
 		public String getPackId()

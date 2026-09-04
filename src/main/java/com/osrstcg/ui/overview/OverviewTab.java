@@ -5,6 +5,7 @@ import com.osrstcg.state.CloudSidebarCollectionStats;
 import com.osrstcg.state.TcgStateService;
 import com.osrstcg.ui.layout.PackCloseSnapshot;
 import com.osrstcg.ui.layout.SidebarLayout;
+import com.osrstcg.util.NumberFormatting;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -59,22 +60,22 @@ public final class OverviewTab
 		Integer collectionScoreRank = rankAt(ranks, 3, m.getCollectionScore() > 0L);
 		boolean reserveRankRow = totalCardsRank != null || foilCardsRank != null || completionRank != null
 			|| foilCompletionRank != null || openedPacksRank != null || collectionScoreRank != null;
-		JPanel creditsPanel = imageStatPanel("Credits", SidebarLayout.format(snap.credits), SidebarLayout.CREDITS_IMAGE_PATH);
+		JPanel creditsPanel = imageStatPanel("Credits", NumberFormatting.format(snap.credits), SidebarLayout.CREDITS_IMAGE_PATH);
 		Component east = ((BorderLayout) creditsPanel.getLayout()).getLayoutComponent(BorderLayout.EAST);
 		creditsValueLabel = east instanceof JLabel ? (JLabel) east : null;
 		target.add(creditsPanel);
 		target.add(Box.createRigidArea(new Dimension(0, 6)));
 		target.add(twoColumnGridPanel(List.of(
-			statBoxPanel("Unique cards", SidebarLayout.format(m.getUniqueOwned()) + " / " + SidebarLayout.format(m.getTotalCardPool())),
-			statBoxPanel("Unique foil cards", SidebarLayout.format(m.getUniqueFoilOwned()) + " / " + SidebarLayout.format(m.getTotalCardPool())),
-			statBoxPanel("Total cards", SidebarLayout.format(m.getTotalCardsOwned()), totalCardsRank, reserveRankRow),
-			statBoxPanel("Foil cards", SidebarLayout.format(m.getFoilOwned()), foilCardsRank, reserveRankRow),
+			statBoxPanel("Unique cards", NumberFormatting.format(m.getUniqueOwned()) + " / " + NumberFormatting.format(m.getTotalCardPool())),
+			statBoxPanel("Unique foil cards", NumberFormatting.format(m.getUniqueFoilOwned()) + " / " + NumberFormatting.format(m.getTotalCardPool())),
+			statBoxPanel("Total cards", NumberFormatting.format(m.getTotalCardsOwned()), totalCardsRank, reserveRankRow),
+			statBoxPanel("Foil cards", NumberFormatting.format(m.getFoilOwned()), foilCardsRank, reserveRankRow),
 			statBoxPanel("Collection %", String.format("%.2f%%", m.getCompletionPct()),
 				completionRank, reserveRankRow),
 			statBoxPanel("Collection Foil %", String.format("%.2f%%", m.getFoilCompletionPct()),
 				foilCompletionRank, reserveRankRow),
-			statBoxPanel("Opened packs", SidebarLayout.format(snap.openedPacks), openedPacksRank, reserveRankRow),
-			statBoxPanel("Collection score", SidebarLayout.format(m.getCollectionScore()), collectionScoreRank, reserveRankRow)
+			statBoxPanel("Opened packs", NumberFormatting.format(snap.openedPacks), openedPacksRank, reserveRankRow),
+			statBoxPanel("Collection score", NumberFormatting.format(m.getCollectionScore()), collectionScoreRank, reserveRankRow)
 		), STAT_GRID_GAP));
 	}
 /** Updates the already-rendered credits value label in place, if the tab has been rendered. */
@@ -82,7 +83,7 @@ public final class OverviewTab
 	{
 		if (creditsValueLabel != null)
 		{
-			creditsValueLabel.setText(SidebarLayout.format(credits));
+			creditsValueLabel.setText(NumberFormatting.format(credits));
 		}
 	}
 /** Builds a full-width row panel: an icon (if the resource resolves) and label on the left, value on the right. */

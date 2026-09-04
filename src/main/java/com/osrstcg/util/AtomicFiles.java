@@ -6,9 +6,14 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Comparator;
+import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 /** Temp-file write then atomic replace. */
 public final class AtomicFiles
 {
+	private static final Logger log = LoggerFactory.getLogger(AtomicFiles.class);
 /** No instances. */
 	private AtomicFiles()
 	{
@@ -59,6 +64,33 @@ public final class AtomicFiles
 		catch (AtomicMoveNotSupportedException ex)
 		{
 			Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+		}
+	}
+/** Recursively deletes {@code dir} if it exists, best-effort (logs, does not throw). */
+	public static void deleteDirectoryQuietly(Path dir)
+	{
+		if (dir == null || !Files.isDirectory(dir))
+		{
+			return;
+		}
+		try (Stream<Path> walk = Files.walk(dir))
+		{
+			walk.sorted(Comparator.reverseOrder()).forEach(path ->
+			{
+				try
+				{
+					Files.deleteIfExists(path);
+				}
+				catch (Exception ex)
+				{
+					log.debug("Failed deleting path {}", path, ex);
+				}
+			});
+			log.info("Removed directory {}", dir);
+		}
+		catch (Exception ex)
+		{
+			log.debug("Failed walking dir {}", dir, ex);
 		}
 	}
 }

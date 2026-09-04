@@ -81,85 +81,40 @@ public class TcgChatStatsShareService
 	{
 		String pct = String.format(Locale.US, "%.2f%%", s.getCompletionPct());
 		String foilPct = String.format(Locale.US, "%.2f%%", s.getFoilCompletionPct());
+		String pool = NumberFormatting.format(s.getTotalCardPool());
+		// Alternating label (even) / value (odd) — colored mode uses NORMAL/HIGHLIGHT on that cadence.
+		String[] segs = {
+			"Collection score: ", NumberFormatting.format(s.getCollectionScore()),
+			" (", pct,
+			"), Unique cards: ", NumberFormatting.format(s.getUniqueOwned()),
+			" / ", pool,
+			" (", pct,
+			"), Unique foil cards: ", NumberFormatting.format(s.getUniqueFoilOwned()),
+			" / ", pool,
+			" (", foilPct,
+			"), Opened packs: ", NumberFormatting.format(s.getOpenedPacks()),
+			", Total cards: ", NumberFormatting.format(s.getTotalCardsOwned()),
+			", Total foil cards: ", NumberFormatting.format(s.getFoilOwned())
+		};
 		if (colored)
 		{
-			ChatMessageBuilder builder = TcgPluginGameMessages.prefixBuilder()
-				.append(ChatColorType.NORMAL)
-				.append("Collection score: ")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(NumberFormatting.format(s.getCollectionScore()))
-				.append(ChatColorType.NORMAL)
-				.append(" (")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(pct)
-				.append(ChatColorType.NORMAL)
-				.append("), Unique cards: ")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(NumberFormatting.format(s.getUniqueOwned()))
-				.append(ChatColorType.NORMAL)
-				.append(" / ")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(NumberFormatting.format(s.getTotalCardPool()))
-				.append(ChatColorType.NORMAL)
-				.append(" (")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(pct)
-				.append(ChatColorType.NORMAL)
-				.append("), Unique foil cards: ")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(NumberFormatting.format(s.getUniqueFoilOwned()))
-				.append(ChatColorType.NORMAL)
-				.append(" / ")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(NumberFormatting.format(s.getTotalCardPool()))
-				.append(ChatColorType.NORMAL)
-				.append(" (")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(foilPct)
-				.append(ChatColorType.NORMAL)
-				.append("), Opened packs: ")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(NumberFormatting.format(s.getOpenedPacks()))
-				.append(ChatColorType.NORMAL)
-				.append(", Total cards: ")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(NumberFormatting.format(s.getTotalCardsOwned()))
-				.append(ChatColorType.NORMAL)
-				.append(", Total foil cards: ")
-				.append(ChatColorType.HIGHLIGHT)
-				.append(NumberFormatting.format(s.getFoilOwned()));
+			ChatMessageBuilder builder = TcgPluginGameMessages.prefixBuilder();
+			for (int i = 0; i < segs.length; i++)
+			{
+				builder.append(i % 2 == 0 ? ChatColorType.NORMAL : ChatColorType.HIGHLIGHT)
+					.append(segs[i]);
+			}
 			if (s.isCustomRates())
 			{
-				builder.append(ChatColorType.NORMAL)
-					.append(" (custom rates)");
+				builder.append(ChatColorType.NORMAL).append(" (custom rates)");
 			}
 			return builder.build();
 		}
-
-		StringBuilder plain = new StringBuilder()
-			.append(TcgPluginGameMessages.plainPrefix())
-			.append("Collection score: ")
-			.append(NumberFormatting.format(s.getCollectionScore()))
-			.append(" (")
-			.append(pct)
-			.append("), Unique cards: ")
-			.append(NumberFormatting.format(s.getUniqueOwned()))
-			.append(" / ")
-			.append(NumberFormatting.format(s.getTotalCardPool()))
-			.append(" (")
-			.append(pct)
-			.append("), Unique foil cards: ")
-			.append(NumberFormatting.format(s.getUniqueFoilOwned()))
-			.append(" / ")
-			.append(NumberFormatting.format(s.getTotalCardPool()))
-			.append(" (")
-			.append(foilPct)
-			.append("), Opened packs: ")
-			.append(NumberFormatting.format(s.getOpenedPacks()))
-			.append(", Total cards: ")
-			.append(NumberFormatting.format(s.getTotalCardsOwned()))
-			.append(", Total foil cards: ")
-			.append(NumberFormatting.format(s.getFoilOwned()));
+		StringBuilder plain = new StringBuilder(TcgPluginGameMessages.plainPrefix());
+		for (String seg : segs)
+		{
+			plain.append(seg);
+		}
 		if (s.isCustomRates())
 		{
 			plain.append(" (custom rates)");

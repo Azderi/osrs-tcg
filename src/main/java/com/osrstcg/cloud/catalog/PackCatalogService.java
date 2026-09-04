@@ -233,33 +233,7 @@ public final class PackCatalogService
 		{
 			pack.setImage(image);
 		}
-		if (o != null && o.has("category") && o.get("category").isJsonArray())
-		{
-			List<String> cats = new ArrayList<>();
-			for (JsonElement c : o.getAsJsonArray("category"))
-			{
-				if (c == null || c.isJsonNull())
-				{
-					continue;
-				}
-				try
-				{
-					String s = c.getAsString();
-					if (s != null && !s.isBlank())
-					{
-						cats.add(s.trim());
-					}
-				}
-				catch (RuntimeException ignored)
-				{
-				}
-			}
-			pack.setCategory(cats);
-		}
-		else
-		{
-			pack.setCategory(List.of());
-		}
+		pack.setCategory(LiveCardsCatalogParser.parseStringList(o, "category"));
 		String collectionName = JsonObjects.textTrimmed(o, "collectionName");
 		if (collectionName != null)
 		{

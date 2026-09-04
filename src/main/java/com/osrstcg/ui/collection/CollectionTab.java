@@ -4,7 +4,6 @@ import com.osrstcg.catalog.BoosterPackDefinition;
 import com.osrstcg.catalog.CardDatabase;
 import com.osrstcg.catalog.CardDefinition;
 import com.osrstcg.catalog.RarityMath;
-import com.osrstcg.catalog.RollPoolFilter;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.interop.TcgPublicStatsCalculator;
 import com.osrstcg.state.CloudSidebarCollectionStats;
@@ -12,6 +11,7 @@ import com.osrstcg.state.CollectionState;
 import com.osrstcg.ui.layout.PackCloseSnapshot;
 import com.osrstcg.ui.layout.SidebarLayout;
 import com.osrstcg.ui.shop.ShopProgress;
+import com.osrstcg.util.NumberFormatting;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
@@ -181,7 +181,7 @@ public final class CollectionTab
 		List<CardDefinition> allCards = cardDatabase.getCards();
 		List<BoosterPackDefinition> packs = collectionFilterPacks();
 		BoosterPackDefinition selectedPack = resolveSelectedPack(packs);
-		List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(allCards);
+		List<CardDefinition> rollPool = allCards;
 
 		collectionContent.removeAll();
 		JPanel toolbar = buildCollectionToolbar(packs, selectedPack, snap, allCards, rollPool);
@@ -223,7 +223,7 @@ public final class CollectionTab
 		{
 			try
 			{
-				List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(allCards);
+				List<CardDefinition> rollPool = allCards;
 				Set<String> packEligible = packFilter == null
 					? null
 					: CollectionListModel.eligibleNamesForPack(packFilter, allCards, rollPool);
@@ -367,7 +367,7 @@ public final class CollectionTab
 		}
 		double pct = total <= 0 ? 0d : (100d * owned) / total;
 		JLabel progressLabel = new JLabel(String.format("%s: %s / %s (%.2f%%)",
-			label, SidebarLayout.format(owned), SidebarLayout.format(total), pct));
+			label, NumberFormatting.format(owned), NumberFormatting.format(total), pct));
 		progressLabel.setForeground(new Color(0xCCCCCC));
 		progressLabel.setFont(FontManager.getRunescapeSmallFont());
 		progressLabel.setHorizontalAlignment(SwingConstants.CENTER);

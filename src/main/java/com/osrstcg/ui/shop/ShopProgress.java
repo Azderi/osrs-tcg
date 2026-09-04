@@ -104,7 +104,7 @@ public final class ShopProgress
 			{
 				return cached;
 			}
-			Set<String> eligible = computeEligible(booster, allCards, rollPool);
+			Set<String> eligible = CollectionListModel.eligibleNamesForPack(booster, allCards, rollPool);
 			eligibleByPackKey.put(key, eligible);
 			return eligible;
 		}
@@ -122,14 +122,6 @@ public final class ShopProgress
 			return id;
 		}
 		return String.valueOf(booster.getCategoryFilters());
-	}
-/** Delegates to {@link CollectionListModel#eligibleNamesForPack} to compute a booster's eligible names. */
-	private static Set<String> computeEligible(
-		BoosterPackDefinition booster,
-		List<CardDefinition> allCards,
-		List<CardDefinition> rollPool)
-	{
-		return CollectionListModel.eligibleNamesForPack(booster, allCards, rollPool);
 	}
 /** Builds one {@link BoosterShopRow} per non-null booster, with progress computed against {@code snap.owned}. */
 	public static List<BoosterShopRow> computeRows(
@@ -186,27 +178,12 @@ public final class ShopProgress
 			{
 				continue;
 			}
-			String display = collectionDisplayName(booster);
+			String display = booster.collectionDisplayName();
 			if (display != null && !display.isBlank())
 			{
 				names.add(display);
 			}
 		}
 		return new ArrayList<>(names);
-	}
-/** Human-readable collection label: collectionName, else pack name, else id. */
-	private static String collectionDisplayName(BoosterPackDefinition booster)
-	{
-		String collectionName = booster.getCollectionName();
-		if (collectionName != null && !collectionName.isBlank())
-		{
-			return collectionName.trim();
-		}
-		String name = booster.getName();
-		if (name != null && !name.isBlank())
-		{
-			return name.trim();
-		}
-		return booster.getId();
 	}
 }

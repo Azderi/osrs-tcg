@@ -10,6 +10,7 @@ import com.osrstcg.cloud.activity.ActivityConfigModels.NpcExclusionsDto;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
 import com.osrstcg.util.AtomicFiles;
+import com.osrstcg.cloud.session.ProfileKeyHasher;
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
@@ -32,7 +33,6 @@ import java.util.regex.PatternSyntaxException;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.client.RuneLite;
 /**
  * Fetches, caches, and compiles the server-driven activity config (chat-based credit rules and NPC
  * exclusions) used to award activity credits. Holds the current {@link CompiledActivityConfig} in an
@@ -398,7 +398,7 @@ public final class ActivityConfigService
 /** Directory under the RuneLite home dir holding the activity config disk cache. */
 	private static Path diskCacheDir()
 	{
-		return Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG", "activities");
+		return ProfileKeyHasher.tcgRoot().resolve("activities");
 	}
 /** Path to the cached raw activity config JSON file. */
 	private static Path diskCacheFile()

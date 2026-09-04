@@ -2,6 +2,7 @@ package com.osrstcg.credit;
 
 import com.google.gson.JsonObject;
 import com.osrstcg.cloud.activity.ActivityConfigService;
+import com.osrstcg.cloud.attest.CreditAttestCoalescer;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
 import java.util.Map;
 import java.util.Optional;
@@ -198,7 +199,7 @@ public final class NpcKillCreditTracker
 		{
 			evidence.addProperty("npcName", npcName);
 		}
-		attestQueue.enqueue("npc_kill", evidence, optimisticCredits);
+		attestQueue.enqueue(CreditAttestCoalescer.TYPE_NPC_KILL, evidence, optimisticCredits);
 	}
 /** Strips RuneLite formatting tags from an NPC name, defaulting to "Unnamed NPC" for {@code null}. */
 	private static String normalizeName(String npcName)

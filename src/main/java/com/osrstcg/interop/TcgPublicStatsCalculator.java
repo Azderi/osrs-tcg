@@ -15,7 +15,6 @@ import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import com.osrstcg.catalog.CollectionSetCompletionUtil;
-import com.osrstcg.catalog.RollPoolFilter;
 import com.osrstcg.state.TcgStateService;
 import com.osrstcg.ui.layout.PackCloseSnapshot;
 /**
@@ -61,7 +60,7 @@ public class TcgPublicStatsCalculator
 				false);
 		}
 		List<CardDefinition> all = cardDatabase.getCards();
-		List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(all);
+		List<CardDefinition> rollPool = all;
 		CloudSidebarCollectionStats overview = computeLocalOverview(owned, all, rollPool);
 		return new TcgPublicStats(
 			overview.getCollectionScore(),
@@ -84,7 +83,7 @@ public class TcgPublicStatsCalculator
 			owned = new HashMap<>(stateService.getState().getCollectionState().getOwnedCards());
 		}
 		List<CardDefinition> all = cardDatabase.getCards();
-		List<CardDefinition> rollPool = RollPoolFilter.filterRollPool(all);
+		List<CardDefinition> rollPool = all;
 		return computeLocalOverview(owned, all, rollPool);
 	}
 /** Uses {@code snap}'s pre-computed overview if it has one, else computes it locally from {@code snap.owned}. */

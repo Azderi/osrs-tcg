@@ -2,6 +2,7 @@ package com.osrstcg.catalog;
 
 import com.osrstcg.cloud.api.CloudEndpoints;
 import com.osrstcg.cloud.session.CloudTokenStore;
+import com.osrstcg.cloud.session.ProfileKeyHasher;
 import com.osrstcg.persist.TcgStateHash;
 import com.osrstcg.util.AtomicFiles;
 import java.awt.Graphics2D;
@@ -14,7 +15,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,7 +27,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReadParam;
 import javax.imageio.ImageReader;
@@ -35,7 +34,6 @@ import javax.imageio.stream.ImageInputStream;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.client.RuneLite;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -340,37 +338,10 @@ public class CardImageCacheService
 /** Deletes disk cache directories from prior cache-format versions, freeing space left behind by upgrades. */
 	public void deleteObsoleteImageCacheDirs()
 	{
-		Path root = tcgCacheRoot();
-		deleteDirectoryQuietly(root.resolve("images-v3"));
-		deleteDirectoryQuietly(root.resolve("images-v2"));
-		deleteDirectoryQuietly(root.resolve("images"));
-	}
-/** Recursively deletes {@code dir} if it exists, logging but not throwing on failure. */
-	private static void deleteDirectoryQuietly(Path dir)
-	{
-		if (dir == null || !Files.isDirectory(dir))
-		{
-			return;
-		}
-		try (Stream<Path> walk = Files.walk(dir))
-		{
-			walk.sorted(Comparator.reverseOrder()).forEach(path ->
-			{
-				try
-				{
-					Files.deleteIfExists(path);
-				}
-				catch (Exception ex)
-				{
-					log.debug("Failed deleting image cache path {}", path, ex);
-				}
-			});
-			log.info("Removed obsolete image cache {}", dir);
-		}
-		catch (Exception ex)
-		{
-			log.debug("Failed walking image cache dir {}", dir, ex);
-		}
+		Path root = ProfileKeyHasher.tcgRoot();
+		AtomicFiles.deleteDirectoryQuietly(root.resolve("images-v3"));
+		AtomicFiles.deleteDirectoryQuietly(root.resolve("images-v2"));
+		AtomicFiles.deleteDirectoryQuietly(root.resolve("images"));
 	}
 /** Disk cache path for {@code cacheKey}: a name derived from the pack/card-back URL for pack assets, else a hashed filename under the general cache dir. */
 	private Path diskCacheFile(String cacheKey)
@@ -476,19 +447,14 @@ public class CardImageCacheService
 		}
 		return fetchUrl;
 	}
-/** The plugin's cache root directory under the RuneLite data dir. */
-	private static Path tcgCacheRoot()
-	{
-		return Path.of(RuneLite.RUNELITE_DIR.getAbsolutePath(), "OSRS-TCG");
-	}
 /** Disk cache directory for general card images (current format version). */
 	private Path diskCacheDir()
 	{
-		return tcgCacheRoot().resolve("images-v4");
+		return ProfileKeyHasher.tcgRoot().resolve("images-v4");
 	}
 /** Disk cache directory for pack sleeve/card-back assets, kept separate since they're keyed by filename rather than hash. */
 	private Path packDiskCacheDir()
 	{
-		return tcgCacheRoot().resolve("packs");
+		return ProfileKeyHasher.tcgRoot().resolve("packs");
 	}
 }

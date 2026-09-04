@@ -31,6 +31,19 @@ public class BoosterPackDefinition
 		}
 		return id;
 	}
+/** Human-readable collection label: collectionName, else pack name, else id. */
+	public String collectionDisplayName()
+	{
+		if (collectionName != null && !collectionName.isBlank())
+		{
+			return collectionName.trim();
+		}
+		if (name != null && !name.isBlank())
+		{
+			return name.trim();
+		}
+		return id;
+	}
 /** Whether {@code path} is a hosted asset reference (site-relative or {@code https://}) rather than a bundled resource path. */
 	public static boolean isHostedImagePath(String path)
 	{
