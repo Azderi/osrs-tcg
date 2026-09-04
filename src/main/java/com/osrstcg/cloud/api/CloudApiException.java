@@ -6,22 +6,27 @@ public final class CloudApiException extends Exception
 	private final String code;
 /** Optional server credits from an error body (e.g. insufficient funds on pack open). */
 	private final Long serverCredits;
+/** Optional server-suggested reconnect delay from {@code error.details.retryAfterSec}. */
+	private final Long retryAfterSec;
 /** Creates an exception with no server-reported credits balance. */
 	public CloudApiException(int status, String code, String message)
 	{
-		this(status, code, message, null);
+		this(status, code, message, null, null);
 	}
 /**
 	 * @param status HTTP status code, or 0 for a non-HTTP failure (e.g. invalid base URL).
 	 * @param code server error code, defaulted to {@code "error"} when null.
 	 * @param message human-facing message; falls back to {@code code} when null.
+	 * @param serverCredits optional credits from the error JSON.
+	 * @param retryAfterSec optional reconnect hint from {@code error.details.retryAfterSec}.
 	 */
-	public CloudApiException(int status, String code, String message, Long serverCredits)
+	public CloudApiException(int status, String code, String message, Long serverCredits, Long retryAfterSec)
 	{
 		super(message == null ? code : message);
 		this.status = status;
 		this.code = code == null ? "error" : code;
 		this.serverCredits = serverCredits;
+		this.retryAfterSec = retryAfterSec;
 	}
 /** HTTP status code, or 0 for a non-HTTP failure. */
 	public int getStatus()
@@ -37,6 +42,11 @@ public final class CloudApiException extends Exception
 	public Long getServerCredits()
 	{
 		return serverCredits;
+	}
+/** Server-suggested retry delay in seconds when present on {@code error.details}; otherwise null. */
+	public Long getRetryAfterSec()
+	{
+		return retryAfterSec;
 	}
 /** True for HTTP 401 (not signed in / expired token). */
 	public boolean isUnauthorized()

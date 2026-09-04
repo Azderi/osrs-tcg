@@ -205,15 +205,17 @@ public class CloudSessionCoordinator
 		{
 			return;
 		}
-		long spanMs = CLOUD_RECONNECT_MAX_MS - CLOUD_RECONNECT_MIN_MS;
-		long delayMs = CLOUD_RECONNECT_MIN_MS
-			+ ThreadLocalRandom.current().nextLong(spanMs + 1L);
 		synchronized (cloudReconnectLock)
 		{
 			if (cloudReconnectFuture != null && !cloudReconnectFuture.isDone())
 			{
 				return;
 			}
+			long suggestedMs = cloudSessionService.takeSuggestedReconnectDelayMs();
+			long delayMs = suggestedMs > 0L
+				? Math.max(CLOUD_RECONNECT_MIN_MS, Math.min(CLOUD_RECONNECT_MAX_MS, suggestedMs))
+				: CLOUD_RECONNECT_MIN_MS
+					+ ThreadLocalRandom.current().nextLong(CLOUD_RECONNECT_MAX_MS - CLOUD_RECONNECT_MIN_MS + 1L);
 			cloudReconnectFuture = scheduler.schedule(
 				this::onReconnectTimer,
 				delayMs,

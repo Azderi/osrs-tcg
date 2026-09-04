@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -71,6 +72,8 @@ public final class CloudSessionService
 	private final AtomicBoolean hiscoresRetryScheduled = new AtomicBoolean(false);
 	private final AtomicBoolean accountBanned = new AtomicBoolean(false);
 	private final AtomicBoolean accountQuarantined = new AtomicBoolean(false);
+	/** Server-suggested reconnect delay ms (0 = unset); taken by the coordinator once. */
+	private final AtomicLong suggestedReconnectDelayMs = new AtomicLong(0L);
 	private final List<Runnable> accountLockCleanups = new CopyOnWriteArrayList<>();
 
 	public static final String ACCOUNT_BANNED_STATUS =
@@ -189,6 +192,11 @@ public final class CloudSessionService
 			return;
 		}
 		setState(state, "Cloud unreachable - retrying in 5-15m");
+	}
+/** Takes and clears any stashed reconnect delay ms; returns 0 when none was set. */
+	public long takeSuggestedReconnectDelayMs()
+	{
+		return suggestedReconnectDelayMs.getAndSet(0L);
 	}
 /** Whether the current world type is one where cloud credits are disabled. */
 	public boolean isRestrictedWorld()
@@ -475,6 +483,7 @@ public final class CloudSessionService
 			{
 				return;
 			}
+			suggestedReconnectDelayMs.set(0L);
 			setState(CloudConnectionState.CONNECTED, "Connected");
 			packCatalogService.refreshOnLogin();
 			cardCatalogService.refreshOnLogin();
@@ -486,6 +495,11 @@ public final class CloudSessionService
 			if (isAccountLocked())
 			{
 				return;
+			}
+			Long sec = ex.getRetryAfterSec();
+			if (sec != null && sec > 0L)
+			{
+				suggestedReconnectDelayMs.set(sec * 1000L);
 			}
 			setState(CloudConnectionState.ERROR, ex.getMessage());
 			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
@@ -525,6 +539,7 @@ public final class CloudSessionService
 	{
 		accountBanned.set(false);
 		accountQuarantined.set(false);
+		suggestedReconnectDelayMs.set(0L);
 		clearLoginFetchGates();
 		stateService.clearCollectionStatsCache();
 		stateService.clearCloudGroupKey();
