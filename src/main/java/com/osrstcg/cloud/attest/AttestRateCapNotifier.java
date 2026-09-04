@@ -5,10 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.osrstcg.cloud.api.JsonObjects;
 import com.osrstcg.util.TcgPluginGameMessages;
-import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import javax.inject.Inject;
@@ -28,14 +25,8 @@ public final class AttestRateCapNotifier
 	static final long MINUTE_MS = 60_000L;
 
 	private static final String RATE_CAP_PREFIX = "rate_cap";
-
-	private static final String[][] SPECIFIC_MESSAGES = {
-		{"skill", "Credit rate limit hit: Some skill XP was not credited this hour. Try again later."},
-		{"level_up", "Credit rate limit hit: Some level-up credits were not applied. Try again later."},
-		{"kill", "Credit rate limit hit: Some NPC kills were not credited this hour. Try again later."},
-		{"activity", "Credit rate limit hit: Some activity credits were skipped. Try again later."},
-		{"global", "Credit rate limit hit: Hourly or daily credit cap reached. Try again later."},
-	};
+	private static final String HOURLY_REJECT_MESSAGE =
+		"Credit rate limit hit - some credits were not applied this hour. Try again later.";
 
 	private final Consumer<String> chatSink;
 	private final AtomicLong lastRateCapWarnAtMs = new AtomicLong(0L);
@@ -61,7 +52,7 @@ public final class AttestRateCapNotifier
 		onAttestResponse(response, System.currentTimeMillis());
 	}
 /**
-	 * Logs rate-cap pause or rejection reasons found in {@code response} and, subject to throttling,
+	 * Logs rate-cap pause or rejection found in {@code response} and, subject to throttling,
 	 * warns the player in chat. {@code rateCapAfterMs} takes precedence over reject-reason messages.
 	 * Also logs a warning if the response is marked quarantined.
 	 */
@@ -80,18 +71,14 @@ public final class AttestRateCapNotifier
 			log.info("Credit attest rate cap pause: {}ms", rateCapAfterMs);
 			maybeWarnMessage(playerFacingRateCapPauseMessage(rateCapAfterMs), nowMs);
 		}
+		else if (hasRateCapReject(response))
+		{
+			log.info("Credit attest rate cap reject");
+			maybeWarnMessage(HOURLY_REJECT_MESSAGE, nowMs);
+		}
 		else
 		{
-			List<String> rateCapReasons = collectRateCapReasons(response);
-			if (!rateCapReasons.isEmpty())
-			{
-				log.info("Credit attest rate cap: {}", rateCapReasons);
-				maybeWarnMessage(playerFacingRateCapMessage(rateCapReasons), nowMs);
-			}
-			else
-			{
-				log.debug("Credit attest rejects (no rate_cap): {}", CreditAttestQueue.formatRejectedReasons(response));
-			}
+			log.debug("Credit attest rejects (no rate_cap): {}", CreditAttestQueue.formatRejectedReasons(response));
 		}
 
 		if (quarantined)
@@ -99,13 +86,12 @@ public final class AttestRateCapNotifier
 			log.warn("Credit attest response quarantined=true");
 		}
 	}
-/** Extracts distinct {@code reason} values from {@code response.rejected} that start with {@code rate_cap}. */
-	static List<String> collectRateCapReasons(JsonObject response)
+/** True if {@code response.rejected} contains any reason starting with {@code rate_cap}. */
+	static boolean hasRateCapReject(JsonObject response)
 	{
-		Set<String> reasons = new LinkedHashSet<>();
 		if (response == null || !response.has("rejected") || !response.get("rejected").isJsonArray())
 		{
-			return List.of();
+			return false;
 		}
 		JsonArray rejected = response.getAsJsonArray("rejected");
 		for (JsonElement el : rejected)
@@ -115,12 +101,12 @@ public final class AttestRateCapNotifier
 				continue;
 			}
 			String reason = JsonObjects.text(el.getAsJsonObject(), "reason");
-			if (reason != null && isRateCapReason(reason))
+			if (isRateCapReason(reason))
 			{
-				reasons.add(reason.trim());
+				return true;
 			}
 		}
-		return List.copyOf(reasons);
+		return false;
 	}
 /** True if {@code reason}, case-insensitively, starts with the {@code rate_cap} prefix. */
 	static boolean isRateCapReason(String reason)
@@ -148,46 +134,6 @@ public final class AttestRateCapNotifier
 			return 0L;
 		}
 		return Math.max(1L, (rateCapAfterMs + MINUTE_MS - 1L) / MINUTE_MS);
-	}
-/** Builds the chat message for a rate-cap warning, preferring a category-specific message when one applies. */
-	static String playerFacingRateCapMessage(List<String> reasons)
-	{
-		String specific = mapSpecificMessage(reasons);
-		if (specific != null)
-		{
-			return specific;
-		}
-		return "Credit rate limit hit - some XP/kills were not credited this hour. Try again later.";
-	}
-/**
-	 * Returns a message naming the single credit category (skill/level/kills/activity/global) hit by the
-	 * rate cap, or {@code null} if the reasons are empty or span more than one category.
-	 */
-	private static String mapSpecificMessage(List<String> reasons)
-	{
-		if (reasons == null || reasons.isEmpty())
-		{
-			return null;
-		}
-		int match = -1;
-		for (String r : reasons)
-		{
-			String key = r.toLowerCase(Locale.ROOT);
-			for (int i = 0; i < SPECIFIC_MESSAGES.length; i++)
-			{
-				if (!key.contains(SPECIFIC_MESSAGES[i][0]))
-				{
-					continue;
-				}
-				if (match >= 0 && match != i)
-				{
-					return null;
-				}
-				match = i;
-				break;
-			}
-		}
-		return match < 0 ? null : SPECIFIC_MESSAGES[match][1];
 	}
 /** Posts {@code message} unless a rate-cap warning was already sent within {@link #RATE_CAP_THROTTLE_MS}. */
 	private void maybeWarnMessage(String message, long nowMs)

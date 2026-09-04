@@ -47,7 +47,7 @@ public class AttestRateCapNotifierTest
 	}
 
 	@Test
-	public void rejectOnlyUsesCategoryMessage()
+	public void rejectOnlyUsesHourlyMessage()
 	{
 		AtomicReference<String> chat = new AtomicReference<>();
 		AttestRateCapNotifier notifier = new AttestRateCapNotifier(chat::set);
@@ -61,7 +61,7 @@ public class AttestRateCapNotifierTest
 
 		notifier.onAttestResponse(response, 1_000L);
 		assertEquals(
-			"Credit rate limit hit: Hourly or daily credit cap reached. Try again later.",
+			"Credit rate limit hit - some credits were not applied this hour. Try again later.",
 			chat.get());
 	}
 

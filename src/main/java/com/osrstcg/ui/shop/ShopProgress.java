@@ -7,7 +7,9 @@ import com.osrstcg.state.CardCollectionKey;
 import com.osrstcg.ui.collection.CollectionListModel;
 import com.osrstcg.ui.layout.PackCloseSnapshot;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -147,5 +149,63 @@ public final class ShopProgress
 			out.add(new BoosterShopRow(booster, p[0], p[1], p[2]));
 		}
 		return out;
+	}
+/**
+	 * Display names of pack collections that became fully owned between {@code ownedBefore} and
+	 * {@code ownedAfter} (same eligibility as {@link #ownedTotal}). Deduped by collection key.
+	 */
+	public static List<String> newlyCompletedCollections(
+		Map<CardCollectionKey, Integer> ownedBefore,
+		Map<CardCollectionKey, Integer> ownedAfter,
+		List<CardDefinition> allCards,
+		List<CardDefinition> rollPool,
+		List<BoosterPackDefinition> boosters)
+	{
+		if (boosters == null || boosters.isEmpty())
+		{
+			return Collections.emptyList();
+		}
+		Set<String> seenKeys = new HashSet<>();
+		Set<String> names = new LinkedHashSet<>();
+		for (BoosterPackDefinition booster : boosters)
+		{
+			if (booster == null)
+			{
+				continue;
+			}
+			String key = booster.getCollectionKey();
+			if (key == null || key.isBlank() || !seenKeys.add(key))
+			{
+				continue;
+			}
+			int[] before = ownedTotal(booster, allCards, rollPool, ownedBefore);
+			int[] after = ownedTotal(booster, allCards, rollPool, ownedAfter);
+			int total = before[2];
+			if (total <= 0 || before[0] >= total || after[0] < total)
+			{
+				continue;
+			}
+			String display = collectionDisplayName(booster);
+			if (display != null && !display.isBlank())
+			{
+				names.add(display);
+			}
+		}
+		return new ArrayList<>(names);
+	}
+/** Human-readable collection label: collectionName, else pack name, else id. */
+	private static String collectionDisplayName(BoosterPackDefinition booster)
+	{
+		String collectionName = booster.getCollectionName();
+		if (collectionName != null && !collectionName.isBlank())
+		{
+			return collectionName.trim();
+		}
+		String name = booster.getName();
+		if (name != null && !name.isBlank())
+		{
+			return name.trim();
+		}
+		return booster.getId();
 	}
 }
