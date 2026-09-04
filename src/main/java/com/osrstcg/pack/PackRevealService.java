@@ -123,7 +123,7 @@ public class PackRevealService
 	public static final long PACK_DEAL_STAGGER_MS = 115L;
 	public static final long PACK_DEAL_FLIGHT_MS = 260L;
 	public static final int MAX_VISIBLE_REVEAL_CARDS = 5;
-	public static final long PENDING_PULLS_TIMEOUT_MS = 5_000L;
+	public static final long PENDING_PULLS_TIMEOUT_MS = 8_000L;
 	public static final String PENDING_PULLS_TIMEOUT_MESSAGE =
 		"There was a problem opening the pack at this time. Try again later.";
 
