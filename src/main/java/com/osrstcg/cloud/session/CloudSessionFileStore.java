@@ -39,8 +39,8 @@ public final class CloudSessionFileStore
 /** Session file path for an account, or {@code null} if the account hash is unset. */
 	Path sessionFile(long accountHash)
 	{
-		String id = ProfileKeyHasher.accountDirName(accountHash);
-		return id == null ? null : profilesRoot.resolve(id).resolve(SESSION_FILENAME);
+		Path dir = accountDir(accountHash);
+		return dir == null ? null : dir.resolve(SESSION_FILENAME);
 	}
 /** Profile directory for an account, or {@code null} if unset. */
 	Path accountDir(long accountHash)

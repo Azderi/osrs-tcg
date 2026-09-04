@@ -159,13 +159,7 @@ public final class CreditAttestQueue
 /** Reads {@code rateCapAfterMs} from an attest response, or 0 when absent/invalid. */
 	static long parseRateCapAfterMs(JsonObject response)
 	{
-		Double parsed = JsonObjects.readNumber(response, "rateCapAfterMs");
-		if (parsed == null)
-		{
-			return 0L;
-		}
-		long ms = Math.round(parsed);
-		return ms > 0L ? ms : 0L;
+		return Math.max(0L, JsonObjects.readLong(response, "rateCapAfterMs"));
 	}
 /** Drops all in-memory pending events without flushing. */
 	public void discardPending()
@@ -218,14 +212,7 @@ public final class CreditAttestQueue
 			}
 		}
 
-		JsonObject event = new JsonObject();
-		event.addProperty("type", type);
-		event.add("evidence", evidence == null ? new JsonObject() : evidence.deepCopy());
-		event.addProperty("at", System.currentTimeMillis());
-		if (optimisticCredits > 0L)
-		{
-			event.addProperty(CreditAttestCoalescer.CLIENT_OPTIMISTIC_CREDITS, optimisticCredits);
-		}
+		JsonObject event = CreditAttestCoalescer.copyEvent(type, evidence, System.currentTimeMillis(), optimisticCredits);
 
 		boolean spikeFlush = false;
 		synchronized (lock)

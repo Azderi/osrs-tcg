@@ -160,7 +160,11 @@ public final class CloudApiClient
 			{
 				return LiveCardsResponse.notModified(versionHeader);
 			}
-			String text = readSuccessfulBody(response);
+			String text = readBody(response);
+			if (!response.isSuccessful())
+			{
+				throw httpError(response.code(), text);
+			}
 			JsonObject body = parseObject(text);
 			String version = versionHeader;
 			if (version == null || version.isBlank())
@@ -199,10 +203,8 @@ public final class CloudApiClient
 	public JsonObject pairStart(String displayName, String profileKeyHash, long accountHash)
 		throws CloudApiException, IOException
 	{
-		JsonObject body = new JsonObject();
-		body.addProperty("displayName", displayName);
+		JsonObject body = nameAndHashBody(displayName, accountHash);
 		body.addProperty("profileKeyHash", profileKeyHash);
-		body.addProperty("accountHash", Long.toString(accountHash));
 		return request("POST", "/auth/pair/start", body, false);
 	}
 /** {@code POST /auth/refresh} (unauthenticated). Blocking call. */
@@ -252,10 +254,7 @@ public final class CloudApiClient
 /** {@code POST /credits/settle-hiscores}. Blocking call. */
 	public JsonObject settleHiscores(String displayName, long accountHash) throws CloudApiException, IOException
 	{
-		JsonObject body = new JsonObject();
-		body.addProperty("displayName", displayName);
-		body.addProperty("accountHash", Long.toString(accountHash));
-		return requestAuthed("POST", "/credits/settle-hiscores", body);
+		return requestAuthed("POST", "/credits/settle-hiscores", nameAndHashBody(displayName, accountHash));
 	}
 /** {@code GET /config/activities/version} (unauthenticated). Blocking call. */
 	public String getActivitiesVersion() throws CloudApiException, IOException
@@ -620,16 +619,6 @@ public final class CloudApiClient
 		}
 		return executeWithFailover(b.build());
 	}
-/** Reads the response body, throwing {@link CloudApiException} if the response was not successful. */
-	private String readSuccessfulBody(Response response) throws CloudApiException, IOException
-	{
-		String text = readBody(response);
-		if (!response.isSuccessful())
-		{
-			throw httpError(response.code(), text);
-		}
-		return text;
-	}
 /** Reads the response body as UTF-8 text, or {@code ""} if there is none. */
 	private static String readBody(Response response) throws IOException
 	{
@@ -652,5 +641,13 @@ public final class CloudApiClient
 		{
 			return new JsonObject();
 		}
+	}
+
+	private static JsonObject nameAndHashBody(String displayName, long accountHash)
+	{
+		JsonObject body = new JsonObject();
+		body.addProperty("displayName", displayName);
+		body.addProperty("accountHash", Long.toString(accountHash));
+		return body;
 	}
 }

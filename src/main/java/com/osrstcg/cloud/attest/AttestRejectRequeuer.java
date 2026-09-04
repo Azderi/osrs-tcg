@@ -88,42 +88,9 @@ final class AttestRejectRequeuer
 			}
 			int combatLevel = JsonObjects.readInt(evidence, "combatLevel");
 			int npcId = JsonObjects.readInt(evidence, "npcId");
-			long at = original.has("at") && !original.get("at").isJsonNull()
-				? original.get("at").getAsLong()
-				: System.currentTimeMillis();
-			long optimisticTotal = CreditAttestCoalescer.optimisticOf(original);
-			long optimisticRemaining = optimisticTotal;
-			int remaining = amount;
-			while (remaining > 0)
-			{
-				int chunk = Math.min(CreditAttestCoalescer.MAX_KILL_AMOUNT, remaining);
-				long chunkOptimistic = remaining <= chunk
-					? optimisticRemaining
-					: (amount <= 0 ? 0L : (optimisticTotal * chunk) / amount);
-				chunkOptimistic = Math.min(chunkOptimistic, optimisticRemaining);
-				JsonObject splitEvidence = new JsonObject();
-				if (npcId > 0)
-				{
-					splitEvidence.addProperty("npcId", npcId);
-				}
-				if (!npcName.isEmpty())
-				{
-					splitEvidence.addProperty("npcName", npcName);
-				}
-				splitEvidence.addProperty("combatLevel", combatLevel);
-				splitEvidence.addProperty("amount", chunk);
-				JsonObject event = new JsonObject();
-				event.addProperty("type", CreditAttestCoalescer.TYPE_NPC_KILL);
-				event.add("evidence", splitEvidence);
-				event.addProperty("at", at);
-				if (chunkOptimistic > 0L)
-				{
-					event.addProperty(CreditAttestCoalescer.CLIENT_OPTIMISTIC_CREDITS, chunkOptimistic);
-				}
-				requeue.add(event);
-				optimisticRemaining -= chunkOptimistic;
-				remaining -= chunk;
-			}
+			long at = JsonObjects.readLong(original, "at", System.currentTimeMillis());
+			requeue.addAll(CreditAttestCoalescer.splitKillEvents(
+				npcId, npcName, combatLevel, amount, at, CreditAttestCoalescer.optimisticOf(original)));
 			result.requeuedIndexes.add(index);
 		}
 		if (!requeue.isEmpty())

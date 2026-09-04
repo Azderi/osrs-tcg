@@ -8,6 +8,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
@@ -32,7 +33,7 @@ final class HiscoresSettleService
 /** Longer than default {@code HISCORES_SETTLE_MIN_INTERVAL_MS} (60s) so throttle can clear. */
 	private static final long SETTLE_THROTTLE_RETRY_DELAY_SEC = 70L;
 
-	private final CachedDisplayName displayName = new CachedDisplayName();
+	private final CachedDisplayName cachedDisplayName = new CachedDisplayName();
 
 	private final Client client;
 	private final CloudApiClient api;
@@ -44,8 +45,8 @@ final class HiscoresSettleService
 	private final Consumer<JsonObject> applySidebarStats;
 	private final AtomicBoolean hiscoresSettledThisLogin;
 	private final AtomicBoolean hiscoresRetryScheduled;
-	private final java.util.function.BooleanSupplier needsCloudConsent;
-	private final java.util.function.BooleanSupplier isAccountLocked;
+	private final BooleanSupplier needsCloudConsent;
+	private final BooleanSupplier isAccountLocked;
 /** Bumped by {@link #clearGate()} so in-flight/scheduled retries become no-ops after logout. */
 	private final AtomicLong settleEpoch = new AtomicLong(0L);
 	private final Object retryLock = new Object();
@@ -62,8 +63,8 @@ final class HiscoresSettleService
 		Consumer<JsonObject> applySidebarStats,
 		AtomicBoolean hiscoresSettledThisLogin,
 		AtomicBoolean hiscoresRetryScheduled,
-		java.util.function.BooleanSupplier needsCloudConsent,
-		java.util.function.BooleanSupplier isAccountLocked)
+		BooleanSupplier needsCloudConsent,
+		BooleanSupplier isAccountLocked)
 	{
 		this.client = client;
 		this.api = api;
@@ -95,7 +96,7 @@ final class HiscoresSettleService
 		{
 			return;
 		}
-		String displayName = resolveDisplayName();
+		String displayName = cachedDisplayName.resolve(client);
 		if (displayName == null)
 		{
 			log.debug("Hiscores settle skipped: local player name not ready");
@@ -150,7 +151,7 @@ final class HiscoresSettleService
 		{
 			return false;
 		}
-		return restrictedWorldGuard == null || !restrictedWorldGuard.isRestricted();
+		return !restrictedWorldGuard.isRestricted();
 	}
 
 	private boolean stillValid(long epoch)
@@ -175,11 +176,12 @@ final class HiscoresSettleService
 			return;
 		}
 
-		boolean skipped = response.has("skipped") && !response.get("skipped").isJsonNull()
-			&& response.get("skipped").getAsBoolean();
-		String reason = response.has("reason") && !response.get("reason").isJsonNull()
-			? response.get("reason").getAsString()
-			: "";
+		boolean skipped = JsonObjects.readBoolean(response, "skipped");
+		String reason = JsonObjects.text(response, "reason");
+		if (reason == null)
+		{
+			reason = "";
+		}
 
 		if (!isRetry && skipped && ("hiscores_stale".equals(reason) || "settle_throttle".equals(reason)))
 		{
@@ -250,7 +252,7 @@ final class HiscoresSettleService
 				{
 					return;
 				}
-				String retryName = resolveDisplayName();
+				String retryName = cachedDisplayName.resolve(client);
 				if (retryName == null)
 				{
 					retryName = displayName;
@@ -310,11 +312,6 @@ final class HiscoresSettleService
 		{
 			future.cancel(false);
 		}
-	}
-/** Current local player's sanitized name, falling back to the last known name if unavailable. */
-	private String resolveDisplayName()
-	{
-		return displayName.resolve(client);
 	}
 /**
 	 * Applies a settle response's sidebar credits/revision. Posts a chat toast when hiscores credits

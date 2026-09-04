@@ -123,10 +123,7 @@ final class CreditAttestScheduler
 		{
 			try
 			{
-				if (!rateCapPaused.get() && running.get())
-				{
-					flushSafeFalse.run();
-				}
+				runFlushIfActive();
 			}
 			finally
 			{
@@ -159,10 +156,7 @@ final class CreditAttestScheduler
 			{
 				try
 				{
-					if (!rateCapPaused.get() && running.get())
-					{
-						flushSafeFalse.run();
-					}
+					runFlushIfActive();
 				}
 				finally
 				{
@@ -205,6 +199,15 @@ final class CreditAttestScheduler
 		}
 		flushFuture = scheduler.schedule(this::flushTick, Math.max(0L, delayMs), TimeUnit.MILLISECONDS);
 	}
+
+	private void runFlushIfActive()
+	{
+		if (!rateCapPaused.get() && running.get())
+		{
+			flushSafeFalse.run();
+		}
+	}
+
 /** Cancels {@code future} if non-null; must hold {@link #scheduleLock}. Returns null for clearing the field. */
 	private static ScheduledFuture<?> cancel(ScheduledFuture<?> future)
 	{

@@ -112,19 +112,7 @@ public final class CreditAttestCoalescer
 		{
 			KillKey key = e.getKey();
 			KillAgg agg = e.getValue();
-			int remaining = agg.amount;
-			long optimisticRemaining = agg.optimisticCredits;
-			while (remaining > 0)
-			{
-				int chunk = Math.min(MAX_KILL_AMOUNT, remaining);
-				long chunkOptimistic = remaining <= chunk
-					? optimisticRemaining
-					: (agg.amount <= 0 ? 0L : (agg.optimisticCredits * chunk) / agg.amount);
-				chunkOptimistic = Math.min(chunkOptimistic, optimisticRemaining);
-				out.add(buildKill(key.npcId, key.npcName, key.combatLevel, chunk, agg.lastAt, chunkOptimistic));
-				optimisticRemaining -= chunkOptimistic;
-				remaining -= chunk;
-			}
+			out.addAll(splitKillEvents(key.npcId, key.npcName, key.combatLevel, agg.amount, agg.lastAt, agg.optimisticCredits));
 		}
 		out.addAll(activities);
 		return out;
@@ -380,8 +368,30 @@ public final class CreditAttestCoalescer
 		evidence.addProperty("amount", amount);
 		return copyEvent(TYPE_NPC_KILL, evidence, at, optimisticCredits);
 	}
+
+	/** Splits an npc_kill with {@code amount} into {@link #MAX_KILL_AMOUNT}-sized wire events. */
+	static List<JsonObject> splitKillEvents(
+		int npcId, String npcName, int combatLevel, int amount, long at, long optimisticTotal)
+	{
+		List<JsonObject> out = new ArrayList<>();
+		int remaining = amount;
+		long optimisticRemaining = optimisticTotal;
+		while (remaining > 0)
+		{
+			int chunk = Math.min(MAX_KILL_AMOUNT, remaining);
+			long chunkOptimistic = remaining <= chunk
+				? optimisticRemaining
+				: (amount <= 0 ? 0L : (optimisticTotal * chunk) / amount);
+			chunkOptimistic = Math.min(chunkOptimistic, optimisticRemaining);
+			out.add(buildKill(npcId, npcName, combatLevel, chunk, at, chunkOptimistic));
+			optimisticRemaining -= chunkOptimistic;
+			remaining -= chunk;
+		}
+		return out;
+	}
+
 /** Assembles a {type, evidence, at, [optimisticCredits]} event, deep-copying the evidence object. */
-	private static JsonObject copyEvent(String type, JsonObject evidence, long at, long optimisticCredits)
+	static JsonObject copyEvent(String type, JsonObject evidence, long at, long optimisticCredits)
 	{
 		JsonObject event = new JsonObject();
 		event.addProperty("type", type);
@@ -396,18 +406,7 @@ public final class CreditAttestCoalescer
 /** Reads the client-side optimistic credit estimate stashed on an event, or 0 if absent/invalid. */
 	public static long optimisticOf(JsonObject event)
 	{
-		if (event == null || !event.has(CLIENT_OPTIMISTIC_CREDITS) || event.get(CLIENT_OPTIMISTIC_CREDITS).isJsonNull())
-		{
-			return 0L;
-		}
-		try
-		{
-			return Math.max(0L, event.get(CLIENT_OPTIMISTIC_CREDITS).getAsLong());
-		}
-		catch (RuntimeException ex)
-		{
-			return 0L;
-		}
+		return Math.max(0L, JsonObjects.readLong(event, CLIENT_OPTIMISTIC_CREDITS));
 	}
 /** Returns a copy of {@code event} with the client-only optimistic-credits field stripped for sending. */
 	public static JsonObject forWire(JsonObject event)
@@ -423,11 +422,7 @@ public final class CreditAttestCoalescer
 /** Reads an event's {@code at} timestamp, defaulting to now if missing/null. */
 	private static long atOf(JsonObject event)
 	{
-		if (event != null && event.has("at") && !event.get("at").isJsonNull())
-		{
-			return event.get("at").getAsLong();
-		}
-		return System.currentTimeMillis();
+		return JsonObjects.readLong(event, "at", System.currentTimeMillis());
 	}
 /** Running total for one skill+hour xp_chunk bucket. */
 	private static final class XpAgg
