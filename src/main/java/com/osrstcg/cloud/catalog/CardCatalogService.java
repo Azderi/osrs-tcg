@@ -81,7 +81,8 @@ public final class CardCatalogService
 			try
 			{
 				String json = Files.readString(live, StandardCharsets.UTF_8);
-				List<CardDefinition> parsed = parseLiveJson(json);
+				List<CardDefinition> parsed = LiveCardsCatalogParser.parse(
+					new JsonParser().parse(json).getAsJsonObject());
 				if (!parsed.isEmpty())
 				{
 					cardDatabase.replaceCards(parsed, "disk cache");
@@ -211,12 +212,6 @@ public final class CardCatalogService
 		{
 			log.debug("Failed deleting obsolete card-art overlay cache", ex);
 		}
-	}
-/** Parses a raw live-catalog JSON string (as stored on disk) into card definitions. */
-	private static List<CardDefinition> parseLiveJson(String json)
-	{
-		JsonObject obj = new JsonParser().parse(json).getAsJsonObject();
-		return LiveCardsCatalogParser.parse(obj);
 	}
 /** Invokes the registered change listener, if any, swallowing its exceptions. */
 	private void notifyChanged()

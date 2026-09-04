@@ -42,7 +42,7 @@ public final class PackPullParser
 		String artistUrl = JsonObjects.text(c, "artistUrl");
 		String examine = JsonObjects.text(c, "examine");
 		String wikiPage = JsonObjects.text(c, "wikiPage");
-		Double condition = JsonObjects.readNullableDouble(c, "condition");
+		Double condition = JsonObjects.readNumber(c, "condition");
 		String pulledBy = JsonObjects.text(c, "pulledBy");
 		Double pulledAtNumber = JsonObjects.readNumber(c, "pulledAt");
 		Long pulledAt = pulledAtNumber == null ? null : Math.max(0L, Math.round(pulledAtNumber));

@@ -1,4 +1,6 @@
 package com.osrstcg.cloud.api;
+
+import java.util.Locale;
 /** Maps HTTP status / gateway HTML bodies to player-facing CloudApiException messages. */
 final class CloudHttpErrorMapper
 {
@@ -31,7 +33,7 @@ final class CloudHttpErrorMapper
 /** True when {@code text} looks like an HTML error page (e.g. from an nginx gateway) rather than API JSON. */
 	static boolean looksLikeHtmlOrGatewayPage(String text)
 	{
-		String lower = text.toLowerCase(java.util.Locale.ROOT);
+		String lower = text.toLowerCase(Locale.ROOT);
 		return lower.startsWith("<!doctype")
 			|| lower.startsWith("<html")
 			|| lower.contains("<head>")

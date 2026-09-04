@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import com.osrstcg.cloud.api.CloudApiClient;
+import com.osrstcg.cloud.api.JsonObjects;
 /**
  * Fetches the full owned-card collection from {@code /me/cards} in pages when the player state
  * response indicates cards are paginated, and retries the whole state pull once if the server
@@ -78,22 +79,18 @@ final class CloudCollectionPager
 				throw new IOException("me/cards pagination exceeded " + ME_CARDS_MAX_PAGES + " pages");
 			}
 			JsonObject page = api.getCardsPage(ME_CARDS_PAGE_LIMIT, cursor);
-			long pageRevision = page.has("revision") && !page.get("revision").isJsonNull()
-				? Math.max(0L, page.get("revision").getAsLong())
-				: expectedRevision;
+			Double pageRevNum = JsonObjects.readNumber(page, "revision");
+			long pageRevision = pageRevNum == null ? expectedRevision : Math.max(0L, Math.round(pageRevNum));
 			if (pageRevision != expectedRevision)
 			{
 				throw new IOException("me/cards revision drift (" + pageRevision + " vs " + expectedRevision + ")");
 			}
 			all.addAll(CloudPlayerStateParser.parseCards(page.get("cards")));
-			hasMore = page.has("hasMore") && !page.get("hasMore").isJsonNull()
-				&& page.get("hasMore").getAsBoolean();
+			hasMore = JsonObjects.readBoolean(page, "hasMore");
 			if (hasMore)
 			{
-				cursor = page.has("nextCursor") && !page.get("nextCursor").isJsonNull()
-					? page.get("nextCursor").getAsString()
-					: null;
-				if (cursor == null || cursor.isBlank())
+				cursor = JsonObjects.textTrimmed(page, "nextCursor");
+				if (cursor == null)
 				{
 					throw new IOException("me/cards hasMore without nextCursor");
 				}

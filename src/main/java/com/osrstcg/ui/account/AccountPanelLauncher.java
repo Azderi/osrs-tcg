@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
 import com.osrstcg.cloud.api.CloudEndpoints;
+import com.osrstcg.cloud.api.JsonObjects;
 import com.osrstcg.cloud.session.CloudSessionService;
 import com.osrstcg.util.TcgPluginGameMessages;
 import java.net.URLEncoder;
@@ -130,15 +131,7 @@ public final class AccountPanelLauncher
 /** @return the {@code url} field from a web-code response, or {@code null} if absent/blank. */
 	public static String resolveWebLoginUrl(JsonObject response)
 	{
-		if (response != null && response.has("url") && !response.get("url").isJsonNull())
-		{
-			String url = response.get("url").getAsString();
-			if (url != null && !url.isBlank())
-			{
-				return url.trim();
-			}
-		}
-		return null;
+		return JsonObjects.textTrimmed(response, "url");
 	}
 /** @return a {@code /login} URL for the web base with the code and redirect path encoded, or {@code null} if inputs are missing. */
 	public static String buildWebLoginUrl(String webBaseUrl, String code, String next)
@@ -158,10 +151,10 @@ public final class AccountPanelLauncher
 	 */
 	private String resolveWebLoginUrlOrFallback(JsonObject response, String next)
 	{
-		if (response != null && response.has("code") && !response.get("code").isJsonNull())
+		String code = JsonObjects.textTrimmed(response, "code");
+		if (code != null)
 		{
-			String fromCode = buildWebLoginUrl(
-				CloudEndpoints.WEB_BASE_URL, response.get("code").getAsString(), next);
+			String fromCode = buildWebLoginUrl(CloudEndpoints.WEB_BASE_URL, code, next);
 			if (fromCode != null && !fromCode.isEmpty())
 			{
 				return fromCode;

@@ -346,7 +346,7 @@ final class HiscoresSettleService
 		{
 			applySidebarStats.accept(response);
 		}
-		Double revision = JsonObjects.readNullableDouble(response, "revision");
+		Double revision = JsonObjects.readNumber(response, "revision");
 		if (revision != null)
 		{
 			tradeCloudProvider.get().noteRevision(Math.round(revision));

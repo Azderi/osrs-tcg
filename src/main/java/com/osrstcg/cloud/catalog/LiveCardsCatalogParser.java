@@ -93,12 +93,8 @@ public final class LiveCardsCatalogParser
 			return null;
 		}
 
-		JsonObject tcg = raw.has("tcg") && raw.get("tcg").isJsonObject()
-			? raw.getAsJsonObject("tcg")
-			: new JsonObject();
-		JsonObject tags = tcg.has("tags") && tcg.get("tags").isJsonObject()
-			? tcg.getAsJsonObject("tags")
-			: new JsonObject();
+		JsonObject tcg = JsonObjects.objectOrEmpty(raw, "tcg");
+		JsonObject tags = JsonObjects.objectOrEmpty(tcg, "tags");
 
 		List<String> category = new ArrayList<>();
 		if (tags.has("labels") && tags.get("labels").isJsonArray())
@@ -159,10 +155,7 @@ public final class LiveCardsCatalogParser
 		{
 			card.setImageUrl(imagePath);
 		}
-		JsonObject wiki = raw.has("wiki") && raw.get("wiki").isJsonObject()
-			? raw.getAsJsonObject("wiki")
-			: null;
-		String wikiPage = JsonObjects.textTrimmed(wiki, "page");
+		String wikiPage = JsonObjects.textTrimmed(JsonObjects.objectOrEmpty(raw, "wiki"), "page");
 		if (wikiPage != null)
 		{
 			card.setWikiPage(wikiPage);

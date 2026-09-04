@@ -28,6 +28,7 @@ import net.runelite.client.util.Text;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
 import com.osrstcg.cloud.api.CloudResponseSync;
+import com.osrstcg.cloud.api.JsonObjects;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.cloud.catalog.PackPullParser;
@@ -154,12 +155,14 @@ public final class CloudPackService
 			}
 
 			JsonObject response = api.openPack(body);
-			long creditsAfter = response.has("credits")
-				? response.get("credits").getAsLong()
-				: stateService.getAuthoritativeCredits();
-			long totalGained = response.has("totalCreditsGained")
-				? response.get("totalCreditsGained").getAsLong()
-				: stateService.getState().getTotalCreditsGained();
+			Double creditsNum = JsonObjects.readNumber(response, "credits");
+			long creditsAfter = creditsNum == null
+				? stateService.getAuthoritativeCredits()
+				: Math.round(creditsNum);
+			Double gainedNum = JsonObjects.readNumber(response, "totalCreditsGained");
+			long totalGained = gainedNum == null
+				? stateService.getState().getTotalCreditsGained()
+				: Math.round(gainedNum);
 
 			List<PackCardResult> pulls = new ArrayList<>();
 			List<OwnedCardInstance> newInstances = new ArrayList<>();
@@ -225,7 +228,7 @@ public final class CloudPackService
 				partyAnnouncer.announceSetComplete(category);
 			}
 
-			boolean apex = response.has("apex") && response.get("apex").getAsBoolean();
+			boolean apex = JsonObjects.readBoolean(response, "apex");
 			String displayName = priced.getName() == null ? booster.getName() : priced.getName();
 			return PackOpenResult.succeeded(
 				"Pack opened.",

@@ -41,11 +41,6 @@ public final class JsonObjects
 			return false;
 		}
 	}
-/** Reads a numeric field as a nullable {@link Double}; null when absent, null, or not numeric. */
-	public static Double readNullableDouble(JsonObject o, String key)
-	{
-		return readNumberKey(o, key);
-	}
 /** Reads a numeric field rounded to a long, or {@code fallback} when absent/null/not numeric. */
 	public static long readLong(JsonObject o, String key, long fallback)
 	{

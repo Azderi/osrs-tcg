@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
+import com.osrstcg.cloud.api.JsonObjects;
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
@@ -104,14 +105,15 @@ final class CreditAttestPoster
 			log.debug("Credit attest rejected without economy payload: {}", requeueResult.reasons);
 		}
 
-		if (response.has("revision") && !response.get("revision").isJsonNull())
+		Double revision = JsonObjects.readNumber(response, "revision");
+		if (revision != null)
 		{
-			long revision = response.get("revision").getAsLong();
-			if (revision != revisionBefore)
+			long rev = Math.round(revision);
+			if (rev != revisionBefore)
 			{
 				changed = true;
 			}
-			queue.tradeCloud.noteRevision(revision);
+			queue.tradeCloud.noteRevision(rev);
 		}
 
 		long rateCapAfterMs = CreditAttestQueue.parseRateCapAfterMs(response);

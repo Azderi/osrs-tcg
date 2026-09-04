@@ -228,11 +228,11 @@ public class CreditAwardService
 		GameState current = client.getGameState();
 		if (current == GameState.LOGIN_SCREEN)
 		{
-			armStatsSettleForLoginScreen();
+			armStatsSettle(true, CREDIT_COOLDOWN_TICKS);
 		}
 		else if (current == GameState.HOPPING || current == GameState.LOGGED_IN)
 		{
-			armStatsSettleForHopOrLogin();
+			armStatsSettle(false, resolveHopSettleCooldownTicks(session.isRestrictedWorld()));
 		}
 	}
 /**
@@ -246,14 +246,14 @@ public class CreditAwardService
 		if (next == GameState.LOGIN_SCREEN)
 		{
 			persistSkillBaselineToState();
-			armStatsSettleForLoginScreen();
+			armStatsSettle(true, CREDIT_COOLDOWN_TICKS);
 			return;
 		}
 
 		if (next == GameState.HOPPING)
 		{
 			persistSkillBaselineToState();
-			armStatsSettleForHopOrLogin();
+			armStatsSettle(false, resolveHopSettleCooldownTicks(session.isRestrictedWorld()));
 			return;
 		}
 
@@ -560,19 +560,12 @@ public class CreditAwardService
 		SkillCreditBaseline saved = stateService.getState().getSkillCreditBaseline();
 		return saved != null && saved.isPresent() ? saved : null;
 	}
-/** Arms a settle cooldown for returning to the login screen, restoring the persisted uncredited XP after. */
-	private void armStatsSettleForLoginScreen()
+/** Arms a settle cooldown, optionally restoring persisted uncredited XP after. */
+	private void armStatsSettle(boolean restoreXp, int ticks)
 	{
 		pendingStatsSettle = true;
-		restoreXpFromPersistedBaseline = true;
-		suppressAwardsUntilSettle(true, CREDIT_COOLDOWN_TICKS);
-	}
-/** Arms a settle cooldown for a world hop or re-login, keeping the uncredited XP pool intact. */
-	private void armStatsSettleForHopOrLogin()
-	{
-		pendingStatsSettle = true;
-		restoreXpFromPersistedBaseline = false;
-		suppressAwardsUntilSettle(false, resolveHopSettleCooldownTicks(session.isRestrictedWorld()));
+		restoreXpFromPersistedBaseline = restoreXp;
+		suppressAwardsUntilSettle(restoreXp, ticks);
 	}
 /** Cooldown duration (ticks) to use after a world hop: longer when leaving a restricted/event world. */
 	static int resolveHopSettleCooldownTicks(boolean restrictedWorld)

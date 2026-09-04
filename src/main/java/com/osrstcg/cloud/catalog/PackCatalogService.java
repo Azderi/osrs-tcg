@@ -1,6 +1,5 @@
 package com.osrstcg.cloud.catalog;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.osrstcg.catalog.BoosterPackDefinition;
@@ -15,6 +14,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import com.osrstcg.cloud.api.CloudApiClient;
+import com.osrstcg.cloud.api.JsonObjects;
 /**
  * Holds the in-memory {@link PackCatalogCache} for the shop, fetching it from {@code GET /packs}
  * on login or after a catalog-mismatch error and preloading pack images. Fetches run on the
@@ -103,12 +103,20 @@ public final class PackCatalogService
 		{
 			return CompletableFuture.completedFuture(null);
 		}
-		return CompletableFuture.runAsync(this::fetchAndApplyLogin, scheduler);
+		return CompletableFuture.runAsync(() -> fetchAndApply(
+			false,
+			"GET /packs returned empty packs[]; shop stays empty",
+			"Pack catalog loaded from server ({} packs, version={})",
+			"Login pack catalog fetch failed; shop stays empty"), scheduler);
 	}
 /** Forces an async refetch after the server reports a {@code catalog_mismatch} error. */
 	public CompletableFuture<Void> refreshAfterCatalogMismatch()
 	{
-		return CompletableFuture.runAsync(this::fetchAndApplyMismatch, scheduler);
+		return CompletableFuture.runAsync(() -> fetchAndApply(
+			true,
+			"catalog_mismatch refetch returned empty packs[]; keeping previous cache",
+			"Pack catalog refreshed after catalog_mismatch ({} packs, version={})",
+			"catalog_mismatch pack catalog refetch failed"), scheduler);
 	}
 /** Resets to the empty catalog and allows {@link #refreshOnLogin()} to fetch again (e.g. on logout). */
 	public void clear()
@@ -118,58 +126,31 @@ public final class PackCatalogService
 		notifyChanged();
 	}
 /**
-	 * Blocking login fetch-and-apply cycle. Leaves the previous cache in place (shop stays empty
-	 * or unchanged) if the fetch fails or the server returns no packs. Kicks off image preload
-	 * on success.
+	 * Blocking fetch-and-apply. Leaves the previous cache if the fetch fails or returns no packs.
+	 * When {@code markLogin} is true, marks the login-fetch gate satisfied on success.
 	 */
-	private void fetchAndApplyLogin()
+	private void fetchAndApply(boolean markLogin, String emptyLog, String successLog, String failLog)
 	{
 		try
 		{
-			JsonObject json = api.getPacks();
-			PackCatalogCache parsed = parseServerCatalog(json);
+			PackCatalogCache parsed = parseServerCatalog(api.getPacks());
 			if (parsed.isEmpty())
 			{
-				log.error("GET /packs returned empty packs[]; shop stays empty");
+				log.error(emptyLog);
 				return;
 			}
 			cache.set(parsed);
-			notifyChanged();
-			preloadPackImages(parsed).whenComplete((ok, err) -> notifyChanged());
-			log.info("Pack catalog loaded from server ({} packs, version={})",
-				parsed.getPacks().size(), parsed.getCatalogVersion());
-		}
-		catch (Exception e)
-		{
-			log.warn("Login pack catalog fetch failed; shop stays empty", e);
-		}
-	}
-/**
-	 * Blocking refetch after a {@code catalog_mismatch} error. Keeps the previous cache if the
-	 * fetch fails or the server returns no packs; otherwise applies it and marks the login-fetch
-	 * gate satisfied.
-	 */
-	private void fetchAndApplyMismatch()
-	{
-		try
-		{
-			JsonObject json = api.getPacks();
-			PackCatalogCache parsed = parseServerCatalog(json);
-			if (parsed.isEmpty())
+			if (markLogin)
 			{
-				log.error("catalog_mismatch refetch returned empty packs[]; keeping previous cache");
-				return;
+				loginFetchAttempted.set(true);
 			}
-			cache.set(parsed);
-			loginFetchAttempted.set(true);
 			notifyChanged();
 			preloadPackImages(parsed).whenComplete((ok, err) -> notifyChanged());
-			log.info("Pack catalog refreshed after catalog_mismatch ({} packs, version={})",
-				parsed.getPacks().size(), parsed.getCatalogVersion());
+			log.info(successLog, parsed.getPacks().size(), parsed.getCatalogVersion());
 		}
 		catch (Exception e)
 		{
-			log.warn("catalog_mismatch pack catalog refetch failed", e);
+			log.warn(failLog, e);
 		}
 	}
 /** Kicks off async preloading of every hosted thumbnail/image URL referenced by the catalog. */
@@ -204,21 +185,17 @@ public final class PackCatalogService
 /** Parses a {@code GET /packs} response body into a {@link PackCatalogCache}, tolerating missing/null fields. */
 	static PackCatalogCache parseServerCatalog(JsonObject json)
 	{
-		String version = "";
-		if (json != null && json.has("catalogVersion") && !json.get("catalogVersion").isJsonNull())
+		String version = JsonObjects.text(json, "catalogVersion");
+		if (version == null)
 		{
-			version = json.get("catalogVersion").getAsString();
+			version = "";
 		}
-		int packSize = DEFAULT_PACK_SIZE;
-		if (json != null && json.has("packSize") && !json.get("packSize").isJsonNull())
-		{
-			packSize = Math.max(1, json.get("packSize").getAsInt());
-		}
+		Double packSizeNum = JsonObjects.readNumber(json, "packSize");
+		int packSize = packSizeNum == null ? DEFAULT_PACK_SIZE : Math.max(1, (int) Math.round(packSizeNum));
 		List<BoosterPackDefinition> packs = new ArrayList<>();
 		if (json != null && json.has("packs") && json.get("packs").isJsonArray())
 		{
-			JsonArray arr = json.getAsJsonArray("packs");
-			for (JsonElement el : arr)
+			for (JsonElement el : json.getAsJsonArray("packs"))
 			{
 				if (!el.isJsonObject())
 				{
@@ -236,47 +213,45 @@ public final class PackCatalogService
 /** Parses one {@code packs[]} entry; returns null when {@code id} is missing/blank. */
 	private static BoosterPackDefinition parsePackEntry(JsonObject o)
 	{
-		if (o == null || !o.has("id") || o.get("id").isJsonNull())
-		{
-			return null;
-		}
-		String id = o.get("id").getAsString();
-		if (id == null || id.isBlank())
+		String id = JsonObjects.textTrimmed(o, "id");
+		if (id == null)
 		{
 			return null;
 		}
 		BoosterPackDefinition pack = new BoosterPackDefinition();
-		pack.setId(id.trim());
-		pack.setName(o.has("name") && !o.get("name").isJsonNull() ? o.get("name").getAsString() : id);
-		pack.setPrice(o.has("price") && !o.get("price").isJsonNull() ? o.get("price").getAsInt() : 0);
-		if (o.has("thumbnail") && !o.get("thumbnail").isJsonNull())
+		pack.setId(id);
+		String name = JsonObjects.text(o, "name");
+		pack.setName(name == null ? id : name);
+		pack.setPrice(JsonObjects.readInt(o, "price"));
+		String thumb = JsonObjects.textTrimmed(o, "thumbnail");
+		if (thumb != null)
 		{
-			String thumb = o.get("thumbnail").getAsString();
-			if (thumb != null && !thumb.isBlank())
-			{
-				pack.setThumbnail(thumb.trim());
-			}
+			pack.setThumbnail(thumb);
 		}
-		if (o.has("image") && !o.get("image").isJsonNull())
+		String image = JsonObjects.textTrimmed(o, "image");
+		if (image != null)
 		{
-			String image = o.get("image").getAsString();
-			if (image != null && !image.isBlank())
-			{
-				pack.setImage(image.trim());
-			}
+			pack.setImage(image);
 		}
-		if (o.has("category") && o.get("category").isJsonArray())
+		if (o != null && o.has("category") && o.get("category").isJsonArray())
 		{
 			List<String> cats = new ArrayList<>();
 			for (JsonElement c : o.getAsJsonArray("category"))
 			{
-				if (c != null && !c.isJsonNull())
+				if (c == null || c.isJsonNull())
+				{
+					continue;
+				}
+				try
 				{
 					String s = c.getAsString();
 					if (s != null && !s.isBlank())
 					{
 						cats.add(s.trim());
 					}
+				}
+				catch (RuntimeException ignored)
+				{
 				}
 			}
 			pack.setCategory(cats);
@@ -285,13 +260,10 @@ public final class PackCatalogService
 		{
 			pack.setCategory(List.of());
 		}
-		if (o.has("collectionName") && !o.get("collectionName").isJsonNull())
+		String collectionName = JsonObjects.textTrimmed(o, "collectionName");
+		if (collectionName != null)
 		{
-			String collectionName = o.get("collectionName").getAsString();
-			if (collectionName != null && !collectionName.isBlank())
-			{
-				pack.setCollectionName(collectionName.trim());
-			}
+			pack.setCollectionName(collectionName);
 		}
 		return pack;
 	}

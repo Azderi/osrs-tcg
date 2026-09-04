@@ -18,6 +18,7 @@ import net.runelite.client.util.LinkBrowser;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
 import com.osrstcg.cloud.api.CloudEndpoints;
+import com.osrstcg.cloud.api.JsonObjects;
 import com.osrstcg.cloud.session.CloudSessionService;
 /**
  * Manages player-to-player trading against the cloud API: sending trade requests and self-rescheduling
@@ -170,7 +171,7 @@ public final class TradeCloudService
 			{
 				JsonObject result = api.createTrade(partner, accountHash);
 				applyEconomyFieldsFromRpc(result);
-				String url = result.has("url") ? result.get("url").getAsString() : null;
+				String url = JsonObjects.text(result, "url");
 				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
 					"Trade request sent to " + partner
 						+ (url == null || url.isEmpty() ? "." : " - finish on the website."));
@@ -296,23 +297,20 @@ public final class TradeCloudService
 		Long since = knownRevision >= 0L ? knownRevision : null;
 		JsonObject response = api.getTradeInbox(hash, since);
 
-		long pollAfterMs = response.has("pollAfterMs") && !response.get("pollAfterMs").isJsonNull()
-			? response.get("pollAfterMs").getAsLong()
-			: DEFAULT_POLL_MS;
+		long pollAfterMs = JsonObjects.readLong(response, "pollAfterMs", DEFAULT_POLL_MS);
 
-		boolean statsUnchanged = response.has("statsUnchanged")
-			&& !response.get("statsUnchanged").isJsonNull()
-			&& response.get("statsUnchanged").getAsBoolean();
-		if (!statsUnchanged && response.has("stats") && response.get("stats").isJsonObject())
+		if (!JsonObjects.readBoolean(response, "statsUnchanged")
+			&& response.has("stats") && response.get("stats").isJsonObject())
 		{
 			JsonObject stats = response.getAsJsonObject("stats");
 			session.applySidebarStats(stats);
 			session.reconcileCollectionFromInbox(stats);
 		}
 
-		if (response.has("revision") && !response.get("revision").isJsonNull())
+		Double revision = JsonObjects.readNumber(response, "revision");
+		if (revision != null)
 		{
-			lastRevision.set(response.get("revision").getAsLong());
+			lastRevision.set(Math.round(revision));
 		}
 
 		List<TradeInboxItem> inbox = api.parseInbox(response);
@@ -355,24 +353,12 @@ public final class TradeCloudService
 		}
 		if (response.has("credits") || response.has("openedPacks") || response.has("totalCreditsGained"))
 		{
-			JsonObject economy = new JsonObject();
-			if (response.has("credits"))
-			{
-				economy.add("credits", response.get("credits"));
-			}
-			if (response.has("openedPacks"))
-			{
-				economy.add("openedPacks", response.get("openedPacks"));
-			}
-			if (response.has("totalCreditsGained"))
-			{
-				economy.add("totalCreditsGained", response.get("totalCreditsGained"));
-			}
-			session.applySidebarStats(economy);
+			session.applySidebarStats(response);
 		}
-		if (response.has("revision") && !response.get("revision").isJsonNull())
+		Double revision = JsonObjects.readNumber(response, "revision");
+		if (revision != null)
 		{
-			noteRevision(response.get("revision").getAsLong());
+			noteRevision(Math.round(revision));
 		}
 	}
 /** Invokes the registered inbox listener, if any. */

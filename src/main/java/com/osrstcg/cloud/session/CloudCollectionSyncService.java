@@ -1,6 +1,7 @@
 package com.osrstcg.cloud.session;
 
 import com.osrstcg.state.CloudSidebarCollectionStats;
+import com.osrstcg.state.CollectionState;
 import com.osrstcg.state.TcgState;
 import com.osrstcg.interop.TcgPublicStatsCalculator;
 import com.osrstcg.state.TcgStateService;
@@ -8,6 +9,7 @@ import com.google.gson.JsonObject;
 import javax.inject.Provider;
 import lombok.extern.slf4j.Slf4j;
 import com.osrstcg.cloud.api.CloudApiClient;
+import com.osrstcg.cloud.api.JsonObjects;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
 /**
  * Pulls cloud economy/collection state and reconciles it into local {@link TcgStateService}.
@@ -57,24 +59,28 @@ final class CloudCollectionSyncService
 		boolean hasEconomy = stats.has("credits") || stats.has("openedPacks") || stats.has("totalCreditsGained");
 		if (hasEconomy)
 		{
-			long credits = stats.has("credits")
-				? stats.get("credits").getAsLong()
-				: stateService.getAuthoritativeCredits();
-			int openedPacks = stats.has("openedPacks")
-				? stats.get("openedPacks").getAsInt()
-				: (int) stateService.getState().getEconomyState().getOpenedPacks();
-			long totalGained = stats.has("totalCreditsGained")
-				? stats.get("totalCreditsGained").getAsLong()
-				: stateService.getState().getTotalCreditsGained();
+			Double creditsNum = JsonObjects.readNumber(stats, "credits");
+			long credits = creditsNum == null
+				? stateService.getAuthoritativeCredits()
+				: Math.round(creditsNum);
+			Double openedNum = JsonObjects.readNumber(stats, "openedPacks");
+			int openedPacks = openedNum == null
+				? (int) stateService.getState().getEconomyState().getOpenedPacks()
+				: (int) Math.round(openedNum);
+			Double gainedNum = JsonObjects.readNumber(stats, "totalCreditsGained");
+			long totalGained = gainedNum == null
+				? stateService.getState().getTotalCreditsGained()
+				: Math.round(gainedNum);
 			stateService.replaceCloudEconomyCache(credits, openedPacks, totalGained);
 		}
 		if (CloudSidebarCollectionStats.hasCollectionFields(stats))
 		{
 			stateService.replaceCollectionStatsCache(CloudSidebarCollectionStats.fromStatsJson(stats));
 		}
-		if (stats.has("status") && !stats.get("status").isJsonNull())
+		String status = JsonObjects.text(stats, "status");
+		if (status != null)
 		{
-			session.applyAccountStatus(stats.get("status").getAsString());
+			session.applyAccountStatus(status);
 		}
 	}
 /**
@@ -220,7 +226,7 @@ final class CloudCollectionSyncService
 		}
 		stateService.replaceCloudGroupKey(parsed.groupKey);
 		stateService.replaceFromCloudState(
-			com.osrstcg.state.CollectionState.copyOf(parsed.cards),
+			CollectionState.copyOf(parsed.cards),
 			parsed.economy,
 			parsed.totalCreditsGained,
 			parsed.revision,

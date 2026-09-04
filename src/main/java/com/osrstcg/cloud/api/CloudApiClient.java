@@ -153,7 +153,7 @@ public final class CloudApiClient
 			String versionHeader = response.header("X-Catalog-Version");
 			if (versionHeader != null && !versionHeader.isBlank())
 			{
-				setCachedCatalogVersion(versionHeader);
+				cachedCatalogVersion = versionHeader.trim();
 			}
 			notifyActivitiesVersion(response.header("X-Activities-Version"));
 			if (response.code() == 304)
@@ -173,7 +173,7 @@ public final class CloudApiClient
 			}
 			if (version != null && !version.isBlank())
 			{
-				setCachedCatalogVersion(version);
+				cachedCatalogVersion = version.trim();
 			}
 			return LiveCardsResponse.ok(body, text, version);
 		}
@@ -186,18 +186,14 @@ public final class CloudApiClient
 		String encoded = URLEncoder.encode(slug, StandardCharsets.UTF_8).replace("+", "%20");
 		return request("GET", "/players/" + encoded + "/stats", null, false);
 	}
-/** Updates {@link #cachedCatalogVersion} if non-blank; no-op otherwise. */
-	private void setCachedCatalogVersion(String catalogVersion)
+/** Extracts and caches the {@code catalogVersion} field from a JSON body, if present. */
+	private void cacheCatalogVersionFrom(JsonObject json)
 	{
+		String catalogVersion = textTrimmed(json, "catalogVersion");
 		if (catalogVersion != null && !catalogVersion.isBlank())
 		{
 			cachedCatalogVersion = catalogVersion.trim();
 		}
-	}
-/** Extracts and caches the {@code catalogVersion} field from a JSON body, if present. */
-	private void cacheCatalogVersionFrom(JsonObject json)
-	{
-		setCachedCatalogVersion(textTrimmed(json, "catalogVersion"));
 	}
 /** {@code POST /auth/pair/start} (unauthenticated). Blocking call. */
 	public JsonObject pairStart(String displayName, String profileKeyHash, long accountHash)

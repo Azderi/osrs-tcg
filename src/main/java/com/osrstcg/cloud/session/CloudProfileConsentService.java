@@ -12,6 +12,7 @@ import com.osrstcg.cloud.api.CloudConnectionState;
 import com.osrstcg.cloud.catalog.CardCatalogService;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.state.TcgStateService;
+import com.osrstcg.state.CollectionState;
 /**
  * Handles the one-time cloud profile creation/consent flow: pairing or refreshing a session,
  * marking the profile migrated, and adopting an already-migrated server collection when local
@@ -195,7 +196,7 @@ final class CloudProfileConsentService
 		}
 		stateService.replaceCloudGroupKey(parsed.groupKey);
 		stateService.replaceFromCloudState(
-			com.osrstcg.state.CollectionState.copyOf(parsed.cards),
+			CollectionState.copyOf(parsed.cards),
 			parsed.economy,
 			parsed.totalCreditsGained,
 			parsed.revision,
