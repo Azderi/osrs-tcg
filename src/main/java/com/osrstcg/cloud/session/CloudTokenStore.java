@@ -1,11 +1,13 @@
 package com.osrstcg.cloud.session;
 
 import com.osrstcg.cloud.api.JsonObjects;
+import com.osrstcg.cloud.session.CloudSessionFileStore.SessionData;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import net.runelite.api.Client;
 import net.runelite.client.config.ConfigManager;
 
-/** Session JWT store (access/refresh). Not account credentials. */
+/** Session JWT store (access/refresh). Not account credentials. Consent stays in RS-profile config. */
 @Singleton
 public final class CloudTokenStore
 {
@@ -18,23 +20,33 @@ public final class CloudTokenStore
 	private static final String STATUS = "cloudAccountStatus";
 
 	private final ConfigManager configManager;
+	private final Client client;
+	private final CloudSessionFileStore sessionFileStore;
+
+	private volatile long lastKnownAccountHash = -1L;
+	private volatile long cachedAccountHash = -1L;
+	private volatile SessionData cached;
 
 	@Inject
-	CloudTokenStore(ConfigManager configManager)
+	CloudTokenStore(ConfigManager configManager, Client client, CloudSessionFileStore sessionFileStore)
 	{
 		this.configManager = configManager;
+		this.client = client;
+		this.sessionFileStore = sessionFileStore;
 	}
 
 	/** Returns the stored access token, or {@code null} if none is set. */
 	public String getAccessToken()
 	{
-		return JsonObjects.blankToNull(configManager.getRSProfileConfiguration(GROUP, ACCESS));
+		SessionData data = session();
+		return data == null ? null : JsonObjects.blankToNull(data.accessToken);
 	}
 
 	/** Returns the stored refresh token, or {@code null} if none is set. */
 	public String getRefreshToken()
 	{
-		return JsonObjects.blankToNull(configManager.getRSProfileConfiguration(GROUP, REFRESH));
+		SessionData data = session();
+		return data == null ? null : JsonObjects.blankToNull(data.refreshToken);
 	}
 
 	/**
@@ -43,7 +55,12 @@ public final class CloudTokenStore
 	 */
 	public long getBoundAccountHash()
 	{
-		return parseBoundAccountHash(configManager.getRSProfileConfiguration(GROUP, BOUND_ACCOUNT_HASH));
+		SessionData data = session();
+		if (data == null)
+		{
+			return -1L;
+		}
+		return data.boundAccountHash != 0L ? data.boundAccountHash : -1L;
 	}
 
 	/** Whether stored tokens are bound to {@code accountHash} (and that hash is valid). */
@@ -118,17 +135,17 @@ public final class CloudTokenStore
 		{
 			return;
 		}
-		configManager.setRSProfileConfiguration(GROUP, ACCESS, accessToken);
-		configManager.setRSProfileConfiguration(GROUP, REFRESH, refreshToken);
-		configManager.setRSProfileConfiguration(GROUP, BOUND_ACCOUNT_HASH, Long.toString(boundAccountHash));
-		if (accountId != null && !accountId.isEmpty())
-		{
-			configManager.setRSProfileConfiguration(GROUP, ACCOUNT_ID, accountId);
-		}
-		if (status != null && !status.isEmpty())
-		{
-			configManager.setRSProfileConfiguration(GROUP, STATUS, status);
-		}
+		lastKnownAccountHash = boundAccountHash;
+		SessionData data = new SessionData();
+		data.accessToken = accessToken;
+		data.refreshToken = refreshToken;
+		data.accountId = accountId;
+		data.status = status;
+		data.boundAccountHash = boundAccountHash;
+		sessionFileStore.save(boundAccountHash, data);
+		cachedAccountHash = boundAccountHash;
+		cached = data;
+		unsetLegacyTokenKeys();
 	}
 
 	/** Marks (or unmarks) this profile as having completed cloud migration/consent. */
@@ -144,11 +161,138 @@ public final class CloudTokenStore
 		{
 			return;
 		}
-		configManager.setRSProfileConfiguration(GROUP, STATUS, status);
+		SessionData data = session();
+		long hash = resolveAccountHash();
+		if (data == null || hash == -1L)
+		{
+			return;
+		}
+		data.status = status;
+		sessionFileStore.save(hash, data);
+		cachedAccountHash = hash;
+		cached = data;
 	}
 
 	/** Removes stored access/refresh tokens, account id, bound hash, and status (does not clear the migrated flag). */
 	public void clear()
+	{
+		long hash = resolveAccountHash();
+		if (hash != -1L)
+		{
+			sessionFileStore.delete(hash);
+		}
+		cachedAccountHash = -1L;
+		cached = null;
+		unsetLegacyTokenKeys();
+	}
+
+	/** Deletes the entire on-disk profile folder for the current account (save + session). */
+	public void wipeAccountProfileDir()
+	{
+		long hash = resolveAccountHash();
+		if (hash != -1L)
+		{
+			sessionFileStore.deleteAccountDir(hash);
+		}
+		cachedAccountHash = -1L;
+		cached = null;
+		unsetLegacyTokenKeys();
+	}
+
+	/** Whether a refresh token is currently stored. */
+	public boolean hasRefreshToken()
+	{
+		return getRefreshToken() != null;
+	}
+
+	private SessionData session()
+	{
+		long hash = resolveAccountHash();
+		if (hash == -1L)
+		{
+			return null;
+		}
+		if (cachedAccountHash == hash && cached != null)
+		{
+			if (shouldClearForAccount(cached.boundAccountHash, !blank(cached.refreshToken), hash))
+			{
+				clear();
+				return null;
+			}
+			return cached;
+		}
+		migrateLegacyTokensIfNeeded(hash);
+		SessionData loaded = sessionFileStore.load(hash);
+		if (loaded != null && shouldClearForAccount(loaded.boundAccountHash, !blank(loaded.refreshToken), hash))
+		{
+			sessionFileStore.delete(hash);
+			cachedAccountHash = hash;
+			cached = null;
+			unsetLegacyTokenKeys();
+			return null;
+		}
+		if (loaded != null && loaded.boundAccountHash == -1L)
+		{
+			loaded.boundAccountHash = hash;
+		}
+		cachedAccountHash = hash;
+		cached = loaded;
+		return loaded;
+	}
+
+	private long resolveAccountHash()
+	{
+		long hash = client.getAccountHash();
+		if (hash != -1L)
+		{
+			lastKnownAccountHash = hash;
+			return hash;
+		}
+		return lastKnownAccountHash;
+	}
+
+	/**
+	 * One-time move of RS-profile token keys into {@code cloud-session.json} for the live account.
+	 * Mismatched bound hash → drop legacy keys (force re-pair). Never moves {@code cloudMigrated}.
+	 */
+	private void migrateLegacyTokensIfNeeded(long liveAccountHash)
+	{
+		String access = JsonObjects.blankToNull(configManager.getRSProfileConfiguration(GROUP, ACCESS));
+		String refresh = JsonObjects.blankToNull(configManager.getRSProfileConfiguration(GROUP, REFRESH));
+		if (access == null && refresh == null
+			&& configManager.getRSProfileConfiguration(GROUP, ACCOUNT_ID) == null
+			&& configManager.getRSProfileConfiguration(GROUP, BOUND_ACCOUNT_HASH) == null
+			&& configManager.getRSProfileConfiguration(GROUP, STATUS) == null)
+		{
+			return;
+		}
+		if (sessionFileStore.load(liveAccountHash) != null)
+		{
+			unsetLegacyTokenKeys();
+			return;
+		}
+		if (access == null || refresh == null)
+		{
+			unsetLegacyTokenKeys();
+			return;
+		}
+		long bound = parseBoundAccountHash(configManager.getRSProfileConfiguration(GROUP, BOUND_ACCOUNT_HASH));
+		if (bound != -1L && bound != liveAccountHash)
+		{
+			unsetLegacyTokenKeys();
+			return;
+		}
+		SessionData data = new SessionData();
+		data.accessToken = access;
+		data.refreshToken = refresh;
+		data.accountId = JsonObjects.blankToNull(configManager.getRSProfileConfiguration(GROUP, ACCOUNT_ID));
+		data.status = JsonObjects.blankToNull(configManager.getRSProfileConfiguration(GROUP, STATUS));
+		data.boundAccountHash = liveAccountHash;
+		sessionFileStore.save(liveAccountHash, data);
+		unsetLegacyTokenKeys();
+	}
+
+	private void unsetLegacyTokenKeys()
 	{
 		configManager.unsetRSProfileConfiguration(GROUP, ACCESS);
 		configManager.unsetRSProfileConfiguration(GROUP, REFRESH);
@@ -157,9 +301,8 @@ public final class CloudTokenStore
 		configManager.unsetRSProfileConfiguration(GROUP, STATUS);
 	}
 
-	/** Whether a refresh token is currently stored. */
-	public boolean hasRefreshToken()
+	private static boolean blank(String value)
 	{
-		return getRefreshToken() != null;
+		return value == null || value.isEmpty();
 	}
 }

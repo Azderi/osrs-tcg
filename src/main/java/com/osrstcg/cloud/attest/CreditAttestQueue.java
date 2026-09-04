@@ -27,9 +27,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * In-memory + disk-spilled queue of raw credit-earning events (xp, level-ups, npc kills, activities)
- * awaiting attestation to the cloud. Buffers events as they occur, coalesces and prioritizes them at
- * flush time via {@link CreditAttestCoalescer}, posts batches through {@link CreditAttestPoster}, and
+ * In-memory queue of raw credit-earning events (xp, level-ups, npc kills, activities) awaiting
+ * attestation to the cloud. Buffers events as they occur, coalesces and prioritizes them at flush
+ * time via {@link CreditAttestCoalescer}, posts batches through {@link CreditAttestPoster}, and
  * requeues fixable rejects via {@link AttestRejectRequeuer}. {@link #enqueue} is called from the client
  * thread as gameplay events happen; flushes run on the injected {@link ScheduledExecutorService}, guarded
  * by internal locks, so callers never need external synchronization.
@@ -49,7 +49,6 @@ public final class CreditAttestQueue
 	private final ChatMessageManager chatMessageManager;
 	private final ScheduledExecutorService scheduler;
 	final AttestRateCapNotifier rateCapNotifier;
-	private final CreditAttestSpillStore spillStore;
 
 	private final Object lock = new Object();
 	private final Object flushGate = new Object();
@@ -64,7 +63,6 @@ public final class CreditAttestQueue
 	private final CreditAttestScheduler attestScheduler;
 	private volatile long lastAccountHash = -1L;
 	private volatile String lastDisplayName;
-	private volatile long spillLoadedAccountHash = -1L;
 
 	/** Injected constructor; wires up the sub-scheduler with a flush callback and initial default interval. */
 	@Inject
@@ -76,8 +74,7 @@ public final class CreditAttestQueue
 		Client client,
 		ChatMessageManager chatMessageManager,
 		ScheduledExecutorService scheduler,
-		AttestRateCapNotifier rateCapNotifier,
-		CreditAttestSpillStore spillStore)
+		AttestRateCapNotifier rateCapNotifier)
 	{
 		this.session = session;
 		this.tradeCloud = tradeCloud;
@@ -86,7 +83,6 @@ public final class CreditAttestQueue
 		this.chatMessageManager = chatMessageManager;
 		this.scheduler = scheduler;
 		this.rateCapNotifier = rateCapNotifier;
-		this.spillStore = spillStore;
 		this.rejectRequeuer = new AttestRejectRequeuer(this);
 		this.poster = new CreditAttestPoster(this, api, rejectRequeuer);
 		this.attestScheduler = new CreditAttestScheduler(
@@ -100,11 +96,10 @@ public final class CreditAttestQueue
 		economyListener.set(listener);
 	}
 
-	/** Starts periodic flushing and loads any spilled events for the current account. */
+	/** Starts periodic flushing. */
 	public void start()
 	{
 		attestScheduler.start();
-		ensureSpillLoaded();
 	}
 
 	/** Stops periodic flushing and resets retry/rate-cap state for the next session. */
@@ -135,57 +130,20 @@ public final class CreditAttestQueue
 		lastGoodAttestAfterMs.set(resolveAttestAfterMs(ms, fallback));
 	}
 
-	/** Drops all in-memory pending events and deletes the on-disk spill for the current account, without flushing. */
+	/** Drops all in-memory pending events without flushing. */
 	public void discardPending()
 	{
-		long hash;
 		synchronized (lock)
 		{
 			pendingRaw.clear();
-			hash = lastAccountHash;
-			if (hash == -1L)
-			{
-				hash = client.getAccountHash();
-			}
-		}
-		if (hash != -1L)
-		{
-			spillStore.delete(hash);
-		}
-	}
-
-	/**
-	 * Deep-copies pending + spill events for folding into login settle. Does not clear the queue.
-	 * Safe to call from a background/settle thread.
-	 */
-	public List<JsonObject> snapshotPendingForSettle()
-	{
-		ensureSpillLoaded();
-		synchronized (lock)
-		{
-			return CreditAttestSpillStore.copyEvents(pendingRaw);
-		}
-	}
-
-	/**
-	 * After a successful settle-hiscores send that included a login-cache snapshot: clear durable
-	 * pending/spill and drop the matching optimistic credit estimate.
-	 */
-	public void clearAfterSuccessfulSettleSend(long optimisticCreditsToClear)
-	{
-		discardPending();
-		if (optimisticCreditsToClear > 0L)
-		{
-			stateService.clearOptimisticCredits(optimisticCreditsToClear);
-			notifyEconomyListener();
 		}
 	}
 
 	/**
 	 * Records one raw credit-earning event for later attestation. Filters out combat-skill xp and
 	 * non-progressing level-ups, applies the optimistic credit estimate to local state immediately,
-	 * persists the pending list to disk, and triggers an early flush on a coalesced-count or xp-spike
-	 * threshold. No-op if the session can't currently collect attests. Expected to run on the client thread.
+	 * and triggers an early flush on a coalesced-count or xp-spike threshold. No-op if the session
+	 * can't currently collect attests. Expected to run on the client thread.
 	 */
 	public void enqueue(String type, JsonObject evidence, long optimisticCredits)
 	{
@@ -232,8 +190,6 @@ public final class CreditAttestQueue
 			event.addProperty(CreditAttestCoalescer.CLIENT_OPTIMISTIC_CREDITS, optimisticCredits);
 		}
 
-		ensureSpillLoaded();
-
 		boolean spikeFlush = false;
 		synchronized (lock)
 		{
@@ -254,9 +210,6 @@ public final class CreditAttestQueue
 				spikeFlush = true;
 			}
 		}
-		// Reload if resolveAccountHashLocked switched accounts after the first ensureSpillLoaded.
-		ensureSpillLoaded();
-		persistSpillFromPending();
 		applyOptimistic(optimisticCredits);
 		if (spikeFlush)
 		{
@@ -283,7 +236,7 @@ public final class CreditAttestQueue
 
 	/**
 	 * Reads the current account hash from the client, caching it. On account change, clears in-memory
-	 * pending events for the previous account (old spill file is left on disk for that account's next login).
+	 * pending events for the previous account.
 	 */
 	long resolveAccountHash()
 	{
@@ -302,7 +255,6 @@ public final class CreditAttestQueue
 			if (lastAccountHash != -1L && lastAccountHash != hash)
 			{
 				pendingRaw.clear();
-				spillLoadedAccountHash = -1L;
 			}
 			lastAccountHash = hash;
 			return hash;
@@ -323,69 +275,6 @@ public final class CreditAttestQueue
 			}
 		}
 		return lastDisplayName;
-	}
-
-	/** Loads any spilled pending events for the current account into memory, once per account hash. */
-	private void ensureSpillLoaded()
-	{
-		long hash = resolveAccountHash();
-		if (hash == -1L)
-		{
-			return;
-		}
-		synchronized (lock)
-		{
-			if (spillLoadedAccountHash == hash)
-			{
-				return;
-			}
-		}
-		List<JsonObject> loaded = spillStore.load(hash);
-		long optimisticTotal = 0L;
-		synchronized (lock)
-		{
-			if (spillLoadedAccountHash == hash)
-			{
-				return;
-			}
-			resolveAccountHashLocked();
-			if (lastAccountHash != hash)
-			{
-				return;
-			}
-			spillLoadedAccountHash = hash;
-			if (!loaded.isEmpty())
-			{
-				pendingRaw.addAll(0, loaded);
-				for (JsonObject event : loaded)
-				{
-					optimisticTotal += CreditAttestCoalescer.optimisticOf(event);
-				}
-				log.debug("Loaded {} credit attest spill event(s) for accountHash={}", loaded.size(), "<redacted>");
-			}
-		}
-		if (optimisticTotal > 0L)
-		{
-			applyOptimistic(optimisticTotal);
-		}
-	}
-
-	/** Writes a snapshot of the current pending list to the current account's spill file. */
-	private void persistSpillFromPending()
-	{
-		long hash;
-		List<JsonObject> snapshot;
-		synchronized (lock)
-		{
-			hash = lastAccountHash;
-			// Avoid writing an empty pending list over another account's spill before it is loaded.
-			if (hash == -1L || spillLoadedAccountHash != hash)
-			{
-				return;
-			}
-			snapshot = CreditAttestSpillStore.copyEvents(pendingRaw);
-		}
-		spillStore.save(hash, snapshot);
 	}
 
 	/** Adds an optimistic credit estimate to local state and notifies the economy listener, if positive. */
@@ -477,7 +366,6 @@ public final class CreditAttestQueue
 		{
 			return false;
 		}
-		ensureSpillLoaded();
 		synchronized (flushGate)
 		{
 			boolean changed = false;
@@ -531,7 +419,6 @@ public final class CreditAttestQueue
 						boolean batchChanged = poster.postAttestBatch(batch);
 						consecutiveRetryFailures.set(0);
 						changed |= batchChanged;
-						persistSpillFromPending();
 						log.debug("Credit attest OK: events={} durationMs={}",
 							batch.size(), System.currentTimeMillis() - started);
 					}
@@ -539,13 +426,11 @@ public final class CreditAttestQueue
 					{
 						prependPending(coalesced);
 						prependPending(batch);
-						persistSpillFromPending();
 						maybeScheduleRetryFlush(teardown, ex);
 						throw ex;
 					}
 				}
 			}
-			persistSpillFromPending();
 			return changed;
 		}
 	}

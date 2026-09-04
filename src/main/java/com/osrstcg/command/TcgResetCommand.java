@@ -1,7 +1,7 @@
 package com.osrstcg.command;
 
-import com.osrstcg.OsrsTcgConfig;
 import com.osrstcg.cloud.session.CloudSessionCoordinator;
+import com.osrstcg.cloud.session.CloudTokenStore;
 import com.osrstcg.ui.SidebarRefresh;
 import com.osrstcg.util.TcgPluginGameMessages;
 import javax.inject.Inject;
@@ -15,41 +15,44 @@ import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.config.ConfigManager;
 
 /**
- * Implements the {@code ::tcg-reset} chat command: clears all plugin config keys, restores defaults,
- * and reconnects the cloud session.
+ * Implements the {@code ::tcg-reset} chat command: clears cloud consent and the current account's
+ * on-disk profile folder, then reconnects the cloud session. Plugin settings are left alone.
  */
 @Singleton
 public class TcgResetCommand
 {
+	private static final String GROUP = "osrstcg";
+	private static final String MIGRATED = "cloudMigrated";
+
 	private final Client client;
 	private final ClientThread clientThread;
 	private final ChatMessageManager chatMessageManager;
-	private final OsrsTcgConfig config;
 	private final CloudSessionCoordinator cloudSessionCoordinator;
 	private final SidebarRefresh sidebarRefresh;
 	private final ConfigManager configManager;
+	private final CloudTokenStore tokenStore;
 
-	/** Stores the collaborators used to clear config, reconnect the cloud session, and refresh the UI. */
+	/** Stores the collaborators used to clear consent, wipe account data, reconnect, and refresh the UI. */
 	@Inject
 	public TcgResetCommand(
 		Client client,
 		ClientThread clientThread,
 		ChatMessageManager chatMessageManager,
-		OsrsTcgConfig config,
 		CloudSessionCoordinator cloudSessionCoordinator,
 		SidebarRefresh sidebarRefresh,
-		ConfigManager configManager)
+		ConfigManager configManager,
+		CloudTokenStore tokenStore)
 	{
 		this.client = client;
 		this.clientThread = clientThread;
 		this.chatMessageManager = chatMessageManager;
-		this.config = config;
 		this.cloudSessionCoordinator = cloudSessionCoordinator;
 		this.sidebarRefresh = sidebarRefresh;
 		this.configManager = configManager;
+		this.tokenStore = tokenStore;
 	}
 
-	/** Dispatches {@code ::tcg-reset} to {@link #handleResetConfigCommand()}; ignores every other command. */
+	/** Dispatches {@code ::tcg-reset} to {@link #handleResetCommand()}; ignores every other command. */
 	public void onCommandExecuted(CommandExecuted event)
 	{
 		if (event == null || event.getCommand() == null)
@@ -60,44 +63,18 @@ public class TcgResetCommand
 		{
 			return;
 		}
-		handleResetConfigCommand();
+		handleResetCommand();
 	}
 
 	/**
-	 * Unsets every {@code osrstcg.*} config key (global and RS-profile-scoped), restores config defaults,
-	 * reconnects the cloud session if logged in, refreshes the sidebar on the EDT, and chats a summary.
+	 * Clears cloud consent, wipes the logged-in account's profile folder, reconnects if logged in,
+	 * and chats a summary. Does not change plugin settings.
 	 */
-	private void handleResetConfigCommand()
+	private void handleResetCommand()
 	{
-		final String group = "osrstcg";
-		int cleared = 0;
+		configManager.unsetRSProfileConfiguration(GROUP, MIGRATED);
+		tokenStore.wipeAccountProfileDir();
 
-		for (String wholeKey : configManager.getConfigurationKeys(group + "."))
-		{
-			if (wholeKey == null || wholeKey.length() <= group.length() + 1)
-			{
-				continue;
-			}
-			String key = wholeKey.substring(group.length() + 1);
-			configManager.unsetConfiguration(group, key);
-			cleared++;
-		}
-
-		String rsProfile = configManager.getRSProfileKey();
-		if (rsProfile != null)
-		{
-			for (String key : configManager.getRSProfileConfigurationKeys(group, rsProfile, ""))
-			{
-				if (key == null || key.isEmpty())
-				{
-					continue;
-				}
-				configManager.unsetRSProfileConfiguration(group, key);
-				cleared++;
-			}
-		}
-
-		configManager.setDefaultConfiguration(config, true);
 		cloudSessionCoordinator.disconnect();
 		if (client.getGameState() == GameState.LOGGED_IN)
 		{
@@ -107,7 +84,7 @@ public class TcgResetCommand
 		if (client != null)
 		{
 			TcgPluginGameMessages.queueOnClientThread(clientThread, chatMessageManager,
-				"Cleared " + cleared + " config key(s) and restored defaults.");
+				"Cleared cloud consent and wiped account profile folder.");
 		}
 	}
 }
