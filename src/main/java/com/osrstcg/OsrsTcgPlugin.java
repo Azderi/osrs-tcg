@@ -375,7 +375,7 @@ public class OsrsTcgPlugin extends Plugin
 		cloudSessionCoordinator.onWorldChanged(event);
 	}
 
-	/** Reacts to plugin config changes: chat prefix color and compact-shop layout take effect live. */
+	/** Reacts to plugin config changes: chat prefix color takes effect live. */
 	@Subscribe
 	public void onConfigChanged(ConfigChanged event)
 	{
@@ -386,10 +386,6 @@ public class OsrsTcgPlugin extends Plugin
 		if ("chatPrefixColor".equals(event.getKey()))
 		{
 			TcgPluginGameMessages.setPrefixColor(config.chatPrefixColor());
-		}
-		if ("compactShop".equals(event.getKey()))
-		{
-			refreshPanelOnEdt();
 		}
 	}
 

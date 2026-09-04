@@ -1,6 +1,5 @@
 package com.osrstcg.ui.shop;
 
-import com.osrstcg.OsrsTcgConfig;
 import com.osrstcg.catalog.BoosterPackDefinition;
 import com.osrstcg.catalog.CardDatabase;
 import com.osrstcg.catalog.CardImageCacheService;
@@ -48,7 +47,6 @@ public final class ShopTab
 	private final PackOpenCoordinator packOpenCoordinator;
 	private final PackCatalogService packCatalogService;
 	private final CardImageCacheService imageCacheService;
-	private final OsrsTcgConfig config;
 	private final CloudSessionService cloudSessionService;
 	private final OverviewTab overviewTab;
 	private final IntSupplier shopWidth;
@@ -72,7 +70,6 @@ public final class ShopTab
 		PackOpenCoordinator packOpenCoordinator,
 		PackCatalogService packCatalogService,
 		CardImageCacheService imageCacheService,
-		OsrsTcgConfig config,
 		CloudSessionService cloudSessionService,
 		OverviewTab overviewTab,
 		IntSupplier shopWidth,
@@ -89,7 +86,6 @@ public final class ShopTab
 		this.packOpenCoordinator = packOpenCoordinator;
 		this.packCatalogService = packCatalogService;
 		this.imageCacheService = imageCacheService;
-		this.config = config;
 		this.cloudSessionService = cloudSessionService;
 		this.overviewTab = overviewTab;
 		this.shopWidth = shopWidth;
@@ -155,10 +151,10 @@ public final class ShopTab
 			shopVisibleBoosters());
 	}
 
-	/** Kicks off async prefetch of hosted booster thumbnail images, skipped in compact mode. */
+	/** Kicks off async prefetch of hosted booster thumbnail images. */
 	private void preloadShopPackThumbnails(List<BoosterShopRow> shopRows)
 	{
-		if (config.compactShop() || shopRows == null || imageCacheService == null)
+		if (shopRows == null || imageCacheService == null)
 		{
 			return;
 		}
@@ -330,11 +326,9 @@ public final class ShopTab
 	private JButton createBoosterBuyButton(BoosterPackDefinition booster, int progressOwn, int progressFoilOwn, int progressTotal,
 		int buttonWidth)
 	{
-		boolean compact = config.compactShop();
 		return BoosterBuyButtonFactory.create(
 			booster, progressOwn, progressFoilOwn, progressTotal, buttonWidth,
-			compact ? null : shopPackIcon(booster),
-			compact,
+			shopPackIcon(booster),
 			() -> packOpenCoordinator.openFromShop(
 				booster, packOpenInFlight, beginRevealFreeze, clearRevealFreeze, refreshUi,
 				SwingUtilities::invokeLater));

@@ -21,8 +21,6 @@ import net.runelite.client.ui.FontManager;
 final class BoosterBuyButtonFactory
 {
 	static final int BOOSTER_BUTTON_MIN_HEIGHT = 120;
-	/** Tighter tile when pack thumbnails are omitted ({@link com.osrstcg.OsrsTcgConfig#compactShop()}). */
-	static final int BOOSTER_MIN_HEIGHT_COMPACT = 72;
 
 	private BoosterBuyButtonFactory()
 	{
@@ -39,7 +37,6 @@ final class BoosterBuyButtonFactory
 		int progressTotal,
 		int buttonWidth,
 		ImageIcon packIconColor,
-		boolean compact,
 		Runnable onBuy)
 	{
 		int price = booster.getPrice();
@@ -55,7 +52,7 @@ final class BoosterBuyButtonFactory
 
 		final JLabel iconLabel;
 		final ImageIcon packIconGray;
-		if (!compact && packIconColor != null)
+		if (packIconColor != null)
 		{
 			packIconGray = new ImageIcon(GrayFilter.createDisabledImage(packIconColor.getImage()));
 			iconLabel = new JLabel(packIconColor);
@@ -83,8 +80,7 @@ final class BoosterBuyButtonFactory
 		button.setVerticalTextPosition(SwingConstants.CENTER);
 		button.setBackground(ColorScheme.DARKER_GRAY_COLOR.darker());
 		button.setForeground(Color.WHITE);
-		SidebarLayout.styleOutlinedButton(button, ColorScheme.LIGHT_GRAY_COLOR.darker(),
-			compact ? 4 : 6, 6, compact ? 6 : 8, 6);
+		SidebarLayout.styleOutlinedButton(button, ColorScheme.LIGHT_GRAY_COLOR.darker(), 6, 6, 8, 6);
 		button.setFocusPainted(false);
 		button.setFont(FontManager.getRunescapeSmallFont());
 		button.setFocusable(false);
@@ -94,8 +90,7 @@ final class BoosterBuyButtonFactory
 				iconLabel.setIcon(button.isEnabled() ? packIconColor : packIconGray));
 		}
 		int bw = Math.max(96, buttonWidth);
-		int minH = compact ? BOOSTER_MIN_HEIGHT_COMPACT : BOOSTER_BUTTON_MIN_HEIGHT;
-		int neededH = Math.max(minH, button.getPreferredSize().height);
+		int neededH = Math.max(BOOSTER_BUTTON_MIN_HEIGHT, button.getPreferredSize().height);
 		Dimension tile = new Dimension(bw, neededH);
 		button.setPreferredSize(tile);
 		button.setMinimumSize(tile);

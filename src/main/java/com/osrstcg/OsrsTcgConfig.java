@@ -111,19 +111,6 @@ public interface OsrsTcgConfig extends Config
 		return false;
 	}
 
-	/** Whether the sidebar shop hides pack thumbnails to fit more packs on screen. */
-	@ConfigItem(
-		keyName = "compactShop",
-		name = "Compact shop",
-		description = "Hide pack thumbnails in the shop so more packs fit on the sidebar.",
-		section = generalSection,
-		position = 0
-	)
-	default boolean compactShop()
-	{
-		return false;
-	}
-
 	@ConfigSection(
 		name = "Pack opening",
 		description = "Pack reveal overlay and sounds.",
