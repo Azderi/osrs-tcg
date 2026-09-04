@@ -239,7 +239,6 @@ public final class CloudSessionService
 	/** Stops hiscores/activity polling and moves the connection to DISCONNECTED with a restricted-world message. */
 	public void enterRestrictedWorld()
 	{
-		hiscoresSettle.clearGate();
 		activityConfigService.stopQuietPoll();
 		String detail = restrictedWorldGuard.describeBlockedTypes();
 		String message = detail.isEmpty()
@@ -460,6 +459,8 @@ public final class CloudSessionService
 			return;
 		}
 
+		// Hop reconnects keep an active session; only settle after a real login/disconnect.
+		boolean shouldSettle = !isSessionActive();
 		setState(CloudConnectionState.CONNECTING, "Connecting…");
 		try
 		{
@@ -497,7 +498,10 @@ public final class CloudSessionService
 			{
 				return;
 			}
-			hiscoresSettle.settleAfterCloudLogin();
+			if (shouldSettle)
+			{
+				hiscoresSettle.settleAfterCloudLogin();
+			}
 			if (isAccountLocked())
 			{
 				return;
