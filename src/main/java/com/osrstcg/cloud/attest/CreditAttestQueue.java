@@ -57,6 +57,8 @@ public final class CreditAttestQueue
 	private final AtomicBoolean earlyFlushScheduled = new AtomicBoolean(false);
 	private final AtomicBoolean running = new AtomicBoolean(false);
 	private final AtomicLong lastGoodAttestAfterMs = new AtomicLong(DEFAULT_ATTEST_AFTER_MS);
+	/** Wall-clock deadline while server rate-cap pause is active; 0 means not paused. */
+	private final AtomicLong rateCapUntilMs = new AtomicLong(0L);
 	private final AtomicInteger consecutiveRetryFailures = new AtomicInteger(0);
 	private final AttestRejectRequeuer rejectRequeuer;
 	private final CreditAttestPoster poster;
@@ -106,8 +108,22 @@ public final class CreditAttestQueue
 	public void stop()
 	{
 		attestScheduler.stop();
+		rateCapUntilMs.set(0L);
 		consecutiveRetryFailures.set(0);
 		rateCapNotifier.reset();
+	}
+
+	/** True while a server {@code rateCapAfterMs} pause is still in effect. */
+	boolean isRateCapActive()
+	{
+		return isRateCapActive(System.currentTimeMillis());
+	}
+
+	/** True when {@code nowMs} is before the rate-cap pause deadline. */
+	boolean isRateCapActive(long nowMs)
+	{
+		long until = rateCapUntilMs.get();
+		return until > 0L && nowMs < until;
 	}
 
 	/** Clamps a server-provided attest interval to at least {@link #DEFAULT_ATTEST_AFTER_MS}, falling back when unset. */
@@ -130,6 +146,39 @@ public final class CreditAttestQueue
 		lastGoodAttestAfterMs.set(resolveAttestAfterMs(ms, fallback));
 	}
 
+	/**
+	 * Enters a rate-cap pause when {@code response} includes a positive {@code rateCapAfterMs}: discards
+	 * pending events, clears remaining optimistic credits, and schedules resume via the attest scheduler.
+	 * Call after a skip-flush credits sync. No-op when the field is omitted or {@code <= 0}.
+	 */
+	void noteRateCapAfterMs(JsonObject response)
+	{
+		long ms = parseRateCapAfterMs(response);
+		if (ms <= 0L)
+		{
+			return;
+		}
+		long now = System.currentTimeMillis();
+		rateCapUntilMs.set(now + ms);
+		discardPending();
+		stateService.clearOptimisticCredits();
+		notifyEconomyListener();
+		attestScheduler.pauseFor(ms);
+		log.info("Credit attest rate-cap pause for {}ms (until={})", ms, rateCapUntilMs.get());
+	}
+
+	/** Reads {@code rateCapAfterMs} from an attest response, or 0 when absent/invalid. */
+	static long parseRateCapAfterMs(JsonObject response)
+	{
+		Double parsed = JsonObjects.readNumber(response, "rateCapAfterMs");
+		if (parsed == null)
+		{
+			return 0L;
+		}
+		long ms = Math.round(parsed);
+		return ms > 0L ? ms : 0L;
+	}
+
 	/** Drops all in-memory pending events without flushing. */
 	public void discardPending()
 	{
@@ -147,7 +196,7 @@ public final class CreditAttestQueue
 	 */
 	public void enqueue(String type, JsonObject evidence, long optimisticCredits)
 	{
-		if (!session.canCollectAttests())
+		if (!session.canCollectAttests() || isRateCapActive())
 		{
 			return;
 		}
@@ -299,7 +348,7 @@ public final class CreditAttestQueue
 	 */
 	private void maybeScheduleRetryFlush(boolean teardown, Exception ex)
 	{
-		if (teardown || !CreditAttestPoster.isRetryableAttestFailure(ex))
+		if (teardown || isRateCapActive() || !CreditAttestPoster.isRetryableAttestFailure(ex))
 		{
 			consecutiveRetryFailures.set(0);
 			return;
@@ -355,6 +404,10 @@ public final class CreditAttestQueue
 	 */
 	private boolean flush(boolean teardown) throws Exception
 	{
+		if (isRateCapActive())
+		{
+			return false;
+		}
 		if (teardown)
 		{
 			if (!session.canAttestFlush())

@@ -68,7 +68,6 @@ final class CreditAttestPoster
 		JsonObject response = api.attest(body);
 		queue.noteAttestAfterMs(response);
 		AttestRejectRequeuer.RequeueResult requeueResult = requeuer.requeueRejectedEvents(response, batch);
-		queue.rateCapNotifier.onAttestResponse(response);
 		queue.session.noteAttestBanFlags(response);
 
 		long clearOptimistic = CreditAttestQueue.resolveOptimisticClearAmount(
@@ -116,6 +115,26 @@ final class CreditAttestPoster
 			}
 			queue.tradeCloud.noteRevision(revision);
 		}
+
+		long rateCapAfterMs = CreditAttestQueue.parseRateCapAfterMs(response);
+		if (rateCapAfterMs > 0L)
+		{
+			try
+			{
+				queue.session.refreshCreditsFromServer(false);
+				appliedEconomy = true;
+				if (queue.stateService.getCredits() != creditsBefore)
+				{
+					changed = true;
+				}
+			}
+			catch (Exception syncEx)
+			{
+				log.debug("Credits sync before rate-cap pause failed", syncEx);
+			}
+			queue.noteRateCapAfterMs(response);
+		}
+		queue.rateCapNotifier.onAttestResponse(response);
 
 		if (appliedEconomy)
 		{

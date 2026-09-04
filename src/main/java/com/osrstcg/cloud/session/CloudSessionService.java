@@ -590,6 +590,15 @@ public final class CloudSessionService
 		collectionSync.refreshCreditsFromServer();
 	}
 
+	/**
+	 * Delegates to {@link CloudCollectionSyncService#refreshCreditsFromServer(boolean)}. Blocking.
+	 * Pass {@code flushFirst=false} when already inside an attest flush to avoid deadlock.
+	 */
+	public void refreshCreditsFromServer(boolean flushFirst) throws Exception
+	{
+		collectionSync.refreshCreditsFromServer(flushFirst);
+	}
+
 	/** Pairs a new session for this profile/account and applies the returned token response. Blocking. */
 	void pairSession(String displayName, String profileHash, long accountHash)
 		throws CloudApiException, IOException

@@ -17,14 +17,16 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.chat.ChatMessageManager;
 
 /**
- * Watches credit attest responses for {@code rate_cap} rejection reasons and posts a throttled,
- * player-facing chat warning. Safe to call from any thread; internal state is a single atomic timestamp.
+ * Watches credit attest responses for {@code rateCapAfterMs} pauses and {@code rate_cap} rejection
+ * reasons, posting a throttled player-facing chat warning. Safe to call from any thread; internal
+ * state is a single atomic timestamp.
  */
 @Slf4j
 @Singleton
 public final class AttestRateCapNotifier
 {
 	static final long RATE_CAP_THROTTLE_MS = 3L * 60_000L;
+	static final long MINUTE_MS = 60_000L;
 
 	private static final String RATE_CAP_PREFIX = "rate_cap";
 
@@ -50,15 +52,16 @@ public final class AttestRateCapNotifier
 		lastRateCapWarnAtMs.set(0L);
 	}
 
-	/** Inspects an attest response for rate-cap rejections and quarantine, using the current time. */
+	/** Inspects an attest response for rate-cap pauses/rejections and quarantine, using the current time. */
 	public void onAttestResponse(JsonObject response)
 	{
 		onAttestResponse(response, System.currentTimeMillis());
 	}
 
 	/**
-	 * Logs any rate-cap rejection reasons found in {@code response} and, subject to throttling, warns
-	 * the player in chat. Also logs a warning if the response is marked quarantined.
+	 * Logs rate-cap pause or rejection reasons found in {@code response} and, subject to throttling,
+	 * warns the player in chat. {@code rateCapAfterMs} takes precedence over reject-reason messages.
+	 * Also logs a warning if the response is marked quarantined.
 	 */
 	void onAttestResponse(JsonObject response, long nowMs)
 	{
@@ -71,15 +74,24 @@ public final class AttestRateCapNotifier
 			&& !response.get("quarantined").isJsonNull()
 			&& response.get("quarantined").getAsBoolean();
 
-		List<String> rateCapReasons = collectRateCapReasons(response);
-		if (!rateCapReasons.isEmpty())
+		long rateCapAfterMs = CreditAttestQueue.parseRateCapAfterMs(response);
+		if (rateCapAfterMs > 0L)
 		{
-			log.info("Credit attest rate cap: {}", rateCapReasons);
-			maybeWarnRateCap(rateCapReasons, nowMs);
+			log.info("Credit attest rate cap pause: {}ms", rateCapAfterMs);
+			maybeWarnMessage(playerFacingRateCapPauseMessage(rateCapAfterMs), nowMs);
 		}
 		else
 		{
-			log.debug("Credit attest rejects (no rate_cap): {}", formatAllRejectReasons(response));
+			List<String> rateCapReasons = collectRateCapReasons(response);
+			if (!rateCapReasons.isEmpty())
+			{
+				log.info("Credit attest rate cap: {}", rateCapReasons);
+				maybeWarnMessage(playerFacingRateCapMessage(rateCapReasons), nowMs);
+			}
+			else
+			{
+				log.debug("Credit attest rejects (no rate_cap): {}", formatAllRejectReasons(response));
+			}
 		}
 
 		if (quarantined)
@@ -133,6 +145,26 @@ public final class AttestRateCapNotifier
 			return false;
 		}
 		return reason.trim().toLowerCase(Locale.ROOT).startsWith(RATE_CAP_PREFIX);
+	}
+
+	/**
+	 * Builds the pause chat message for a positive {@code rateCapAfterMs}:
+	 * {@code Credit rate limit hit. Credit events paused for X minutes.}
+	 */
+	static String playerFacingRateCapPauseMessage(long rateCapAfterMs)
+	{
+		long minutes = rateCapPauseMinutes(rateCapAfterMs);
+		return "Credit rate limit hit. Credit events paused for " + minutes + " minutes.";
+	}
+
+	/** Ceil of {@code rateCapAfterMs} in whole minutes; at least 1 when {@code rateCapAfterMs > 0}. */
+	static long rateCapPauseMinutes(long rateCapAfterMs)
+	{
+		if (rateCapAfterMs <= 0L)
+		{
+			return 0L;
+		}
+		return Math.max(1L, (rateCapAfterMs + MINUTE_MS - 1L) / MINUTE_MS);
 	}
 
 	/** Builds the chat message for a rate-cap warning, preferring a category-specific message when one applies. */
@@ -213,8 +245,8 @@ public final class AttestRateCapNotifier
 		return null;
 	}
 
-	/** Posts the rate-cap chat warning unless one was already sent within {@link #RATE_CAP_THROTTLE_MS}. */
-	private void maybeWarnRateCap(List<String> reasons, long nowMs)
+	/** Posts {@code message} unless a rate-cap warning was already sent within {@link #RATE_CAP_THROTTLE_MS}. */
+	private void maybeWarnMessage(String message, long nowMs)
 	{
 		while (true)
 		{
@@ -226,7 +258,7 @@ public final class AttestRateCapNotifier
 			}
 			if (lastRateCapWarnAtMs.compareAndSet(last, nowMs))
 			{
-				chatSink.accept(playerFacingRateCapMessage(reasons));
+				chatSink.accept(message);
 				return;
 			}
 		}

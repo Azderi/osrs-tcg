@@ -136,17 +136,30 @@ final class CloudCollectionSyncService
 	 */
 	void refreshCreditsFromServer() throws Exception
 	{
+		refreshCreditsFromServer(true);
+	}
+
+	/**
+	 * Re-fetches and applies server stats ({@code GET /me/stats}), clearing local optimistic credits.
+	 * When {@code flushFirst} is true, flushes pending attests first. Use {@code flushFirst=false}
+	 * when already inside an attest flush (avoids re-entering the flush gate).
+	 */
+	void refreshCreditsFromServer(boolean flushFirst) throws Exception
+	{
 		if (tokens.getAccessToken() == null || session.needsCloudConsent() || session.isAccountLocked())
 		{
 			return;
 		}
-		try
+		if (flushFirst)
 		{
-			attestQueueProvider.get().flushBlocking();
-		}
-		catch (Exception ex)
-		{
-			log.debug("Attest flush before credit refresh failed", ex);
+			try
+			{
+				attestQueueProvider.get().flushBlocking();
+			}
+			catch (Exception ex)
+			{
+				log.debug("Attest flush before credit refresh failed", ex);
+			}
 		}
 		JsonObject stats = api.getStats();
 		applySidebarStats(stats);
