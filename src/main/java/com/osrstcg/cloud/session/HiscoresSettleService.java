@@ -4,11 +4,14 @@ import com.osrstcg.util.NumberFormatting;
 import com.osrstcg.util.TcgPluginGameMessages;
 import com.google.gson.JsonObject;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.GameState;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.util.Text;
 import com.osrstcg.cloud.api.CloudApiClient;
@@ -17,10 +20,11 @@ import com.osrstcg.cloud.trade.TradeCloudService;
 import javax.inject.Provider;
 
 /**
- * Settles offline hiscores gains into cloud credits once per login. Handles transient
- * {@code hiscores_unavailable} failures with a single delayed retry. Blocking: methods issue
- * synchronous HTTP calls via {@link CloudApiClient} and must not run on the client/EDT thread,
- * except the scheduled retry body which runs on {@link #scheduler}.
+ * Settles offline hiscores gains into cloud credits once per login. Never called on logout —
+ * {@link #clearGate()} cancels any pending retry so a delayed settle cannot fire after disconnect.
+ * Handles transient {@code hiscores_unavailable} failures with a single delayed retry. Blocking:
+ * methods issue synchronous HTTP calls via {@link CloudApiClient} and must not run on the
+ * client/EDT thread, except the scheduled retry body which runs on {@link #scheduler}.
  */
 @Slf4j
 final class HiscoresSettleService
@@ -43,6 +47,10 @@ final class HiscoresSettleService
 	private final AtomicBoolean hiscoresRetryScheduled;
 	private final java.util.function.BooleanSupplier needsCloudConsent;
 	private final java.util.function.BooleanSupplier isAccountLocked;
+	/** Bumped by {@link #clearGate()} so in-flight/scheduled retries become no-ops after logout. */
+	private final AtomicLong settleEpoch = new AtomicLong(0L);
+	private final Object retryLock = new Object();
+	private ScheduledFuture<?> retryFuture;
 
 	/** Wires collaborators and the shared login/retry flags owned by {@link CloudSessionService}. */
 	HiscoresSettleService(
@@ -75,19 +83,13 @@ final class HiscoresSettleService
 
 	/**
 	 * Settles offline hiscores gains into credits, once per login (guarded by
-	 * {@link #hiscoresSettledThisLogin}). On error, delegates to {@link #handleSettleError}.
+	 * {@link #hiscoresSettledThisLogin}). No-op when not logged into RuneScape (never on logout).
+	 * On error, delegates to {@link #handleSettleError}.
 	 */
 	void settleAfterCloudLogin()
 	{
-		if (hiscoresSettledThisLogin.get())
-		{
-			return;
-		}
-		if (tokens.getAccessToken() == null || needsCloudConsent.getAsBoolean() || isAccountLocked.getAsBoolean())
-		{
-			return;
-		}
-		if (restrictedWorldGuard != null && restrictedWorldGuard.isRestricted())
+		long epoch = settleEpoch.get();
+		if (hiscoresSettledThisLogin.get() || !canSettleNow())
 		{
 			return;
 		}
@@ -105,11 +107,23 @@ final class HiscoresSettleService
 
 		try
 		{
+			if (!stillValid(epoch) || !canSettleNow())
+			{
+				return;
+			}
 			JsonObject response = api.settleHiscores(displayName, accountHash);
+			if (!stillValid(epoch))
+			{
+				return;
+			}
 			handleSettleResponse(response, accountHash, displayName, false);
 		}
 		catch (CloudApiException ex)
 		{
+			if (!stillValid(epoch))
+			{
+				return;
+			}
 			handleSettleError(ex, accountHash, displayName);
 		}
 		catch (Exception ex)
@@ -118,11 +132,35 @@ final class HiscoresSettleService
 		}
 	}
 
-	/** Resets the once-per-login settle gate and retry-scheduled flag (e.g. on logout or lock). */
+	/**
+	 * Invalidates settle for this session: bumps the epoch, cancels any pending retry, and resets
+	 * once-per-login flags. Called on logout/disconnect/lock so settle cannot fire afterward.
+	 */
 	void clearGate()
 	{
+		settleEpoch.incrementAndGet();
 		hiscoresSettledThisLogin.set(false);
 		hiscoresRetryScheduled.set(false);
+		cancelRetry();
+	}
+
+	/** True only while logged into RuneScape with tokens/consent/world gates open. */
+	private boolean canSettleNow()
+	{
+		if (client.getGameState() != GameState.LOGGED_IN)
+		{
+			return false;
+		}
+		if (tokens.getAccessToken() == null || needsCloudConsent.getAsBoolean() || isAccountLocked.getAsBoolean())
+		{
+			return false;
+		}
+		return restrictedWorldGuard == null || !restrictedWorldGuard.isRestricted();
+	}
+
+	private boolean stillValid(long epoch)
+	{
+		return settleEpoch.get() == epoch;
 	}
 
 	/**
@@ -199,7 +237,8 @@ final class HiscoresSettleService
 
 	/**
 	 * Schedules a single delayed settle retry (guarded by {@link #hiscoresRetryScheduled} so only one
-	 * retry is ever pending). The retry re-checks preconditions before calling settle again.
+	 * retry is ever pending). The retry re-checks preconditions and the settle epoch before calling
+	 * settle again; {@link #clearGate()} cancels it on logout.
 	 */
 	private void scheduleRetry(long accountHash, String displayName, long delaySec)
 	{
@@ -207,13 +246,14 @@ final class HiscoresSettleService
 		{
 			return;
 		}
-		scheduler.schedule(() ->
+		long epoch = settleEpoch.get();
+		ScheduledFuture<?> future = scheduler.schedule(() ->
 		{
 			try
 			{
-				if (hiscoresSettledThisLogin.get()
-					|| tokens.getAccessToken() == null
-					|| needsCloudConsent.getAsBoolean()
+				if (!stillValid(epoch)
+					|| hiscoresSettledThisLogin.get()
+					|| !canSettleNow()
 					|| client.getAccountHash() != accountHash)
 				{
 					return;
@@ -223,20 +263,61 @@ final class HiscoresSettleService
 				{
 					retryName = displayName;
 				}
+				if (retryName == null || !stillValid(epoch) || !canSettleNow())
+				{
+					return;
+				}
 				JsonObject response = api.settleHiscores(retryName, accountHash);
+				if (!stillValid(epoch))
+				{
+					return;
+				}
 				handleSettleResponse(response, accountHash, retryName, true);
 			}
 			catch (CloudApiException ex)
 			{
+				if (!stillValid(epoch))
+				{
+					return;
+				}
 				hiscoresSettledThisLogin.set(true);
 				log.warn("Hiscores settle retry failed: {} {}", ex.getCode(), ex.getMessage());
 			}
 			catch (Exception ex)
 			{
+				if (!stillValid(epoch))
+				{
+					return;
+				}
 				hiscoresSettledThisLogin.set(true);
 				log.warn("Hiscores settle retry failed", ex);
 			}
+			finally
+			{
+				synchronized (retryLock)
+				{
+					retryFuture = null;
+				}
+			}
 		}, delaySec, TimeUnit.SECONDS);
+		synchronized (retryLock)
+		{
+			retryFuture = future;
+		}
+	}
+
+	private void cancelRetry()
+	{
+		ScheduledFuture<?> future;
+		synchronized (retryLock)
+		{
+			future = retryFuture;
+			retryFuture = null;
+		}
+		if (future != null)
+		{
+			future.cancel(false);
+		}
 	}
 
 	/** Current local player's sanitized name, falling back to the last known name if unavailable. */

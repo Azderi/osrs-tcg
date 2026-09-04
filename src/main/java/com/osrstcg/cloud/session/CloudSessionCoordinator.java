@@ -170,12 +170,14 @@ public class CloudSessionCoordinator
 	}
 
 	/**
-	 * Tears down the cloud session on logout. If the account is locked, discards pending attests
-	 * without flushing; otherwise blocks flushing pending attests before disconnecting.
+	 * Tears down the cloud session on logout. Cancels hiscores settle first (so no settle-hiscores
+	 * can fire during teardown). If the account is locked, discards pending attests without flushing;
+	 * otherwise blocks flushing pending attests before disconnecting.
 	 */
 	public void disconnect()
 	{
 		cancelReconnect();
+		cloudSessionService.cancelHiscoresSettle();
 		if (cloudSessionService.isAccountLocked())
 		{
 			creditAttestQueue.stop();
@@ -331,11 +333,13 @@ public class CloudSessionCoordinator
 	}
 
 	/**
-	 * Client-shutdown hook: blocking-flushes pending attests (unless the account is locked), logging
-	 * rather than throwing on failure, then always stops attest/trade traffic and disconnects.
+	 * Client-shutdown hook: cancels hiscores settle, then blocking-flushes pending attests (unless
+	 * the account is locked), logging rather than throwing on failure, then always stops
+	 * attest/trade traffic and disconnects.
 	 */
 	public void flushAttestsForShutdown()
 	{
+		cloudSessionService.cancelHiscoresSettle();
 		try
 		{
 			if (!cloudSessionService.isAccountLocked())

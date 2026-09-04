@@ -566,6 +566,15 @@ public final class CloudSessionService
 		setState(CloudConnectionState.DISCONNECTED, "Disconnected");
 	}
 
+	/**
+	 * Cancels any in-flight/pending hiscores settle (including delayed retries). Call at the start of
+	 * logout/shutdown teardown so settle-hiscores cannot be sent while attests are flushing.
+	 */
+	public void cancelHiscoresSettle()
+	{
+		hiscoresSettle.clearGate();
+	}
+
 	/** Delegates to {@link CloudCollectionSyncService#applySidebarStats(JsonObject)}. */
 	public void applySidebarStats(JsonObject stats)
 	{
