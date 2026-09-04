@@ -448,14 +448,8 @@ public class PackRevealOverlay extends Overlay
 		{
 			return null;
 		}
-		CardDefinition def = card.getDefinition();
 		boolean foilPull = card.getPull() != null && card.getPull().isFoil();
-		String foilPath = def == null ? null : def.getFoilImagePath();
-		if (foilPull && foilPath != null && !foilPath.isBlank())
-		{
-			return foilPath;
-		}
-		return def == null ? null : def.getImageUrl();
+		return SharedCardRenderer.resolveArtPath(card.getDefinition(), foilPull);
 	}
 
 	/**
