@@ -319,7 +319,23 @@ public class OsrsTcgPlugin extends Plugin
 				PackRevealService.PENDING_PULLS_TIMEOUT_MESSAGE);
 		}
 		tcgPanel.clearPackRevealSidebarFreeze();
-		tcgPanel.refreshAfterPackRevealClose();
+		scheduledExecutorService.execute(() ->
+		{
+			long pending = stateService.getPendingOptimisticCredits();
+			try
+			{
+				cloudSessionService.refreshCreditsFromServer(false);
+				if (pending > 0L)
+				{
+					stateService.addOptimisticCredits(pending);
+				}
+			}
+			catch (Exception ex)
+			{
+				log.debug("Credits refresh after pack timeout failed", ex);
+			}
+			clientThread.invokeLater(tcgPanel::refreshAfterPackRevealClose);
+		});
 	}
 /** Saves a final checkpoint and blocks client shutdown until queued attests are flushed to the cloud. */
 	@Subscribe
