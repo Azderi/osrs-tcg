@@ -5,6 +5,7 @@ import com.google.gson.JsonSyntaxException;
 import com.osrstcg.cloud.activity.ActivityConfigModels.ActivitiesConfigResponse;
 import com.osrstcg.cloud.activity.ActivityConfigModels.ActivityChatRuleDto;
 import com.osrstcg.cloud.activity.ActivityConfigModels.ActivityConfigDto;
+import com.osrstcg.cloud.activity.ActivityConfigModels.KillCreditMultiplierDto;
 import com.osrstcg.cloud.activity.ActivityConfigModels.NpcExclusionsDto;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
@@ -15,9 +16,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -285,7 +288,8 @@ public final class ActivityConfigService
 
 	/**
 	 * Converts a raw {@link ActivityConfigDto} into an immutable {@link CompiledActivityConfig}: compiles
-	 * each chat rule (dropping invalid ones), and expands NPC exclusion ids/ranges into a flat id set.
+	 * each chat rule (dropping invalid ones), expands NPC exclusion ids/ranges into a flat id set, and
+	 * parses per-NPC kill credit multipliers.
 	 */
 	static CompiledActivityConfig compile(ActivityConfigDto dto)
 	{
@@ -339,8 +343,31 @@ public final class ActivityConfigService
 			}
 		}
 
+		Map<Integer, Double> killMultipliers = new HashMap<>();
+		if (dto.killCreditMultipliers != null)
+		{
+			for (Map.Entry<String, KillCreditMultiplierDto> entry : dto.killCreditMultipliers.entrySet())
+			{
+				if (entry == null || entry.getKey() == null || entry.getValue() == null)
+				{
+					continue;
+				}
+				int npcId;
+				try
+				{
+					npcId = Integer.parseInt(entry.getKey().trim());
+				}
+				catch (NumberFormatException ex)
+				{
+					continue;
+				}
+				double multiplier = Math.max(0.0, entry.getValue().multiplier);
+				killMultipliers.put(npcId, multiplier);
+			}
+		}
+
 		String version = dto.version == null ? "" : dto.version.trim();
-		return new CompiledActivityConfig(version, rules, npcIds);
+		return new CompiledActivityConfig(version, rules, npcIds, killMultipliers);
 	}
 
 	/**

@@ -1,7 +1,9 @@
 package com.osrstcg.cloud.activity;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Raw Gson DTOs for the server's activity-config JSON payload, plus the response wrapper for the
@@ -21,6 +23,16 @@ public final class ActivityConfigModels
 		public String version;
 		public List<ActivityChatRuleDto> chatRules = new ArrayList<>();
 		public NpcExclusionsDto npcExclusions = new NpcExclusionsDto();
+		/** Per-NPC-id optimistic kill credit multipliers; JSON keys are NPC id strings. */
+		public Map<String, KillCreditMultiplierDto> killCreditMultipliers = new HashMap<>();
+	}
+
+	/** Multiplier applied to combat-level optimistic credits for a specific NPC id. */
+	public static final class KillCreditMultiplierDto
+	{
+		/** Display name from the server (metadata only; matching is by NPC id). */
+		public String npcName;
+		public double multiplier;
 	}
 
 	/** One chat-message-to-credits rule, matched by literal prefix or regex against a chat line. */

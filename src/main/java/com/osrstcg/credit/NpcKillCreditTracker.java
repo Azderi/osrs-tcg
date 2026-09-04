@@ -159,7 +159,7 @@ public final class NpcKillCreditTracker
 			{
 				if (Boolean.TRUE.equals(wasNpcEngaged.get(idx)) && isInteractionValid(idx))
 				{
-					enqueueNpcKillCredit(creditAwardService, attestQueue, awardName, combatLevel, awardNpcId);
+					enqueueNpcKillCredit(awardName, combatLevel, awardNpcId);
 					sidebarRefresh.refreshCredits();
 				}
 			}
@@ -179,20 +179,19 @@ public final class NpcKillCreditTracker
 			(currentTick - lastInteractionTicks.get(npcIndex)) > INTERACT_TIMEOUT_TICKS);
 	}
 
-	/** Enqueues an {@code npc_kill} attest event; optimistic credits equal combat level (1×). */
-	private static void enqueueNpcKillCredit(
-		CreditAwardService creditAwardService,
-		CreditAttestQueue attestQueue,
-		String npcName,
-		int combatLevel,
-		int npcId)
+	/**
+	 * Enqueues an {@code npc_kill} attest event; optimistic credits are
+	 * {@code round(combatLevel * killCreditMultiplier)}, defaulting to 1× when unset.
+	 */
+	private void enqueueNpcKillCredit(String npcName, int combatLevel, int npcId)
 	{
 		if (combatLevel <= 0 || creditAwardService.isCreditAwardOnCooldown()
 			|| !creditAwardService.isCreditTrackingAllowed())
 		{
 			return;
 		}
-		long optimisticCredits = combatLevel;
+		double multiplier = activityConfigService.getCompiled().getKillCreditMultiplier(npcId);
+		long optimisticCredits = Math.round(combatLevel * multiplier);
 		if (optimisticCredits <= 0L)
 		{
 			return;
