@@ -99,10 +99,23 @@ public final class CreditAttestQueue
 	{
 		attestScheduler.start();
 	}
-/** Stops periodic flushing and resets retry state for the next session. */
+/** Stops periodic flushing and resets retry/rate-cap state for the next session. */
 	public void stop()
 	{
+		stop(true);
+	}
+/**
+	 * Stops periodic flushing and resets retry state.
+	 *
+	 * @param clearRateCap false when pausing for a restricted world so the server rate-cap deadline is kept
+	 */
+	public void stop(boolean clearRateCap)
+	{
 		attestScheduler.stop();
+		if (clearRateCap)
+		{
+			rateCapUntilMs.set(0L);
+		}
 		consecutiveRetryFailures.set(0);
 		rateCapNotifier.reset();
 	}

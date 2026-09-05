@@ -188,7 +188,7 @@ public class CloudSessionCoordinator
 		}
 		finally
 		{
-			creditAttestQueue.stop();
+			creditAttestQueue.stop(false);
 			tradeCloudService.stop();
 			cloudSessionService.enterRestrictedWorld();
 			SwingUtilities.invokeLater(sidebarRefresh::refresh);
