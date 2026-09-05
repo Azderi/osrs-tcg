@@ -1,6 +1,8 @@
 package com.osrstcg.credit;
 
 import com.google.gson.JsonObject;
+import com.osrstcg.cloud.activity.ActivityConfigService;
+import com.osrstcg.cloud.activity.CompiledActivityConfig;
 import com.osrstcg.cloud.session.CloudSessionCoordinator;
 import com.osrstcg.cloud.session.CloudSessionService;
 import com.osrstcg.cloud.attest.CreditAttestCoalescer;
@@ -18,7 +20,10 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.Experience;
 import net.runelite.api.GameState;
+import net.runelite.api.Player;
 import net.runelite.api.Skill;
+import net.runelite.api.coords.LocalPoint;
+import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.FakeXpDrop;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
@@ -29,7 +34,9 @@ import com.osrstcg.state.TcgStateService;
 /**
  * Central coordinator for awarding credits from XP gains and level-ups. Tracks per-skill XP/level baselines,
  * converts XP into credit chunks (with a separate, cheaper Slayer conversion), and enqueues optimistic
- * credit attest events via {@link CreditAttestQueue}. Also enforces a short cooldown after login/world-hop
+ * credit attest events via {@link CreditAttestQueue}. Combat-skill XP is normally ignored (kills are credited
+ * instead), except where a server-configured region XP rule covers the player's current map region, e.g.
+ * Magic XP inside the Magic Training Arena. Also enforces a short cooldown after login/world-hop
  * so transient stat resyncs (e.g. temporary boosts settling) don't get credited as real gains. Most XP/level
  * entry points ({@link #onStatChanged}, {@link #onFakeXpDrop}) are called directly from the plugin's event
  * handlers; {@link #onGameTick} is the only RuneLite-subscribed method here.
@@ -43,7 +50,10 @@ public class CreditAwardService
 	static final int CREDIT_COOLDOWN_TICKS = 3;
 /** Extra settle window after hopping off a restricted/event world (temp max stats). */
 	static final int RESTRICTED_WORLD_EXIT_SETTLE_TICKS = 12;
-/** Combat skills excluded from XP-based credit awards (XP here comes from combat, not standalone training). */
+/**
+	 * Combat skills excluded from XP-based credit awards (XP here comes from combat, not standalone training),
+	 * unless a region XP rule from {@link ActivityConfigService} covers the player's current region.
+	 */
 	private static final Set<Skill> COMBAT_SKILLS = EnumSet.of(
 		Skill.ATTACK,
 		Skill.DEFENCE,
@@ -58,6 +68,7 @@ public class CreditAwardService
 	private final CreditAttestQueue attestQueue;
 	private final ChatMessageManager chatMessageManager;
 	private final Provider<CloudSessionCoordinator> sessionCoordinator;
+	private final ActivityConfigService activityConfigService;
 	private final SkillCreditSession skills = new SkillCreditSession();
 	private boolean creditCooldownActive;
 	private int creditCooldownUntilTick;
@@ -69,7 +80,7 @@ public class CreditAwardService
 	@Inject
 	public CreditAwardService(Client client, TcgStateService stateService, CloudSessionService session,
 		CreditAttestQueue attestQueue, ChatMessageManager chatMessageManager,
-		Provider<CloudSessionCoordinator> sessionCoordinator)
+		Provider<CloudSessionCoordinator> sessionCoordinator, ActivityConfigService activityConfigService)
 	{
 		this.client = client;
 		this.stateService = stateService;
@@ -77,6 +88,7 @@ public class CreditAwardService
 		this.attestQueue = attestQueue;
 		this.chatMessageManager = chatMessageManager;
 		this.sessionCoordinator = sessionCoordinator;
+		this.activityConfigService = activityConfigService;
 	}
 /** Resets in-memory tracking and restores the uncredited XP pool from the persisted baseline, if any. */
 	public void resetExperienceCreditBaseline()
@@ -398,8 +410,9 @@ public class CreditAwardService
 	}
 /**
 	 * Updates the previous-XP baseline for {@code skill} and, if XP increased while not on cooldown, routes
-	 * the gain to the appropriate credit path (ignored for combat skills, Hitpoints attested without credit
-	 * bucketing, others accumulated toward an XP chunk). XP drops (e.g. from a stat reset) are ignored.
+	 * the gain to the appropriate credit path (combat skills ignored unless a region XP rule applies, Hitpoints
+	 * attested without credit bucketing, others accumulated toward an XP chunk). XP drops (e.g. from a stat
+	 * reset) are ignored.
 	 *
 	 * @return true if this call caused an XP chunk to be credited
 	 */
@@ -436,9 +449,7 @@ public class CreditAwardService
 			long xpGained = (long) currentXp - previousXp;
 			if (isCombatSkill(skill))
 			{
-				debugAward(String.format(
-					"Ignored +%s combat skill XP (%s)",
-					NumberFormatting.format(xpGained), skill.getName()));
+				xpChunkAwarded = trackCombatSkillXpGain(skill, xpGained);
 			}
 			else if (!isCreditAwardOnCooldown())
 			{
@@ -454,6 +465,109 @@ public class CreditAwardService
 		}
 		skills.previousSkillXp[skillIndex] = currentXp;
 		return xpChunkAwarded;
+	}
+/**
+	 * Handles a combat-skill XP gain: ignored unless a configured region XP rule covers {@code skill} in the
+	 * player's current map region (e.g. Magic in the Magic Training Arena), in which case the XP is pooled
+	 * under that rule and completed chunks are attested as {@code activity} events.
+	 *
+	 * @return true if this call caused an XP chunk to be credited
+	 */
+	private boolean trackCombatSkillXpGain(Skill skill, long xpGained)
+	{
+		int regionId = currentRegionId();
+		CompiledActivityConfig.CompiledXpRegionRule rule = regionId < 0
+			? null
+			: activityConfigService.getCompiled().findXpRegionRule(skill, regionId);
+		if (rule == null)
+		{
+			debugAward(String.format(
+				"Ignored +%s combat skill XP (%s)",
+				NumberFormatting.format(xpGained), skill.getName()));
+			return false;
+		}
+		if (isCreditAwardOnCooldown())
+		{
+			return false;
+		}
+		return applyRegionXpGain(rule, skill, regionId, xpGained);
+	}
+/**
+	 * Pools {@code xpGained} under {@code rule}'s activity id and, if attests can currently be collected,
+	 * converts completed {@code xpPerChunk} chunks to credits and enqueues one {@code activity} attest carrying
+	 * the credited XP, skill and region as evidence. If the cloud session is offline, the XP stays pooled.
+	 *
+	 * @return true if this call caused credit to be awarded
+	 */
+	private boolean applyRegionXpGain(CompiledActivityConfig.CompiledXpRegionRule rule, Skill skill,
+		int regionId, long xpGained)
+	{
+		if (rule == null || skill == null || xpGained <= 0L)
+		{
+			return false;
+		}
+
+		String activityId = rule.getActivityId();
+		String label = rule.getLabel().isBlank() ? activityId : rule.getLabel();
+		long pooled = skills.addRegionXp(activityId, xpGained);
+		debugAward(String.format("Registered +%s XP (%s, %s) -> %s / %s",
+			NumberFormatting.format(xpGained), skill.getName(), label,
+			NumberFormatting.format(pooled), NumberFormatting.format(rule.getXpPerChunk())));
+
+		long chunks = pooled / rule.getXpPerChunk();
+		if (chunks <= 0L)
+		{
+			return false;
+		}
+
+		long xpCredited = chunks * rule.getXpPerChunk();
+		long credits = chunks * rule.getCreditsPerChunk();
+		if (!session.canCollectAttests())
+		{
+			debugAward(String.format("Cloud offline; +%s XP (%s) pending until reconnected",
+				NumberFormatting.format(xpCredited), label));
+			return false;
+		}
+
+		JsonObject evidence = new JsonObject();
+		evidence.addProperty("activityId", activityId);
+		evidence.addProperty("skill", skill.getName());
+		evidence.addProperty("xpDelta", xpCredited);
+		evidence.addProperty("regionId", regionId);
+		if (!attestQueue.enqueue(CreditAttestCoalescer.TYPE_ACTIVITY, evidence, credits))
+		{
+			return false;
+		}
+
+		skills.subtractRegionXp(activityId, xpCredited);
+		debugAward(String.format("XP drop +%s (%s) -> +%s credits (total %s)",
+			NumberFormatting.format(xpCredited), label,
+			NumberFormatting.format(credits), NumberFormatting.format(stateService.getCredits())));
+		return credits > 0L;
+	}
+/**
+	 * Map region id of the local player's current tile, or -1 if unavailable. Instance-aware: inside an
+	 * instanced area this resolves to the template map region (the same value RuneLite's Ground Markers
+	 * record), and elsewhere it equals the ordinary world-location region.
+	 */
+	private int currentRegionId()
+	{
+		if (client == null)
+		{
+			return -1;
+		}
+		Player player = client.getLocalPlayer();
+		if (player == null)
+		{
+			return -1;
+		}
+		LocalPoint local = player.getLocalLocation();
+		if (local == null)
+		{
+			return -1;
+		}
+		WorldPoint location = WorldPoint.fromLocalInstance(client, local);
+		return location == null ? -1 : location.getRegionID();
 	}
 /**
 	 * Applies a positive XP gain (xp) for {@code skill}: routes Slayer XP through its own chunk conversion,

@@ -7,6 +7,7 @@ import com.osrstcg.cloud.activity.ActivityConfigModels.ActivityChatRuleDto;
 import com.osrstcg.cloud.activity.ActivityConfigModels.ActivityConfigDto;
 import com.osrstcg.cloud.activity.ActivityConfigModels.KillCreditMultiplierDto;
 import com.osrstcg.cloud.activity.ActivityConfigModels.NpcExclusionsDto;
+import com.osrstcg.cloud.activity.ActivityConfigModels.XpRegionRuleDto;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
 import com.osrstcg.util.AtomicFiles;
@@ -33,9 +34,10 @@ import java.util.regex.PatternSyntaxException;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.Skill;
 /**
- * Fetches, caches, and compiles the server-driven activity config (chat-based credit rules and NPC
- * exclusions) used to award activity credits. Holds the current {@link CompiledActivityConfig} in an
+ * Fetches, caches, and compiles the server-driven activity config (chat-based credit rules, NPC
+ * exclusions, kill multipliers and region-gated XP rules) used to award activity credits. Holds the current {@link CompiledActivityConfig} in an
  * {@link AtomicReference} for lock-free reads; network refreshes run asynchronously on {@link #scheduler}
  * and never block callers of the getters. A copy is persisted to disk so the last-good config survives
  * restarts and cloud API failures.
@@ -272,8 +274,8 @@ public final class ActivityConfigService
 	}
 /**
 	 * Converts a raw {@link ActivityConfigDto} into an immutable {@link CompiledActivityConfig}: compiles
-	 * each chat rule (dropping invalid ones), expands NPC exclusion ids/ranges into a flat id set, and
-	 * parses per-NPC kill credit multipliers.
+	 * each chat rule (dropping invalid ones), expands NPC exclusion ids/ranges into a flat id set, parses
+	 * per-NPC kill credit multipliers, and compiles region-gated XP rules (dropping invalid ones).
 	 */
 	static CompiledActivityConfig compile(ActivityConfigDto dto)
 	{
@@ -350,8 +352,73 @@ public final class ActivityConfigService
 			}
 		}
 
+		List<CompiledActivityConfig.CompiledXpRegionRule> regionRules = new ArrayList<>();
+		if (dto.xpRegionRules != null)
+		{
+			for (XpRegionRuleDto rule : dto.xpRegionRules)
+			{
+				CompiledActivityConfig.CompiledXpRegionRule compiledRule = compileXpRegionRule(rule);
+				if (compiledRule != null)
+				{
+					regionRules.add(compiledRule);
+				}
+			}
+		}
+
 		String version = dto.version == null ? "" : dto.version.trim();
-		return new CompiledActivityConfig(version, rules, npcIds, killMultipliers);
+		return new CompiledActivityConfig(version, rules, npcIds, killMultipliers, regionRules);
+	}
+/**
+	 * Compiles one raw region-gated XP rule, or returns null if it's missing an activity id, names an
+	 * unknown skill, has no region ids, or has a non-positive chunk size.
+	 */
+	private static CompiledActivityConfig.CompiledXpRegionRule compileXpRegionRule(XpRegionRuleDto rule)
+	{
+		if (rule == null || rule.activityId == null || rule.activityId.isBlank() || rule.xpPerChunk <= 0L)
+		{
+			return null;
+		}
+		Skill skill = skillByName(rule.skill);
+		if (skill == null)
+		{
+			log.warn("Skipping xp region rule {} with unknown skill '{}'", rule.activityId, rule.skill);
+			return null;
+		}
+		Set<Integer> regionIds = new HashSet<>();
+		if (rule.regionIds != null)
+		{
+			for (Integer id : rule.regionIds)
+			{
+				if (id != null)
+				{
+					regionIds.add(id);
+				}
+			}
+		}
+		if (regionIds.isEmpty())
+		{
+			log.warn("Skipping xp region rule {} with no region ids", rule.activityId);
+			return null;
+		}
+		return new CompiledActivityConfig.CompiledXpRegionRule(
+			rule.activityId.trim(), skill, regionIds, rule.xpPerChunk, rule.credits, rule.label);
+	}
+/** Looks up a {@link Skill} by its display name (case-insensitive), or {@code null} if not found. */
+	private static Skill skillByName(String name)
+	{
+		if (name == null || name.isBlank())
+		{
+			return null;
+		}
+		String wanted = name.trim();
+		for (Skill skill : Skill.values())
+		{
+			if (wanted.equalsIgnoreCase(skill.getName()))
+			{
+				return skill;
+			}
+		}
+		return null;
 	}
 /**
 	 * Compiles one raw chat rule, or returns null if it's missing required fields or (for a regex rule)

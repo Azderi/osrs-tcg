@@ -23,6 +23,24 @@ public final class ActivityConfigModels
 		public NpcExclusionsDto npcExclusions = new NpcExclusionsDto();
 /** Per-NPC-id optimistic kill credit multipliers; JSON keys are NPC id strings. */
 		public Map<String, KillCreditMultiplierDto> killCreditMultipliers = new HashMap<>();
+/** Region-gated XP rules that credit XP for a skill whose XP is otherwise ignored (e.g. Magic in the Magic Training Arena). */
+		public List<XpRegionRuleDto> xpRegionRules = new ArrayList<>();
+	}
+/**
+	 * One region-gated XP-to-credits rule. While the local player stands in any of {@code regionIds}, XP gained
+	 * in {@code skill} is pooled and every {@code xpPerChunk} XP is attested as an {@code activity} event worth
+	 * {@code credits}. Lets combat-classed skills earn credits from non-combat minigames such as the MTA.
+	 */
+	public static final class XpRegionRuleDto
+	{
+		public String activityId;
+/** Skill display name, e.g. {@code Magic}; case-insensitive. */
+		public String skill;
+/** Map region ids (see {@code WorldPoint#getRegionID()}) where the rule applies. */
+		public List<Integer> regionIds = new ArrayList<>();
+		public long xpPerChunk;
+		public long credits;
+		public String label;
 	}
 /** Multiplier applied to combat-level optimistic credits for a specific NPC id. */
 	public static final class KillCreditMultiplierDto

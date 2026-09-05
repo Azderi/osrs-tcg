@@ -3,6 +3,7 @@ package com.osrstcg.credit;
 import com.osrstcg.state.SkillCreditBaseline;
 import java.util.Arrays;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import net.runelite.api.Client;
@@ -25,6 +26,11 @@ final class SkillCreditSession
 	long pendingSlayerXpToAttest;
 /** Slayer XP short of a full {@link XpCreditMath#SLAYER_XP_PER_CHUNK} chunk, carried to the next gain. */
 	long slayerXpRemainder;
+/**
+	 * XP earned under a region-gated XP rule (e.g. Magic in the MTA) but short of a full chunk, keyed by the
+	 * rule's activity id. Session-only: not persisted, so at most one partial chunk is lost on logout.
+	 */
+	final Map<String, Long> uncreditedRegionXpByActivity = new HashMap<>();
 /** Clears level/XP baselines so the next snapshot re-establishes them from the client. */
 	void resetTracking()
 	{
@@ -33,12 +39,52 @@ final class SkillCreditSession
 		skillXpInitialized = false;
 		Arrays.fill(previousSkillXp, 0);
 	}
-/** Discards all pending uncredited XP (main pool and Slayer pending/remainder). */
+/** Discards all pending uncredited XP (main pool, Slayer pending/remainder, and region-rule pools). */
 	void clearUncreditedXpPool()
 	{
 		Arrays.fill(uncreditedXpBySkill, 0L);
 		pendingSlayerXpToAttest = 0L;
 		slayerXpRemainder = 0L;
+		uncreditedRegionXpByActivity.clear();
+	}
+/** Adds {@code xp} XP to the region rule's pool for {@code activityId} and returns the new pool total. */
+	long addRegionXp(String activityId, long xp)
+	{
+		if (activityId == null || activityId.isEmpty() || xp <= 0L)
+		{
+			return regionXpFor(activityId);
+		}
+
+		long next = regionXpFor(activityId) + xp;
+		uncreditedRegionXpByActivity.put(activityId, next);
+		return next;
+	}
+/** Currently uncredited XP pooled for the region rule {@code activityId} (0 if unknown/null). */
+	long regionXpFor(String activityId)
+	{
+		if (activityId == null || activityId.isEmpty())
+		{
+			return 0L;
+		}
+		Long pooled = uncreditedRegionXpByActivity.get(activityId);
+		return pooled == null ? 0L : pooled;
+	}
+/** Removes {@code xp} XP from the region rule's pool (clamped at 0), typically after crediting a chunk. */
+	void subtractRegionXp(String activityId, long xp)
+	{
+		if (activityId == null || activityId.isEmpty() || xp <= 0L)
+		{
+			return;
+		}
+		long remaining = Math.max(0L, regionXpFor(activityId) - xp);
+		if (remaining == 0L)
+		{
+			uncreditedRegionXpByActivity.remove(activityId);
+		}
+		else
+		{
+			uncreditedRegionXpByActivity.put(activityId, remaining);
+		}
 	}
 /** Replaces the uncredited XP pool with a persisted baseline (e.g. restored after a profile reload). */
 	void restoreUncreditedXp(SkillCreditBaseline saved)
@@ -46,6 +92,7 @@ final class SkillCreditSession
 		Arrays.fill(uncreditedXpBySkill, 0L);
 		pendingSlayerXpToAttest = 0L;
 		slayerXpRemainder = 0L;
+		uncreditedRegionXpByActivity.clear();
 
 		if (saved == null || !saved.isPresent())
 		{
