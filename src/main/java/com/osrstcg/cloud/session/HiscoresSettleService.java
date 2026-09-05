@@ -30,9 +30,7 @@ import javax.inject.Provider;
 @Slf4j
 final class HiscoresSettleService
 {
-	private static final long HISCORES_RETRY_DELAY_SEC = 30L;
-/** Longer than default {@code HISCORES_SETTLE_MIN_INTERVAL_MS} (60s) so throttle can clear. */
-	private static final long SETTLE_THROTTLE_RETRY_DELAY_SEC = 70L;
+	private static final long HISCORES_RETRY_DELAY_SEC = 45L;
 
 	private final CachedDisplayName cachedDisplayName = new CachedDisplayName();
 
@@ -160,9 +158,10 @@ final class HiscoresSettleService
 		return settleEpoch.get() == epoch;
 	}
 /**
-	 * Applies sidebar credits from a settle response. Soft-skips ({@code hiscores_stale},
-	 * {@code settle_throttle}) refresh credits but do not consume the once-per-login gate — a single
-	 * delayed retry is scheduled so Jagex lag / cooldown can clear. Terminal successes mark settled.
+	 * Applies sidebar credits from a settle response. Soft-skip {@code settle_throttle}
+	 * refreshes credits but does not consume the once-per-login gate — a single delayed retry is
+	 * scheduled so the cooldown can clear. Other successes (including {@code hiscores_stale}) mark
+	 * settled.
 	 */
 	private void handleSettleResponse(
 		JsonObject response,
@@ -184,13 +183,10 @@ final class HiscoresSettleService
 			reason = "";
 		}
 
-		if (!isRetry && skipped && ("hiscores_stale".equals(reason) || "settle_throttle".equals(reason)))
+		if (!isRetry && skipped && "settle_throttle".equals(reason))
 		{
-			long delaySec = "settle_throttle".equals(reason)
-				? SETTLE_THROTTLE_RETRY_DELAY_SEC
-				: HISCORES_RETRY_DELAY_SEC;
-			log.info("Hiscores settle soft-skip ({}); scheduling retry in {}s", reason, delaySec);
-			scheduleRetry(accountHash, displayName, delaySec);
+			log.info("Hiscores settle soft-skip ({}); scheduling retry in {}s", reason, HISCORES_RETRY_DELAY_SEC);
+			scheduleRetry(accountHash, displayName, HISCORES_RETRY_DELAY_SEC);
 			return;
 		}
 
@@ -316,7 +312,7 @@ final class HiscoresSettleService
 	}
 /**
 	 * Applies a settle response's sidebar credits/revision. Posts a chat toast when hiscores credits
-	 * were accepted.
+	 * were accepted or clawed back.
 	 */
 	private void applySettleResponse(JsonObject response)
 	{
@@ -351,6 +347,15 @@ final class HiscoresSettleService
 			String toast = "Automatically credited "
 				+ NumberFormatting.format(accepted)
 				+ " credits based on the hiscores!";
+			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, toast);
+		}
+
+		long clawback = JsonObjects.readLong(response, "clawbackCredits", 0L);
+		if (clawback > 0L)
+		{
+			String toast = "Removed "
+				+ NumberFormatting.format(clawback)
+				+ " credits due to hiscores mismatch. If you think this is a mistake, open a ticket.";
 			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, toast);
 		}
 	}
