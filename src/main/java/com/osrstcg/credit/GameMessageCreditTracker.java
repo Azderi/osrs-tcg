@@ -76,7 +76,10 @@ public final class GameMessageCreditTracker
 		CompiledActivityConfig.CompiledChatRule matched = rule.get();
 		JsonObject evidence = new JsonObject();
 		evidence.addProperty("activityId", matched.getActivityId());
-		attestQueue.enqueue("activity", evidence, matched.getCredits());
+		if (!attestQueue.enqueue("activity", evidence, matched.getCredits()))
+		{
+			return;
+		}
 		debugActivityQueued(matched);
 		sidebarRefresh.refreshCredits();
 	}
