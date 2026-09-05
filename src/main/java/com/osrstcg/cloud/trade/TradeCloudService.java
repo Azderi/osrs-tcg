@@ -42,7 +42,6 @@ public final class TradeCloudService
 	private final ChatMessageManager chatMessageManager;
 	private final ScheduledExecutorService scheduler;
 
-	private final AtomicReference<TradeInboxItem> pendingAccept = new AtomicReference<>(null);
 	private final AtomicReference<Runnable> inboxListener = new AtomicReference<>(null);
 	private final AtomicBoolean running = new AtomicBoolean(false);
 	private final AtomicBoolean polling = new AtomicBoolean(false);
@@ -136,11 +135,6 @@ public final class TradeCloudService
 	public void setInboxListener(Runnable listener)
 	{
 		inboxListener.set(listener);
-	}
-/** @return the most recent unresolved incoming trade from the last poll, or null if none */
-	public TradeInboxItem getPendingAccept()
-	{
-		return pendingAccept.get();
 	}
 /**
 	 * Creates a trade request to {@code partnerDisplayName} via the cloud API. Dispatches the (blocking)
@@ -281,8 +275,7 @@ public final class TradeCloudService
 	}
 /**
 	 * Makes one blocking call to the trade-inbox endpoint, applies any changed sidebar stats/revision, chats
-	 * a ping for newly-notified (or, on first poll after login, all) pending trades, acks notified items,
-	 * and updates {@link #pendingAccept}.
+	 * a ping for newly-notified (or, on first poll after login, all) pending trades, and acks notified items.
 	 *
 	 * @return the server-suggested delay in ms before the next poll
 	 */
@@ -316,7 +309,6 @@ public final class TradeCloudService
 
 		List<TradeInboxItem> inbox = api.parseInbox(response);
 		boolean loginBroadcast = broadcastPendingOnLogin.compareAndSet(true, false);
-		TradeInboxItem newest = null;
 		for (TradeInboxItem item : inbox)
 		{
 			if (loginBroadcast || !item.isNotified())
@@ -324,8 +316,9 @@ public final class TradeCloudService
 				String fromLabel = item.getFromDisplayName() == null || item.getFromDisplayName().isBlank()
 					? "someone"
 					: item.getFromDisplayName().trim();
-				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
-					"You have a pending trade request from " + fromLabel + ". Check the sidebar!");
+				TcgPluginGameMessages.queueFormattedGameMessage(chatMessageManager,
+					TcgPluginGameMessages.formatPendingTradeRequest(fromLabel),
+					TcgPluginGameMessages.plainPendingTradeRequest(fromLabel));
 				if (!item.isNotified())
 				{
 					try
@@ -338,9 +331,7 @@ public final class TradeCloudService
 					}
 				}
 			}
-			newest = item;
 		}
-		pendingAccept.set(newest);
 
 		notifyListener();
 		return pollAfterMs;
