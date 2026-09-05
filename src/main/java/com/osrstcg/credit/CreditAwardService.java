@@ -237,9 +237,9 @@ public class CreditAwardService
 	}
 /**
 	 * Handles a {@code GameStateChanged} event: persists baselines and arms a settle cooldown on logout or
-	 * world hop (suppressed for the entire hop), then starts the post-login tick window once logged in
-	 * ({@link #CREDIT_COOLDOWN_TICKS}, or {@link #RESTRICTED_WORLD_EXIT_SETTLE_TICKS} when the hop began
-	 * on a restricted world).
+	 * world hop (suppressed for the entire hop), then starts the post-login tick window once logged in.
+	 * Restricted-world hold is armed only when leaving a restricted/event world; normal hops settle without
+	 * hold ({@link #CREDIT_COOLDOWN_TICKS}). Entering restricted is handled by {@link #onWorldChanged()}.
 	 */
 	public void onGameStateChanged(GameStateChanged event)
 	{
@@ -259,7 +259,14 @@ public class CreditAwardService
 			persistSkillBaselineToState();
 			boolean leavingRestricted = session.isRestrictedWorldLive() || sawRestrictedWhileLoggedIn;
 			sawRestrictedWhileLoggedIn = false;
-			beginHoldAndSettle(resolveHopSettleCooldownTicks(leavingRestricted));
+			if (armRestrictedHoldOnHop(leavingRestricted))
+			{
+				beginHoldAndSettle(RESTRICTED_WORLD_EXIT_SETTLE_TICKS);
+			}
+			else
+			{
+				armStatsSettle(false, CREDIT_COOLDOWN_TICKS);
+			}
 			return;
 		}
 
@@ -273,7 +280,7 @@ public class CreditAwardService
 			beginCreditAwardCooldown(creditCooldownDurationTicks);
 		}
 	}
-/** Arms the restricted-world hold and 12-tick settle when world types resolve to restricted. */
+/** Early lock + 12-tick settle when world types resolve to restricted (enter event world during load). */
 	public void onWorldChanged()
 	{
 		if (!session.isRestrictedWorldLive())
@@ -593,13 +600,24 @@ public class CreditAwardService
 		restoreXpFromPersistedBaseline = restoreXp;
 		suppressAwardsUntilSettle(restoreXp, ticks);
 	}
-/** Begins restricted-world hold and arms hop/event settle for {@code ticks}. */
+/**
+	 * Arms restricted-world hold (sidebar/cloud treat as restricted) and hop/event settle for {@code ticks}.
+	 * Used when leaving or entering a restricted world — not on normal hops.
+	 */
 	private void beginHoldAndSettle(int ticks)
 	{
 		session.beginRestrictedExitHold();
 		armStatsSettle(false, ticks);
 	}
-/** Post-login settle ticks: longer when the hop started on a restricted/event world. */
+/**
+	 * Whether {@link GameState#HOPPING} should arm restricted hold. Entering restricted arms hold via
+	 * {@link #onWorldChanged()} once destination types resolve.
+	 */
+	static boolean armRestrictedHoldOnHop(boolean leavingRestricted)
+	{
+		return leavingRestricted;
+	}
+/** Post-login settle ticks: longer for restricted-world leave/enter than a normal hop. */
 	static int resolveHopSettleCooldownTicks(boolean restrictedWorld)
 	{
 		return restrictedWorld ? RESTRICTED_WORLD_EXIT_SETTLE_TICKS : CREDIT_COOLDOWN_TICKS;

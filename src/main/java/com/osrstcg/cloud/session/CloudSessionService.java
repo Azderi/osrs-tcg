@@ -210,7 +210,7 @@ public final class CloudSessionService
 	{
 		return isRestrictedWorldLive() || restrictedExitHold.get();
 	}
-/** Sticky event-world mode after hopping off a restricted world until credit settle ends. */
+/** Sticky event-world mode for leave/enter settle until credit settle ends (or live restricted). */
 	public void beginRestrictedExitHold()
 	{
 		if (!restrictedExitHold.compareAndSet(false, true))
