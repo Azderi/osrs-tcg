@@ -72,6 +72,8 @@ public final class CloudSessionService
 	private final AtomicBoolean hiscoresRetryScheduled = new AtomicBoolean(false);
 	private final AtomicBoolean accountBanned = new AtomicBoolean(false);
 	private final AtomicBoolean accountQuarantined = new AtomicBoolean(false);
+	/** Keeps event-world UI/gates after leaving a restricted world until credit settle clears. */
+	private final AtomicBoolean restrictedExitHold = new AtomicBoolean(false);
 	/** Server-suggested reconnect delay ms (0 = unset); taken by the coordinator once. */
 	private final AtomicLong suggestedReconnectDelayMs = new AtomicLong(0L);
 	private final List<Runnable> accountLockCleanups = new CopyOnWriteArrayList<>();
@@ -199,9 +201,32 @@ public final class CloudSessionService
 		return suggestedReconnectDelayMs.getAndSet(0L);
 	}
 /** Whether the current world type is one where cloud credits are disabled. */
-	public boolean isRestrictedWorld()
+	public boolean isRestrictedWorldLive()
 	{
 		return restrictedWorldGuard.isRestricted();
+	}
+/** Whether cloud/UI should treat the world as restricted (live type, or post-exit settle hold). */
+	public boolean isRestrictedWorld()
+	{
+		return isRestrictedWorldLive() || restrictedExitHold.get();
+	}
+/** Sticky event-world mode after hopping off a restricted world until credit settle ends. */
+	public void beginRestrictedExitHold()
+	{
+		if (!restrictedExitHold.compareAndSet(false, true))
+		{
+			return;
+		}
+		Runnable listener = statusListener.get();
+		if (listener != null)
+		{
+			listener.run();
+		}
+	}
+/** @return true if a restricted-exit hold was cleared */
+	public boolean clearRestrictedExitHold()
+	{
+		return restrictedExitHold.getAndSet(false);
 	}
 /** Whether the account is currently flagged banned. */
 	public boolean isAccountBanned()
@@ -539,6 +564,7 @@ public final class CloudSessionService
 	{
 		accountBanned.set(false);
 		accountQuarantined.set(false);
+		restrictedExitHold.set(false);
 		suggestedReconnectDelayMs.set(0L);
 		clearLoginFetchGates();
 		stateService.clearCollectionStatsCache();

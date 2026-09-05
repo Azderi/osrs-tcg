@@ -1,6 +1,7 @@
 package com.osrstcg.credit;
 
 import com.google.gson.JsonObject;
+import com.osrstcg.cloud.session.CloudSessionCoordinator;
 import com.osrstcg.cloud.session.CloudSessionService;
 import com.osrstcg.cloud.attest.CreditAttestCoalescer;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
@@ -11,6 +12,7 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 import javax.inject.Inject;
+import javax.inject.Provider;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
@@ -39,8 +41,8 @@ public class CreditAwardService
 	private static final int FAKE_XP_DROP_SANITY_CAP = 20_000_000;
 /** Default credit-award cooldown, in game ticks, after login/world-hop before live XP gains are credited. */
 	static final int CREDIT_COOLDOWN_TICKS = 3;
-/** Extra settle window when hopping off a restricted/event world (temp max stats). */
-	static final int RESTRICTED_WORLD_EXIT_SETTLE_TICKS = 15;
+/** Extra settle window after hopping off a restricted/event world (temp max stats). */
+	static final int RESTRICTED_WORLD_EXIT_SETTLE_TICKS = 12;
 /** Combat skills excluded from XP-based credit awards (XP here comes from combat, not standalone training). */
 	private static final Set<Skill> COMBAT_SKILLS = EnumSet.of(
 		Skill.ATTACK,
@@ -55,6 +57,7 @@ public class CreditAwardService
 	private final CloudSessionService session;
 	private final CreditAttestQueue attestQueue;
 	private final ChatMessageManager chatMessageManager;
+	private final Provider<CloudSessionCoordinator> sessionCoordinator;
 	private final SkillCreditSession skills = new SkillCreditSession();
 	private boolean creditCooldownActive;
 	private int creditCooldownUntilTick;
@@ -64,13 +67,15 @@ public class CreditAwardService
 
 	@Inject
 	public CreditAwardService(Client client, TcgStateService stateService, CloudSessionService session,
-		CreditAttestQueue attestQueue, ChatMessageManager chatMessageManager)
+		CreditAttestQueue attestQueue, ChatMessageManager chatMessageManager,
+		Provider<CloudSessionCoordinator> sessionCoordinator)
 	{
 		this.client = client;
 		this.stateService = stateService;
 		this.session = session;
 		this.attestQueue = attestQueue;
 		this.chatMessageManager = chatMessageManager;
+		this.sessionCoordinator = sessionCoordinator;
 	}
 /** Resets in-memory tracking and restores the uncredited XP pool from the persisted baseline, if any. */
 	public void resetExperienceCreditBaseline()
@@ -218,7 +223,7 @@ public class CreditAwardService
 
 		return applyXpGain(xp, skill);
 	}
-/** Arms the settle cooldown appropriate to the client's current game state when the plugin starts up. */
+/** Arms the settle cooldown when the plugin starts (same 3-tick window as a normal world hop). */
 	public void onPluginStarted()
 	{
 		if (client == null)
@@ -226,19 +231,14 @@ public class CreditAwardService
 			return;
 		}
 
-		GameState current = client.getGameState();
-		if (current == GameState.LOGIN_SCREEN)
-		{
-			armStatsSettle(true, CREDIT_COOLDOWN_TICKS);
-		}
-		else if (current == GameState.HOPPING || current == GameState.LOGGED_IN)
-		{
-			armStatsSettle(false, resolveHopSettleCooldownTicks(session.isRestrictedWorld()));
-		}
+		boolean loginScreen = client.getGameState() == GameState.LOGIN_SCREEN;
+		armStatsSettle(loginScreen, CREDIT_COOLDOWN_TICKS);
 	}
 /**
 	 * Handles a {@code GameStateChanged} event: persists baselines and arms a settle cooldown on logout or
-	 * world hop, and begins the credit cooldown once logged back in if a settle was pending.
+	 * world hop (suppressed for the entire hop), then starts the post-login tick window once logged in
+	 * ({@link #CREDIT_COOLDOWN_TICKS}, or {@link #RESTRICTED_WORLD_EXIT_SETTLE_TICKS} when the hop began
+	 * on a restricted world).
 	 */
 	public void onGameStateChanged(GameStateChanged event)
 	{
@@ -246,6 +246,7 @@ public class CreditAwardService
 
 		if (next == GameState.LOGIN_SCREEN)
 		{
+			session.clearRestrictedExitHold();
 			persistSkillBaselineToState();
 			armStatsSettle(true, CREDIT_COOLDOWN_TICKS);
 			return;
@@ -254,7 +255,12 @@ public class CreditAwardService
 		if (next == GameState.HOPPING)
 		{
 			persistSkillBaselineToState();
-			armStatsSettle(false, resolveHopSettleCooldownTicks(session.isRestrictedWorld()));
+			boolean leavingRestricted = session.isRestrictedWorldLive();
+			if (leavingRestricted)
+			{
+				session.beginRestrictedExitHold();
+			}
+			armStatsSettle(false, resolveHopSettleCooldownTicks(leavingRestricted));
 			return;
 		}
 
@@ -296,6 +302,10 @@ public class CreditAwardService
 			pendingStatsSettle = false;
 			captureBaselinesAfterSettle();
 			debugAward("Credit award cooldown ended; resuming live credit gains");
+			if (session.clearRestrictedExitHold())
+			{
+				sessionCoordinator.get().connect();
+			}
 			return;
 		}
 
@@ -568,7 +578,7 @@ public class CreditAwardService
 		restoreXpFromPersistedBaseline = restoreXp;
 		suppressAwardsUntilSettle(restoreXp, ticks);
 	}
-/** Cooldown duration (ticks) to use after a world hop: longer when leaving a restricted/event world. */
+/** Post-login settle ticks: longer when the hop started on a restricted/event world. */
 	static int resolveHopSettleCooldownTicks(boolean restrictedWorld)
 	{
 		return restrictedWorld ? RESTRICTED_WORLD_EXIT_SETTLE_TICKS : CREDIT_COOLDOWN_TICKS;
@@ -608,10 +618,18 @@ public class CreditAwardService
 
 		creditCooldownUntilTick = client.getTickCount() + duration;
 	}
-/** Whether the credit-award cooldown is currently active (also guards against tick-count rollover). */
+/** Whether awards are suppressed: entire hop/login settle, or the active post-login tick window. */
 	public boolean isCreditAwardOnCooldown()
 	{
-		if (!creditCooldownActive || client == null)
+		if (client == null)
+		{
+			return false;
+		}
+		if (pendingStatsSettle && client.getGameState() != GameState.LOGGED_IN)
+		{
+			return true;
+		}
+		if (!creditCooldownActive)
 		{
 			return false;
 		}

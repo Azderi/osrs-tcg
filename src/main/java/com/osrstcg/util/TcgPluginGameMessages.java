@@ -156,6 +156,24 @@ public final class TcgPluginGameMessages
 		return PLAIN_PREFIX + "You just added " + duplicatePrefix(newForCollection)
 			+ announcedCardLabel(cardName, foil) + " to your collection!";
 	}
+/** @return RuneLite-formatted pending-trade ping with {@code fromLabel} highlighted. */
+	public static String formatPendingTradeRequest(String fromLabel)
+	{
+		String who = fromLabel == null || fromLabel.isBlank() ? "someone" : fromLabel.trim();
+		return prefixBuilder()
+			.append(ChatColorType.NORMAL)
+			.append("You have a pending OSRS TCG trade request from ")
+			.append(PREFIX_COLOR, who)
+			.append(ChatColorType.NORMAL)
+			.append("!")
+			.build();
+	}
+/** @return plain-text version of {@link #formatPendingTradeRequest}. */
+	public static String plainPendingTradeRequest(String fromLabel)
+	{
+		String who = fromLabel == null || fromLabel.isBlank() ? "someone" : fromLabel.trim();
+		return PLAIN_PREFIX + "You have a pending OSRS TCG trade request from " + who + "!";
+	}
 /**
 	 * Queues a game message on {@code chatMessageManager}, ensuring both the formatted and plain
 	 * text carry a plugin prefix (normal or debug) before they're sent. If either string is missing
