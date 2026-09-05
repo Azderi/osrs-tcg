@@ -199,7 +199,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "friendsMenuOption",
 		name = "Friends menu option",
-		description = "Show a TCG trade request option on chat message right-click menus.",
+		description = "Show a TCG trade request option on friend right-click menus.",
 		section = generalSection,
 		position = 3
 	)
