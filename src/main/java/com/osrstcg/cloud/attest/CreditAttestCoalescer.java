@@ -30,6 +30,8 @@ public final class CreditAttestCoalescer
 	public static final String TYPE_ACTIVITY = "activity";
 
 	public static final String CLIENT_OPTIMISTIC_CREDITS = "_optimisticCredits";
+	/** Must match {@code version} in build.gradle / runelite-plugin.properties. */
+	public static final String PLUGIN_VERSION = "1.0.1";
 
 	private static final Set<String> COMBAT_SKILLS_BLOCK_XP = Set.of(
 		"ATTACK", "STRENGTH", "DEFENCE", "RANGED", "MAGIC");
@@ -417,6 +419,7 @@ public final class CreditAttestCoalescer
 		}
 		JsonObject copy = event.deepCopy();
 		copy.remove(CLIENT_OPTIMISTIC_CREDITS);
+		copy.addProperty("pluginVersion", PLUGIN_VERSION);
 		return copy;
 	}
 /** Reads an event's {@code at} timestamp, defaulting to now if missing/null. */
