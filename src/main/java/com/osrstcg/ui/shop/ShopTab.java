@@ -7,7 +7,6 @@ import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.cloud.session.CloudSessionService;
 import com.osrstcg.pack.PackOpenCoordinator;
 import com.osrstcg.pack.PackRevealService;
-import com.osrstcg.state.TcgStateService;
 import com.osrstcg.ui.layout.PackCloseSnapshot;
 import com.osrstcg.ui.layout.SidebarLayout;
 import com.osrstcg.ui.overview.OverviewTab;
@@ -40,7 +39,6 @@ public final class ShopTab
 {
 	private static final int BOOSTER_GRID_GAP = 6;
 
-	private final TcgStateService stateService;
 	private final CardDatabase cardDatabase;
 	private final PackRevealService packRevealService;
 	private final PackOpenCoordinator packOpenCoordinator;
@@ -62,7 +60,6 @@ public final class ShopTab
 	private final List<Integer> buyPrices = new ArrayList<>();
 /** Wires the collaborators and the pre-built Swing panels this controller drives. */
 	public ShopTab(
-		TcgStateService stateService,
 		CardDatabase cardDatabase,
 		PackRevealService packRevealService,
 		PackOpenCoordinator packOpenCoordinator,
@@ -78,7 +75,6 @@ public final class ShopTab
 		JPanel shopHeaderPanel,
 		JPanel packsContent)
 	{
-		this.stateService = stateService;
 		this.cardDatabase = cardDatabase;
 		this.packRevealService = packRevealService;
 		this.packOpenCoordinator = packOpenCoordinator;

@@ -3,7 +3,6 @@ package com.osrstcg.cloud.session;
 import com.osrstcg.cloud.api.CloudConnectionState;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
 import com.osrstcg.cloud.trade.TradeCloudService;
-import com.osrstcg.state.TcgStateService;
 import com.osrstcg.ui.SidebarRefresh;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -34,7 +33,6 @@ public class CloudSessionCoordinator
 	private static final long CLOUD_RECONNECT_MAX_MS = 15L * 60L * 1000L;
 
 	private final Client client;
-	private final TcgStateService stateService;
 	private final CloudSessionService cloudSessionService;
 	private final CreditAttestQueue creditAttestQueue;
 	private final TradeCloudService tradeCloudService;
@@ -49,7 +47,6 @@ public class CloudSessionCoordinator
 	@Inject
 	public CloudSessionCoordinator(
 		Client client,
-		TcgStateService stateService,
 		CloudSessionService cloudSessionService,
 		CreditAttestQueue creditAttestQueue,
 		TradeCloudService tradeCloudService,
@@ -57,7 +54,6 @@ public class CloudSessionCoordinator
 		ScheduledExecutorService scheduler)
 	{
 		this.client = client;
-		this.stateService = stateService;
 		this.cloudSessionService = cloudSessionService;
 		this.creditAttestQueue = creditAttestQueue;
 		this.tradeCloudService = tradeCloudService;

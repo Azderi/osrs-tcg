@@ -214,7 +214,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			this::onCollectionTabRendered, () -> selectedTab == Tab.COLLECTION,
 			collectionContent, collectionListHost, collectionList, collectionListScrollPane, collectionEmptyLabel);
 		this.shopTab = new ShopTab(
-			stateService, cardDatabase, packRevealService,
+			cardDatabase, packRevealService,
 			packOpenCoordinator, packCatalogService, imageCacheService, cloudSessionService,
 			overviewTab,
 			this::liveShopPacksContentWidth, this::capturePackCloseSnapshot,
