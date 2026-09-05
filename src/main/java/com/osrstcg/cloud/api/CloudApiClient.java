@@ -522,7 +522,7 @@ public final class CloudApiClient
 		Double credits = readNumber(json, "credits");
 		if (credits != null)
 		{
-			serverCredits = Math.max(0L, Math.round(credits));
+			serverCredits = Math.round(credits);
 		}
 		Double retryAfter = readNumber(objectOrEmpty(err, "details"), "retryAfterSec");
 		Long retryAfterSec = (retryAfter != null && retryAfter > 0d)

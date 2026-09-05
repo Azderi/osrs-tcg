@@ -4,10 +4,10 @@ public final class EconomyState
 {
 	private final long credits;
 	private final long openedPacks;
-/** Clamps both values to non-negative. */
+/** Credits may be negative (server balance); opened packs are clamped to non-negative. */
 	public EconomyState(long credits, long openedPacks)
 	{
-		this.credits = Math.max(0L, credits);
+		this.credits = credits;
 		this.openedPacks = Math.max(0L, openedPacks);
 	}
 /** Returns a zero-credits, zero-packs state. */
