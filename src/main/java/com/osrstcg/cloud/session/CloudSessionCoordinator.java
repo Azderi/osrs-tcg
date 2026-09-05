@@ -177,9 +177,9 @@ public class CloudSessionCoordinator
 	{
 		try
 		{
-			if (!cloudSessionService.isAccountLocked())
+			if (!cloudSessionService.isAccountLocked() && !creditAttestQueue.isRateCapActive())
 			{
-				creditAttestQueue.flushBlocking(false);
+				creditAttestQueue.flushBlocking();
 			}
 		}
 		catch (Exception e)

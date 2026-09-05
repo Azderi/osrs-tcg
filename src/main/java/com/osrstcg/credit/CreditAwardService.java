@@ -324,7 +324,7 @@ public class CreditAwardService
 			pendingStatsSettle = false;
 			captureBaselinesAfterSettle();
 			debugAward("Credit award cooldown ended; resuming live credit gains");
-			if (session.clearRestrictedExitHold())
+			if (session.clearRestrictedExitHold() && !session.isRestrictedWorldLive())
 			{
 				sessionCoordinator.get().connect();
 			}
