@@ -9,6 +9,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import javax.swing.SwingUtilities;
@@ -42,6 +43,7 @@ public class CloudSessionCoordinator
 
 	private final AtomicBoolean cloudConnectInFlight = new AtomicBoolean(false);
 	private final AtomicBoolean clientShuttingDown = new AtomicBoolean(false);
+	private final AtomicLong sessionEpoch = new AtomicLong(0L);
 	private final Object cloudReconnectLock = new Object();
 	private ScheduledFuture<?> cloudReconnectFuture;
 	private GameState lastObservedGameState;
@@ -121,6 +123,7 @@ public class CloudSessionCoordinator
 		{
 			try
 			{
+				sessionEpoch.incrementAndGet();
 				if (cloudSessionService.isAccountLocked())
 				{
 					cancelReconnect();
@@ -186,10 +189,15 @@ public class CloudSessionCoordinator
 	 */
 	public void disconnect()
 	{
+		long epoch = sessionEpoch.get();
 		cancelReconnect();
 		cloudSessionService.cancelHiscoresSettle();
 		if (cloudSessionService.isAccountLocked())
 		{
+			if (epoch != sessionEpoch.get())
+			{
+				return;
+			}
 			creditAttestQueue.stop();
 			creditAttestQueue.discardPending();
 			tradeCloudService.stop();
@@ -197,6 +205,10 @@ public class CloudSessionCoordinator
 			return;
 		}
 		creditAttestQueue.flushBlocking();
+		if (epoch != sessionEpoch.get())
+		{
+			return;
+		}
 		creditAttestQueue.stop();
 		tradeCloudService.stop();
 		cloudSessionService.disconnectQuietly();
