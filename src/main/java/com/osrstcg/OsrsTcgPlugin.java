@@ -260,6 +260,7 @@ public class OsrsTcgPlugin extends Plugin
 		}
 		try
 		{
+			cloudSessionCoordinator.beginClientShutdown();
 			CompletableFuture.runAsync(cloudSessionCoordinator::disconnect)
 				.get(5L, TimeUnit.SECONDS);
 		}

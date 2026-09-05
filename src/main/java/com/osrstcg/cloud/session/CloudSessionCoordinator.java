@@ -104,6 +104,10 @@ public class CloudSessionCoordinator
 	 */
 	public void connect()
 	{
+		if (clientShuttingDown.get())
+		{
+			return;
+		}
 		if (cloudSessionService.isAccountLocked())
 		{
 			cancelReconnect();
@@ -123,6 +127,10 @@ public class CloudSessionCoordinator
 		{
 			try
 			{
+				if (clientShuttingDown.get())
+				{
+					return;
+				}
 				sessionEpoch.incrementAndGet();
 				if (cloudSessionService.isAccountLocked())
 				{
@@ -194,7 +202,7 @@ public class CloudSessionCoordinator
 		cloudSessionService.cancelHiscoresSettle();
 		if (cloudSessionService.isAccountLocked())
 		{
-			if (epoch != sessionEpoch.get())
+			if (!clientShuttingDown.get() && epoch != sessionEpoch.get())
 			{
 				return;
 			}
@@ -205,7 +213,7 @@ public class CloudSessionCoordinator
 			return;
 		}
 		creditAttestQueue.flushBlocking();
-		if (epoch != sessionEpoch.get())
+		if (!clientShuttingDown.get() && epoch != sessionEpoch.get())
 		{
 			return;
 		}
