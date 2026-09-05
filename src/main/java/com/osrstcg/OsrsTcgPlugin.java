@@ -38,6 +38,7 @@ import com.osrstcg.util.TcgPluginGameMessages;
 import java.awt.image.BufferedImage;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
@@ -259,7 +260,8 @@ public class OsrsTcgPlugin extends Plugin
 		}
 		try
 		{
-			cloudSessionCoordinator.disconnectFromClientThread();
+			CompletableFuture.runAsync(cloudSessionCoordinator::disconnect)
+				.get(30L, TimeUnit.SECONDS);
 		}
 		catch (Exception ex)
 		{
