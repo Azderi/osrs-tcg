@@ -261,7 +261,7 @@ public class OsrsTcgPlugin extends Plugin
 		try
 		{
 			CompletableFuture.runAsync(cloudSessionCoordinator::disconnect)
-				.get(30L, TimeUnit.SECONDS);
+				.get(5L, TimeUnit.SECONDS);
 		}
 		catch (Exception ex)
 		{
