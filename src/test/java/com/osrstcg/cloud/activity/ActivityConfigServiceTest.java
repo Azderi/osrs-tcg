@@ -6,6 +6,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import com.osrstcg.cloud.activity.ActivityConfigModels.ActivityConfigDto;
+import com.osrstcg.cloud.activity.ActivityConfigModels.NonCombatXpRuleDto;
 import com.osrstcg.cloud.activity.ActivityConfigModels.XpRegionRuleDto;
 import java.util.Arrays;
 import java.util.List;
@@ -115,6 +116,110 @@ public class ActivityConfigServiceTest
 	{
 		assertTrue(CompiledActivityConfig.EMPTY.getXpRegionRules().isEmpty());
 		assertNull(CompiledActivityConfig.EMPTY.findXpRegionRule(Skill.MAGIC, MTA_ROOMS_REGION));
+		assertTrue(CompiledActivityConfig.EMPTY.getNonCombatXpRules().isEmpty());
+		assertNull(CompiledActivityConfig.EMPTY.findNonCombatXpRule(Skill.MAGIC));
+	}
+
+	@Test
+	public void compilesNonCombatXpRuleWithDefaultLockout()
+	{
+		ActivityConfigDto dto = new ActivityConfigDto();
+		dto.nonCombatXpRules = List.of(nonCombatRule("magic_noncombat", "Magic", 1000L, 100L, null));
+
+		CompiledActivityConfig compiled = ActivityConfigService.compile(dto);
+
+		assertEquals(1, compiled.getNonCombatXpRules().size());
+		CompiledActivityConfig.CompiledNonCombatXpRule matched = compiled.findNonCombatXpRule(Skill.MAGIC);
+		assertNotNull(matched);
+		assertEquals("magic_noncombat", matched.getActivityId());
+		assertEquals(Skill.MAGIC, matched.getSkill());
+		assertEquals(1000L, matched.getXpPerChunk());
+		assertEquals(100L, matched.getCreditsPerChunk());
+		assertEquals("Non-combat Magic", matched.getLabel());
+		assertEquals(
+			CompiledActivityConfig.CompiledNonCombatXpRule.DEFAULT_COMBAT_LOCKOUT_TICKS,
+			matched.getCombatLockoutTicks());
+	}
+
+	@Test
+	public void nonCombatXpRuleHonoursExplicitLockoutAndClampsNegative()
+	{
+		ActivityConfigDto dto = new ActivityConfigDto();
+		dto.nonCombatXpRules = List.of(
+			nonCombatRule("magic_noncombat", "Magic", 1000L, 100L, 15),
+			nonCombatRule("ranged_noncombat", "Ranged", 1000L, 100L, -3));
+
+		CompiledActivityConfig compiled = ActivityConfigService.compile(dto);
+
+		assertEquals(15, compiled.findNonCombatXpRule(Skill.MAGIC).getCombatLockoutTicks());
+		assertEquals(0, compiled.findNonCombatXpRule(Skill.RANGED).getCombatLockoutTicks());
+	}
+
+	@Test
+	public void nonCombatXpRuleDoesNotMatchOtherSkill()
+	{
+		ActivityConfigDto dto = new ActivityConfigDto();
+		dto.nonCombatXpRules = List.of(nonCombatRule("magic_noncombat", "Magic", 1000L, 100L, null));
+
+		CompiledActivityConfig compiled = ActivityConfigService.compile(dto);
+
+		assertNull(compiled.findNonCombatXpRule(Skill.RANGED));
+		assertNull(compiled.findNonCombatXpRule(Skill.ATTACK));
+		assertNull(compiled.findNonCombatXpRule(null));
+	}
+
+	@Test
+	public void invalidNonCombatXpRulesAreDropped()
+	{
+		ActivityConfigDto dto = new ActivityConfigDto();
+		dto.nonCombatXpRules = Arrays.asList(
+			null,
+			nonCombatRule("", "Magic", 1000L, 100L, null),
+			nonCombatRule("unknown_skill", "Not a skill", 1000L, 100L, null),
+			nonCombatRule("zero_chunk", "Magic", 0L, 100L, null),
+			nonCombatRule("valid", "Magic", 500L, 50L, null));
+
+		CompiledActivityConfig compiled = ActivityConfigService.compile(dto);
+
+		assertEquals(1, compiled.getNonCombatXpRules().size());
+		assertEquals("valid", compiled.getNonCombatXpRules().get(0).getActivityId());
+	}
+
+	@Test
+	public void missingNonCombatXpRulesCompilesToEmptyList()
+	{
+		ActivityConfigDto dto = new ActivityConfigDto();
+		dto.nonCombatXpRules = null;
+
+		CompiledActivityConfig compiled = ActivityConfigService.compile(dto);
+
+		assertTrue(compiled.getNonCombatXpRules().isEmpty());
+	}
+
+	@Test
+	public void regionAndNonCombatRulesCompileSideBySide()
+	{
+		ActivityConfigDto dto = new ActivityConfigDto();
+		dto.xpRegionRules = List.of(rule("mta_magic", "Magic", MTA_REGIONS, 1000L, 100L));
+		dto.nonCombatXpRules = List.of(nonCombatRule("magic_noncombat", "Magic", 1000L, 100L, null));
+
+		CompiledActivityConfig compiled = ActivityConfigService.compile(dto);
+
+		assertEquals("mta_magic", compiled.findXpRegionRule(Skill.MAGIC, MTA_ROOMS_REGION).getActivityId());
+		assertEquals("magic_noncombat", compiled.findNonCombatXpRule(Skill.MAGIC).getActivityId());
+	}
+
+	private static NonCombatXpRuleDto nonCombatRule(String activityId, String skill, long xpPerChunk,
+		long credits, Integer lockoutTicks)
+	{
+		NonCombatXpRuleDto dto = new NonCombatXpRuleDto();
+		dto.activityId = activityId;
+		dto.skill = skill;
+		dto.xpPerChunk = xpPerChunk;
+		dto.credits = credits;
+		dto.label = "Non-combat Magic";
+		dto.combatLockoutTicks = lockoutTicks;
+		return dto;
 	}
 
 	private static XpRegionRuleDto rule(String activityId, String skill, List<Integer> regionIds,

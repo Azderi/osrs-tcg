@@ -1,5 +1,6 @@
 package com.osrstcg.credit;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.osrstcg.cloud.activity.ActivityConfigService;
 import com.osrstcg.cloud.activity.CompiledActivityConfig;
@@ -35,8 +36,9 @@ import com.osrstcg.state.TcgStateService;
  * Central coordinator for awarding credits from XP gains and level-ups. Tracks per-skill XP/level baselines,
  * converts XP into credit chunks (with a separate, cheaper Slayer conversion), and enqueues optimistic
  * credit attest events via {@link CreditAttestQueue}. Combat-skill XP is normally ignored (kills are credited
- * instead), except where a server-configured region XP rule covers the player's current map region, e.g.
- * Magic XP inside the Magic Training Arena. Also enforces a short cooldown after login/world-hop
+ * instead), except where a server-configured region XP rule covers the player's current map region (e.g.
+ * Magic XP inside the Magic Training Arena) or a non-combat XP rule applies and the player is not in combat
+ * per {@link CombatEngagementTracker} (e.g. alching or enchanting). Also enforces a short cooldown after login/world-hop
  * so transient stat resyncs (e.g. temporary boosts settling) don't get credited as real gains. Most XP/level
  * entry points ({@link #onStatChanged}, {@link #onFakeXpDrop}) are called directly from the plugin's event
  * handlers; {@link #onGameTick} is the only RuneLite-subscribed method here.
@@ -52,7 +54,8 @@ public class CreditAwardService
 	static final int RESTRICTED_WORLD_EXIT_SETTLE_TICKS = 12;
 /**
 	 * Combat skills excluded from XP-based credit awards (XP here comes from combat, not standalone training),
-	 * unless a region XP rule from {@link ActivityConfigService} covers the player's current region.
+	 * unless a region XP rule from {@link ActivityConfigService} covers the player's current region, or a
+	 * non-combat XP rule applies and the player is out of combat.
 	 */
 	private static final Set<Skill> COMBAT_SKILLS = EnumSet.of(
 		Skill.ATTACK,
@@ -69,6 +72,7 @@ public class CreditAwardService
 	private final ChatMessageManager chatMessageManager;
 	private final Provider<CloudSessionCoordinator> sessionCoordinator;
 	private final ActivityConfigService activityConfigService;
+	private final CombatEngagementTracker combatEngagement;
 	private final SkillCreditSession skills = new SkillCreditSession();
 	private boolean creditCooldownActive;
 	private int creditCooldownUntilTick;
@@ -80,7 +84,8 @@ public class CreditAwardService
 	@Inject
 	public CreditAwardService(Client client, TcgStateService stateService, CloudSessionService session,
 		CreditAttestQueue attestQueue, ChatMessageManager chatMessageManager,
-		Provider<CloudSessionCoordinator> sessionCoordinator, ActivityConfigService activityConfigService)
+		Provider<CloudSessionCoordinator> sessionCoordinator, ActivityConfigService activityConfigService,
+		CombatEngagementTracker combatEngagement)
 	{
 		this.client = client;
 		this.stateService = stateService;
@@ -89,6 +94,7 @@ public class CreditAwardService
 		this.chatMessageManager = chatMessageManager;
 		this.sessionCoordinator = sessionCoordinator;
 		this.activityConfigService = activityConfigService;
+		this.combatEngagement = combatEngagement;
 	}
 /** Resets in-memory tracking and restores the uncredited XP pool from the persisted baseline, if any. */
 	public void resetExperienceCreditBaseline()
@@ -447,6 +453,11 @@ public class CreditAwardService
 		if (skills.skillXpInitialized)
 		{
 			long xpGained = (long) currentXp - previousXp;
+			if (skill == Skill.HITPOINTS)
+			{
+				// Hitpoints XP only comes from dealing damage, so it is a reliable in-combat signal.
+				combatEngagement.noteHitpointsXpGain();
+			}
 			if (isCombatSkill(skill))
 			{
 				xpChunkAwarded = trackCombatSkillXpGain(skill, xpGained);
@@ -467,61 +478,87 @@ public class CreditAwardService
 		return xpChunkAwarded;
 	}
 /**
-	 * Handles a combat-skill XP gain: ignored unless a configured region XP rule covers {@code skill} in the
-	 * player's current map region (e.g. Magic in the Magic Training Arena), in which case the XP is pooled
-	 * under that rule and completed chunks are attested as {@code activity} events.
+	 * Handles a combat-skill XP gain. Ignored unless one of two server-configured rules applies, checked in
+	 * order: a region XP rule covering {@code skill} in the player's current map region (e.g. Magic in the
+	 * Magic Training Arena), or a non-combat XP rule for {@code skill} while the player is out of combat per
+	 * {@link CombatEngagementTracker} (e.g. alching, enchanting, teleporting). Matching XP is pooled under the
+	 * rule's activity id and completed chunks are attested as {@code activity} events.
 	 *
 	 * @return true if this call caused an XP chunk to be credited
 	 */
 	private boolean trackCombatSkillXpGain(Skill skill, long xpGained)
 	{
+		CompiledActivityConfig compiled = activityConfigService.getCompiled();
+
 		int regionId = currentRegionId();
-		CompiledActivityConfig.CompiledXpRegionRule rule = regionId < 0
+		CompiledActivityConfig.CompiledXpRegionRule regionRule = regionId < 0
 			? null
-			: activityConfigService.getCompiled().findXpRegionRule(skill, regionId);
-		if (rule == null)
+			: compiled.findXpRegionRule(skill, regionId);
+		if (regionRule != null)
 		{
-			debugAward(String.format(
-				"Ignored +%s combat skill XP (%s)",
-				NumberFormatting.format(xpGained), skill.getName()));
-			return false;
+			if (isCreditAwardOnCooldown())
+			{
+				return false;
+			}
+			JsonObject extraEvidence = new JsonObject();
+			extraEvidence.addProperty("regionId", regionId);
+			return applyActivityXpGain(regionRule.getActivityId(), regionRule.getLabel(),
+				regionRule.getXpPerChunk(), regionRule.getCreditsPerChunk(), skill, xpGained, extraEvidence);
 		}
-		if (isCreditAwardOnCooldown())
+
+		CompiledActivityConfig.CompiledNonCombatXpRule nonCombatRule = compiled.findNonCombatXpRule(skill);
+		if (nonCombatRule != null)
 		{
-			return false;
+			if (combatEngagement.isInCombat(nonCombatRule.getCombatLockoutTicks()))
+			{
+				debugAward(String.format(
+					"Ignored +%s %s XP gained in combat",
+					NumberFormatting.format(xpGained), skill.getName()));
+				return false;
+			}
+			if (isCreditAwardOnCooldown())
+			{
+				return false;
+			}
+			return applyActivityXpGain(nonCombatRule.getActivityId(), nonCombatRule.getLabel(),
+				nonCombatRule.getXpPerChunk(), nonCombatRule.getCreditsPerChunk(), skill, xpGained, null);
 		}
-		return applyRegionXpGain(rule, skill, regionId, xpGained);
+
+		debugAward(String.format(
+			"Ignored +%s combat skill XP (%s)",
+			NumberFormatting.format(xpGained), skill.getName()));
+		return false;
 	}
 /**
-	 * Pools {@code xpGained} under {@code rule}'s activity id and, if attests can currently be collected,
-	 * converts completed {@code xpPerChunk} chunks to credits and enqueues one {@code activity} attest carrying
-	 * the credited XP, skill and region as evidence. If the cloud session is offline, the XP stays pooled.
+	 * Pools {@code xpGained} under {@code activityId} and, if attests can currently be collected, converts
+	 * completed {@code xpPerChunk} chunks to credits and enqueues one {@code activity} attest carrying the
+	 * credited XP and skill (plus any {@code extraEvidence}) as evidence. If the cloud session is offline, the
+	 * XP stays pooled.
 	 *
 	 * @return true if this call caused credit to be awarded
 	 */
-	private boolean applyRegionXpGain(CompiledActivityConfig.CompiledXpRegionRule rule, Skill skill,
-		int regionId, long xpGained)
+	private boolean applyActivityXpGain(String activityId, String ruleLabel, long xpPerChunk, long creditsPerChunk,
+		Skill skill, long xpGained, JsonObject extraEvidence)
 	{
-		if (rule == null || skill == null || xpGained <= 0L)
+		if (activityId == null || activityId.isEmpty() || xpPerChunk <= 0L || skill == null || xpGained <= 0L)
 		{
 			return false;
 		}
 
-		String activityId = rule.getActivityId();
-		String label = rule.getLabel().isBlank() ? activityId : rule.getLabel();
-		long pooled = skills.addRegionXp(activityId, xpGained);
+		String label = ruleLabel == null || ruleLabel.isBlank() ? activityId : ruleLabel;
+		long pooled = skills.addActivityXp(activityId, xpGained);
 		debugAward(String.format("Registered +%s XP (%s, %s) -> %s / %s",
 			NumberFormatting.format(xpGained), skill.getName(), label,
-			NumberFormatting.format(pooled), NumberFormatting.format(rule.getXpPerChunk())));
+			NumberFormatting.format(pooled), NumberFormatting.format(xpPerChunk)));
 
-		long chunks = pooled / rule.getXpPerChunk();
+		long chunks = pooled / xpPerChunk;
 		if (chunks <= 0L)
 		{
 			return false;
 		}
 
-		long xpCredited = chunks * rule.getXpPerChunk();
-		long credits = chunks * rule.getCreditsPerChunk();
+		long xpCredited = chunks * xpPerChunk;
+		long credits = chunks * creditsPerChunk;
 		if (!session.canCollectAttests())
 		{
 			debugAward(String.format("Cloud offline; +%s XP (%s) pending until reconnected",
@@ -533,13 +570,19 @@ public class CreditAwardService
 		evidence.addProperty("activityId", activityId);
 		evidence.addProperty("skill", skill.getName());
 		evidence.addProperty("xpDelta", xpCredited);
-		evidence.addProperty("regionId", regionId);
+		if (extraEvidence != null)
+		{
+			for (Map.Entry<String, JsonElement> entry : extraEvidence.entrySet())
+			{
+				evidence.add(entry.getKey(), entry.getValue());
+			}
+		}
 		if (!attestQueue.enqueue(CreditAttestCoalescer.TYPE_ACTIVITY, evidence, credits))
 		{
 			return false;
 		}
 
-		skills.subtractRegionXp(activityId, xpCredited);
+		skills.subtractActivityXp(activityId, xpCredited);
 		debugAward(String.format("XP drop +%s (%s) -> +%s credits (total %s)",
 			NumberFormatting.format(xpCredited), label,
 			NumberFormatting.format(credits), NumberFormatting.format(stateService.getCredits())));

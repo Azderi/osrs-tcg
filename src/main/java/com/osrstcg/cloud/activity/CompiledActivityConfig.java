@@ -7,7 +7,7 @@ import java.util.regex.Pattern;
 import net.runelite.api.Skill;
 /**
  * Immutable, thread-safe snapshot of activity config for chat matching, NPC id exclusions,
- * per-NPC kill credit multipliers, and region-gated XP rules.
+ * per-NPC kill credit multipliers, region-gated XP rules, and non-combat XP rules.
  */
 public final class CompiledActivityConfig
 {
@@ -17,6 +17,7 @@ public final class CompiledActivityConfig
 		List.of(),
 		Set.of(),
 		Map.of(),
+		List.of(),
 		List.of());
 
 	private final String version;
@@ -24,19 +25,22 @@ public final class CompiledActivityConfig
 	private final Set<Integer> excludedNpcIds;
 	private final Map<Integer, Double> killCreditMultipliers;
 	private final List<CompiledXpRegionRule> xpRegionRules;
+	private final List<CompiledNonCombatXpRule> nonCombatXpRules;
 /** Normalizes nulls to empty and defensively copies the collections into immutable ones. */
 	CompiledActivityConfig(
 		String version,
 		List<CompiledChatRule> chatRules,
 		Set<Integer> excludedNpcIds,
 		Map<Integer, Double> killCreditMultipliers,
-		List<CompiledXpRegionRule> xpRegionRules)
+		List<CompiledXpRegionRule> xpRegionRules,
+		List<CompiledNonCombatXpRule> nonCombatXpRules)
 	{
 		this.version = version == null ? "" : version;
 		this.chatRules = chatRules == null ? List.of() : List.copyOf(chatRules);
 		this.excludedNpcIds = excludedNpcIds == null ? Set.of() : Set.copyOf(excludedNpcIds);
 		this.killCreditMultipliers = killCreditMultipliers == null ? Map.of() : Map.copyOf(killCreditMultipliers);
 		this.xpRegionRules = xpRegionRules == null ? List.of() : List.copyOf(xpRegionRules);
+		this.nonCombatXpRules = nonCombatXpRules == null ? List.of() : List.copyOf(nonCombatXpRules);
 	}
 /** Opaque version string this config was compiled from; empty for {@link #EMPTY}. */
 	public String getVersion()
@@ -81,6 +85,85 @@ public final class CompiledActivityConfig
 			}
 		}
 		return null;
+	}
+	public List<CompiledNonCombatXpRule> getNonCombatXpRules()
+	{
+		return nonCombatXpRules;
+	}
+/** First non-combat XP rule covering {@code skill}, or {@code null} if none. */
+	public CompiledNonCombatXpRule findNonCombatXpRule(Skill skill)
+	{
+		if (skill == null)
+		{
+			return null;
+		}
+		for (CompiledNonCombatXpRule rule : nonCombatXpRules)
+		{
+			if (rule.getSkill() == skill)
+			{
+				return rule;
+			}
+		}
+		return null;
+	}
+/** Precompiled non-combat XP rule: credits {@code skill} XP gained while the player is not in combat. */
+	public static final class CompiledNonCombatXpRule
+	{
+/** Default ticks after a combat signal during which XP is still treated as combat (about 5 seconds). */
+		public static final int DEFAULT_COMBAT_LOCKOUT_TICKS = 8;
+
+		private final String activityId;
+		private final Skill skill;
+		private final long xpPerChunk;
+		private final long creditsPerChunk;
+		private final String label;
+		private final int combatLockoutTicks;
+/** Normalizes nulls, clamps credits and lockout to non-negative; callers must supply a non-null skill and positive chunk size. */
+		CompiledNonCombatXpRule(
+			String activityId,
+			Skill skill,
+			long xpPerChunk,
+			long creditsPerChunk,
+			String label,
+			int combatLockoutTicks)
+		{
+			this.activityId = activityId == null ? "" : activityId;
+			this.skill = skill;
+			this.xpPerChunk = Math.max(1L, xpPerChunk);
+			this.creditsPerChunk = Math.max(0L, creditsPerChunk);
+			this.label = label == null ? "" : label;
+			this.combatLockoutTicks = Math.max(0, combatLockoutTicks);
+		}
+
+		public String getActivityId()
+		{
+			return activityId;
+		}
+
+		public Skill getSkill()
+		{
+			return skill;
+		}
+
+		public long getXpPerChunk()
+		{
+			return xpPerChunk;
+		}
+
+		public long getCreditsPerChunk()
+		{
+			return creditsPerChunk;
+		}
+
+		public String getLabel()
+		{
+			return label;
+		}
+
+		public int getCombatLockoutTicks()
+		{
+			return combatLockoutTicks;
+		}
 	}
 /** Precompiled region-gated XP rule: credits {@code skill} XP gained inside any of {@code regionIds}. */
 	public static final class CompiledXpRegionRule

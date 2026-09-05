@@ -117,60 +117,60 @@ public class SkillCreditSessionTest
 	}
 
 	@Test
-	public void regionXpPoolsAccumulatePerActivity()
+	public void activityXpPoolsAccumulatePerActivity()
 	{
 		SkillCreditSession session = new SkillCreditSession();
 
-		assertEquals(0L, session.regionXpFor("mta_magic"));
-		assertEquals(400L, session.addRegionXp("mta_magic", 400L));
-		assertEquals(900L, session.addRegionXp("mta_magic", 500L));
-		assertEquals(250L, session.addRegionXp("other_rule", 250L));
+		assertEquals(0L, session.activityXpFor("mta_magic"));
+		assertEquals(400L, session.addActivityXp("mta_magic", 400L));
+		assertEquals(900L, session.addActivityXp("mta_magic", 500L));
+		assertEquals(250L, session.addActivityXp("other_rule", 250L));
 
-		assertEquals(900L, session.regionXpFor("mta_magic"));
-		assertEquals(250L, session.regionXpFor("other_rule"));
+		assertEquals(900L, session.activityXpFor("mta_magic"));
+		assertEquals(250L, session.activityXpFor("other_rule"));
 	}
 
 	@Test
-	public void regionXpChunkSubtractionKeepsRemainder()
+	public void activityXpChunkSubtractionKeepsRemainder()
 	{
 		SkillCreditSession session = new SkillCreditSession();
-		long pooled = session.addRegionXp("mta_magic", 2350L);
+		long pooled = session.addActivityXp("mta_magic", 2350L);
 
 		long chunks = pooled / 1000L;
 		assertEquals(2L, chunks);
-		session.subtractRegionXp("mta_magic", chunks * 1000L);
+		session.subtractActivityXp("mta_magic", chunks * 1000L);
 
-		assertEquals(350L, session.regionXpFor("mta_magic"));
+		assertEquals(350L, session.activityXpFor("mta_magic"));
 	}
 
 	@Test
-	public void regionXpIgnoresInvalidInput()
+	public void activityXpIgnoresInvalidInput()
 	{
 		SkillCreditSession session = new SkillCreditSession();
 
-		assertEquals(0L, session.addRegionXp(null, 100L));
-		assertEquals(0L, session.addRegionXp("", 100L));
-		assertEquals(0L, session.addRegionXp("mta_magic", 0L));
-		assertEquals(0L, session.addRegionXp("mta_magic", -5L));
-		assertEquals(0L, session.regionXpFor(null));
+		assertEquals(0L, session.addActivityXp(null, 100L));
+		assertEquals(0L, session.addActivityXp("", 100L));
+		assertEquals(0L, session.addActivityXp("mta_magic", 0L));
+		assertEquals(0L, session.addActivityXp("mta_magic", -5L));
+		assertEquals(0L, session.activityXpFor(null));
 
-		session.addRegionXp("mta_magic", 100L);
-		session.subtractRegionXp("mta_magic", 500L);
-		assertEquals(0L, session.regionXpFor("mta_magic"));
-		assertFalse(session.uncreditedRegionXpByActivity.containsKey("mta_magic"));
+		session.addActivityXp("mta_magic", 100L);
+		session.subtractActivityXp("mta_magic", 500L);
+		assertEquals(0L, session.activityXpFor("mta_magic"));
+		assertFalse(session.uncreditedXpByActivity.containsKey("mta_magic"));
 	}
 
 	@Test
-	public void clearAndRestoreDropRegionXpPools()
+	public void clearAndRestoreDropActivityXpPools()
 	{
 		SkillCreditSession session = new SkillCreditSession();
-		session.addRegionXp("mta_magic", 600L);
+		session.addActivityXp("mta_magic", 600L);
 		session.clearUncreditedXpPool();
-		assertEquals(0L, session.regionXpFor("mta_magic"));
+		assertEquals(0L, session.activityXpFor("mta_magic"));
 
-		session.addRegionXp("mta_magic", 600L);
+		session.addActivityXp("mta_magic", 600L);
 		session.restoreUncreditedXp(SkillCreditBaseline.of(Map.of("Woodcutting", 1000), Map.of("Woodcutting", 10L)));
-		assertEquals(0L, session.regionXpFor("mta_magic"));
+		assertEquals(0L, session.activityXpFor("mta_magic"));
 		assertEquals(10L, session.uncreditedXpFor(Skill.WOODCUTTING));
 	}
 }

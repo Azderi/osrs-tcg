@@ -25,6 +25,25 @@ public final class ActivityConfigModels
 		public Map<String, KillCreditMultiplierDto> killCreditMultipliers = new HashMap<>();
 /** Region-gated XP rules that credit XP for a skill whose XP is otherwise ignored (e.g. Magic in the Magic Training Arena). */
 		public List<XpRegionRuleDto> xpRegionRules = new ArrayList<>();
+/** Rules that credit a combat-classed skill's XP whenever it is gained outside combat (e.g. alching or enchanting). */
+		public List<NonCombatXpRuleDto> nonCombatXpRules = new ArrayList<>();
+	}
+/**
+	 * One non-combat XP-to-credits rule. XP gained in {@code skill} while the player is not in combat (not
+	 * interacting with an actor, no recent hitsplats or Hitpoints XP) is pooled and every {@code xpPerChunk} XP
+	 * is attested as an {@code activity} event worth {@code credits}. Intended for Magic, whose non-combat
+	 * spells (alchemy, enchanting, superheat, teleports) otherwise earn nothing.
+	 */
+	public static final class NonCombatXpRuleDto
+	{
+		public String activityId;
+/** Skill display name, e.g. {@code Magic}; case-insensitive. */
+		public String skill;
+		public long xpPerChunk;
+		public long credits;
+		public String label;
+/** Ticks after the last combat signal during which XP is still treated as combat; null uses the client default. */
+		public Integer combatLockoutTicks;
 	}
 /**
 	 * One region-gated XP-to-credits rule. While the local player stands in any of {@code regionIds}, XP gained

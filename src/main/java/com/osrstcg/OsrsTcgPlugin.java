@@ -19,6 +19,7 @@ import com.osrstcg.overlay.CreditsInfoboxOverlay;
 import com.osrstcg.overlay.PackRevealInputListener;
 import com.osrstcg.overlay.PackRevealOverlay;
 import com.osrstcg.interop.OwnedCardNamesApiService;
+import com.osrstcg.credit.CombatEngagementTracker;
 import com.osrstcg.credit.CreditAwardService;
 import com.osrstcg.credit.CreditsRateTracker;
 import com.osrstcg.credit.GameMessageCreditTracker;
@@ -151,6 +152,8 @@ public class OsrsTcgPlugin extends Plugin
 	@Inject
 	private GameMessageCreditTracker gameMessageCreditTracker;
 	@Inject
+	private CombatEngagementTracker combatEngagementTracker;
+	@Inject
 	private CreditsRateTracker creditsRateTracker;
 	@Inject
 	private WSClient wsClient;
@@ -221,6 +224,7 @@ public class OsrsTcgPlugin extends Plugin
 		mouseManager.registerMouseListener(packRevealInputListener);
 		mouseManager.registerMouseWheelListener(packRevealInputListener);
 		keyManager.registerKeyListener(packRevealInputListener);
+		eventBus.register(combatEngagementTracker);
 		eventBus.register(creditAwardService);
 		creditAwardService.onPluginStarted();
 		eventBus.register(creditsRateTracker);
@@ -275,6 +279,8 @@ public class OsrsTcgPlugin extends Plugin
 			navigationButton = null;
 		}
 		eventBus.unregister(creditAwardService);
+		eventBus.unregister(combatEngagementTracker);
+		combatEngagementTracker.reset();
 		eventBus.unregister(creditsRateTracker);
 		eventBus.unregister(npcKillCreditTracker);
 		eventBus.unregister(gameMessageCreditTracker);
