@@ -165,6 +165,10 @@ public class CloudSessionCoordinator
 /** Cancels reconnect, flushes pending attests off-thread, then stops traffic and marks restricted. */
 	public void pauseForRestrictedWorld()
 	{
+		if (clientShuttingDown.get())
+		{
+			return;
+		}
 		cancelReconnect();
 		scheduler.execute(this::pauseRestrictedFlushAndStop);
 	}

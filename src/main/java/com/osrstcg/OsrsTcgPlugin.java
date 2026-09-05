@@ -261,7 +261,7 @@ public class OsrsTcgPlugin extends Plugin
 		try
 		{
 			cloudSessionCoordinator.beginClientShutdown();
-			CompletableFuture.runAsync(cloudSessionCoordinator::disconnect)
+			CompletableFuture.runAsync(cloudSessionCoordinator::disconnect, scheduledExecutorService)
 				.get(5L, TimeUnit.SECONDS);
 		}
 		catch (Exception ex)
@@ -347,7 +347,8 @@ public class OsrsTcgPlugin extends Plugin
 		creditAwardService.flushSkillBaselineForPersist();
 		stateService.saveFullCheckpoint(TcgSaveTrigger.CLIENT_SHUTDOWN);
 		cloudSessionCoordinator.beginClientShutdown();
-		event.waitFor(CompletableFuture.runAsync(cloudSessionCoordinator::flushAttestsForShutdown));
+		event.waitFor(CompletableFuture.runAsync(
+			cloudSessionCoordinator::flushAttestsForShutdown, scheduledExecutorService));
 	}
 /** Awards XP-based credits for the stat gain, refreshing the sidebar if any credits were granted. */
 	@Subscribe
