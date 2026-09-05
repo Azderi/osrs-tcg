@@ -99,11 +99,10 @@ public final class CreditAttestQueue
 	{
 		attestScheduler.start();
 	}
-/** Stops periodic flushing and resets retry/rate-cap state for the next session. */
+/** Stops periodic flushing and resets retry state for the next session. */
 	public void stop()
 	{
 		attestScheduler.stop();
-		rateCapUntilMs.set(0L);
 		consecutiveRetryFailures.set(0);
 		rateCapNotifier.reset();
 	}
@@ -247,14 +246,19 @@ public final class CreditAttestQueue
 		scheduler.execute(() -> flushSafe(false));
 	}
 /**
-	 * Runs a teardown flush synchronously on the calling thread (used on shutdown/logout). Must not be
-	 * called from the client thread.
+	 * Runs a flush synchronously on the calling thread. Must not be called from the client thread.
 	 *
+	 * @param teardown true for shutdown/logout (bypasses rate-cap; uses {@code canAttestFlush})
 	 * @return true if the flush changed local credits or the trade revision
 	 */
+	public boolean flushBlocking(boolean teardown)
+	{
+		return flushSafe(teardown);
+	}
+/** Teardown flush (logout/shutdown). See {@link #flushBlocking(boolean)}. */
 	public boolean flushBlocking()
 	{
-		return flushSafe(true);
+		return flushBlocking(true);
 	}
 /**
 	 * Reads the current account hash from the client, caching it. On account change, clears in-memory
