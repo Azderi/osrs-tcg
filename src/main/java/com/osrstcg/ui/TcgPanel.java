@@ -7,7 +7,6 @@ import com.osrstcg.catalog.CardImageCacheService;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.cloud.session.CloudSessionService;
-import com.osrstcg.cloud.trade.TradeCloudService;
 import com.osrstcg.pack.PackOpenCoordinator;
 import com.osrstcg.pack.PackRevealService;
 import com.osrstcg.interop.TcgPublicStatsCalculator;
@@ -73,7 +72,7 @@ import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
 /**
  * RuneLite sidebar panel hosting the plugin's tabs (welcome, overview, collection, shop) plus the
- * title bar, tab strip, and footer (account/trade/create-profile actions). Owns the Swing component
+ * title bar, tab strip, and footer (account/create-profile actions). Owns the Swing component
  * tree for the sidebar and delegates per-tab content to {@link WelcomeTab}, {@link OverviewTab},
  * {@link CollectionTab}, and {@link ShopTab}. Implements {@link SidebarRefresh} so other components
  * (pack open flow, account/create-profile controllers) can trigger refreshes without depending on this
@@ -110,7 +109,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	private final PackRevealService packRevealService;
 	private final Client client;
 	private final CloudSessionService cloudSessionService;
-	private final TradeCloudService tradeCloudService;
 	private final JButton openAccountPanelButton;
 	private final JButton createProfileButton;
 	private final JTextPane createProfilePromptPane;
@@ -135,12 +133,9 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 	private final JPanel createProfileFooterWrap = new JPanel(new BorderLayout(0, 0));
 	private final Component createProfileFooterGap = Box.createRigidArea(new Dimension(0, 10));
 	private final JPanel albumFooterWrap = new JPanel(new BorderLayout(0, 0));
-	private final JPanel tradeFooterWrap = new JPanel(new BorderLayout(0, 0));
-	private final Component tradeFooterSpacer = Box.createRigidArea(new Dimension(0, 10));
 	private final JPanel titlePanel;
 	private JPanel titleTabWrapper;
 	private final JComponent cloudStatusIndicator;
-	private final JButton openTradesButton;
 	private final JButton welcomeTabButton = new JButton(Tab.WELCOME.label);
 	private final JButton overviewTabButton = new JButton(Tab.OVERVIEW.label);
 	private final JButton collectionTabButton = new JButton(Tab.COLLECTION.label);
@@ -177,7 +172,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		OsrsTcgConfig config,
 		Client client,
 		CloudSessionService cloudSessionService,
-		TradeCloudService tradeCloudService,
 		CloudApiClient cloudApiClient,
 		ScheduledExecutorService scheduler,
 		ChatMessageManager chatMessageManager)
@@ -188,12 +182,10 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		this.packRevealService = packRevealService;
 		this.client = client;
 		this.cloudSessionService = cloudSessionService;
-		this.tradeCloudService = tradeCloudService;
 		this.openAccountPanelButton = new JButton("Open web album");
 		this.createProfileButton = new JButton("Create profile");
 		this.createProfilePromptPane = CreateProfileController.createPromptPane();
 		this.cloudStatusIndicator = SidebarChrome.createCloudStatusIndicator();
-		this.openTradesButton = createOpenTradesButton();
 		this.welcomeTab = new WelcomeTab(welcomeContentCatalog);
 		this.overviewTab = new OverviewTab(
 			config, stateService, this::liveSidebarContentWidth, TcgPanel.class);
@@ -571,7 +563,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		long openedPacks = stateService.getState().getEconomyState().getOpenedPacks();
 		selectedTab = openedPacks == 0 ? Tab.WELCOME : Tab.OVERVIEW;
 	}
-/** Builds the footer's layout and adds its three stacked blocks (create-profile prompt, trade button, account button). */
+/** Builds the footer's layout and adds its stacked blocks (create-profile prompt, account button). */
 	private void populateFooterPanel()
 	{
 		footerPanel.setLayout(new BoxLayout(footerPanel, BoxLayout.Y_AXIS));
@@ -591,14 +583,6 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		footerPanel.add(createProfileFooterWrap);
 
 		footerPanel.add(createProfileFooterGap);
-
-		tradeFooterWrap.setOpaque(false);
-		SidebarLayout.stylePrimaryFooterButton(openTradesButton);
-		tradeFooterWrap.add(openTradesButton, BorderLayout.CENTER);
-		SidebarLayout.clampPanelWidth(tradeFooterWrap);
-		footerPanel.add(tradeFooterWrap);
-
-		footerPanel.add(tradeFooterSpacer);
 
 		albumFooterWrap.setOpaque(false);
 		SidebarLayout.stylePrimaryFooterButton(openAccountPanelButton);
@@ -866,7 +850,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			&& !cloudSessionService.isAccountLocked();
 	}
 /**
-	 * Recomputes which footer blocks (create-profile prompt, account panel, trade button) are visible
+	 * Recomputes which footer blocks (create-profile prompt, account panel) are visible
 	 * based on world/session/cloud state and the selected tab, plus the spacer gaps between them.
 	 */
 	private void updateFooterVisibility()
@@ -892,33 +876,15 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		albumFooterWrap.setVisible(showAccountPanel);
 		updateManageAccountState();
 
-		boolean showTrade = inWorld
-			&& !restrictedWorld
-			&& cloudConnected
-			&& tradeCloudService.getPendingAccept() != null
-			&& selectedTab != Tab.WELCOME;
-		tradeFooterWrap.setVisible(showTrade);
-
-		createProfileFooterGap.setVisible(showCreateProfile && (showAccountPanel || showTrade));
-		tradeFooterSpacer.setVisible(showTrade && showAccountPanel);
+		createProfileFooterGap.setVisible(showCreateProfile && showAccountPanel);
 
 		if (showCreateProfile)
 		{
 			createProfileController.updatePromptLayout(
 				createProfilePromptPane, createProfileFooterWrap, footerContentWidth());
 		}
+		SidebarLayout.lockFooterBlockHeight(createProfileFooterWrap);
 		SidebarLayout.lockFooterBlockHeight(albumFooterWrap);
-		SidebarLayout.lockFooterBlockHeight(tradeFooterWrap);
-	}
-/** Builds the "Open trades" footer button, which opens the {@code /trades} web album page. */
-	private JButton createOpenTradesButton()
-	{
-		JButton button = new JButton(
-			"<html><center>Open trades<br>"
-				+ "<span style='font-family:SansSerif;font-size:8px;color:#aaaaaa'>You have pending trades waiting...</span>"
-				+ "</center></html>");
-		button.addActionListener(e -> accountLauncher.open("/trades"));
-		return button;
 	}
 /** Applies enabled/active styling (colors, border, cursor, tooltip) to a single tab button. */
 	private void applyTabStyle(JButton button, Tab tab)
@@ -1216,10 +1182,10 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 		titlePanel.revalidate();
 		titlePanel.repaint();
 	}
-/** Delegates to {@link AccountPanelLauncher#updateManageAccountState} to refresh the account/trades button state. */
+/** Delegates to {@link AccountPanelLauncher#updateManageAccountState} to refresh the account button state. */
 	private void updateManageAccountState()
 	{
-		accountLauncher.updateManageAccountState(openAccountPanelButton, openTradesButton);
+		accountLauncher.updateManageAccountState(openAccountPanelButton);
 	}
 /** Delegates to {@link CreateProfileController#updateButtonState} to refresh the create-profile button state. */
 	private void updateCreateProfileState()

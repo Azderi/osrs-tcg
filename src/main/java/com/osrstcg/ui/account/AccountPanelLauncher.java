@@ -18,7 +18,7 @@ import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.util.LinkBrowser;
 /**
  * Opens the OSRS TCG website account page (signed in via a one-time web code) from the sidebar,
- * and drives the enabled/disabled state of the account/trades buttons. Network calls run on the
+ * and drives the enabled/disabled state of the account button. Network calls run on the
  * given scheduler; UI updates are marshalled back onto the Swing EDT.
  */
 @Slf4j
@@ -94,8 +94,8 @@ public final class AccountPanelLauncher
 			}
 		});
 	}
-/** Refreshes enabled state and tooltips of the account panel and trades buttons from current cloud session state. */
-	public void updateManageAccountState(JButton openAccountPanelButton, JButton openTradesButton)
+/** Refreshes enabled state and tooltip of the account panel button from current cloud session state. */
+	public void updateManageAccountState(JButton openAccountPanelButton)
 	{
 		if (openAccountPanelButton == null)
 		{
@@ -107,18 +107,6 @@ public final class AccountPanelLauncher
 		openAccountPanelButton.setToolTipText(canOpen
 			? "Open the website signed in to your cloud account"
 			: "Connect to cloud first");
-		if (openTradesButton != null)
-		{
-			boolean tradesOk = canOpen && !cloudSessionService.isAccountLocked() && !busy;
-			openTradesButton.setEnabled(tradesOk);
-			openTradesButton.setToolTipText(tradesOk
-				? "Open pending trades on the website"
-				: cloudSessionService.isAccountLocked()
-					? (cloudSessionService.isAccountBanned()
-						? CloudSessionService.ACCOUNT_BANNED_STATUS
-						: CloudSessionService.ACCOUNT_QUARANTINED_STATUS)
-					: "Connect to cloud first");
-		}
 	}
 /** Queues a chat message reporting that opening the account panel failed, with optional detail. */
 	private void queueOpenAccountPanelError(String detail)
