@@ -30,7 +30,7 @@ import javax.inject.Provider;
 @Slf4j
 final class HiscoresSettleService
 {
-	private static final long HISCORES_RETRY_DELAY_SEC = 45L;
+	private static final long HISCORES_RETRY_DELAY_SEC = 70L;
 	private final CachedDisplayName cachedDisplayName = new CachedDisplayName();
 	private final Client client;
 	private final CloudApiClient api;

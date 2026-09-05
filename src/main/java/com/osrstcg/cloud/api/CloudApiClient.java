@@ -522,13 +522,18 @@ public final class CloudApiClient
 		{
 			message = parsedMessage;
 		}
+		JsonObject details = objectOrEmpty(err, "details");
 		Long serverCredits = null;
 		Double credits = readNumber(json, "credits");
+		if (credits == null)
+		{
+			credits = readNumber(details, "credits");
+		}
 		if (credits != null)
 		{
 			serverCredits = Math.round(credits);
 		}
-		Double retryAfter = readNumber(objectOrEmpty(err, "details"), "retryAfterSec");
+		Double retryAfter = readNumber(details, "retryAfterSec");
 		Long retryAfterSec = (retryAfter != null && retryAfter > 0d)
 			? Math.max(1L, Math.round(retryAfter)) : null;
 		return new CloudApiException(status, code, CloudHttpErrorMapper.humanize(status, code, message),
