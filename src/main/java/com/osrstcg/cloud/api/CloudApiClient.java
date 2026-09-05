@@ -33,6 +33,8 @@ import static com.osrstcg.cloud.api.JsonObjects.text;
 import static com.osrstcg.cloud.api.JsonObjects.textTrimmed;
 import com.osrstcg.cloud.session.ProfileKeyHasher;
 import com.osrstcg.cloud.trade.TradeInboxItem;
+import com.osrstcg.util.TcgPluginGameMessages;
+import net.runelite.client.chat.ChatMessageManager;
 /**
  * Blocking HTTP client for the cloud API. Every method that issues a request performs a
  * synchronous network call and must not be invoked on the client thread; callers are expected
@@ -50,6 +52,7 @@ public final class CloudApiClient
 	private final Gson gson;
 	private final CloudTokenStore tokenStore;
 	private final ProfileKeyHasher profileKeyHasher;
+	private final ChatMessageManager chatMessageManager;
 	private volatile String cachedCatalogVersion;
 	private volatile Runnable staleRefreshHandler;
 	private volatile Consumer<CloudApiException> accountLockHandler;
@@ -64,16 +67,18 @@ public final class CloudApiClient
 		OkHttpClient okHttpClient,
 		Gson gson,
 		CloudTokenStore tokenStore,
-		ProfileKeyHasher profileKeyHasher)
+		ProfileKeyHasher profileKeyHasher,
+		ChatMessageManager chatMessageManager)
 	{
 		this.http = okHttpClient.newBuilder()
-			.connectTimeout(15, TimeUnit.SECONDS)
+			.connectTimeout(5, TimeUnit.SECONDS)
 			.readTimeout(60, TimeUnit.SECONDS)
 			.writeTimeout(60, TimeUnit.SECONDS)
 			.build();
 		this.gson = gson;
 		this.tokenStore = tokenStore;
 		this.profileKeyHasher = profileKeyHasher;
+		this.chatMessageManager = chatMessageManager;
 	}
 /**
 	 * Allows API calls while {@code cloudMigrated} is still false - only for the consent
@@ -583,6 +588,8 @@ public final class CloudApiClient
 			useWebApi = true;
 			HttpUrl web = HttpUrl.parse(CloudEndpoints.WEB_BASE_URL);
 			log.info("API host unreachable; falling back to {}", CloudEndpoints.WEB_BASE_URL);
+			TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager,
+				"Connected to fallback API address");
 			return http.newCall(request.newBuilder()
 				.url(request.url().newBuilder().host(web.host()).build())
 				.build()).execute();

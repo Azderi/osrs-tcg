@@ -31,9 +31,7 @@ import javax.inject.Provider;
 final class HiscoresSettleService
 {
 	private static final long HISCORES_RETRY_DELAY_SEC = 45L;
-
 	private final CachedDisplayName cachedDisplayName = new CachedDisplayName();
-
 	private final Client client;
 	private final CloudApiClient api;
 	private final CloudTokenStore tokens;
