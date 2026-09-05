@@ -64,6 +64,7 @@ public class CreditAwardService
 	private int creditCooldownDurationTicks = CREDIT_COOLDOWN_TICKS;
 	private boolean pendingStatsSettle;
 	private boolean restoreXpFromPersistedBaseline;
+	private boolean sawRestrictedWhileLoggedIn;
 
 	@Inject
 	public CreditAwardService(Client client, TcgStateService stateService, CloudSessionService session,
@@ -246,6 +247,7 @@ public class CreditAwardService
 
 		if (next == GameState.LOGIN_SCREEN)
 		{
+			sawRestrictedWhileLoggedIn = false;
 			session.clearRestrictedExitHold();
 			persistSkillBaselineToState();
 			armStatsSettle(true, CREDIT_COOLDOWN_TICKS);
@@ -255,12 +257,9 @@ public class CreditAwardService
 		if (next == GameState.HOPPING)
 		{
 			persistSkillBaselineToState();
-			boolean leavingRestricted = session.isRestrictedWorldLive();
-			if (leavingRestricted)
-			{
-				session.beginRestrictedExitHold();
-			}
-			armStatsSettle(false, resolveHopSettleCooldownTicks(leavingRestricted));
+			boolean leavingRestricted = session.isRestrictedWorldLive() || sawRestrictedWhileLoggedIn;
+			sawRestrictedWhileLoggedIn = false;
+			beginHoldAndSettle(resolveHopSettleCooldownTicks(leavingRestricted));
 			return;
 		}
 
@@ -274,6 +273,17 @@ public class CreditAwardService
 			beginCreditAwardCooldown(creditCooldownDurationTicks);
 		}
 	}
+/** Arms the restricted-world hold and 12-tick settle when world types resolve to restricted. */
+	public void onWorldChanged()
+	{
+		if (!session.isRestrictedWorldLive())
+		{
+			return;
+		}
+
+		sawRestrictedWhileLoggedIn = true;
+		beginHoldAndSettle(RESTRICTED_WORLD_EXIT_SETTLE_TICKS);
+	}
 /**
 	 * Drives the credit-award cooldown and baseline initialization each tick: ends an expired cooldown and
 	 * re-captures baselines after settling, or performs first-time baseline capture if not yet initialized.
@@ -281,6 +291,11 @@ public class CreditAwardService
 	@Subscribe
 	public void onGameTick(GameTick event)
 	{
+		if (client != null && client.getGameState() == GameState.LOGGED_IN && session.isRestrictedWorldLive())
+		{
+			sawRestrictedWhileLoggedIn = true;
+		}
+
 		if (!isCreditTrackingAllowed())
 		{
 			return;
@@ -578,6 +593,12 @@ public class CreditAwardService
 		restoreXpFromPersistedBaseline = restoreXp;
 		suppressAwardsUntilSettle(restoreXp, ticks);
 	}
+/** Begins restricted-world hold and arms hop/event settle for {@code ticks}. */
+	private void beginHoldAndSettle(int ticks)
+	{
+		session.beginRestrictedExitHold();
+		armStatsSettle(false, ticks);
+	}
 /** Post-login settle ticks: longer when the hop started on a restricted/event world. */
 	static int resolveHopSettleCooldownTicks(boolean restrictedWorld)
 	{
@@ -625,7 +646,12 @@ public class CreditAwardService
 		{
 			return false;
 		}
-		if (pendingStatsSettle && client.getGameState() != GameState.LOGGED_IN)
+		GameState state = client.getGameState();
+		if (state == GameState.HOPPING || state == GameState.LOADING)
+		{
+			return true;
+		}
+		if (pendingStatsSettle && state != GameState.LOGGED_IN)
 		{
 			return true;
 		}

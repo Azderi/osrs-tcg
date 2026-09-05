@@ -71,7 +71,7 @@ public class TcgResetCommand
 		configManager.unsetRSProfileConfiguration(GROUP, MIGRATED);
 		tokenStore.wipeAccountProfileDir();
 
-		cloudSessionCoordinator.disconnect();
+		cloudSessionCoordinator.disconnectFromClientThread();
 		if (client.getGameState() == GameState.LOGGED_IN)
 		{
 			cloudSessionCoordinator.connect();

@@ -41,6 +41,7 @@ public class CloudSessionCoordinator
 	private final ScheduledExecutorService scheduler;
 
 	private final AtomicBoolean cloudConnectInFlight = new AtomicBoolean(false);
+	private final AtomicBoolean clientShuttingDown = new AtomicBoolean(false);
 	private final Object cloudReconnectLock = new Object();
 	private ScheduledFuture<?> cloudReconnectFuture;
 	private GameState lastObservedGameState;
@@ -150,14 +151,33 @@ public class CloudSessionCoordinator
 			}
 		});
 	}
-/** Cancels reconnect, stops attest/trade traffic, and marks the session as restricted-world-paused. */
+/** Cancels reconnect, flushes pending attests off-thread, then stops traffic and marks restricted. */
 	public void pauseForRestrictedWorld()
 	{
 		cancelReconnect();
-		creditAttestQueue.stop();
-		tradeCloudService.stop();
-		cloudSessionService.enterRestrictedWorld();
-		SwingUtilities.invokeLater(sidebarRefresh::refresh);
+		scheduler.execute(this::pauseRestrictedFlushAndStop);
+	}
+/** Scheduler-thread body for {@link #pauseForRestrictedWorld()}. */
+	private void pauseRestrictedFlushAndStop()
+	{
+		try
+		{
+			if (!cloudSessionService.isAccountLocked())
+			{
+				creditAttestQueue.flushBlocking();
+			}
+		}
+		catch (Exception e)
+		{
+			log.warn("Credit attest flush before restricted-world pause failed", e);
+		}
+		finally
+		{
+			creditAttestQueue.stop();
+			tradeCloudService.stop();
+			cloudSessionService.enterRestrictedWorld();
+			SwingUtilities.invokeLater(sidebarRefresh::refresh);
+		}
 	}
 /**
 	 * Tears down the cloud session on logout. Cancels hiscores settle first (so no settle-hiscores
@@ -180,6 +200,25 @@ public class CloudSessionCoordinator
 		creditAttestQueue.stop();
 		tradeCloudService.stop();
 		cloudSessionService.disconnectQuietly();
+	}
+/**
+	 * Runs {@link #disconnect()} on {@link #scheduler} without blocking the caller. Use from the
+	 * client thread (logout / plugin unload) so attest HTTP never runs there. No-ops during
+	 * {@link #beginClientShutdown()} so ClientShutdown owns the flush.
+	 */
+	public void disconnectFromClientThread()
+	{
+		if (clientShuttingDown.get())
+		{
+			return;
+		}
+		scheduler.execute(this::disconnect);
+	}
+/** Marks client exit in progress and cancels reconnect; pairs with {@link #flushAttestsForShutdown()}. */
+	public void beginClientShutdown()
+	{
+		clientShuttingDown.set(true);
+		cancelReconnect();
 	}
 /**
 	 * Schedules a single reconnect attempt with a random delay between {@link #CLOUD_RECONNECT_MIN_MS}
@@ -291,16 +330,13 @@ public class CloudSessionCoordinator
 
 		if (gs == GameState.LOGIN_SCREEN)
 		{
-			disconnect();
+			disconnectFromClientThread();
 		}
 		else if (gs == GameState.LOGGED_IN)
 		{
-			if (previous == GameState.LOADING && cloudSessionService.isSessionActive())
+			if (previous == GameState.LOADING || previous == GameState.HOPPING)
 			{
-				if (cloudSessionService.isRestrictedWorld())
-				{
-					pauseForRestrictedWorld();
-				}
+				connectOrPauseForWorld();
 			}
 			else
 			{
@@ -313,9 +349,21 @@ public class CloudSessionCoordinator
 	{
 		if (client.getGameState() == GameState.LOGGED_IN)
 		{
+			connectOrPauseForWorld();
+			SwingUtilities.invokeLater(sidebarRefresh::refresh);
+		}
+	}
+/** Pauses cloud traffic on restricted worlds; otherwise connects. */
+	private void connectOrPauseForWorld()
+	{
+		if (cloudSessionService.isRestrictedWorld())
+		{
+			pauseForRestrictedWorld();
+		}
+		else
+		{
 			connect();
 		}
-		SwingUtilities.invokeLater(sidebarRefresh::refresh);
 	}
 /**
 	 * Client-shutdown hook: cancels hiscores settle, then blocking-flushes pending attests (unless

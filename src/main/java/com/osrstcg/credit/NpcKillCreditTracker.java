@@ -4,12 +4,16 @@ import com.google.gson.JsonObject;
 import com.osrstcg.cloud.activity.ActivityConfigService;
 import com.osrstcg.cloud.attest.CreditAttestCoalescer;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
+import com.osrstcg.state.TcgStateService;
+import com.osrstcg.util.NumberFormatting;
+import com.osrstcg.util.TcgPluginGameMessages;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import com.osrstcg.ui.SidebarRefresh;
+import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Actor;
 import net.runelite.api.Client;
 import net.runelite.api.Hitsplat;
@@ -19,6 +23,7 @@ import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.InteractingChanged;
 import net.runelite.client.callback.ClientThread;
+import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.eventbus.Subscribe;
 /**
  * Awards credits for player-caused NPC kills. Tracks which NPCs the player has recently interacted with or
@@ -26,6 +31,7 @@ import net.runelite.client.eventbus.Subscribe;
  * Subscribes to {@link InteractingChanged}, {@link HitsplatApplied}, {@link ActorDeath}, and {@link GameTick}.
  */
 @Singleton
+@Slf4j
 public final class NpcKillCreditTracker
 {
 /** Ticks after the last player interaction/hit on an NPC before it's no longer considered engaged. */
@@ -37,6 +43,8 @@ public final class NpcKillCreditTracker
 	private final CreditAttestQueue attestQueue;
 	private final ActivityConfigService activityConfigService;
 	private final SidebarRefresh sidebarRefresh;
+	private final TcgStateService stateService;
+	private final ChatMessageManager chatMessageManager;
 /** Last known display name per NPC index. */
 	private final Map<Integer, String> lastKnownNpcName = new ConcurrentHashMap<>();
 /** Tick of the last player interaction/hit per NPC index, for the engagement timeout. */
@@ -51,7 +59,9 @@ public final class NpcKillCreditTracker
 		CreditAwardService creditAwardService,
 		CreditAttestQueue attestQueue,
 		ActivityConfigService activityConfigService,
-		SidebarRefresh sidebarRefresh)
+		SidebarRefresh sidebarRefresh,
+		TcgStateService stateService,
+		ChatMessageManager chatMessageManager)
 	{
 		this.client = client;
 		this.clientThread = clientThread;
@@ -59,6 +69,8 @@ public final class NpcKillCreditTracker
 		this.attestQueue = attestQueue;
 		this.activityConfigService = activityConfigService;
 		this.sidebarRefresh = sidebarRefresh;
+		this.stateService = stateService;
+		this.chatMessageManager = chatMessageManager;
 	}
 /** Clears all tracked NPC interaction state. */
 	public void shutdown()
@@ -199,7 +211,26 @@ public final class NpcKillCreditTracker
 		{
 			evidence.addProperty("npcName", npcName);
 		}
-		attestQueue.enqueue(CreditAttestCoalescer.TYPE_NPC_KILL, evidence, optimisticCredits);
+		if (!attestQueue.enqueue(CreditAttestCoalescer.TYPE_NPC_KILL, evidence, optimisticCredits))
+		{
+			return;
+		}
+		debugKillQueued(npcName, optimisticCredits);
+	}
+/** Debug-chat when an npc kill is queued for attest. */
+	private void debugKillQueued(String npcName, long optimisticCredits)
+	{
+		if (!stateService.isDebugChatEnabled())
+		{
+			return;
+		}
+		String body = String.format(
+			"NPC kill \"%s\" -> +%s credits (total %s)",
+			npcName == null || npcName.isEmpty() ? "Unknown NPC" : npcName,
+			NumberFormatting.format(optimisticCredits),
+			NumberFormatting.format(stateService.getCredits()));
+		log.info("[TCG DEBUG] {}", body);
+		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, body);
 	}
 /** Strips RuneLite formatting tags from an NPC name, defaulting to "Unnamed NPC" for {@code null}. */
 	private static String normalizeName(String npcName)

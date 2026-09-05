@@ -259,7 +259,7 @@ public class OsrsTcgPlugin extends Plugin
 		}
 		try
 		{
-			cloudSessionCoordinator.disconnect();
+			cloudSessionCoordinator.disconnectFromClientThread();
 		}
 		catch (Exception ex)
 		{
@@ -343,7 +343,8 @@ public class OsrsTcgPlugin extends Plugin
 	{
 		creditAwardService.flushSkillBaselineForPersist();
 		stateService.saveFullCheckpoint(TcgSaveTrigger.CLIENT_SHUTDOWN);
-		event.waitFor(CompletableFuture.runAsync(cloudSessionCoordinator::flushAttestsForShutdown, scheduledExecutorService));
+		cloudSessionCoordinator.beginClientShutdown();
+		event.waitFor(CompletableFuture.runAsync(cloudSessionCoordinator::flushAttestsForShutdown));
 	}
 /** Awards XP-based credits for the stat gain, refreshing the sidebar if any credits were granted. */
 	@Subscribe
@@ -380,6 +381,7 @@ public class OsrsTcgPlugin extends Plugin
 	@Subscribe
 	public void onWorldChanged(WorldChanged event)
 	{
+		creditAwardService.onWorldChanged();
 		cloudSessionCoordinator.onWorldChanged(event);
 	}
 /** Reacts to plugin config changes: chat prefix color takes effect live. */

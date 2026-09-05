@@ -175,11 +175,11 @@ public final class CreditAttestQueue
 	 * and triggers an early flush on a coalesced-count or xp-spike threshold. No-op if the session
 	 * can't currently collect attests. Expected to run on the client thread.
 	 */
-	public void enqueue(String type, JsonObject evidence, long optimisticCredits)
+	public boolean enqueue(String type, JsonObject evidence, long optimisticCredits)
 	{
 		if (!session.canCollectAttests() || isRateCapActive())
 		{
-			return;
+			return false;
 		}
 		resolveDisplayName();
 		String skill = "";
@@ -190,12 +190,12 @@ public final class CreditAttestQueue
 			skill = skillText == null ? "" : skillText;
 			if (CreditAttestCoalescer.isCombatSkillName(skill))
 			{
-				return;
+				return false;
 			}
 			xpDelta = JsonObjects.readLong(evidence, "xpDelta");
 			if (xpDelta <= 0L)
 			{
-				return;
+				return false;
 			}
 			if (CreditAttestCoalescer.isHitpointsSkillName(skill))
 			{
@@ -208,7 +208,7 @@ public final class CreditAttestQueue
 			int toLevel = JsonObjects.readInt(evidence, "toLevel");
 			if (toLevel <= fromLevel)
 			{
-				return;
+				return false;
 			}
 		}
 
@@ -219,7 +219,7 @@ public final class CreditAttestQueue
 		{
 			if (resolveAccountHashLocked() == -1L)
 			{
-				return;
+				return false;
 			}
 			pendingRaw.add(event);
 			int coalescedEstimate = CreditAttestCoalescer.coalesce(pendingRaw).size();
@@ -239,6 +239,7 @@ public final class CreditAttestQueue
 		{
 			attestScheduler.scheduleEarlyFlush();
 		}
+		return true;
 	}
 /** Schedules an immediate, non-blocking flush on the executor. */
 	public void flushNow()
@@ -346,15 +347,16 @@ public final class CreditAttestQueue
 /**
 	 * Drains and posts all pending events, one coalesced+prioritized batch at a time, until the pending
 	 * list is empty. Serialized via {@link #flushGate} so only one flush runs at a time. A batch that's
-	 * only hitpoints xp is held back rather than sent. On a post failure, the batch (and any remaining
-	 * coalesced events) are put back on the front of the pending list and the exception propagates.
+	 * only hitpoints xp is held back rather than sent (except on teardown). On a post failure, the batch
+	 * (and any remaining coalesced events) are put back on the front of the pending list and the
+	 * exception propagates.
 	 *
 	 * @param teardown true for a shutdown flush, which uses a looser readiness check than a normal flush
 	 * @return true if any posted batch changed local credits or the trade revision
 	 */
 	private boolean flush(boolean teardown) throws Exception
 	{
-		if (isRateCapActive())
+		if (!teardown && isRateCapActive())
 		{
 			return false;
 		}
@@ -395,7 +397,7 @@ public final class CreditAttestQueue
 					continue;
 				}
 
-				if (CreditAttestCoalescer.isHitpointsXpOnly(coalesced))
+				if (!teardown && CreditAttestCoalescer.isHitpointsXpOnly(coalesced))
 				{
 					prependPending(coalesced);
 					break;
@@ -409,7 +411,7 @@ public final class CreditAttestQueue
 					{
 						break;
 					}
-					if (CreditAttestCoalescer.isHitpointsXpOnly(batch))
+					if (!teardown && CreditAttestCoalescer.isHitpointsXpOnly(batch))
 					{
 						prependPending(coalesced);
 						prependPending(batch);
