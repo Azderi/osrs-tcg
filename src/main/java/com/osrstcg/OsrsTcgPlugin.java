@@ -258,14 +258,20 @@ public class OsrsTcgPlugin extends Plugin
 		{
 			log.warn("OSRS TCG failed to write local checkpoint on plugin unload");
 		}
+		CompletableFuture<Void> disconnect = null;
 		try
 		{
 			cloudSessionCoordinator.beginClientShutdown();
-			CompletableFuture.runAsync(cloudSessionCoordinator::disconnect, scheduledExecutorService)
-				.get(5L, TimeUnit.SECONDS);
+			disconnect = CompletableFuture.runAsync(
+				cloudSessionCoordinator::disconnect, scheduledExecutorService);
+			disconnect.get(5L, TimeUnit.SECONDS);
 		}
 		catch (Exception ex)
 		{
+			if (disconnect != null)
+			{
+				disconnect.cancel(false);
+			}
 			log.warn("Cloud disconnect on plugin unload failed", ex);
 		}
 

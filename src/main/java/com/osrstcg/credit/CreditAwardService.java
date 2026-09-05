@@ -389,7 +389,10 @@ public class CreditAwardService
 		evidence.addProperty("skill", skill.getName());
 		evidence.addProperty("fromLevel", previousLevel);
 		evidence.addProperty("toLevel", currentLevel);
-		attestQueue.enqueue(CreditAttestCoalescer.TYPE_LEVEL_UP, evidence, totalReward);
+		if (!attestQueue.enqueue(CreditAttestCoalescer.TYPE_LEVEL_UP, evidence, totalReward))
+		{
+			return 0L;
+		}
 
 		debugAward(String.format("Level up %s: %d -> %d -> +%s credits (total %s)",
 			skill.getName(), previousLevel, currentLevel,
@@ -528,14 +531,19 @@ public class CreditAwardService
 		}
 
 		long toSend = skills.pendingSlayerXpToAttest;
-		skills.pendingSlayerXpToAttest = 0L;
-		skills.slayerXpRemainder += toSend;
-		long chunks = skills.slayerXpRemainder / XpCreditMath.SLAYER_XP_PER_CHUNK;
+		long nextRemainder = skills.slayerXpRemainder + toSend;
+		long chunks = nextRemainder / XpCreditMath.SLAYER_XP_PER_CHUNK;
 		long credits = chunks * XpCreditMath.SLAYER_CREDITS_PER_CHUNK;
-		skills.slayerXpRemainder -= chunks * XpCreditMath.SLAYER_XP_PER_CHUNK;
+		long remainderAfter = nextRemainder - chunks * XpCreditMath.SLAYER_XP_PER_CHUNK;
 
+		if (!enqueueXpChunk(source, toSend, credits))
+		{
+			return false;
+		}
+
+		skills.pendingSlayerXpToAttest = 0L;
+		skills.slayerXpRemainder = remainderAfter;
 		persistSkillBaselineToState();
-		enqueueXpChunk(source, toSend, credits);
 		debugAward(String.format("XP drop +%s (%s) -> +%s credits (total %s)",
 			NumberFormatting.format(toSend), safeName(source),
 			NumberFormatting.format(credits), NumberFormatting.format(stateService.getCredits())));
@@ -571,21 +579,25 @@ public class CreditAwardService
 			return false;
 		}
 
-		persistSkillBaselineToState();
-		enqueueXpChunk(skill.getName(), xpCredited, credits);
+		if (!enqueueXpChunk(skill.getName(), xpCredited, credits))
+		{
+			return false;
+		}
+
 		skills.subtractUncreditedXp(skill, xpCredited);
+		persistSkillBaselineToState();
 		debugAward(String.format("XP drop +%s (%s) -> +%s credits (total %s)",
 			NumberFormatting.format(xpCredited), skill.getName(),
 			NumberFormatting.format(credits), NumberFormatting.format(stateService.getCredits())));
 		return credits > 0L;
 	}
 /** Enqueues an {@code xp_chunk} attest event with {@code xpDelta} xp and its optimistic credits. */
-	private void enqueueXpChunk(String skill, long xpDelta, long optimisticCredits)
+	private boolean enqueueXpChunk(String skill, long xpDelta, long optimisticCredits)
 	{
 		JsonObject evidence = new JsonObject();
 		evidence.addProperty("skill", skill == null ? "" : skill);
 		evidence.addProperty("xpDelta", xpDelta);
-		attestQueue.enqueue(CreditAttestCoalescer.TYPE_XP_CHUNK, evidence, optimisticCredits);
+		return attestQueue.enqueue(CreditAttestCoalescer.TYPE_XP_CHUNK, evidence, optimisticCredits);
 	}
 /** Persisted skill credit baseline, if one exists and is non-empty; {@code null} otherwise. */
 	private SkillCreditBaseline presentBaseline()
