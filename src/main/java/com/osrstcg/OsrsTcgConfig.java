@@ -207,6 +207,18 @@ public interface OsrsTcgConfig extends Config
 	{
 		return true;
 	}
+/** Whether foil cards use community full-art images when available. */
+	@ConfigItem(
+		keyName = "communityArtwork",
+		name = "Community artwork",
+		description = "Use community full-art images for foil cards when available.",
+		section = generalSection,
+		position = 4
+	)
+	default boolean communityArtwork()
+	{
+		return true;
+	}
 
 	@ConfigSection(
 		name = "Pull notifications",
