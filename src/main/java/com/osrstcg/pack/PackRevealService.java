@@ -304,7 +304,7 @@ public class PackRevealService
 /**
 	 * Handles a click/tap on the reveal overlay: taps the pack sleeve to start fading it, clicks past a
 	 * fully-revealed batch to advance, or clicks an individual face-down card to start its flip (playing
-	 * flip/mythic sound and posting the pull notification).
+	 * flip/mythic sound; pull notification fires when the flip completes).
 	 */
 	public synchronized void handleClick(Point click, Rectangle packBounds, List<Rectangle> cardBounds)
 	{
@@ -353,7 +353,6 @@ public class PackRevealService
 				{
 					packRevealSoundService.playMythicReveal();
 				}
-				notifyPullAndMarkPosted(clicked, absIndex);
 			}
 		}
 	}
@@ -568,6 +567,11 @@ public class PackRevealService
 				revealedByIndex[i] = true;
 				revealedCount++;
 				anyCompleted = true;
+				int absIndex = batchOffset + i;
+				if (absIndex >= 0 && absIndex < cards.size())
+				{
+					notifyPullAndMarkPosted(cards.get(absIndex), absIndex);
+				}
 			}
 			flipStartedAtMs[i] = 0L;
 		}
