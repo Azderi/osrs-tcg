@@ -35,7 +35,7 @@ public final class CardFaceDrawRequest
 		this.wear = b.wear;
 		this.foilFx = (!b.foil) ? null : b.foilFx;
 	}
-/** True when this is a foil card whose selected art ({@link #artKey}) is the community full-art foil path. */
+/** True when this is a foil card with a full-art foil image path defined on {@link #card}. */
 	public boolean isFullArt()
 	{
 		if (!foil || card == null)
@@ -43,11 +43,7 @@ public final class CardFaceDrawRequest
 			return false;
 		}
 		String path = card.getFoilImagePath();
-		if (path == null || path.isBlank())
-		{
-			return false;
-		}
-		return artKey == null || artKey.equals(path.trim());
+		return path != null && !path.isBlank();
 	}
 /** Starts a new {@link Builder}. */
 	public static Builder builder()

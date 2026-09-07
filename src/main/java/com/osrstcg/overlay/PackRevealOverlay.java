@@ -429,8 +429,8 @@ public class PackRevealOverlay extends Overlay
 		}
 		return !preOwnedFoilNames.contains(name.trim().toLowerCase(Locale.ROOT));
 	}
-/** Resolves the art path to draw for a card: community foil art when enabled and available, otherwise the default card image. */
-	private String artPathFor(PackRevealService.RevealCard card)
+/** Resolves the art path to draw for a card: the foil variant when this was a foil pull and one exists, otherwise the normal card image. */
+	private static String artPathFor(PackRevealService.RevealCard card)
 	{
 		if (card == null)
 		{
@@ -439,10 +439,7 @@ public class PackRevealOverlay extends Overlay
 		CardDefinition def = card.getDefinition();
 		boolean foilPull = card.getPull() != null && card.getPull().isFoil();
 		String foilPath = def == null ? null : def.getFoilImagePath();
-		if (config.communityArtwork()
-			&& foilPull
-			&& foilPath != null
-			&& !foilPath.isBlank())
+		if (foilPull && foilPath != null && !foilPath.isBlank())
 		{
 			return foilPath;
 		}
@@ -569,7 +566,7 @@ public class PackRevealOverlay extends Overlay
 		}
 	}
 /** Builds a cheap identity string (seed name + art path per slot) used to detect when the reveal's card set has changed. */
-	private String visibleFaceIdentity(List<PackRevealService.RevealCard> cards)
+	private static String visibleFaceIdentity(List<PackRevealService.RevealCard> cards)
 	{
 		if (cards == null || cards.isEmpty())
 		{

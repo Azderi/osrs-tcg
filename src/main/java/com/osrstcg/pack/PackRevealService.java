@@ -1,6 +1,5 @@
 package com.osrstcg.pack;
 
-import com.osrstcg.OsrsTcgConfig;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.catalog.BoosterPackDefinition;
 import com.osrstcg.catalog.CardDatabase;
@@ -132,7 +131,6 @@ public class PackRevealService
 	private final PackCatalogService packCatalogService;
 	private final PackRevealSoundService packRevealSoundService;
 	private final PullNotificationService pullNotificationService;
-	private final OsrsTcgConfig config;
 	private final RevealCardResolver revealCardResolver;
 
 	private Phase phase = Phase.IDLE;
@@ -154,13 +152,12 @@ public class PackRevealService
 	@Inject
 	public PackRevealService(CardDatabase cardDatabase, CardImageCacheService imageCacheService,
 		PackCatalogService packCatalogService, PackRevealSoundService packRevealSoundService,
-		PullNotificationService pullNotificationService, OsrsTcgConfig config)
+		PullNotificationService pullNotificationService)
 	{
 		this.imageCacheService = imageCacheService;
 		this.packCatalogService = packCatalogService;
 		this.packRevealSoundService = packRevealSoundService;
 		this.pullNotificationService = pullNotificationService;
-		this.config = config;
 		this.revealCardResolver = new RevealCardResolver(cardDatabase);
 	}
 /**
@@ -258,10 +255,7 @@ public class PackRevealService
 				}
 				boolean foil = c.getPull() != null && c.getPull().isFoil();
 				String foilPath = def.getFoilImagePath();
-				if (config.communityArtwork()
-					&& foil
-					&& foilPath != null
-					&& !foilPath.isBlank())
+				if (foil && foilPath != null && !foilPath.isBlank())
 				{
 					return Stream.of(foilPath);
 				}
