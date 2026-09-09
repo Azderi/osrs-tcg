@@ -16,6 +16,63 @@ import static org.junit.Assert.assertTrue;
 public class PullNotificationMessagesTest
 {
 	@Test
+	public void summaryLinksBoldTitleAndShowsGradeAndCondition()
+	{
+		PullNotificationMessages.PackPull pull = new PullNotificationMessages.PackPull(
+			" Masori Chaps ", true, false, RarityMath.Tier.COMMON, " instance-123 ", true, 95.44);
+		assertEquals(
+			"%USERNAME% opened a booster pack!\n\n**New cards**\n- **[Masori Chaps]("
+				+ PullNotificationMessages.inspectUrl("instance-123") + ")** - S (95.44)",
+			packSummaryMessage("%USERNAME%", buildSummarySections(Collections.singletonList(pull), true)));
+	}
+
+	@Test
+	public void summaryHidesGradeAndConditionWhilePreservingLinksFoilAndBoldTitles()
+	{
+		List<PullNotificationMessages.PackPull> pulls = Arrays.asList(
+			new PullNotificationMessages.PackPull(
+				"Masori Chaps", true, false, RarityMath.Tier.COMMON, "instance-123", true, 95.44),
+			new PullNotificationMessages.PackPull(
+				"Goblin", false, true, RarityMath.Tier.COMMON, "instance-456", false, 74.5));
+		assertEquals(
+			"%USERNAME% opened a booster pack!\n\n**New cards**\n- **[Masori Chaps]("
+				+ PullNotificationMessages.inspectUrl("instance-123") + ")**"
+				+ "\n\n**Duplicates**\n- [Goblin (foil)]("
+				+ PullNotificationMessages.inspectUrl("instance-456") + ")",
+			packSummaryMessage("%USERNAME%", buildSummarySections(pulls, false)));
+	}
+
+	@Test
+	public void summaryPreservesFoilAndUnboldedIneligibleTitle()
+	{
+		PullNotificationMessages.PackPull pull = new PullNotificationMessages.PackPull(
+			"Goblin", false, true, RarityMath.Tier.COMMON, "instance-456", false, 74.5);
+		assertEquals(
+			"[Goblin (foil)](" + PullNotificationMessages.inspectUrl("instance-456") + ") - B (74.50)",
+			PullNotificationMessages.summaryLine(pull));
+	}
+
+	@Test
+	public void summaryShowsConditionWithoutAnInspectLinkWhenInstanceIsMissing()
+	{
+		PullNotificationMessages.PackPull pull = new PullNotificationMessages.PackPull(
+			"Goblin", true, false, RarityMath.Tier.COMMON, " ", true, 5.0);
+		assertEquals("**Goblin** - D (5.00)", PullNotificationMessages.summaryLine(pull));
+	}
+
+	@Test
+	public void summaryOmitsMissingOrInvalidCondition()
+	{
+		for (Double condition : Arrays.asList(null, Double.NaN, Double.POSITIVE_INFINITY))
+		{
+			PullNotificationMessages.PackPull pull = new PullNotificationMessages.PackPull(
+				"Goblin", true, false, RarityMath.Tier.COMMON, "instance-789", true, condition);
+			assertEquals("**[Goblin](" + PullNotificationMessages.inspectUrl("instance-789") + ")**",
+				PullNotificationMessages.summaryLine(pull));
+		}
+	}
+
+	@Test
 	public void packSummaryOmitsEmptyDuplicatesSection()
 	{
 		List<PullNotificationMessages.PackPull> pulls = Arrays.asList(

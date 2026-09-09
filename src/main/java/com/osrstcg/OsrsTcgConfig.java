@@ -323,6 +323,19 @@ public interface OsrsTcgConfig extends Config
 		return false;
 	}
 
+/** Whether Dink and webhook pack summaries include each card's grade and condition. */
+	@ConfigItem(
+		keyName = "showPullGradeAndCondition",
+		name = "Show grade and condition",
+		description = "Show card grades and condition values in Dink and webhook pack summaries.",
+		section = pullNotificationsSection,
+		position = 9
+	)
+	default boolean showPullGradeAndCondition()
+	{
+		return true;
+	}
+
 	@ConfigSection(
 		name = "Debug",
 		description = "Developer and troubleshooting options.",

@@ -124,7 +124,8 @@ public class PullNotifySupport
 				card.getPull().isFoil(),
 				card.getTier(),
 				card.getPull().getInstanceId(),
-				shouldNotify(card.getTier(), card.getPull().isFoil(), card.isNew())));
+				shouldNotify(card.getTier(), card.getPull().isFoil(), card.isNew()),
+				card.getPull().getCondition()));
 		}
 		return pulls;
 	}
@@ -138,7 +139,8 @@ public class PullNotifySupport
 		{
 			return Optional.empty();
 		}
-		PullNotificationMessages.PackSummarySections sections = PullNotificationMessages.buildSummarySections(pulls);
+		PullNotificationMessages.PackSummarySections sections = PullNotificationMessages.buildSummarySections(
+			pulls, config.showPullGradeAndCondition());
 		if (sections.newCards.isEmpty() && sections.duplicates.isEmpty())
 		{
 			return Optional.empty();
