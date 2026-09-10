@@ -6,7 +6,6 @@ import com.osrstcg.cloud.activity.CompiledActivityConfig;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
 import com.osrstcg.state.TcgStateService;
 import com.osrstcg.ui.SidebarRefresh;
-import com.osrstcg.util.NumberFormatting;
 import com.osrstcg.util.TcgPluginGameMessages;
 import java.util.EnumSet;
 import java.util.List;
@@ -93,12 +92,8 @@ public final class GameMessageCreditTracker
 
 		String label = matched.getLabel();
 		String what = label == null || label.isBlank() ? matched.getActivityId() : label;
-		String body = String.format(
-			"Activity \"%s\" -> +%s credits (total %s)",
-			what,
-			NumberFormatting.format(matched.getCredits()),
-			NumberFormatting.format(stateService.getCredits()));
-		log.info("[TCG DEBUG] {}", body);
+		String body = String.format("Act \"%s\" +%d tot %d",
+			what, matched.getCredits(), stateService.getCredits());
 		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, body);
 	}
 /** First configured chat rule whose pattern matches {@code messageWithoutTags}, if any. */

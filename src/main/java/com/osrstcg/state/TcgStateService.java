@@ -215,7 +215,7 @@ public class TcgStateService
 	{
 		long pending = optimistic.get();
 		state = TcgCloudStateApplier.applyEconomy(state, credits, openedPacks, totalCreditsGained);
-		log.debug("Cloud economy apply: serverCredits={} pendingOptimistic={} displayCredits={}",
+		log.debug("eco apply srv={} pend={} disp={}",
 			credits, pending, getCredits());
 		notifyStateChangeListeners();
 	}
@@ -241,7 +241,7 @@ public class TcgStateService
 			this.cloudCollectionStats = sidebarStats;
 		}
 		this.cloudCollectionHash = cloudCollectionHash == null ? "" : cloudCollectionHash.trim();
-		log.debug("Cloud state apply: serverCredits={} pendingOptimistic={} displayCredits={}",
+		log.debug("state apply srv={} pend={} disp={}",
 			nextEconomy.getCredits(), pending, getCredits());
 		notifyCollectionMutated();
 	}

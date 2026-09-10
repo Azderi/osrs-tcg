@@ -84,7 +84,7 @@ final class CreditAttestPoster
 				? queue.stateService.getAuthoritativeCredits()
 				: Math.round(creditsNum);
 			log.debug(
-				"Credit attest economy: serverCredits={} pendingBefore={} clearOptimistic={} pendingAfter={} rejected={}",
+				"attest eco srv={} pend={} clr={} after={} rej={}",
 				serverCredits,
 				pendingBefore,
 				clearOptimistic,
@@ -99,7 +99,7 @@ final class CreditAttestPoster
 		}
 		else if (!requeueResult.reasons.isEmpty())
 		{
-			log.debug("Credit attest rejected without economy payload: {}", requeueResult.reasons);
+			log.debug("attest rej no eco: {}", requeueResult.reasons);
 		}
 
 		Double revision = JsonObjects.readNumber(response, "revision");

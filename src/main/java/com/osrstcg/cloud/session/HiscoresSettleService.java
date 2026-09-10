@@ -364,6 +364,6 @@ final class HiscoresSettleService
 		String digest = TcgStateHash.hexOfUtf8(Long.toString(accountHash));
 		String prefix = digest.length() <= 5 ? digest : digest.substring(0, 5);
 		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager,
-			"accountHash prefix " + prefix);
+			"acct " + prefix);
 	}
 }

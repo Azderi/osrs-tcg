@@ -23,8 +23,6 @@ import com.osrstcg.cloud.session.CachedDisplayName;
 import com.osrstcg.cloud.session.CloudSessionService;
 import com.osrstcg.cloud.trade.TradeCloudService;
 import com.osrstcg.util.TcgPluginGameMessages;
-import java.util.LinkedHashMap;
-import java.util.Map;
 /**
  * In-memory queue of raw credit-earning events (xp, level-ups, npc kills, activities) awaiting
  * attestation to the cloud. Buffers events as they occur, coalesces and prioritizes them at flush
@@ -533,64 +531,45 @@ public final class CreditAttestQueue
 		}
 		return sawAmount ? sum : -1L;
 	}
-/** Posts a debug-chat summary of an outgoing attest batch (event type counts, optimistic estimate), if debug chat is on. */
+/** Posts a debug-chat summary of an outgoing attest batch, if debug chat is on. */
 	void debugCreditAttestSend(List<JsonObject> batch, long optimisticEstimate)
 	{
 		if (!stateService.isDebugChatEnabled() || batch == null || batch.isEmpty())
 		{
 			return;
 		}
-		Map<String, Integer> counts = new LinkedHashMap<>();
-		for (JsonObject event : batch)
-		{
-			String type = "?";
-			if (event != null && event.has("type") && !event.get("type").isJsonNull())
-			{
-				type = event.get("type").getAsString();
-			}
-			counts.merge(type, 1, Integer::sum);
-		}
-		StringBuilder summary = new StringBuilder();
-		for (Map.Entry<String, Integer> entry : counts.entrySet())
-		{
-			if (summary.length() > 0)
-			{
-				summary.append(", ");
-			}
-			summary.append(entry.getKey()).append(" x").append(entry.getValue());
-		}
-		String message = "Sending " + batch.size() + " credit events to server: " + summary;
+		String message = "send " + batch.size();
 		if (optimisticEstimate > 0L)
 		{
-			message += " (" + optimisticEstimate + " credits)";
+			message += " (+" + optimisticEstimate + ")";
 		}
 		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, message);
 	}
-/** Posts a debug-chat summary of an attest response (credits, cleared/pending optimistic, rejects), if debug chat is on. */
+/** Posts a debug-chat summary of an attest response, if debug chat is on. */
 	void debugCreditAttestResponse(JsonObject response, long clearOptimistic, long pendingBefore)
 	{
 		if (!stateService.isDebugChatEnabled() || response == null)
 		{
 			return;
 		}
-		StringBuilder message = new StringBuilder("Server attest response");
+		StringBuilder message = new StringBuilder("attest");
 		if (response.has("credits") && !response.get("credits").isJsonNull())
 		{
-			message.append(": credits=").append(response.get("credits").getAsLong());
+			message.append(" cr=").append(response.get("credits").getAsLong());
 		}
 		if (clearOptimistic > 0L)
 		{
-			message.append(", cleared optimistic=").append(clearOptimistic);
+			message.append(" clr=").append(clearOptimistic);
 		}
 		long pendingAfter = stateService.getPendingOptimisticCredits();
 		if (pendingBefore != pendingAfter)
 		{
-			message.append(", pending ").append(pendingBefore).append(" -> ").append(pendingAfter);
+			message.append(" pend ").append(pendingBefore).append("->").append(pendingAfter);
 		}
 		String rejected = formatRejectedReasons(response);
 		if (rejected != null && !"[]".equals(rejected))
 		{
-			message.append(", rejected=").append(rejected);
+			message.append(" rej=").append(rejected);
 		}
 		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, message.toString());
 	}

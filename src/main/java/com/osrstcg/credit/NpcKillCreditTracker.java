@@ -5,7 +5,6 @@ import com.osrstcg.cloud.activity.ActivityConfigService;
 import com.osrstcg.cloud.attest.CreditAttestCoalescer;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
 import com.osrstcg.state.TcgStateService;
-import com.osrstcg.util.NumberFormatting;
 import com.osrstcg.util.TcgPluginGameMessages;
 import java.util.Map;
 import java.util.Optional;
@@ -224,12 +223,9 @@ public final class NpcKillCreditTracker
 		{
 			return;
 		}
-		String body = String.format(
-			"NPC kill \"%s\" -> +%s credits (total %s)",
-			npcName == null || npcName.isEmpty() ? "Unknown NPC" : npcName,
-			NumberFormatting.format(optimisticCredits),
-			NumberFormatting.format(stateService.getCredits()));
-		log.info("[TCG DEBUG] {}", body);
+		String body = String.format("NPC \"%s\" +%d tot %d",
+			npcName == null || npcName.isEmpty() ? "?" : npcName,
+			optimisticCredits, stateService.getCredits());
 		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, body);
 	}
 /** Strips RuneLite formatting tags from an NPC name, defaulting to "Unnamed NPC" for {@code null}. */

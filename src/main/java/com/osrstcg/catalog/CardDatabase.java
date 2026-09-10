@@ -6,12 +6,10 @@ import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
@@ -35,16 +33,6 @@ public class CardDatabase
 	public synchronized List<CardDefinition> getCards()
 	{
 		return cards;
-	}
-/** Card counts grouped by primary category, in first-seen order. */
-	public synchronized Map<String, Long> categoryCounts()
-	{
-		return cards.stream()
-			.collect(Collectors.groupingBy(
-				card -> safeCategory(card.getPrimaryCategory()),
-				LinkedHashMap::new,
-				Collectors.counting()
-			));
 	}
 /** Number of cards currently loaded. */
 	public synchronized int size()
@@ -179,11 +167,6 @@ public class CardDatabase
 			}
 		}
 		card.setCategory(trimmed);
-	}
-/** {@code rawCategory} trimmed, or {@code "Unknown"} if blank. */
-	private static String safeCategory(String rawCategory)
-	{
-		return isBlank(rawCategory) ? "Unknown" : rawCategory.trim();
 	}
 /** Whether {@code value} is null or all-whitespace. */
 	private static boolean isBlank(String value)

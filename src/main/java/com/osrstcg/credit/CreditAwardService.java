@@ -195,18 +195,14 @@ public class CreditAwardService
 			int xp = event.getXp();
 			if (xp > 0 && xp < FAKE_XP_DROP_SANITY_CAP)
 			{
-				debugAward(String.format(
-					"Ignored fake XP drop for combat skill %s (+%s XP)",
-					skill.getName(), NumberFormatting.format(xp)));
+				debugAward(String.format("Ign combat fake XP %s +%d", skill.getName(), xp));
 			}
 			return false;
 		}
 
 		if (!isGenuineMaxedSkillFakeXpDrop(skill))
 		{
-			debugAward(String.format(
-				"Ignored fake XP drop for %s (skill below %s XP)",
-				skill.getName(), NumberFormatting.format(Experience.MAX_SKILL_XP)));
+			debugAward(String.format("Ign fake XP %s (<%d)", skill.getName(), Experience.MAX_SKILL_XP));
 			return false;
 		}
 
@@ -323,7 +319,7 @@ public class CreditAwardService
 			creditCooldownActive = false;
 			pendingStatsSettle = false;
 			captureBaselinesAfterSettle();
-			debugAward("Credit award cooldown ended; resuming live credit gains");
+			debugAward("Cooldown end; resume credits");
 			session.scheduleHiscoresSettle();
 			if (session.clearRestrictedExitHold() && !session.isRestrictedWorldLive())
 			{
@@ -352,7 +348,7 @@ public class CreditAwardService
 			skills.snapshotBaselinesIfLoggedIn(client);
 		}
 		persistSkillBaselineToState();
-		debugAward("Live skill baselines captured after settle");
+		debugAward("Baselines after settle");
 	}
 /**
 	 * Sums the level-up reward (credits) for each level from {@code previousLevel+1} to {@code currentLevel}
@@ -380,7 +376,7 @@ public class CreditAwardService
 
 		if (!session.canCollectAttests())
 		{
-			debugAward(String.format("Cloud offline; discarding level up %s -> %d..%d credit reward",
+			debugAward(String.format("Offline; drop lvl %s %d..%d",
 				skill.getName(), previousLevel, currentLevel));
 			return 0L;
 		}
@@ -395,9 +391,8 @@ public class CreditAwardService
 			return 0L;
 		}
 
-		debugAward(String.format("Level up %s: %d -> %d -> +%s credits (total %s)",
-			skill.getName(), previousLevel, currentLevel,
-			NumberFormatting.format(totalReward), NumberFormatting.format(stateService.getCredits())));
+		debugAward(String.format("Lvl %s %d->%d +%d tot %d",
+			skill.getName(), previousLevel, currentLevel, totalReward, stateService.getCredits()));
 		return totalReward;
 	}
 /**
@@ -423,9 +418,7 @@ public class CreditAwardService
 		int previousXp = skills.previousSkillXp[skillIndex];
 		if (currentXp < previousXp)
 		{
-			debugAward(String.format(
-				"Ignored skill XP drop for %s (%s -> %s); keeping baseline",
-				skill.getName(), NumberFormatting.format(previousXp), NumberFormatting.format(currentXp)));
+			debugAward(String.format("Ign XP drop %s %d->%d", skill.getName(), previousXp, currentXp));
 			return false;
 		}
 
@@ -440,9 +433,7 @@ public class CreditAwardService
 			long xpGained = (long) currentXp - previousXp;
 			if (isCombatSkill(skill))
 			{
-				debugAward(String.format(
-					"Ignored +%s combat skill XP (%s)",
-					NumberFormatting.format(xpGained), skill.getName()));
+				debugAward(String.format("Ign combat XP +%d (%s)", xpGained, skill.getName()));
 			}
 			else if (!isCreditAwardOnCooldown())
 			{
@@ -477,9 +468,8 @@ public class CreditAwardService
 		}
 
 		long nextUncreditedXp = skills.addUncreditedXp(skill, xpGained);
-		debugAward(String.format("Registered +%s XP (%s) -> %s / %s",
-			NumberFormatting.format(xpGained), skill.getName(),
-			NumberFormatting.format(nextUncreditedXp), NumberFormatting.format(XpCreditMath.XP_PER_CREDIT_CHUNK)));
+		debugAward(String.format("XP +%d (%s) %d/%d",
+			xpGained, skill.getName(), nextUncreditedXp, XpCreditMath.XP_PER_CREDIT_CHUNK));
 
 		boolean awarded = awardCreditsFromUncreditedXp(skill);
 		persistSkillBaselineToState();
@@ -494,14 +484,12 @@ public class CreditAwardService
 		}
 		if (!session.canCollectAttests())
 		{
-			debugAward(String.format("Cloud offline; +%s XP (%s) not attested",
-				NumberFormatting.format(xpGained), safeName(source)));
+			debugAward(String.format("Offline; XP +%d (%s) no attest", xpGained, safeName(source)));
 			return;
 		}
 
 		enqueueXpChunk(source, xpGained, 0L);
-		debugAward(String.format("Registered +%s XP (%s) (ignored)",
-			NumberFormatting.format(xpGained), safeName(source)));
+		debugAward(String.format("XP +%d (%s) ign", xpGained, safeName(source)));
 	}
 /**
 	 * Accumulates Slayer XP (xp) and, if attests can currently be collected, converts completed
@@ -518,15 +506,12 @@ public class CreditAwardService
 		}
 
 		skills.pendingSlayerXpToAttest += xpGained;
-		debugAward(String.format("Registered +%s XP (%s) -> pending attest %s (bucket %s)",
-			NumberFormatting.format(xpGained), safeName(source),
-			NumberFormatting.format(skills.pendingSlayerXpToAttest),
-			NumberFormatting.format(XpCreditMath.SLAYER_XP_PER_CHUNK)));
+		debugAward(String.format("XP +%d (%s) pend %d/%d",
+			xpGained, safeName(source), skills.pendingSlayerXpToAttest, XpCreditMath.SLAYER_XP_PER_CHUNK));
 
 		if (!session.canCollectAttests())
 		{
-			debugAward(String.format("Cloud offline; +%s Slayer XP pending until reconnected",
-				NumberFormatting.format(xpGained)));
+			debugAward(String.format("Offline; Slayer +%d pend", xpGained));
 			persistSkillBaselineToState();
 			return false;
 		}
@@ -545,9 +530,8 @@ public class CreditAwardService
 		skills.pendingSlayerXpToAttest = 0L;
 		skills.slayerXpRemainder = remainderAfter;
 		persistSkillBaselineToState();
-		debugAward(String.format("XP drop +%s (%s) -> +%s credits (total %s)",
-			NumberFormatting.format(toSend), safeName(source),
-			NumberFormatting.format(credits), NumberFormatting.format(stateService.getCredits())));
+		debugAward(String.format("XP +%d (%s) +%d tot %d",
+			toSend, safeName(source), credits, stateService.getCredits()));
 		return credits > 0L;
 	}
 /**
@@ -575,8 +559,7 @@ public class CreditAwardService
 
 		if (!session.canCollectAttests())
 		{
-			debugAward(String.format("Cloud offline; +%s XP (%s) pending until reconnected",
-				NumberFormatting.format(xpCredited), skill.getName()));
+			debugAward(String.format("Offline; XP +%d (%s) pend", xpCredited, skill.getName()));
 			return false;
 		}
 
@@ -587,9 +570,8 @@ public class CreditAwardService
 
 		skills.subtractUncreditedXp(skill, xpCredited);
 		persistSkillBaselineToState();
-		debugAward(String.format("XP drop +%s (%s) -> +%s credits (total %s)",
-			NumberFormatting.format(xpCredited), skill.getName(),
-			NumberFormatting.format(credits), NumberFormatting.format(stateService.getCredits())));
+		debugAward(String.format("XP +%d (%s) +%d tot %d",
+			xpCredited, skill.getName(), credits, stateService.getCredits()));
 		return credits > 0L;
 	}
 /** Enqueues an {@code xp_chunk} attest event with {@code xpDelta} xp and its optimistic credits. */
@@ -710,9 +692,7 @@ public class CreditAwardService
 		long totalRemainder = skills.totalUncreditedXp();
 		if (totalRemainder > 0L)
 		{
-			debugAward(String.format(
-				"Uncredited XP pool cleared (%s); lost %s XP toward next chunk",
-				reason, NumberFormatting.format(totalRemainder)));
+			debugAward(String.format("XP pool clr (%s); lost %d", reason, totalRemainder));
 		}
 		skills.clearUncreditedXpPool();
 	}
@@ -728,7 +708,6 @@ public class CreditAwardService
 		{
 			return;
 		}
-		log.info("[TCG DEBUG] {}", message);
 		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager, message);
 	}
 /** Whether {@code skill} is the "Overall" pseudo-skill (excluded from XP/level credit tracking). */

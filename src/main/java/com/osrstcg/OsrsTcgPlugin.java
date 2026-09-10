@@ -32,7 +32,6 @@ import com.osrstcg.pack.PackRevealSoundService;
 import com.osrstcg.interop.TcgChatStatsShareService;
 import com.osrstcg.state.TcgStateService;
 import com.osrstcg.ui.TcgPanel;
-import com.osrstcg.util.NumberFormatting;
 import com.osrstcg.util.TcgPluginGameMessages;
 import java.awt.image.BufferedImage;
 import java.util.concurrent.CompletableFuture;
@@ -196,17 +195,13 @@ public class OsrsTcgPlugin extends Plugin
 		{
 			loadStateIfLoggedIn();
 		}
-		log.info("OSRS TCG plugin started. Credits={}, ownedCards={}, cardDefinitions={}",
-			NumberFormatting.format(stateService.getState().getEconomyState().getCredits()),
-			NumberFormatting.format(stateService.getState().getCollectionState().getOwnedCards().size()),
-			NumberFormatting.format(cardDatabase.size()));
-		if (cardDatabase.size() > 0)
+		log.info("OSRS TCG started. credits={} owned={} defs={}",
+			stateService.getState().getEconomyState().getCredits(),
+			stateService.getState().getCollectionState().getOwnedCards().size(),
+			cardDatabase.size());
+		if (cardDatabase.size() <= 0)
 		{
-			log.info("Card category distribution: {}", cardDatabase.categoryCounts());
-		}
-		else
-		{
-			log.info("Card catalog empty until fetched from API (/api/v1/catalog/cards/live)");
+			log.info("Card catalog empty until API fetch");
 		}
 		navigationButton = NavigationButton.builder()
 			.tooltip("OSRS TCG")

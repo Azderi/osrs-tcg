@@ -112,13 +112,12 @@ final class CloudCollectionSyncService
 						|| (serverCollHash.isEmpty() && localRevision < serverMarkers.revision);
 					if (collectionChanged)
 					{
-						log.info("Collection overview mismatch (server unique={} local unique={}) - pull /me/cards",
+						log.info("coll mismatch srv={} loc={} - pull",
 							server.getUniqueOwned(), local.getUniqueOwned());
 					}
 					else
 					{
-						log.debug("Collection overview mismatch with unchanged collection hash "
-							+ "(server unique={} local unique={}) - skipping forced /me/cards",
+						log.debug("coll mismatch hash ok srv={} loc={} - skip pull",
 							server.getUniqueOwned(), local.getUniqueOwned());
 					}
 				}
@@ -205,9 +204,9 @@ final class CloudCollectionSyncService
 			return;
 		}
 
-		String reason = (serverCollHash.isEmpty() && server.revision > localRevision) ? "legacy revision behind"
-			: "collection hash mismatch";
-		log.info("Requesting collection sync ({}; local collHash={}, server collHash={})",
+		String reason = (serverCollHash.isEmpty() && server.revision > localRevision) ? "rev behind"
+			: "coll hash mismatch";
+		log.info("coll sync ({}; loc={} srv={})",
 			reason, localCollHash, serverCollHash);
 
 		JsonObject stateJson = api.getState();
@@ -216,7 +215,7 @@ final class CloudCollectionSyncService
 		{
 			if (!tokens.isMigrated())
 			{
-				log.info("Cloud /me/state reports account not migrated yet; skipping collection pull");
+				log.info("not migrated yet; skip coll pull");
 				return;
 			}
 		}
@@ -237,7 +236,7 @@ final class CloudCollectionSyncService
 		{
 			session.applyAccountStatus(parsed.accountStatus);
 		}
-		log.info("Synced collection from cloud (revision={}, cards={}, migratedAtPresent={})",
+		log.info("synced coll rev={} cards={} migrated={}",
 			parsed.revision, parsed.cards.size(), parsed.migrated);
 	}
 /** Delegates to {@link CloudCollectionPager#loadCloudPlayerStateWithCards}. */
