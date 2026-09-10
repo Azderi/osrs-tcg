@@ -1,5 +1,6 @@
 package com.osrstcg.cloud.session;
 
+import com.osrstcg.persist.TcgStateHash;
 import com.osrstcg.util.NumberFormatting;
 import com.osrstcg.util.TcgPluginGameMessages;
 import com.google.gson.JsonObject;
@@ -44,6 +45,7 @@ final class HiscoresSettleService
 	private final AtomicBoolean hiscoresRetryScheduled;
 	private final BooleanSupplier needsCloudConsent;
 	private final BooleanSupplier isAccountLocked;
+	private final BooleanSupplier debugChatEnabled;
 /** Bumped by {@link #clearGate()} so in-flight/scheduled retries become no-ops after logout. */
 	private final AtomicLong settleEpoch = new AtomicLong(0L);
 	private final Object retryLock = new Object();
@@ -61,7 +63,8 @@ final class HiscoresSettleService
 		AtomicBoolean hiscoresSettledThisLogin,
 		AtomicBoolean hiscoresRetryScheduled,
 		BooleanSupplier needsCloudConsent,
-		BooleanSupplier isAccountLocked)
+		BooleanSupplier isAccountLocked,
+		BooleanSupplier debugChatEnabled)
 	{
 		this.client = client;
 		this.api = api;
@@ -75,6 +78,7 @@ final class HiscoresSettleService
 		this.hiscoresRetryScheduled = hiscoresRetryScheduled;
 		this.needsCloudConsent = needsCloudConsent;
 		this.isAccountLocked = isAccountLocked;
+		this.debugChatEnabled = debugChatEnabled;
 	}
 /**
 	 * Settles offline hiscores gains into credits, once per login (guarded by
@@ -353,9 +357,13 @@ final class HiscoresSettleService
 
 	private void chatAccountHashPrefix(long accountHash)
 	{
-		String raw = Long.toString(accountHash);
-		String prefix = raw.length() <= 5 ? raw : raw.substring(0, 5);
-		TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
-			"Debug: accountHash prefix " + prefix);
+		if (!debugChatEnabled.getAsBoolean())
+		{
+			return;
+		}
+		String digest = TcgStateHash.hexOfUtf8(Long.toString(accountHash));
+		String prefix = digest.length() <= 5 ? digest : digest.substring(0, 5);
+		TcgPluginGameMessages.queueDebugGameMessage(chatMessageManager,
+			"accountHash prefix " + prefix);
 	}
 }
