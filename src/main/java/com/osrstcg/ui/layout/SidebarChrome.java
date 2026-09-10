@@ -181,10 +181,18 @@ public final class SidebarChrome
 					tooltip = message == null || message.isEmpty() ? "Cloud connecting…" : message;
 					break;
 				case ERROR:
-					color = errorRed;
-					tooltip = message == null || message.isEmpty()
-						? "Cloud error"
-						: "Cloud error: " + message;
+					if (message != null && message.contains("retrying"))
+					{
+						color = connectingYellow;
+						tooltip = message;
+					}
+					else
+					{
+						color = errorRed;
+						tooltip = message == null || message.isEmpty()
+							? "Cloud error"
+							: "Cloud error: " + message;
+					}
 					break;
 				case DISCONNECTED:
 				default:

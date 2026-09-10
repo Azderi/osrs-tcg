@@ -16,6 +16,10 @@ final class CloudHttpErrorMapper
 		{
 			return "Too many requests - try again in a moment.";
 		}
+		if ("db_busy".equals(code))
+		{
+			return "Cloud is busy - try again shortly.";
+		}
 		String cleaned = message == null ? "" : message.trim();
 		if (cleaned.isEmpty() || looksLikeHtmlOrGatewayPage(cleaned))
 		{
@@ -28,10 +32,10 @@ final class CloudHttpErrorMapper
 		}
 		return cleaned;
 	}
-/** True when {@code text} looks like an HTML error page (e.g. from an nginx gateway) rather than API JSON. */
+/** True when {@code text} looks like an HTML/gateway page or raw JSON body rather than a usable API message. */
 	static boolean looksLikeHtmlOrGatewayPage(String text)
 	{
-		return !text.isEmpty() && text.charAt(0) == '<';
+		return !text.isEmpty() && (text.charAt(0) == '<' || text.charAt(0) == '{');
 	}
 /** Generic player-facing message for an HTTP status when no usable server message is available. */
 	static String defaultMessageForHttpStatus(int status)

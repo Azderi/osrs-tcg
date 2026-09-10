@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -77,8 +76,6 @@ public final class CloudSessionService
 	private final AtomicBoolean accountQuarantined = new AtomicBoolean(false);
 	/** Keeps event-world UI/gates after leaving a restricted world until credit settle clears. */
 	private final AtomicBoolean restrictedExitHold = new AtomicBoolean(false);
-	/** Server-suggested reconnect delay ms (0 = unset); taken by the coordinator once. */
-	private final AtomicLong suggestedReconnectDelayMs = new AtomicLong(0L);
 	private final List<Runnable> accountLockCleanups = new CopyOnWriteArrayList<>();
 
 	public static final String ACCOUNT_BANNED_STATUS =
@@ -199,12 +196,12 @@ public final class CloudSessionService
 		{
 			return;
 		}
-		setState(state, "Cloud unreachable - retrying 5-15m");
-	}
-/** Takes and clears any stashed reconnect delay ms; returns 0 when none was set. */
-	public long takeSuggestedReconnectDelayMs()
-	{
-		return suggestedReconnectDelayMs.getAndSet(0L);
+		String message = "Cloud unreachable - retrying 5-15m";
+		if (message.equals(statusMessage.get()))
+		{
+			return;
+		}
+		setState(state, message);
 	}
 /** Whether the current world type is one where cloud credits are disabled. */
 	public boolean isRestrictedWorldLive()
@@ -514,7 +511,6 @@ public final class CloudSessionService
 			{
 				return;
 			}
-			suggestedReconnectDelayMs.set(0L);
 			setState(CloudConnectionState.CONNECTED, "Connected");
 			packCatalogService.refreshOnLogin();
 			cardCatalogService.refreshOnLogin();
@@ -527,21 +523,24 @@ public final class CloudSessionService
 			{
 				return;
 			}
-			Long sec = ex.getRetryAfterSec();
-			if (sec != null && sec > 0L)
-			{
-				suggestedReconnectDelayMs.set(sec * 1000L);
-			}
+			boolean alreadyError = connectionState.get() == CloudConnectionState.ERROR;
 			setState(CloudConnectionState.ERROR, ex.getMessage());
-			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
-				"Cloud: " + ex.getMessage());
+			if (!alreadyError)
+			{
+				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+					"Cloud: " + ex.getMessage());
+			}
 		}
 		catch (Exception ex)
 		{
 			log.warn("Cloud session failed", ex);
+			boolean alreadyError = connectionState.get() == CloudConnectionState.ERROR;
 			setState(CloudConnectionState.ERROR, "Cloud unreachable");
-			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
-				"Cloud unreachable");
+			if (!alreadyError)
+			{
+				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+					"Cloud unreachable");
+			}
 		}
 	}
 /** Sanitized local player display name, or {@code null} if the player/name isn't available yet. */
@@ -571,7 +570,6 @@ public final class CloudSessionService
 		accountBanned.set(false);
 		accountQuarantined.set(false);
 		restrictedExitHold.set(false);
-		suggestedReconnectDelayMs.set(0L);
 		clearLoginFetchGates();
 		stateService.clearCollectionStatsCache();
 		stateService.clearCloudGroupKey();

@@ -32,7 +32,6 @@ public class CloudSessionCoordinator
 {
 	private static final long CLOUD_RECONNECT_MIN_MS = 5L * 60L * 1000L;
 	private static final long CLOUD_RECONNECT_MAX_MS = 15L * 60L * 1000L;
-	private static final long CLOUD_RECONNECT_SUGGESTED_MIN_MS = 30L * 1000L;
 
 	private final Client client;
 	private final CloudSessionService cloudSessionService;
@@ -267,19 +266,15 @@ public class CloudSessionCoordinator
 		}
 		synchronized (cloudReconnectLock)
 		{
-			if (cloudReconnectFuture != null && !cloudReconnectFuture.isDone())
+			if (cloudReconnectFuture == null || cloudReconnectFuture.isDone())
 			{
-				return;
-			}
-			long suggestedMs = cloudSessionService.takeSuggestedReconnectDelayMs();
-			long delayMs = suggestedMs > 0L
-				? Math.min(CLOUD_RECONNECT_MAX_MS, Math.max(CLOUD_RECONNECT_SUGGESTED_MIN_MS, suggestedMs))
-				: CLOUD_RECONNECT_MIN_MS
+				long delayMs = CLOUD_RECONNECT_MIN_MS
 					+ ThreadLocalRandom.current().nextLong(CLOUD_RECONNECT_MAX_MS - CLOUD_RECONNECT_MIN_MS + 1L);
-			cloudReconnectFuture = scheduler.schedule(
-				this::onReconnectTimer,
-				delayMs,
-				TimeUnit.MILLISECONDS);
+				cloudReconnectFuture = scheduler.schedule(
+					this::onReconnectTimer,
+					delayMs,
+					TimeUnit.MILLISECONDS);
+			}
 		}
 		cloudSessionService.noteOfflineReconnectScheduled();
 	}
