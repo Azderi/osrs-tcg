@@ -2,6 +2,7 @@ package com.osrstcg.notify;
 
 import com.osrstcg.catalog.RarityMath;
 import com.osrstcg.cloud.api.CloudEndpoints;
+import com.osrstcg.ui.card.CardGrade;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -25,6 +26,7 @@ public final class PullNotificationMessages
 		public final RarityMath.Tier tier;
 		public final String instanceId;
 		public final boolean notificationEligible;
+		public final Double condition;
 /** Stores the pull's display/rarity data and notification eligibility verbatim. */
 		public PackPull(
 			String cardName,
@@ -34,12 +36,25 @@ public final class PullNotificationMessages
 			String instanceId,
 			boolean notificationEligible)
 		{
+			this(cardName, newForCollection, foil, tier, instanceId, notificationEligible, null);
+		}
+
+		public PackPull(
+			String cardName,
+			boolean newForCollection,
+			boolean foil,
+			RarityMath.Tier tier,
+			String instanceId,
+			boolean notificationEligible,
+			Double condition)
+		{
 			this.cardName = cardName;
 			this.newForCollection = newForCollection;
 			this.foil = foil;
 			this.tier = tier;
 			this.instanceId = instanceId;
 			this.notificationEligible = notificationEligible;
+			this.condition = condition;
 		}
 	}
 /** A pack's pulls split into new-cards and duplicates summary lines, ordered by rarity. */
@@ -135,23 +150,38 @@ public final class PullNotificationMessages
 		}
 		return best == null ? pulls.get(0) : best;
 	}
-/** Renders one pull's summary bullet: card name (bolded if eligible), foil marker, and inspect link. */
+/** Renders a linked card title (bolded if eligible), foil marker, and available grade/condition. */
 	public static String summaryLine(PackPull pull)
 	{
+		return summaryLine(pull, true);
+	}
+/** Renders a summary title with optional grade/condition, preserving its link and eligibility emphasis. */
+	public static String summaryLine(PackPull pull, boolean showGradeAndCondition)
+	{
 		String displayName = pull.cardName.trim() + (pull.foil ? " (foil)" : "");
+		String inspectUrl = inspectUrl(pull.instanceId);
+		if (!inspectUrl.isEmpty())
+		{
+			displayName = "[" + displayName + "](" + inspectUrl + ")";
+		}
 		if (pull.notificationEligible)
 		{
 			displayName = "**" + displayName + "**";
 		}
-		String inspectUrl = inspectUrl(pull.instanceId);
-		if (!inspectUrl.isEmpty())
+		CardGrade grade = CardGrade.gradeFromCondition(pull.condition);
+		if (showGradeAndCondition && grade != null)
 		{
-			displayName = displayName + " — [Inspect](" + inspectUrl + ")";
+			displayName += " - " + grade.name() + " (" + CardGrade.formatCondition(pull.condition) + ")";
 		}
 		return displayName;
 	}
 /** Splits pulls into new-cards/duplicates summary lines, sorted highest-tier first within each group. */
 	public static PackSummarySections buildSummarySections(List<PackPull> pulls)
+	{
+		return buildSummarySections(pulls, true);
+	}
+/** Splits and sorts summary lines, applying the grade/condition display setting to every card. */
+	public static PackSummarySections buildSummarySections(List<PackPull> pulls, boolean showGradeAndCondition)
 	{
 		List<String> newCards = new ArrayList<>();
 		List<String> duplicates = new ArrayList<>();
@@ -167,7 +197,7 @@ public final class PullNotificationMessages
 			{
 				continue;
 			}
-			(pull.newForCollection ? newCards : duplicates).add(summaryLine(pull));
+			(pull.newForCollection ? newCards : duplicates).add(summaryLine(pull, showGradeAndCondition));
 		}
 		return new PackSummarySections(newCards, duplicates);
 	}
