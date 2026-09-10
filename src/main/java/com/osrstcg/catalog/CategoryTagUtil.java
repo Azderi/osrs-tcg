@@ -45,31 +45,4 @@ public final class CategoryTagUtil
 		}
 		return singleTagPart.trim().toLowerCase(Locale.ROOT);
 	}
-/** Title-cases each whitespace-separated word of {@code canonicalKey} for display (e.g. "bosses" to "Bosses"). */
-	public static String toDisplayLabel(String canonicalKey)
-	{
-		if (canonicalKey == null || canonicalKey.isEmpty())
-		{
-			return "";
-		}
-		String[] words = canonicalKey.split("\\s+");
-		StringBuilder sb = new StringBuilder();
-		for (String w : words)
-		{
-			if (w.isEmpty())
-			{
-				continue;
-			}
-			if (sb.length() > 0)
-			{
-				sb.append(' ');
-			}
-			sb.append(Character.toUpperCase(w.charAt(0)));
-			if (w.length() > 1)
-			{
-				sb.append(w.substring(1).toLowerCase(Locale.ROOT));
-			}
-		}
-		return sb.length() == 0 ? canonicalKey : sb.toString();
-	}
 }

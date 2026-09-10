@@ -82,20 +82,4 @@ public class CardDefinition
 	{
 		return regions == null ? Collections.emptyList() : regions;
 	}
-/** Display label for the first part of the first category tag (e.g. "Skilling"), or "Unknown" if none. */
-	public String getPrimaryCategory()
-	{
-		List<String> tags = getCategoryTags();
-		if (tags.isEmpty())
-		{
-			return "Unknown";
-		}
-		List<String> parts = CategoryTagUtil.expandCompoundParts(tags.get(0));
-		if (parts.isEmpty())
-		{
-			return "Unknown";
-		}
-		String canon = CategoryTagUtil.canonicalKey(parts.get(0));
-		return CategoryTagUtil.toDisplayLabel(canon);
-	}
 }

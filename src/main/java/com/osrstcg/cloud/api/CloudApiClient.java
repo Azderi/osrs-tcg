@@ -533,11 +533,8 @@ public final class CloudApiClient
 		{
 			serverCredits = Math.round(credits);
 		}
-		Double retryAfter = readNumber(details, "retryAfterSec");
-		Long retryAfterSec = (retryAfter != null && retryAfter > 0d)
-			? Math.max(1L, Math.round(retryAfter)) : null;
 		return new CloudApiException(status, code, CloudHttpErrorMapper.humanize(status, code, message),
-			serverCredits, retryAfterSec);
+			serverCredits);
 	}
 /** Forwards a non-blank {@code X-Activities-Version} header value to the registered listener, swallowing its errors. */
 	private void notifyActivitiesVersion(String headerValue)
