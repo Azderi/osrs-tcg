@@ -18,14 +18,14 @@ public interface OsrsTcgConfig extends Config
 {
 	@ConfigSection(
 		name = "General",
-		description = "General plugin settings.",
+		description = "General settings.",
 		position = 0
 	)
 	String generalSection = "general";
 
 	@ConfigSection(
 		name = "Credits",
-		description = "Credits display and notifications.",
+		description = "Credits display/notifications.",
 		position = 5
 	)
 	String creditsSection = "credits";
@@ -33,8 +33,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "creditsInfobox",
 		name = "Credits infobox",
-		description = "Show your credits on screen. Alt+drag to move. Shift+right-click to open packs "
-			+ "or reset Credits/h.",
+		description = "On-screen credits.",
 		section = creditsSection,
 		position = 0
 	)
@@ -46,7 +45,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "creditsPerHour",
 		name = "Credits per hour",
-		description = "Show credits/h on the credits infobox. Shift+right-click the infobox to reset.",
+		description = "Credits/h; Shift+RMB reset.",
 		section = creditsSection,
 		position = 1
 	)
@@ -58,8 +57,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "creditsPerHourWindow",
 		name = "Credits/h window",
-		description = "Sliding window for credits/h. Persistent keeps all gains until Shift+right-click "
-			+ "Reset on the credits infobox.",
+		description = "Credits/h window.",
 		section = creditsSection,
 		position = 2
 	)
@@ -71,7 +69,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "creditNotifications",
 		name = "Credit notifications",
-		description = "Chat when you have the amount of credits you set.",
+		description = "Chat at credit threshold.",
 		section = creditsSection,
 		position = 3
 	)
@@ -83,7 +81,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "creditNotificationAmount",
 		name = "Notification amount",
-		description = "Credit threshold for notifications.",
+		description = "Credit notify threshold.",
 		section = creditsSection,
 		position = 4
 	)
@@ -95,7 +93,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "runeliteNotifications",
 		name = "RuneLite notifications",
-		description = "Also send credit notifications through RuneLite's notification service.",
+		description = "Also notify via RuneLite notifications.",
 		section = creditsSection,
 		position = 5
 	)
@@ -106,7 +104,7 @@ public interface OsrsTcgConfig extends Config
 
 	@ConfigSection(
 		name = "Pack opening",
-		description = "Pack reveal overlay and sounds.",
+		description = "Pack overlay and sounds.",
 		position = 7
 	)
 	String packOpeningSection = "packOpening";
@@ -114,7 +112,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "enableSounds",
 		name = "Enable pack opening sounds",
-		description = "Play sounds when opening packs.",
+		description = "Play pack-opening sounds.",
 		section = packOpeningSection,
 		position = 0
 	)
@@ -126,7 +124,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "showGradeWear",
 		name = "Show grade wear",
-		description = "Show condition wear effects on cards in the pack opening overlay.",
+		description = "Wear effects on pack-opening cards.",
 		section = packOpeningSection,
 		position = 1
 	)
@@ -138,7 +136,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "packRarityHighlight",
 		name = "Rarity Highlight",
-		description = "Show rarity when hovering unflipped pack cards.",
+		description = "Rarity highlight on unflipped pack cards.",
 		section = packOpeningSection,
 		position = 2
 	)
@@ -150,8 +148,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "packRarityText",
 		name = "Rarity Text",
-		description = "Show the rarity name above unflipped pack cards on hover. Helps colour blind users "
-			+ "tell rarities apart without relying on the highlight colour.",
+		description = "Rarity name on hover for unflipped pack cards.",
 		section = packOpeningSection,
 		position = 3
 	)
@@ -163,7 +160,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "ignoreBetaForNewStatus",
 		name = "Ignore beta for new status",
-		description = "Beta copies do not count as owned when deciding if a pull is new.",
+		description = "Beta copies ignored for new-card status.",
 		section = packOpeningSection,
 		position = 4
 	)
@@ -175,7 +172,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "showSidebarRanks",
 		name = "Sidebar hiscores ranks",
-		description = "Show your hiscores rank under overview stats after opening a pack.",
+		description = "Hiscores rank under overview after pack open.",
 		section = generalSection,
 		position = 1
 	)
@@ -199,7 +196,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "friendsMenuOption",
 		name = "Friends menu option",
-		description = "Show a TCG trade request option on friend right-click menus.",
+		description = "TCG trade request on friend right-click menus.",
 		section = generalSection,
 		position = 3
 	)
@@ -210,7 +207,7 @@ public interface OsrsTcgConfig extends Config
 
 	@ConfigSection(
 		name = "Pull notifications",
-		description = "Alerts for notable pack pulls.",
+		description = "Pack pull alerts.",
 		position = 10
 	)
 	String pullNotificationsSection = "pullNotifications";
@@ -218,7 +215,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "notifyTier",
 		name = "Notify tier",
-		description = "Notify for this rarity and higher.",
+		description = "Minimum rarity to notify.",
 		section = pullNotificationsSection,
 		position = 0
 	)
@@ -230,7 +227,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "duplicateNotifyTier",
 		name = "Duplicate notify tier",
-		description = "Minimum rarity for duplicate pulls.",
+		description = "Min rarity for duplicates.",
 		section = pullNotificationsSection,
 		position = 1
 	)
@@ -242,7 +239,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "notifyNonFoils",
 		name = "Notify non-foils",
-		description = "Also notify for normal cards.",
+		description = "Notify for normal cards.",
 		section = pullNotificationsSection,
 		position = 2
 	)
@@ -254,7 +251,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "notifyFoils",
 		name = "Notify all foils",
-		description = "Notify for every foil pull.",
+		description = "Notify every foil pull.",
 		section = pullNotificationsSection,
 		position = 3
 	)
@@ -266,7 +263,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "notifyNewCardsOnly",
 		name = "Only notify new cards",
-		description = "Only notify when the card is new to you.",
+		description = "Only notify new cards.",
 		section = pullNotificationsSection,
 		position = 4
 	)
@@ -274,13 +271,25 @@ public interface OsrsTcgConfig extends Config
 	{
 		return true;
 	}
+/** Whether pull notifications include grade and condition. */
+	@ConfigItem(
+		keyName = "showPullGradeAndCondition",
+		name = "Show grade and condition",
+		description = "Grade/condition in pull alerts.",
+		section = pullNotificationsSection,
+		position = 5
+	)
+	default boolean showPullGradeAndCondition()
+	{
+		return true;
+	}
 /** Whether pull notifications fire per card as the pack is revealed, or as one summary at pack end. */
 	@ConfigItem(
 		keyName = "pullNotificationTrigger",
 		name = "Notification trigger",
-		description = "Notify per card or one summary at pack end.",
+		description = "Per card or pack-end summary.",
 		section = pullNotificationsSection,
-		position = 5
+		position = 6
 	)
 	default PullNotificationTrigger pullNotificationTrigger()
 	{
@@ -290,9 +299,9 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "partyAnnouncePulls",
 		name = "Party/chat announcements",
-		description = "Post alerts to game chat and share them with party members.",
+		description = "Game chat and party share.",
 		section = pullNotificationsSection,
-		position = 6
+		position = 7
 	)
 	default boolean partyAnnouncePulls()
 	{
@@ -302,9 +311,9 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "pullWebhookUrl",
 		name = "Webhook URL",
-		description = "Discord webhook URL for pull alerts.",
+		description = "Discord webhook URL(s).",
 		section = pullNotificationsSection,
-		position = 7
+		position = 8
 	)
 	default String pullWebhookUrl()
 	{
@@ -314,31 +323,18 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "dinkNotifications",
 		name = "Enable Dink notifications",
-		description = "Send pull alerts via Dink.",
+		description = "Send via Dink.",
 		section = pullNotificationsSection,
-		position = 8
+		position = 9
 	)
 	default boolean dinkNotifications()
 	{
 		return false;
 	}
 
-/** Whether Dink and webhook pack summaries include each card's grade and condition. */
-	@ConfigItem(
-		keyName = "showPullGradeAndCondition",
-		name = "Show grade and condition",
-		description = "Show card grades and condition values in Dink and webhook pack summaries.",
-		section = pullNotificationsSection,
-		position = 9
-	)
-	default boolean showPullGradeAndCondition()
-	{
-		return true;
-	}
-
 	@ConfigSection(
 		name = "Debug",
-		description = "Developer and troubleshooting options.",
+		description = "Debug options.",
 		position = 15
 	)
 	String debugSection = "debug";
@@ -346,7 +342,7 @@ public interface OsrsTcgConfig extends Config
 	@ConfigItem(
 		keyName = "debugMessages",
 		name = "Debug messages",
-		description = "Chat debug messages",
+		description = "Chat debug.",
 		section = debugSection,
 		position = 0
 	)
