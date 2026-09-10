@@ -166,7 +166,6 @@ public final class ActivityConfigService
 			if (ex instanceof CloudApiException
 				&& "consent_required".equals(((CloudApiException) ex).getCode()))
 			{
-				log.debug("Activity config refresh skipped until cloud consent");
 				return;
 			}
 			log.warn("Activity config refresh failed; keeping last-good ({})", ex.toString());
@@ -209,7 +208,6 @@ public final class ActivityConfigService
 			&& !cachedVersion.isEmpty()
 			&& cachedVersion.equals(remoteVersion.trim()))
 		{
-			log.debug("Activity config up to date ({})", cachedVersion);
 			return;
 		}
 
@@ -217,7 +215,6 @@ public final class ActivityConfigService
 			cachedVersion.isEmpty() ? null : cachedVersion);
 		if (response.isNotModified())
 		{
-			log.debug("Activity config 304 Not Modified ({})", cachedVersion);
 			return;
 		}
 		ActivityConfigDto body = response.getBody();

@@ -26,7 +26,7 @@ public final class AttestRateCapNotifier
 
 	private static final String RATE_CAP_PREFIX = "rate_cap";
 	private static final String HOURLY_REJECT_MESSAGE =
-		"Credit rate limit hit - some credits were not applied this hour. Try again later.";
+		"Credit rate limit hit - try again later.";
 
 	private final Consumer<String> chatSink;
 	private final AtomicLong lastRateCapWarnAtMs = new AtomicLong(0L);

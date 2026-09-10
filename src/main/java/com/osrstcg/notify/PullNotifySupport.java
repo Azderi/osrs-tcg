@@ -152,12 +152,15 @@ public class PullNotifySupport
 	}
 /** Builds the message text, card image URL, and inspect URL for a single-card notification. */
 	public PullCardContent pullCardContent(
-		String cardName, boolean newForCollection, boolean foil, String instanceId, String opener)
+		String cardName, boolean newForCollection, boolean foil, String instanceId, String opener,
+		Double condition)
 	{
 		String trimmed = cardName.trim();
 		String inspectUrl = PullNotificationMessages.inspectUrl(instanceId);
 		return new PullCardContent(
-			PullNotificationMessages.collectionMessage(opener, trimmed, newForCollection, foil, inspectUrl),
+			PullNotificationMessages.collectionMessage(
+				opener, trimmed, newForCollection, foil, inspectUrl,
+				config.showPullGradeAndCondition() ? condition : null),
 			cardImageUrl(trimmed),
 			inspectUrl);
 	}

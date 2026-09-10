@@ -34,17 +34,6 @@ public final class PullNotificationMessages
 			boolean foil,
 			RarityMath.Tier tier,
 			String instanceId,
-			boolean notificationEligible)
-		{
-			this(cardName, newForCollection, foil, tier, instanceId, notificationEligible, null);
-		}
-
-		public PackPull(
-			String cardName,
-			boolean newForCollection,
-			boolean foil,
-			RarityMath.Tier tier,
-			String instanceId,
 			boolean notificationEligible,
 			Double condition)
 		{
@@ -88,13 +77,14 @@ public final class PullNotificationMessages
 		}
 		return CloudEndpoints.webUrl("/inspect/" + instanceId.trim());
 	}
-/** Builds the "X just added Y to their collection" message, with an inspect link appended when available. */
 	public static String collectionMessage(
-		String playerName, String cardName, boolean newForCollection, boolean foil, String inspectUrl)
+		String playerName, String cardName, boolean newForCollection, boolean foil, String inspectUrl,
+		Double condition)
 	{
 		String card = cardName == null ? "" : cardName.trim();
 		String body = playerLabel(playerName) + " just added " + (newForCollection ? "" : "duplicate ") + card
-			+ (foil ? " (foil)" : "") + " to their collection!";
+			+ (foil ? " (foil)" : "") + CardGrade.gradeConditionSuffix(condition)
+			+ " to their collection!";
 		return appendInspectLink(body, inspectUrl);
 	}
 /** Appends a markdown "[Inspect card](url)" link when {@code inspectUrl} is non-blank; null-safe on message. */
@@ -150,11 +140,6 @@ public final class PullNotificationMessages
 		}
 		return best == null ? pulls.get(0) : best;
 	}
-/** Renders a linked card title (bolded if eligible), foil marker, and available grade/condition. */
-	public static String summaryLine(PackPull pull)
-	{
-		return summaryLine(pull, true);
-	}
 /** Renders a summary title with optional grade/condition, preserving its link and eligibility emphasis. */
 	public static String summaryLine(PackPull pull, boolean showGradeAndCondition)
 	{
@@ -168,17 +153,7 @@ public final class PullNotificationMessages
 		{
 			displayName = "**" + displayName + "**";
 		}
-		CardGrade grade = CardGrade.gradeFromCondition(pull.condition);
-		if (showGradeAndCondition && grade != null)
-		{
-			displayName += " - " + grade.name() + " (" + CardGrade.formatCondition(pull.condition) + ")";
-		}
-		return displayName;
-	}
-/** Splits pulls into new-cards/duplicates summary lines, sorted highest-tier first within each group. */
-	public static PackSummarySections buildSummarySections(List<PackPull> pulls)
-	{
-		return buildSummarySections(pulls, true);
+		return displayName + CardGrade.gradeConditionSuffix(showGradeAndCondition ? pull.condition : null);
 	}
 /** Splits and sorts summary lines, applying the grade/condition display setting to every card. */
 	public static PackSummarySections buildSummarySections(List<PackPull> pulls, boolean showGradeAndCondition)

@@ -96,7 +96,6 @@ final class HiscoresSettleService
 		String displayName = cachedDisplayName.resolve(client);
 		if (displayName == null)
 		{
-			log.debug("Hiscores settle skipped: local player name not ready");
 			return;
 		}
 
@@ -183,7 +182,7 @@ final class HiscoresSettleService
 
 		if (!isRetry && skipped && "settle_throttle".equals(reason))
 		{
-			log.info("Hiscores settle soft-skip ({}); scheduling retry in {}s", reason, HISCORES_RETRY_DELAY_SEC);
+			log.info("Hiscores settle soft-skip ({}); retry in {}s", reason, HISCORES_RETRY_DELAY_SEC);
 			scheduleRetry(accountHash, displayName, HISCORES_RETRY_DELAY_SEC);
 			return;
 		}
@@ -202,7 +201,7 @@ final class HiscoresSettleService
 		if ("hiscores_not_found".equals(code) || status == 404)
 		{
 			hiscoresSettledThisLogin.set(true);
-			log.info("Hiscores settle skipped: player not on hiscores ({})", ex.getMessage());
+			log.info("Hiscores settle skipped: not on hiscores ({})", ex.getMessage());
 			return;
 		}
 		if ("sandbox_forbidden".equals(code)
@@ -218,7 +217,7 @@ final class HiscoresSettleService
 		}
 		if ("hiscores_unavailable".equals(code) || status == 503)
 		{
-			log.warn("Hiscores settle unavailable; scheduling one retry: {}", ex.getMessage());
+			log.warn("Hiscores settle unavailable; one retry: {}", ex.getMessage());
 			scheduleRetry(accountHash, displayName, HISCORES_RETRY_DELAY_SEC);
 			return;
 		}
@@ -322,19 +321,9 @@ final class HiscoresSettleService
 		boolean skipped = JsonObjects.readBoolean(response, "skipped");
 		boolean hasCredits = response.has("credits") && !response.get("credits").isJsonNull();
 
-		if (skipped)
+		if (skipped && !hasCredits)
 		{
-			String reason = JsonObjects.text(response, "reason");
-			if (reason == null)
-			{
-				reason = "settle_throttle";
-			}
-			if (!hasCredits)
-			{
-				log.debug("Hiscores settle throttled/skipped: {}", reason);
-				return;
-			}
-			log.debug("Hiscores settle throttled/skipped (refreshing sidebar credits): {}", reason);
+			return;
 		}
 
 		CloudResponseSync.applyEconomyAndRevision(response, applySidebarStats, tradeCloudProvider.get());
@@ -342,18 +331,15 @@ final class HiscoresSettleService
 		long accepted = JsonObjects.readLong(response, "accepted", 0L);
 		if (accepted > 0L)
 		{
-			String toast = "Automatically credited "
-				+ NumberFormatting.format(accepted)
-				+ " credits based on the hiscores!";
+			String toast = "Credited " + NumberFormatting.format(accepted) + " credits from hiscores!";
 			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, toast);
 		}
 
 		long clawback = JsonObjects.readLong(response, "clawbackCredits", 0L);
 		if (clawback > 0L)
 		{
-			String toast = "Removed "
-				+ NumberFormatting.format(clawback)
-				+ " credits due to hiscores mismatch. If you think this is a mistake, open a ticket.";
+			String toast = "Removed " + NumberFormatting.format(clawback)
+				+ " credits due to hiscores mismatch.";
 			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, toast);
 		}
 	}

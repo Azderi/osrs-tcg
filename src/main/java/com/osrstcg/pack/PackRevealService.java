@@ -744,7 +744,8 @@ public class PackRevealService
 			card.isNew(),
 			isFoilPull(card),
 			card.getTier(),
-			CardInfoTipModel.instanceIdFor(card))
+			CardInfoTipModel.instanceIdFor(card),
+			card.getPull().getCondition())
 			&& absIndex < collectionChatPosted.length)
 		{
 			collectionChatPosted[absIndex] = true;

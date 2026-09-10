@@ -50,7 +50,7 @@ final class CloudHttpErrorMapper
 		}
 		if (status == 502 || status == 503)
 		{
-			return "Cloud unavailable - try relogging in a few minutes.";
+			return "Cloud unavailable - try again shortly.";
 		}
 		if (status >= 500)
 		{

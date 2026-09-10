@@ -57,7 +57,8 @@ public class PullNotificationService
 	 * @return true if party-announce is enabled, so callers know whether a party broadcast was sent
 	 */
 	public boolean notifyPull(
-		String cardName, boolean newForCollection, boolean foil, RarityMath.Tier tier, String instanceId)
+		String cardName, boolean newForCollection, boolean foil, RarityMath.Tier tier, String instanceId,
+		Double condition)
 	{
 		if (PullNotificationMessages.isBlank(cardName) || !pullNotifySupport.shouldNotify(tier, foil, newForCollection))
 		{
@@ -65,13 +66,13 @@ public class PullNotificationService
 		}
 		String trimmed = cardName.trim();
 		queueCollectionAddChat(trimmed, newForCollection, foil, cardDatabase.chatRarityColorForCardName(trimmed));
-		externalNotifyService.notifyParty(trimmed, newForCollection, foil);
+		externalNotifyService.notifyParty(trimmed, newForCollection, foil, condition);
 		if (pullNotifySupport.notificationTrigger() == PullNotificationTrigger.EVERY_CARD)
 		{
-			externalNotifyService.sendWebhook(trimmed, newForCollection, foil, tier, instanceId);
+			externalNotifyService.sendWebhook(trimmed, newForCollection, foil, tier, instanceId, condition);
 			if (config.dinkNotifications())
 			{
-				dinkNotificationService.notifyPackPull(trimmed, newForCollection, foil, tier, instanceId);
+				dinkNotificationService.notifyPackPull(trimmed, newForCollection, foil, tier, instanceId, condition);
 			}
 		}
 		return config.partyAnnouncePulls();

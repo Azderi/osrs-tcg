@@ -144,7 +144,7 @@ public final class CardCatalogService
 	 * Blocking fetch-and-apply cycle: sends the cached catalog version as an ETag, and on a 304
 	 * loads the disk cache if the in-memory database is still empty; on 200 parses and applies
 	 * the new catalog, persisting it to disk. Swallows all exceptions (logging them), except a
-	 * consent-required error which is logged at debug and otherwise ignored.
+	 * consent-required error which is ignored.
 	 */
 	private void fetchAndApply()
 	{
@@ -166,7 +166,6 @@ public final class CardCatalogService
 				{
 					cachedCatalogVersion.set(response.getCatalogVersion());
 				}
-				log.debug("Live card catalog not modified (version={})", cachedCatalogVersion.get());
 				notifyChanged();
 				return;
 			}
@@ -174,7 +173,7 @@ public final class CardCatalogService
 			List<CardDefinition> parsed = LiveCardsCatalogParser.parse(body);
 			if (parsed.isEmpty())
 			{
-				log.error("Live card catalog returned empty items/npcs; keeping previous");
+				log.error("Live card catalog empty; keeping previous");
 				return;
 			}
 			String raw = response.getRawJson();
@@ -193,7 +192,6 @@ public final class CardCatalogService
 		{
 			if (ex instanceof CloudApiException && "consent_required".equals(((CloudApiException) ex).getCode()))
 			{
-				log.debug("Live card catalog skipped until cloud consent");
 				return;
 			}
 			log.warn("Live card catalog fetch failed", ex);

@@ -49,7 +49,7 @@ public class PullNotificationMessagesTest
 			"Goblin", false, true, RarityMath.Tier.COMMON, "instance-456", false, 74.5);
 		assertEquals(
 			"[Goblin (foil)](" + PullNotificationMessages.inspectUrl("instance-456") + ") - B (74.50)",
-			PullNotificationMessages.summaryLine(pull));
+			PullNotificationMessages.summaryLine(pull, true));
 	}
 
 	@Test
@@ -57,7 +57,7 @@ public class PullNotificationMessagesTest
 	{
 		PullNotificationMessages.PackPull pull = new PullNotificationMessages.PackPull(
 			"Goblin", true, false, RarityMath.Tier.COMMON, " ", true, 5.0);
-		assertEquals("**Goblin** - D (5.00)", PullNotificationMessages.summaryLine(pull));
+		assertEquals("**Goblin** - D (5.00)", PullNotificationMessages.summaryLine(pull, true));
 	}
 
 	@Test
@@ -68,7 +68,7 @@ public class PullNotificationMessagesTest
 			PullNotificationMessages.PackPull pull = new PullNotificationMessages.PackPull(
 				"Goblin", true, false, RarityMath.Tier.COMMON, "instance-789", true, condition);
 			assertEquals("**[Goblin](" + PullNotificationMessages.inspectUrl("instance-789") + ")**",
-				PullNotificationMessages.summaryLine(pull));
+				PullNotificationMessages.summaryLine(pull, true));
 		}
 	}
 
@@ -80,7 +80,7 @@ public class PullNotificationMessagesTest
 			pull("Goblin", false));
 		assertEquals(
 			"%USERNAME% opened a booster pack!\n\n**New cards**\n- **Zilyana**\n- Goblin",
-			packSummaryMessage("%USERNAME%", buildSummarySections(pulls)));
+			packSummaryMessage("%USERNAME%", buildSummarySections(pulls, true)));
 	}
 
 	@Test
@@ -88,10 +88,10 @@ public class PullNotificationMessagesTest
 	{
 		List<PullNotificationMessages.PackPull> pulls = Collections.singletonList(
 			new PullNotificationMessages.PackPull(
-				"General Graardor", false, false, RarityMath.Tier.COMMON, null, true));
+				"General Graardor", false, false, RarityMath.Tier.COMMON, null, true, null));
 		assertEquals(
 			"%USERNAME% opened a booster pack!\n\n**Duplicates**\n- **General Graardor**",
-			packSummaryMessage("%USERNAME%", buildSummarySections(pulls)));
+			packSummaryMessage("%USERNAME%", buildSummarySections(pulls, true)));
 	}
 
 	@Test
@@ -99,7 +99,7 @@ public class PullNotificationMessagesTest
 	{
 		assertEquals(
 			"%USERNAME% opened a booster pack!",
-			packSummaryMessage("%USERNAME%", buildSummarySections(Collections.emptyList())));
+			packSummaryMessage("%USERNAME%", buildSummarySections(Collections.emptyList(), true)));
 	}
 
 	@Test
@@ -135,6 +135,7 @@ public class PullNotificationMessagesTest
 			false,
 			RarityMath.Tier.COMMON,
 			null,
-			notificationEligible);
+			notificationEligible,
+			null);
 	}
 }

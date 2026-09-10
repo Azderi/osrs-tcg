@@ -423,7 +423,7 @@ public final class CloudApiClient
 		{
 			if (e.isStaleRefreshToken())
 			{
-				log.info("Clearing stale cloud credentials after refresh failure ({})", e.getCode());
+				log.info("Clearing stale credentials after refresh failure ({})", e.getCode());
 				tokenStore.clear();
 				Runnable handler = staleRefreshHandler;
 				if (handler != null)

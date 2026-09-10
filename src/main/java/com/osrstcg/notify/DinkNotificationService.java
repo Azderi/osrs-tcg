@@ -32,14 +32,15 @@ public class DinkNotificationService
 	}
 /** Posts a single-card pull notification to Dink, with card/rarity metadata attached. No-op for a blank card name. */
 	public void notifyPackPull(
-		String cardName, boolean newForCollection, boolean foil, RarityMath.Tier tier, String instanceId)
+		String cardName, boolean newForCollection, boolean foil, RarityMath.Tier tier, String instanceId,
+		Double condition)
 	{
 		if (PullNotificationMessages.isBlank(cardName))
 		{
 			return;
 		}
 		PullNotifySupport.PullCardContent content = pullNotifySupport.pullCardContent(
-			cardName, newForCollection, foil, instanceId, DINK_USERNAME);
+			cardName, newForCollection, foil, instanceId, DINK_USERNAME, condition);
 		postNotify(
 			pullNotifySupport.messageWithStatsLine(content.description),
 			content.imageUrl,

@@ -78,4 +78,10 @@ public enum CardGrade
 		}
 		return String.format(java.util.Locale.US, "%.2f", condition);
 	}
+
+	public static String gradeConditionSuffix(Double condition)
+	{
+		CardGrade g = gradeFromCondition(condition);
+		return g == null ? "" : " - " + g.name() + " (" + formatCondition(condition) + ")";
+	}
 }

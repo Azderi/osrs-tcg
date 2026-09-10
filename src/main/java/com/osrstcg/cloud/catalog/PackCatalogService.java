@@ -105,8 +105,8 @@ public final class PackCatalogService
 		}
 		return CompletableFuture.runAsync(() -> fetchAndApply(
 			false,
-			"GET /packs returned empty packs[]; shop stays empty",
-			"Pack catalog loaded from server ({} packs, version={})",
+			"GET /packs empty; shop stays empty",
+			"Pack catalog loaded ({} packs, version={})",
 			"Login pack catalog fetch failed; shop stays empty"), scheduler);
 	}
 /** Forces an async refetch after the server reports a {@code catalog_mismatch} error. */
@@ -114,8 +114,8 @@ public final class PackCatalogService
 	{
 		return CompletableFuture.runAsync(() -> fetchAndApply(
 			true,
-			"catalog_mismatch refetch returned empty packs[]; keeping previous cache",
-			"Pack catalog refreshed after catalog_mismatch ({} packs, version={})",
+			"catalog_mismatch refetch empty; keeping cache",
+			"Pack catalog refreshed after mismatch ({} packs, version={})",
 			"catalog_mismatch pack catalog refetch failed"), scheduler);
 	}
 /** Resets to the empty catalog and allows {@link #refreshOnLogin()} to fetch again (e.g. on logout). */

@@ -253,7 +253,7 @@ public final class CloudPackService
 		{
 			if (allowCatalogRetry && ex.isCatalogMismatch())
 			{
-				log.info("Pack catalog mismatch - refetching once then retrying open");
+				log.info("Pack catalog mismatch - refetch then retry open");
 				try
 				{
 					packCatalog.refreshAfterCatalogMismatch().join();
@@ -266,7 +266,7 @@ public final class CloudPackService
 				if (updated == null)
 				{
 					return PackOpenResult.failed(
-						"Pack catalog updated - that pack is no longer available.",
+						"Pack catalog updated - pack no longer available.",
 						creditsBefore,
 						booster.getPrice());
 				}

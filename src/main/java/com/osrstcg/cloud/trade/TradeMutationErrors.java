@@ -20,11 +20,11 @@ final class TradeMutationErrors
 		String code = ex.getCode() == null ? "" : ex.getCode();
 		if ("missing_account_hash".equals(code) || "invalid_account_hash".equals(code))
 		{
-			return "Trade failed: account hash missing - try relogging.";
+			return "Trade failed: account hash missing - relog.";
 		}
 		if ("account_hash_mismatch".equals(code) || "account_hash_unbound".equals(code))
 		{
-			return "Trade failed: account hash mismatch - try relogging or re-pairing cloud.";
+			return "Trade failed: account hash mismatch - relog or re-pair.";
 		}
 		if ("not_trade_eligible".equals(code) || "quarantined".equals(code) || "banned".equals(code)
 			|| "account_banned".equals(code))
@@ -37,11 +37,11 @@ final class TradeMutationErrors
 		}
 		if (ex.isRateLimited() || "rate_limited".equals(code))
 		{
-			return "Trade actions are rate-limited - try again shortly.";
+			return "Trade rate-limited - try again shortly.";
 		}
 		if (ex.getStatus() == 404 || "partner_not_found".equals(code))
 		{
-			return "This player doesn't have a public collection.";
+			return "Player has no public collection.";
 		}
 		String serverMsg = ex.getMessage();
 		if (serverMsg != null && !serverMsg.isBlank() && !serverMsg.equals(code))

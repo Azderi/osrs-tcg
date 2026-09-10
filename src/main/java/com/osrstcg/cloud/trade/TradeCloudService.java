@@ -188,7 +188,7 @@ public final class TradeCloudService
 			catch (IllegalArgumentException ex)
 			{
 				TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
-					"Trade failed: account hash missing - try relogging.");
+					"Trade failed: account hash missing - relog.");
 			}
 			catch (Exception ex)
 			{

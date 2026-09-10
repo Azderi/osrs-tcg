@@ -2,6 +2,7 @@ package com.osrstcg.party;
 
 import com.osrstcg.OsrsTcgConfig;
 import com.osrstcg.catalog.CardDatabase;
+import com.osrstcg.ui.card.CardGrade;
 import com.osrstcg.util.TcgPluginGameMessages;
 import java.awt.Color;
 import java.util.Locale;
@@ -55,11 +56,14 @@ public class TcgPartyInboundHandler
 		}
 		String who = displayName(message.getMemberId());
 		String trimmed = cardName.trim();
+		String labeled = trimmed + (message.isFoil() ? " (foil)" : "")
+			+ CardGrade.gradeConditionSuffix(
+				config.showPullGradeAndCondition() ? message.getCondition() : null);
 		Color rarity = cardDatabase.chatRarityColorForCardName(trimmed);
 		String formatted = TcgPluginGameMessages.formatSomeoneAddedCollection(
-			who, trimmed, message.isNewForCollection(), message.isFoil(), rarity);
+			who, labeled, message.isNewForCollection(), false, rarity);
 		String plain = TcgPluginGameMessages.plainSomeoneAddedCollection(
-			who, trimmed, message.isNewForCollection(), message.isFoil());
+			who, labeled, message.isNewForCollection(), false);
 		TcgPluginGameMessages.queueFormattedGameMessage(chatMessageManager, formatted, plain);
 	}
 /**

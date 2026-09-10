@@ -60,7 +60,7 @@ public class PullExternalNotificationService
 		this.partyService = partyService;
 	}
 /** Broadcasts a single pull to the current party. No-op if party-announce is disabled or not in a party. */
-	public void notifyParty(String card, boolean newForCollection, boolean foil)
+	public void notifyParty(String card, boolean newForCollection, boolean foil, Double condition)
 	{
 		if (!config.partyAnnouncePulls() || !partyService.isInParty())
 		{
@@ -72,6 +72,7 @@ public class PullExternalNotificationService
 			message.setCardName(card);
 			message.setNewForCollection(newForCollection);
 			message.setFoil(foil);
+			message.setCondition(condition);
 			partyService.send(message);
 		}
 		catch (Exception ex)
@@ -81,7 +82,8 @@ public class PullExternalNotificationService
 	}
 /** Posts a single-card pull as a Discord-style embed to every configured webhook URL. No-op if none configured. */
 	public void sendWebhook(
-		String card, boolean newForCollection, boolean foil, RarityMath.Tier tier, String instanceId)
+		String card, boolean newForCollection, boolean foil, RarityMath.Tier tier, String instanceId,
+		Double condition)
 	{
 		List<HttpUrl> webhookUrls = configuredWebhookUrls();
 		if (webhookUrls.isEmpty())
@@ -91,7 +93,7 @@ public class PullExternalNotificationService
 		try
 		{
 			PullNotifySupport.PullCardContent content = pullNotifySupport.pullCardContent(
-				card, newForCollection, foil, instanceId, resolvePlayerName());
+				card, newForCollection, foil, instanceId, resolvePlayerName(), condition);
 			String payload = gson.toJson(buildPayload(
 				content.description, pullNotifySupport.statsPlainLine(), tier, content.imageUrl, content.inspectUrl));
 			dispatchWebhook(card, webhookUrls, payload);

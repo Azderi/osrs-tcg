@@ -17,4 +17,5 @@ public class TcgPullPartyMessage extends PartyMemberMessage
 	private boolean newForCollection;
 /** True if the pulled copy is foil. */
 	private boolean foil;
+	private Double condition;
 }
