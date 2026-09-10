@@ -112,7 +112,7 @@ final class CloudCollectionSyncService
 						|| (serverCollHash.isEmpty() && localRevision < serverMarkers.revision);
 					if (collectionChanged)
 					{
-						log.info("Collection overview mismatch (server unique={} local unique={}) - pulling /me/cards",
+						log.info("Collection overview mismatch (server unique={} local unique={}) - pull /me/cards",
 							server.getUniqueOwned(), local.getUniqueOwned());
 					}
 					else
@@ -207,7 +207,7 @@ final class CloudCollectionSyncService
 
 		String reason = (serverCollHash.isEmpty() && server.revision > localRevision) ? "legacy revision behind"
 			: "collection hash mismatch";
-		log.info("Requesting collection sync from server ({}; local collHash={}, server collHash={})",
+		log.info("Requesting collection sync ({}; local collHash={}, server collHash={})",
 			reason, localCollHash, serverCollHash);
 
 		JsonObject stateJson = api.getState();

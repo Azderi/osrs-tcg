@@ -185,7 +185,7 @@ final class CloudProfileConsentService
 			return;
 		}
 
-		log.info("Cloud account already migrated; adopting server collection and clearing consent gate");
+		log.info("Cloud already migrated; adopting server collection");
 		tokens.setMigrated(true);
 		if (parsed.accountStatus != null && !parsed.accountStatus.isBlank())
 		{

@@ -184,7 +184,7 @@ public class CloudSessionCoordinator
 		}
 		catch (Exception e)
 		{
-			log.warn("Credit attest flush before restricted-world pause failed", e);
+			log.warn("Credit attest flush before restricted pause failed", e);
 		}
 		finally
 		{

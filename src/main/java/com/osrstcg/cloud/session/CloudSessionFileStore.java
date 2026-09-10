@@ -150,7 +150,7 @@ public final class CloudSessionFileStore
 		}
 		catch (IOException ex)
 		{
-			log.warn("Failed wiping account profile dir for accountHash={}", ProfileKeyHasher.accountDirName(accountHash), ex);
+			log.warn("Failed wiping profile dir accountHash={}", ProfileKeyHasher.accountDirName(accountHash), ex);
 		}
 	}
 

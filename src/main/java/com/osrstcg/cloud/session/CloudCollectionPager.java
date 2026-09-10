@@ -45,7 +45,7 @@ final class CloudCollectionPager
 			{
 				throw ex;
 			}
-			log.info("me/cards revision changed during paging; retrying full state pull");
+			log.info("me/cards revision changed during paging; retry pull");
 			return resolveCardsForState(CloudPlayerStateParser.parse(api.getState()));
 		}
 	}

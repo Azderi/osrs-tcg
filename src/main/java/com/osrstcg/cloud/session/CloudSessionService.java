@@ -82,9 +82,9 @@ public final class CloudSessionService
 	private final List<Runnable> accountLockCleanups = new CopyOnWriteArrayList<>();
 
 	public static final String ACCOUNT_BANNED_STATUS =
-		"Your account has been banned. Check the account panel for more information.";
+		"Account banned. See the account panel.";
 	public static final String ACCOUNT_QUARANTINED_STATUS =
-		"Your account is quarantined. Check the account panel for more information.";
+		"Account quarantined. See the account panel.";
 /**
 	 * Wires collaborators, constructs the internal {@link CloudCollectionPager}/{@link CloudCollectionSyncService}/
 	 * {@link HiscoresSettleService}/{@link CloudProfileConsentService} helpers, and registers this
@@ -199,7 +199,7 @@ public final class CloudSessionService
 		{
 			return;
 		}
-		setState(state, "Cloud unreachable - retrying in 5-15m");
+		setState(state, "Cloud unreachable - retrying 5-15m");
 	}
 /** Takes and clears any stashed reconnect delay ms; returns 0 when none was set. */
 	public long takeSuggestedReconnectDelayMs()
@@ -450,7 +450,7 @@ public final class CloudSessionService
 		}
 		if (CloudTokenStore.shouldClearForAccount(tokens.getBoundAccountHash(), tokens.hasRefreshToken(), accountHash))
 		{
-			log.info("Clearing cloud credentials bound to a different account");
+			log.info("Clearing credentials for different account");
 			tokens.clear();
 		}
 		String displayName = resolveDisplayName();
@@ -588,11 +588,10 @@ public final class CloudSessionService
 
 	void settleHiscoresIfCooldownDone()
 	{
-		if (creditAwards.get().isCreditAwardOnCooldown())
+		if (!creditAwards.get().isCreditAwardOnCooldown())
 		{
-			return;
+			hiscoresSettle.settleAfterCloudLogin();
 		}
-		hiscoresSettle.settleAfterCloudLogin();
 	}
 
 	public void scheduleHiscoresSettle()
