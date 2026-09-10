@@ -23,6 +23,7 @@ import okhttp3.Response;
 import okhttp3.ResponseBody;
 import com.osrstcg.cloud.activity.ActivityConfigModels.ActivitiesConfigResponse;
 import com.osrstcg.cloud.activity.ActivityConfigModels.ActivityConfigDto;
+import com.osrstcg.cloud.attest.CreditAttestCoalescer;
 import com.osrstcg.cloud.catalog.LiveCardsResponse;
 import com.osrstcg.cloud.session.CloudTokenStore;
 import static com.osrstcg.cloud.api.JsonObjects.objectOrEmpty;
@@ -254,7 +255,9 @@ public final class CloudApiClient
 /** {@code POST /credits/settle-hiscores}. Blocking call. */
 	public JsonObject settleHiscores(String displayName, long accountHash) throws CloudApiException, IOException
 	{
-		return requestAuthed("POST", "/credits/settle-hiscores", nameAndHashBody(displayName, accountHash));
+		JsonObject body = nameAndHashBody(displayName, accountHash);
+		body.addProperty("pluginVersion", CreditAttestCoalescer.PLUGIN_VERSION);
+		return requestAuthed("POST", "/credits/settle-hiscores", body);
 	}
 /** {@code GET /config/activities/version} (unauthenticated). Blocking call. */
 	public String getActivitiesVersion() throws CloudApiException, IOException
