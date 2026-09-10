@@ -20,4 +20,9 @@ public final class CachedDisplayName
 		}
 		return last;
 	}
+/** Drops the cached RSN (call after logout flush so the next account starts clean). */
+	public void clear()
+	{
+		last = null;
+	}
 }

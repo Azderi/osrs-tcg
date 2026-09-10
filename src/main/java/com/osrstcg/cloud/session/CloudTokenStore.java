@@ -188,7 +188,18 @@ public final class CloudTokenStore
 		}
 		cachedAccountHash = -1L;
 		cached = null;
+		lastKnownAccountHash = -1L;
 		unsetLegacyTokenKeys();
+	}
+/**
+	 * Drops in-memory lastKnown/cached session without deleting on-disk {@code cloud-session.json}
+	 * and without writing account hash to RSProfile.
+	 */
+	public void forgetInMemoryAccount()
+	{
+		lastKnownAccountHash = -1L;
+		cachedAccountHash = -1L;
+		cached = null;
 	}
 /** Whether a refresh token is currently stored. */
 	public boolean hasRefreshToken()

@@ -181,6 +181,21 @@ public final class CreditAttestQueue
 			pendingRaw.clear();
 		}
 	}
+/** Forgets last-known account hash, pending events, and cached display name after logout flush. */
+	public void clearAccountIdentity()
+	{
+		synchronized (lock)
+		{
+			pendingRaw.clear();
+			lastAccountHash = -1L;
+		}
+		displayName.clear();
+	}
+/** Live Jagex account hash from the client ({@code -1} when logged out). */
+	long liveAccountHash()
+	{
+		return client.getAccountHash();
+	}
 /**
 	 * Records one raw credit-earning event for later attestation. Filters out combat-skill xp and
 	 * non-progressing level-ups, applies the optimistic credit estimate to local state immediately,
@@ -389,13 +404,21 @@ public final class CreditAttestQueue
 			while (true)
 			{
 				List<JsonObject> raw;
+				long boundHash;
+				String displayNameSnapshot;
 				synchronized (lock)
 				{
 					if (pendingRaw.isEmpty())
 					{
 						break;
 					}
-					resolveAccountHashLocked();
+					boundHash = resolveAccountHashLocked();
+					if (boundHash == -1L)
+					{
+						pendingRaw.clear();
+						break;
+					}
+					displayNameSnapshot = displayName.resolve(client);
 					raw = new ArrayList<>(pendingRaw);
 					pendingRaw.clear();
 				}
@@ -433,7 +456,7 @@ public final class CreditAttestQueue
 					long started = System.currentTimeMillis();
 					try
 					{
-						boolean batchChanged = poster.postAttestBatch(batch);
+						boolean batchChanged = poster.postAttestBatch(batch, boundHash, displayNameSnapshot);
 						consecutiveRetryFailures.set(0);
 						changed |= batchChanged;
 						log.debug("Credit attest OK: events={} durationMs={}",

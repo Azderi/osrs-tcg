@@ -377,6 +377,7 @@ public class OsrsTcgPlugin extends Plugin
 		if (gs == GameState.LOGIN_SCREEN)
 		{
 			stateService.saveFullCheckpoint(TcgSaveTrigger.LOGOUT);
+			stateService.clearInMemoryState();
 			loadedAccountHash = -1L;
 		}
 		else if (gs == GameState.LOGGED_IN)

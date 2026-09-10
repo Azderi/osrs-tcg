@@ -129,6 +129,19 @@ public class TcgStateService
 		state = state.withProfileSavedAtUnix(TcgState.currentUnixSeconds());
 		return stateStore.saveFullCheckpoint(state, trigger == null ? TcgSaveTrigger.LOGOUT : trigger);
 	}
+/** Replaces live state with empty and clears optimistic credits (after logout checkpoint). */
+	public synchronized void clearInMemoryState()
+	{
+		state = TcgState.empty();
+		optimistic.clear();
+		cloudCollectionStats = null;
+		cloudCollectionHash = "";
+		cloudGroupKey = null;
+		if (stateStore != null)
+		{
+			stateStore.clearLastKnownAccountHash();
+		}
+	}
 /** Registers a listener invoked on any state change (economy, collection, ranks, etc). */
 	public void addCollectionChangeListener(Runnable listener)
 	{

@@ -34,18 +34,13 @@ final class CreditAttestPoster
 	 *
 	 * @return true if applying the response changed local credits or the trade revision
 	 */
-	boolean postAttestBatch(List<JsonObject> batch) throws Exception
+	boolean postAttestBatch(List<JsonObject> batch, long boundHash, String displayName) throws Exception
 	{
-		long accountHash = queue.resolveAccountHash();
-		if (accountHash == -1L)
-		{
-			throw new IOException("Missing account hash for credit attest flush");
-		}
+		assertPostIdentity(boundHash, queue.liveAccountHash(), queue.session.tokensBoundTo(boundHash));
 		String idempotencyKey = UUID.randomUUID().toString();
 		JsonObject body = new JsonObject();
-		body.addProperty("accountHash", Long.toString(accountHash));
+		body.addProperty("accountHash", Long.toString(boundHash));
 		body.addProperty("idempotencyKey", idempotencyKey);
-		String displayName = queue.resolveDisplayName();
 		if (displayName != null && !displayName.isEmpty())
 		{
 			body.addProperty("displayName", displayName);
@@ -147,6 +142,22 @@ final class CreditAttestPoster
 			queue.tradeCloud.requestForcedRefresh();
 		}
 		return changed;
+	}
+/** Refuses posts when live identity moved or tokens are no longer bound to the drain-time account. */
+	static void assertPostIdentity(long boundHash, long liveHash, boolean tokensBound) throws IOException
+	{
+		if (boundHash == -1L)
+		{
+			throw new IOException("Missing account hash for credit attest flush");
+		}
+		if (liveHash != -1L && liveHash != boundHash)
+		{
+			throw new IOException("Account changed during credit attest flush");
+		}
+		if (!tokensBound)
+		{
+			throw new IOException("Tokens not bound to credit attest account");
+		}
 	}
 /** True for transient I/O failures, server errors (5xx), or rate limiting — worth a retry flush. */
 	static boolean isRetryableAttestFailure(Throwable ex)

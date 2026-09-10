@@ -72,6 +72,11 @@ public class TcgStateFileBackupStore
 		}
 		return lastKnownAccountHash;
 	}
+/** Clears the logout fallback hash so later I/O cannot resolve to a prior account. */
+	public void clearLastKnownAccountHash()
+	{
+		lastKnownAccountHash = -1L;
+	}
 /** Hashed directory name for the current account, as used under {@link #profilesRoot()}. */
 	public String currentAccountDirName()
 	{

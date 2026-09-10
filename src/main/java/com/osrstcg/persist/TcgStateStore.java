@@ -68,4 +68,12 @@ public class TcgStateStore
 		}
 		return fileBackupStore.writeMaster(stored);
 	}
+/** Clears the logout fallback account hash on the file backup store. */
+	public void clearLastKnownAccountHash()
+	{
+		if (fileBackupStore != null)
+		{
+			fileBackupStore.clearLastKnownAccountHash();
+		}
+	}
 }

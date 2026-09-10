@@ -391,6 +391,20 @@ public final class CloudSessionService
 		// Logout teardown: hash already cleared; allow flush if tokens remain bound to an account.
 		return tokens.getBoundAccountHash() != -1L;
 	}
+/** Whether in-memory cloud tokens are bound to {@code accountHash}. */
+	public boolean tokensBoundTo(long accountHash)
+	{
+		return tokens.tokensBoundTo(accountHash);
+	}
+/**
+	 * Drops in-memory last-account identity (token cache + hiscores display name) without deleting
+	 * on-disk per-account session files or writing account hash to RSProfile.
+	 */
+	public void forgetInMemoryAccountIdentity()
+	{
+		tokens.forgetInMemoryAccount();
+		hiscoresSettle.clearCachedDisplayName();
+	}
 /** Whether this profile still needs to complete the cloud consent/migration flow. */
 	public boolean needsCloudConsent()
 	{

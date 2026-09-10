@@ -205,23 +205,27 @@ public class CloudSessionCoordinator
 		cloudSessionService.cancelHiscoresSettle();
 		if (cloudSessionService.isAccountLocked())
 		{
+			creditAttestQueue.stop();
+			creditAttestQueue.discardPending();
+			creditAttestQueue.clearAccountIdentity();
+			cloudSessionService.forgetInMemoryAccountIdentity();
+			tradeCloudService.stop();
 			if (!clientShuttingDown.get() && epoch != sessionEpoch.get())
 			{
 				return;
 			}
-			creditAttestQueue.stop();
-			creditAttestQueue.discardPending();
-			tradeCloudService.stop();
 			cloudSessionService.disconnectQuietly();
 			return;
 		}
 		creditAttestQueue.flushBlocking();
+		creditAttestQueue.clearAccountIdentity();
+		cloudSessionService.forgetInMemoryAccountIdentity();
+		creditAttestQueue.stop();
+		tradeCloudService.stop();
 		if (!clientShuttingDown.get() && epoch != sessionEpoch.get())
 		{
 			return;
 		}
-		creditAttestQueue.stop();
-		tradeCloudService.stop();
 		cloudSessionService.disconnectQuietly();
 	}
 /**
@@ -405,6 +409,8 @@ public class CloudSessionCoordinator
 		}
 		finally
 		{
+			creditAttestQueue.clearAccountIdentity();
+			cloudSessionService.forgetInMemoryAccountIdentity();
 			creditAttestQueue.stop();
 			tradeCloudService.stop();
 			cloudSessionService.disconnectQuietly();

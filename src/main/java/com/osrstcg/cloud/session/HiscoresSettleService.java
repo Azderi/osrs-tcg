@@ -105,6 +105,7 @@ final class HiscoresSettleService
 			{
 				return;
 			}
+			chatAccountHashPrefix(accountHash);
 			JsonObject response = api.settleHiscores(displayName, accountHash);
 			if (!stillValid(epoch))
 			{
@@ -135,6 +136,11 @@ final class HiscoresSettleService
 		hiscoresSettledThisLogin.set(false);
 		hiscoresRetryScheduled.set(false);
 		cancelRetry();
+	}
+/** Drops cached RSN used for settle/retry after logout flush. */
+	void clearCachedDisplayName()
+	{
+		cachedDisplayName.clear();
 	}
 /** True only while logged into RuneScape with tokens/consent/world gates open. */
 	private boolean canSettleNow()
@@ -255,6 +261,7 @@ final class HiscoresSettleService
 				{
 					return;
 				}
+				chatAccountHashPrefix(accountHash);
 				JsonObject response = api.settleHiscores(retryName, accountHash);
 				if (!stillValid(epoch))
 				{
@@ -342,5 +349,13 @@ final class HiscoresSettleService
 				+ " credits due to hiscores mismatch.";
 			TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager, toast);
 		}
+	}
+
+	private void chatAccountHashPrefix(long accountHash)
+	{
+		String raw = Long.toString(accountHash);
+		String prefix = raw.length() <= 5 ? raw : raw.substring(0, 5);
+		TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
+			"Debug: accountHash prefix " + prefix);
 	}
 }
