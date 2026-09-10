@@ -24,7 +24,6 @@ final class CloudProfileConsentService
 {
 	private final CloudSessionService session;
 	private final CloudCollectionSyncService collectionSync;
-	private final HiscoresSettleService hiscoresSettle;
 	private final Client client;
 	private final CloudApiClient api;
 	private final CloudTokenStore tokens;
@@ -38,7 +37,6 @@ final class CloudProfileConsentService
 	CloudProfileConsentService(
 		CloudSessionService session,
 		CloudCollectionSyncService collectionSync,
-		HiscoresSettleService hiscoresSettle,
 		Client client,
 		CloudApiClient api,
 		CloudTokenStore tokens,
@@ -51,7 +49,6 @@ final class CloudProfileConsentService
 	{
 		this.session = session;
 		this.collectionSync = collectionSync;
-		this.hiscoresSettle = hiscoresSettle;
 		this.client = client;
 		this.api = api;
 		this.tokens = tokens;
@@ -150,7 +147,7 @@ final class CloudProfileConsentService
 		{
 			return;
 		}
-		hiscoresSettle.settleAfterCloudLogin();
+		session.settleHiscoresIfCooldownDone();
 		if (session.isAccountLocked())
 		{
 			return;

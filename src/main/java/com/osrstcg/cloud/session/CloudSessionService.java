@@ -30,6 +30,7 @@ import com.osrstcg.cloud.attest.CreditAttestQueue;
 import com.osrstcg.cloud.catalog.CardCatalogService;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.cloud.trade.TradeCloudService;
+import com.osrstcg.credit.CreditAwardService;
 /**
  * Owns the cloud connection lifecycle and account-lock state for the plugin: authenticates/pairs
  * the RuneLite profile with the cloud backend, tracks connection state and status messages, gates
@@ -57,8 +58,10 @@ public final class CloudSessionService
 	private final CardImageCacheService cardImageCacheService;
 	private final ActivityConfigService activityConfigService;
 	private final RestrictedWorldGuard restrictedWorldGuard;
+	private final ScheduledExecutorService scheduler;
 	private final Provider<TradeCloudService> tradeCloudProvider;
 	private final Provider<CreditAttestQueue> attestQueueProvider;
+	private final Provider<CreditAwardService> creditAwards;
 	private final CloudCollectionPager collectionPager;
 	private final CloudCollectionSyncService collectionSync;
 	private final HiscoresSettleService hiscoresSettle;
@@ -103,6 +106,7 @@ public final class CloudSessionService
 		ScheduledExecutorService scheduler,
 		Provider<TradeCloudService> tradeCloudProvider,
 		Provider<CreditAttestQueue> attestQueueProvider,
+		Provider<CreditAwardService> creditAwards,
 		TcgPublicStatsCalculator publicStatsCalculator)
 	{
 		this.client = client;
@@ -116,8 +120,10 @@ public final class CloudSessionService
 		this.cardImageCacheService = cardImageCacheService;
 		this.activityConfigService = activityConfigService;
 		this.restrictedWorldGuard = restrictedWorldGuard;
+		this.scheduler = scheduler;
 		this.tradeCloudProvider = tradeCloudProvider;
 		this.attestQueueProvider = attestQueueProvider;
+		this.creditAwards = creditAwards;
 		this.collectionPager = new CloudCollectionPager(api);
 		this.collectionSync = new CloudCollectionSyncService(
 			this, api, tokens, stateService, attestQueueProvider,
@@ -127,7 +133,7 @@ public final class CloudSessionService
 			collectionSync::applySidebarStats, hiscoresSettledThisLogin, hiscoresRetryScheduled,
 			this::needsCloudConsent, this::isAccountLocked);
 		this.profileConsent = new CloudProfileConsentService(
-			this, collectionSync, hiscoresSettle, client, api, tokens, profileKeyHasher, stateService,
+			this, collectionSync, client, api, tokens, profileKeyHasher, stateService,
 			chatMessageManager, packCatalogService, cardCatalogService, activityConfigService);
 		api.setStaleRefreshHandler(this::handleStaleRefresh);
 		api.setAccountLockHandler(this::noteLockFromApiException);
@@ -502,7 +508,7 @@ public final class CloudSessionService
 			}
 			if (shouldSettle)
 			{
-				hiscoresSettle.settleAfterCloudLogin();
+				settleHiscoresIfCooldownDone();
 			}
 			if (isAccountLocked())
 			{
@@ -578,6 +584,20 @@ public final class CloudSessionService
 	public void cancelHiscoresSettle()
 	{
 		hiscoresSettle.clearGate();
+	}
+
+	void settleHiscoresIfCooldownDone()
+	{
+		if (creditAwards.get().isCreditAwardOnCooldown())
+		{
+			return;
+		}
+		hiscoresSettle.settleAfterCloudLogin();
+	}
+
+	public void scheduleHiscoresSettle()
+	{
+		scheduler.execute(this::settleHiscoresIfCooldownDone);
 	}
 /** Delegates to {@link CloudCollectionSyncService#applySidebarStats(JsonObject)}. */
 	public void applySidebarStats(JsonObject stats)
