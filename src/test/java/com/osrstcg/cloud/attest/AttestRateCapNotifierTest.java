@@ -61,7 +61,7 @@ public class AttestRateCapNotifierTest
 
 		notifier.onAttestResponse(response, 1_000L);
 		assertEquals(
-			"Credit rate limit hit - some credits were not applied this hour. Try again later.",
+			"Credit rate limit hit - try again later.",
 			chat.get());
 	}
 
