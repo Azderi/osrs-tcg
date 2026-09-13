@@ -1,8 +1,10 @@
 package com.osrstcg.notify;
 
+import com.osrstcg.catalog.CardDefinition;
 import com.osrstcg.catalog.RarityMath;
 import com.osrstcg.cloud.api.CloudEndpoints;
 import com.osrstcg.ui.card.CardGrade;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -209,6 +211,21 @@ public final class PullNotificationMessages
 			appendCardSection(message, "Duplicates", sections.duplicates);
 		}
 		return message.toString();
+	}
+/** {@code definition}'s category tags as a defensive copy, or an empty list if {@code definition} is null. */
+	public static List<String> categoryTagsOrEmpty(CardDefinition definition)
+	{
+		return definition == null ? List.of() : List.copyOf(definition.getCategoryTags());
+	}
+/** {@code definition}'s region tags as a defensive copy, or an empty list if {@code definition} is null. */
+	public static List<String> regionTagsOrEmpty(CardDefinition definition)
+	{
+		return definition == null ? List.of() : List.copyOf(definition.getRegionTags());
+	}
+/** Formats an epoch-millis pull timestamp as ISO-8601 UTC, or null if {@code epochMs} is null. */
+	public static String pulledAtIso(Long epochMs)
+	{
+		return epochMs == null ? null : Instant.ofEpochMilli(epochMs).toString();
 	}
 /** Sort key for a pull by rarity tier ordinal; -1 (lowest) when the pull or tier is missing. */
 	private static int tierRank(PackPull pull)

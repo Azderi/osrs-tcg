@@ -10,7 +10,6 @@ import com.osrstcg.config.PullNotifyTier;
 import com.osrstcg.interop.TcgChatStatsShareService;
 import com.osrstcg.interop.TcgPublicStatsCalculator;
 import com.osrstcg.pack.PackRevealService.RevealCard;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -50,18 +49,22 @@ public class PullNotifySupport
 			return PullNotificationMessages.packSummaryMessage(opener, sections);
 		}
 	}
-/** Pre-built per-card notification content: message text, card image URL, and inspect link. */
+/** Pre-built per-card notification content: message text, card image URL, inspect link, and catalog tags. */
 	public static final class PullCardContent
 	{
 		public final String description;
 		public final String imageUrl;
 		public final String inspectUrl;
-/** Stores the description, image URL, and inspect URL verbatim. */
-		PullCardContent(String description, String imageUrl, String inspectUrl)
+		public final List<String> category;
+		public final List<String> regions;
+/** Stores the description, image URL, inspect URL, and catalog tags verbatim. */
+		PullCardContent(String description, String imageUrl, String inspectUrl, List<String> category, List<String> regions)
 		{
 			this.description = description;
 			this.imageUrl = imageUrl;
 			this.inspectUrl = inspectUrl;
+			this.category = category;
+			this.regions = regions;
 		}
 	}
 
@@ -194,16 +197,17 @@ public class PullNotifySupport
 		{
 			detail.put("imageUrl", imageUrl);
 		}
-		detail.put("category", definition == null ? List.of() : List.copyOf(definition.getCategoryTags()));
-		detail.put("regions", definition == null ? List.of() : List.copyOf(definition.getRegionTags()));
+		detail.put("category", PullNotificationMessages.categoryTagsOrEmpty(definition));
+		detail.put("regions", PullNotificationMessages.regionTagsOrEmpty(definition));
 		if (config.showPullGradeAndCondition() && pull.condition != null
 			&& !pull.condition.isNaN() && !pull.condition.isInfinite())
 		{
 			detail.put("condition", pull.condition);
 		}
-		if (pull.pulledAtEpochMs != null)
+		String pulledAt = PullNotificationMessages.pulledAtIso(pull.pulledAtEpochMs);
+		if (pulledAt != null)
 		{
-			detail.put("pulledAt", Instant.ofEpochMilli(pull.pulledAtEpochMs).toString());
+			detail.put("pulledAt", pulledAt);
 		}
 		return detail;
 	}
@@ -214,12 +218,15 @@ public class PullNotifySupport
 	{
 		String trimmed = cardName.trim();
 		String inspectUrl = PullNotificationMessages.inspectUrl(instanceId);
+		CardDefinition definition = cardDatabase.findByName(trimmed).orElse(null);
 		return new PullCardContent(
 			PullNotificationMessages.collectionMessage(
 				opener, trimmed, newForCollection, foil, inspectUrl,
 				config.showPullGradeAndCondition() ? condition : null),
-			cardImageUrl(trimmed),
-			inspectUrl);
+			imageUrlForDefinition(definition),
+			inspectUrl,
+			PullNotificationMessages.categoryTagsOrEmpty(definition),
+			PullNotificationMessages.regionTagsOrEmpty(definition));
 	}
 /** Resolves a card's public image URL (as .webp), or "" if the card is unknown or has no image. */
 	public String cardImageUrl(String cardName)

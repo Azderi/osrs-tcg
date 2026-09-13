@@ -138,6 +138,32 @@ public class PullNotifySupportTest
 		assertTrue(content.isEmpty());
 	}
 
+	@Test
+	public void pullCardContentIncludesCategoryAndRegionsFromCatalogInOneLookup()
+	{
+		PullNotifySupport support = newSupport(true, whiteBeretDefinition(), dragonfruitPieDefinition());
+
+		PullNotifySupport.PullCardContent content = support.pullCardContent(
+			"White beret", true, false, "instance-1", "%USERNAME%", null);
+
+		assertEquals(List.of("Clothing", "Quest reward"), content.category);
+		assertEquals(List.of("Kandarin"), content.regions);
+		assertEquals("https://osrs-tcg.net/images/cards/white_beret.webp", content.imageUrl);
+	}
+
+	@Test
+	public void pullCardContentGivesUnknownCardEmptyCategoryAndRegions()
+	{
+		PullNotifySupport support = newSupport(true, whiteBeretDefinition(), dragonfruitPieDefinition());
+
+		PullNotifySupport.PullCardContent content = support.pullCardContent(
+			"Unknown card", true, false, null, "%USERNAME%", null);
+
+		assertEquals(List.of(), content.category);
+		assertEquals(List.of(), content.regions);
+		assertEquals("", content.imageUrl);
+	}
+
 	/** One notification-eligible filler pull so {@code hasEligiblePull} passes without affecting the assertions. */
 	private static PackPull eligibleThrowawayPull()
 	{

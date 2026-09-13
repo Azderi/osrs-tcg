@@ -33,7 +33,7 @@ public class DinkNotificationService
 /** Posts a single-card pull notification to Dink, with card/rarity metadata attached. No-op for a blank card name. */
 	public void notifyPackPull(
 		String cardName, boolean newForCollection, boolean foil, RarityMath.Tier tier, String instanceId,
-		Double condition)
+		Double condition, long score, Long pulledAtEpochMs)
 	{
 		if (PullNotificationMessages.isBlank(cardName))
 		{
@@ -44,7 +44,7 @@ public class DinkNotificationService
 		postNotify(
 			pullNotifySupport.messageWithStatsLine(content.description),
 			content.imageUrl,
-			pullMetadata(cardName.trim(), foil, newForCollection, tier, content.imageUrl, content.inspectUrl));
+			pullMetadata(cardName.trim(), foil, newForCollection, tier, score, pulledAtEpochMs, content));
 	}
 /** Posts an end-of-pack summary notification (new cards / duplicates) to Dink. */
 	void notifyPackSummary(PackSummaryContent content)
@@ -58,23 +58,31 @@ public class DinkNotificationService
 			content.imageUrl,
 			metadata);
 	}
-/** Builds the Dink metadata map for a single card pull (name, foil, new-for-collection, tier, image/inspect links). */
+/** Builds the Dink metadata map for a single card pull (name, foil, tier, score, catalog tags, links, pull time). */
 	private static Map<String, Object> pullMetadata(
 		String cardName, boolean foil, boolean newForCollection, RarityMath.Tier tier,
-		String imageUrl, String inspectUrl)
+		long score, Long pulledAtEpochMs, PullNotifySupport.PullCardContent content)
 	{
 		Map<String, Object> metadata = new HashMap<>();
 		metadata.put("cardName", cardName);
 		metadata.put("foil", foil);
 		metadata.put("newForCollection", newForCollection);
 		metadata.put("rarityTier", tier == null ? "" : tier.getLabel());
-		if (!imageUrl.isEmpty())
+		metadata.put("score", score);
+		metadata.put("category", content.category);
+		metadata.put("regions", content.regions);
+		if (!content.imageUrl.isEmpty())
 		{
-			metadata.put("imageUrl", imageUrl);
+			metadata.put("imageUrl", content.imageUrl);
 		}
-		if (!inspectUrl.isEmpty())
+		if (!content.inspectUrl.isEmpty())
 		{
-			metadata.put("inspectUrl", inspectUrl);
+			metadata.put("inspectUrl", content.inspectUrl);
+		}
+		String pulledAt = PullNotificationMessages.pulledAtIso(pulledAtEpochMs);
+		if (pulledAt != null)
+		{
+			metadata.put("pulledAt", pulledAt);
 		}
 		return metadata;
 	}
