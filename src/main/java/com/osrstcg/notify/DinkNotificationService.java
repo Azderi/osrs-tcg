@@ -71,6 +71,10 @@ public class DinkNotificationService
 		metadata.put("score", score);
 		metadata.put("category", content.category);
 		metadata.put("regions", content.regions);
+		if (content.condition != null)
+		{
+			metadata.put("condition", content.condition);
+		}
 		if (!content.imageUrl.isEmpty())
 		{
 			metadata.put("imageUrl", content.imageUrl);

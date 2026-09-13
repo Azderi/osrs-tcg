@@ -99,6 +99,38 @@ public class DinkNotificationServiceTest
 		assertEquals(List.of(), metadata.get("regions"));
 	}
 
+	@Test
+	public void perCardMetadataCarriesConditionWhenGradingIsEnabled()
+	{
+		PullNotifySupport support = PullNotifySupportTest.newSupport(true, whiteBeretDefinition());
+		EventBus eventBus = new EventBus();
+		List<PluginMessage> captured = new ArrayList<>();
+		eventBus.register(PluginMessage.class, captured::add, 0f);
+
+		new DinkNotificationService(eventBus, support).notifyPackPull(
+			"White beret", false, true, RarityMath.Tier.LEGENDARY, "instance-1", 87.4, 8200L, null);
+
+		@SuppressWarnings("unchecked")
+		Map<String, Object> metadata = (Map<String, Object>) captured.get(0).getData().get("metadata");
+		assertEquals(87.4, (Double) metadata.get("condition"), 0.0001);
+	}
+
+	@Test
+	public void perCardMetadataOmitsConditionWhenGradingIsDisabled()
+	{
+		PullNotifySupport support = PullNotifySupportTest.newSupport(false, whiteBeretDefinition());
+		EventBus eventBus = new EventBus();
+		List<PluginMessage> captured = new ArrayList<>();
+		eventBus.register(PluginMessage.class, captured::add, 0f);
+
+		new DinkNotificationService(eventBus, support).notifyPackPull(
+			"White beret", false, true, RarityMath.Tier.LEGENDARY, "instance-1", 87.4, 8200L, null);
+
+		@SuppressWarnings("unchecked")
+		Map<String, Object> metadata = (Map<String, Object>) captured.get(0).getData().get("metadata");
+		assertFalse(metadata.containsKey("condition"));
+	}
+
 	private static CardDefinition whiteBeretDefinition()
 	{
 		CardDefinition def = new CardDefinition();

@@ -49,7 +49,7 @@ public class PullNotifySupport
 			return PullNotificationMessages.packSummaryMessage(opener, sections);
 		}
 	}
-/** Pre-built per-card notification content: message text, card image URL, inspect link, and catalog tags. */
+/** Pre-built per-card notification content: message text, card image URL, inspect link, catalog tags, and grade. */
 	public static final class PullCardContent
 	{
 		public final String description;
@@ -57,14 +57,18 @@ public class PullNotifySupport
 		public final String inspectUrl;
 		public final List<String> category;
 		public final List<String> regions;
-/** Stores the description, image URL, inspect URL, and catalog tags verbatim. */
-		PullCardContent(String description, String imageUrl, String inspectUrl, List<String> category, List<String> regions)
+		public final Double condition;
+/** Stores the description, image URL, inspect URL, catalog tags, and graded condition verbatim. */
+		PullCardContent(
+			String description, String imageUrl, String inspectUrl, List<String> category, List<String> regions,
+			Double condition)
 		{
 			this.description = description;
 			this.imageUrl = imageUrl;
 			this.inspectUrl = inspectUrl;
 			this.category = category;
 			this.regions = regions;
+			this.condition = condition;
 		}
 	}
 
@@ -199,10 +203,10 @@ public class PullNotifySupport
 		}
 		detail.put("category", PullNotificationMessages.categoryTagsOrEmpty(definition));
 		detail.put("regions", PullNotificationMessages.regionTagsOrEmpty(definition));
-		if (config.showPullGradeAndCondition() && pull.condition != null
-			&& !pull.condition.isNaN() && !pull.condition.isInfinite())
+		Double gradedCondition = gradedCondition(pull.condition);
+		if (gradedCondition != null)
 		{
-			detail.put("condition", pull.condition);
+			detail.put("condition", gradedCondition);
 		}
 		String pulledAt = PullNotificationMessages.pulledAtIso(pull.pulledAtEpochMs);
 		if (pulledAt != null)
@@ -219,14 +223,24 @@ public class PullNotifySupport
 		String trimmed = cardName.trim();
 		String inspectUrl = PullNotificationMessages.inspectUrl(instanceId);
 		CardDefinition definition = cardDatabase.findByName(trimmed).orElse(null);
+		Double gradedCondition = gradedCondition(condition);
 		return new PullCardContent(
 			PullNotificationMessages.collectionMessage(
-				opener, trimmed, newForCollection, foil, inspectUrl,
-				config.showPullGradeAndCondition() ? condition : null),
+				opener, trimmed, newForCollection, foil, inspectUrl, gradedCondition),
 			imageUrlForDefinition(definition),
 			inspectUrl,
 			PullNotificationMessages.categoryTagsOrEmpty(definition),
-			PullNotificationMessages.regionTagsOrEmpty(definition));
+			PullNotificationMessages.regionTagsOrEmpty(definition),
+			gradedCondition);
+	}
+/** Applies the grade-display config gate: returns {@code condition} when grading is on and it's a finite value, else null. */
+	private Double gradedCondition(Double condition)
+	{
+		if (!config.showPullGradeAndCondition() || condition == null || condition.isNaN() || condition.isInfinite())
+		{
+			return null;
+		}
+		return condition;
 	}
 /** Resolves a card's public image URL (as .webp), or "" if the card is unknown or has no image. */
 	public String cardImageUrl(String cardName)

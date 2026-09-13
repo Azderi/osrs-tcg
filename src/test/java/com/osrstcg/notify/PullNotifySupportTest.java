@@ -164,6 +164,39 @@ public class PullNotifySupportTest
 		assertEquals("", content.imageUrl);
 	}
 
+	@Test
+	public void pullCardContentIncludesConditionWhenGradingIsEnabled()
+	{
+		PullNotifySupport support = newSupport(true, whiteBeretDefinition(), dragonfruitPieDefinition());
+
+		PullNotifySupport.PullCardContent content = support.pullCardContent(
+			"Dragonfruit pie", false, false, "instance-2", "%USERNAME%", 87.4);
+
+		assertEquals(87.4, content.condition, 0.0001);
+	}
+
+	@Test
+	public void pullCardContentOmitsConditionWhenGradingIsDisabled()
+	{
+		PullNotifySupport support = newSupport(false, whiteBeretDefinition(), dragonfruitPieDefinition());
+
+		PullNotifySupport.PullCardContent content = support.pullCardContent(
+			"Dragonfruit pie", false, false, "instance-2", "%USERNAME%", 87.4);
+
+		assertEquals(null, content.condition);
+	}
+
+	@Test
+	public void pullCardContentOmitsInvalidCondition()
+	{
+		PullNotifySupport support = newSupport(true, whiteBeretDefinition(), dragonfruitPieDefinition());
+
+		PullNotifySupport.PullCardContent content = support.pullCardContent(
+			"Dragonfruit pie", false, false, "instance-2", "%USERNAME%", Double.NaN);
+
+		assertEquals(null, content.condition);
+	}
+
 	/** One notification-eligible filler pull so {@code hasEligiblePull} passes without affecting the assertions. */
 	private static PackPull eligibleThrowawayPull()
 	{
