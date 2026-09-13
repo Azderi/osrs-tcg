@@ -15,6 +15,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 /** Covers the structured (non-markdown) pack-summary metadata {@link DinkNotificationService} posts to Dink. */
 public class DinkNotificationServiceTest
@@ -42,6 +43,34 @@ public class DinkNotificationServiceTest
 		assertEquals("packSummary", metadata.get("notificationType"));
 		assertSame(content.newCardDetails, metadata.get("newCards"));
 		assertSame(content.duplicateDetails, metadata.get("duplicates"));
+		assertCollectionStatsPresentWithoutCustomRates(metadata);
+	}
+
+	@Test
+	public void perCardMetadataIncludesCollectionStats()
+	{
+		PullNotifySupport support = PullNotifySupportTest.newSupport(true, whiteBeretDefinition());
+		EventBus eventBus = new EventBus();
+		List<PluginMessage> captured = new ArrayList<>();
+		eventBus.register(PluginMessage.class, captured::add, 0f);
+
+		new DinkNotificationService(eventBus, support).notifyPackPull(
+			"White beret", true, false, RarityMath.Tier.LEGENDARY, "instance-1", null, 8200L, null);
+
+		@SuppressWarnings("unchecked")
+		Map<String, Object> metadata = (Map<String, Object>) captured.get(0).getData().get("metadata");
+		assertCollectionStatsPresentWithoutCustomRates(metadata);
+	}
+
+	/** Asserts {@code metadata} carries a {@code collectionStats} map that omits {@code customRates}. */
+	private static void assertCollectionStatsPresentWithoutCustomRates(Map<String, Object> metadata)
+	{
+		Object collectionStats = metadata.get("collectionStats");
+		assertTrue(collectionStats instanceof Map);
+		@SuppressWarnings("unchecked")
+		Map<String, Object> stats = (Map<String, Object>) collectionStats;
+		assertEquals(1, stats.get("totalCardPool"));
+		assertFalse(stats.containsKey("customRates"));
 	}
 
 	@Test

@@ -10,6 +10,7 @@ import com.osrstcg.config.PullNotifyTier;
 import com.osrstcg.interop.TcgChatStatsShareService;
 import com.osrstcg.interop.TcgPublicStatsCalculator;
 import com.osrstcg.pack.PackRevealService.RevealCard;
+import com.osrstcg.state.TcgPublicStats;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -268,12 +269,42 @@ public class PullNotifySupport
 /** Renders the plain-text public collection stats line shown on external notifications. */
 	public String statsPlainLine()
 	{
-		return tcgChatStatsShareService.buildPlainLine(tcgPublicStatsCalculator.computeLive());
+		return statsPlainLine(currentStats());
+	}
+/** Renders {@code stats} as the same plain-text summary line as {@link #statsPlainLine()}. */
+	public String statsPlainLine(TcgPublicStats stats)
+	{
+		return tcgChatStatsShareService.buildPlainLine(stats);
 	}
 /** Appends the public stats line to a notification message, separated by a blank line. */
 	public String messageWithStatsLine(String message)
 	{
-		return message + "\n\n" + statsPlainLine();
+		return messageWithStatsLine(message, currentStats());
+	}
+/** Appends {@code stats}' plain-text summary line to a notification message, separated by a blank line. */
+	public String messageWithStatsLine(String message, TcgPublicStats stats)
+	{
+		return message + "\n\n" + statsPlainLine(stats);
+	}
+/** Computes a fresh collection-stats snapshot (state + catalog at the current moment). */
+	public TcgPublicStats currentStats()
+	{
+		return tcgPublicStatsCalculator.computeLive();
+	}
+/** {@code stats} as a structured map (score, completion, unique/foil counts, pool size, packs opened), for JSON consumers like Dink. */
+	public static Map<String, Object> collectionStatsSummary(TcgPublicStats stats)
+	{
+		Map<String, Object> summary = new LinkedHashMap<>();
+		summary.put("collectionScore", stats.getCollectionScore());
+		summary.put("completionPct", stats.getCompletionPct());
+		summary.put("uniqueOwned", stats.getUniqueOwned());
+		summary.put("uniqueFoilOwned", stats.getUniqueFoilOwned());
+		summary.put("foilCompletionPct", stats.getFoilCompletionPct());
+		summary.put("totalCardPool", stats.getTotalCardPool());
+		summary.put("openedPacks", stats.getOpenedPacks());
+		summary.put("totalCardsOwned", stats.getTotalCardsOwned());
+		summary.put("foilOwned", stats.getFoilOwned());
+		return summary;
 	}
 /** True if {@code tier} meets or exceeds {@code floor} (defaulting to MYTHIC, the strictest, when floor is unset). */
 	private static boolean meetsTier(RarityMath.Tier tier, PullNotifyTier floor)

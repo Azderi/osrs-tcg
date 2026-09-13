@@ -9,6 +9,7 @@ import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.events.PluginMessage;
 import com.osrstcg.catalog.RarityMath;
 import com.osrstcg.notify.PullNotifySupport.PackSummaryContent;
+import com.osrstcg.state.TcgPublicStats;
 /**
  * Forwards pull and pack-summary notifications to the Dink plugin via its {@link PluginMessage}
  * namespace, so Dink can relay them (e.g. to Discord) independently of this plugin's own webhook.
@@ -41,20 +42,25 @@ public class DinkNotificationService
 		}
 		PullNotifySupport.PullCardContent content = pullNotifySupport.pullCardContent(
 			cardName, newForCollection, foil, instanceId, DINK_USERNAME, condition);
+		TcgPublicStats stats = pullNotifySupport.currentStats();
+		Map<String, Object> metadata = pullMetadata(cardName.trim(), foil, newForCollection, tier, score, pulledAtEpochMs, content);
+		metadata.put("collectionStats", PullNotifySupport.collectionStatsSummary(stats));
 		postNotify(
-			pullNotifySupport.messageWithStatsLine(content.description),
+			pullNotifySupport.messageWithStatsLine(content.description, stats),
 			content.imageUrl,
-			pullMetadata(cardName.trim(), foil, newForCollection, tier, score, pulledAtEpochMs, content));
+			metadata);
 	}
 /** Posts an end-of-pack summary notification (new cards / duplicates) to Dink. */
 	void notifyPackSummary(PackSummaryContent content)
 	{
+		TcgPublicStats stats = pullNotifySupport.currentStats();
 		Map<String, Object> metadata = new HashMap<>();
 		metadata.put("notificationType", "packSummary");
 		metadata.put("newCards", content.newCardDetails);
 		metadata.put("duplicates", content.duplicateDetails);
+		metadata.put("collectionStats", PullNotifySupport.collectionStatsSummary(stats));
 		postNotify(
-			pullNotifySupport.messageWithStatsLine(content.messageFor(DINK_USERNAME)),
+			pullNotifySupport.messageWithStatsLine(content.messageFor(DINK_USERNAME), stats),
 			content.imageUrl,
 			metadata);
 	}

@@ -8,6 +8,7 @@ import com.osrstcg.interop.TcgChatStatsShareService;
 import com.osrstcg.interop.TcgPublicStatsCalculator;
 import com.osrstcg.notify.PullNotificationMessages.PackPull;
 import com.osrstcg.notify.PullNotifySupport.PackSummaryContent;
+import com.osrstcg.state.TcgPublicStats;
 import com.osrstcg.state.TcgState;
 import com.osrstcg.state.TcgStateService;
 import java.time.Instant;
@@ -136,6 +137,25 @@ public class PullNotifySupportTest
 		Optional<PackSummaryContent> content = support.packSummaryContent(List.of(ineligible));
 
 		assertTrue(content.isEmpty());
+	}
+
+	@Test
+	public void collectionStatsSummaryMapsAllFieldsAndExcludesCustomRates()
+	{
+		TcgPublicStats stats = new TcgPublicStats(19_304_783L, 11.05, 571, 3, 0.06, 5167, 121L, 604, 3L, false);
+
+		Map<String, Object> summary = PullNotifySupport.collectionStatsSummary(stats);
+
+		assertEquals(19_304_783L, summary.get("collectionScore"));
+		assertEquals(11.05, (Double) summary.get("completionPct"), 0.0001);
+		assertEquals(571, summary.get("uniqueOwned"));
+		assertEquals(3, summary.get("uniqueFoilOwned"));
+		assertEquals(0.06, (Double) summary.get("foilCompletionPct"), 0.0001);
+		assertEquals(5167, summary.get("totalCardPool"));
+		assertEquals(121L, summary.get("openedPacks"));
+		assertEquals(604, summary.get("totalCardsOwned"));
+		assertEquals(3L, summary.get("foilOwned"));
+		assertFalse(summary.containsKey("customRates"));
 	}
 
 	@Test
