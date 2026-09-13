@@ -17,7 +17,18 @@ JSON sent with `EVERY_CARD` notification (one card at a time):
     "condition": 91.20,
     "imageUrl": "https://osrs-tcg.net/images/cards/white_beret.webp",
     "inspectUrl": "https://osrs-tcg.net/inspect/ba766bf5-a99d-4100-835b-458c3722189f",
-    "pulledAt": "2026-09-12T14:00:00Z"
+    "pulledAt": "2026-09-12T14:00:00Z",
+    "collectionStats": {
+      "collectionScore": 128450,
+      "completionPct": 41.20,
+      "uniqueOwned": 312,
+      "uniqueFoilOwned": 18,
+      "foilCompletionPct": 2.25,
+      "totalCardPool": 800,
+      "openedPacks": 96,
+      "totalCardsOwned": 940,
+      "foilOwned": 22
+    }
   }
 }
 ```
@@ -58,14 +69,25 @@ JSON sent with `AT_END` notification (whole pack, batched):
         "condition": 42.00,
         "pulledAt": "2026-09-12T14:00:05Z"
       }
-    ]
+    ],
+    "collectionStats": {
+      "collectionScore": 128450,
+      "completionPct": 41.20,
+      "uniqueOwned": 312,
+      "uniqueFoilOwned": 18,
+      "foilCompletionPct": 2.25,
+      "totalCardPool": 800,
+      "openedPacks": 96,
+      "totalCardsOwned": 940,
+      "foilOwned": 22
+    }
   }
 }
 ```
 
 ### Webhook Path (non-Dink)
 
-Discord-style embed posted directly to the configured webhook URL(s) — same `"embeds"` shape for both triggers, just different fields populated. No `category`/`regions`/`score` here; those only exist on the Dink metadata.
+Discord-style embed posted directly to the configured webhook URL(s) — same `"embeds"` shape for both triggers, just different fields populated. No `category`/`regions`/`score`/`collectionStats` here; those only exist on the Dink metadata. Collection stats still show up, but only as the plain-text `footer`.
 
 JSON sent with `EVERY_CARD` notification (one card at a time):
 
