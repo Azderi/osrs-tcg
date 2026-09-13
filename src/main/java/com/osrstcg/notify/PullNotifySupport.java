@@ -11,6 +11,7 @@ import com.osrstcg.interop.TcgChatStatsShareService;
 import com.osrstcg.interop.TcgPublicStatsCalculator;
 import com.osrstcg.pack.PackRevealService.RevealCard;
 import com.osrstcg.state.TcgPublicStats;
+import com.osrstcg.ui.card.CardGrade;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -59,10 +60,11 @@ public class PullNotifySupport
 		public final List<String> category;
 		public final List<String> regions;
 		public final Double condition;
+		public final String conditionGrade;
 /** Stores the description, image URL, inspect URL, catalog tags, and graded condition verbatim. */
 		PullCardContent(
 			String description, String imageUrl, String inspectUrl, List<String> category, List<String> regions,
-			Double condition)
+			Double condition, String conditionGrade)
 		{
 			this.description = description;
 			this.imageUrl = imageUrl;
@@ -70,6 +72,7 @@ public class PullNotifySupport
 			this.category = category;
 			this.regions = regions;
 			this.condition = condition;
+			this.conditionGrade = conditionGrade;
 		}
 	}
 
@@ -208,6 +211,7 @@ public class PullNotifySupport
 		if (gradedCondition != null)
 		{
 			detail.put("condition", gradedCondition);
+			detail.put("conditionGrade", conditionGradeLabel(gradedCondition));
 		}
 		String pulledAt = PullNotificationMessages.pulledAtIso(pull.pulledAtEpochMs);
 		if (pulledAt != null)
@@ -232,7 +236,8 @@ public class PullNotifySupport
 			inspectUrl,
 			PullNotificationMessages.categoryTagsOrEmpty(definition),
 			PullNotificationMessages.regionTagsOrEmpty(definition),
-			gradedCondition);
+			gradedCondition,
+			conditionGradeLabel(gradedCondition));
 	}
 /** Applies the grade-display config gate: returns {@code condition} when grading is on and it's a finite value, else null. */
 	private Double gradedCondition(Double condition)
@@ -242,6 +247,11 @@ public class PullNotifySupport
 			return null;
 		}
 		return condition;
+	}
+/** Letter grade (S-E) for an already-gated condition value, or null if there is none. */
+	private static String conditionGradeLabel(Double gradedCondition)
+	{
+		return gradedCondition == null ? null : CardGrade.gradeFromCondition(gradedCondition).name();
 	}
 /** Resolves a card's public image URL (as .webp), or "" if the card is unknown or has no image. */
 	public String cardImageUrl(String cardName)

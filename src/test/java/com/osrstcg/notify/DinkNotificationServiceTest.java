@@ -142,6 +142,7 @@ public class DinkNotificationServiceTest
 		@SuppressWarnings("unchecked")
 		Map<String, Object> metadata = (Map<String, Object>) captured.get(0).getData().get("metadata");
 		assertEquals(87.4, (Double) metadata.get("condition"), 0.0001);
+		assertEquals("A", metadata.get("conditionGrade"));
 	}
 
 	@Test
@@ -158,6 +159,7 @@ public class DinkNotificationServiceTest
 		@SuppressWarnings("unchecked")
 		Map<String, Object> metadata = (Map<String, Object>) captured.get(0).getData().get("metadata");
 		assertFalse(metadata.containsKey("condition"));
+		assertFalse(metadata.containsKey("conditionGrade"));
 	}
 
 	private static CardDefinition whiteBeretDefinition()

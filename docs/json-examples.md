@@ -15,6 +15,7 @@ JSON sent with `EVERY_CARD` notification (one card at a time):
     "category": ["Clothing", "Quest reward"],
     "regions": ["Kandarin"],
     "condition": 91.20,
+    "conditionGrade": "A",
     "imageUrl": "https://osrs-tcg.net/images/cards/white_beret.webp",
     "inspectUrl": "https://osrs-tcg.net/inspect/ba766bf5-a99d-4100-835b-458c3722189f",
     "pulledAt": "2026-09-12T14:00:00Z",
@@ -52,6 +53,7 @@ JSON sent with `AT_END` notification (whole pack, batched):
         "category": ["Clothing", "Quest reward"],
         "regions": ["Kandarin"],
         "condition": 91.20,
+        "conditionGrade": "A",
         "pulledAt": "2026-09-12T14:00:00Z"
       }
     ],
@@ -67,6 +69,7 @@ JSON sent with `AT_END` notification (whole pack, batched):
         "category": ["Cooking", "Food"],
         "regions": ["Tirannwn"],
         "condition": 42.00,
+        "conditionGrade": "C",
         "pulledAt": "2026-09-12T14:00:05Z"
       }
     ],

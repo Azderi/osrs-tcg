@@ -70,6 +70,7 @@ public class PullNotifySupportTest
 		assertEquals(300L, detail.get("score"));
 		assertEquals("Cooking", ((List<?>) detail.get("category")).get(0));
 		assertEquals(87.4, (Double) detail.get("condition"), 0.0001);
+		assertEquals("A", detail.get("conditionGrade"));
 		assertFalse("no pull timestamp was supplied, so the key should be absent", detail.containsKey("pulledAt"));
 	}
 
@@ -86,6 +87,7 @@ public class PullNotifySupportTest
 
 		Map<String, Object> detail = content.duplicateDetails.get(0);
 		assertFalse(detail.containsKey("condition"));
+		assertFalse(detail.containsKey("conditionGrade"));
 	}
 
 	@Test
@@ -215,6 +217,28 @@ public class PullNotifySupportTest
 			"Dragonfruit pie", false, false, "instance-2", "%USERNAME%", Double.NaN);
 
 		assertEquals(null, content.condition);
+	}
+
+	@Test
+	public void pullCardContentIncludesConditionGradeWhenGradingIsEnabled()
+	{
+		PullNotifySupport support = newSupport(true, whiteBeretDefinition(), dragonfruitPieDefinition());
+
+		PullNotifySupport.PullCardContent content = support.pullCardContent(
+			"Dragonfruit pie", false, false, "instance-2", "%USERNAME%", 87.4);
+
+		assertEquals("A", content.conditionGrade);
+	}
+
+	@Test
+	public void pullCardContentOmitsConditionGradeWhenGradingIsDisabled()
+	{
+		PullNotifySupport support = newSupport(false, whiteBeretDefinition(), dragonfruitPieDefinition());
+
+		PullNotifySupport.PullCardContent content = support.pullCardContent(
+			"Dragonfruit pie", false, false, "instance-2", "%USERNAME%", 87.4);
+
+		assertEquals(null, content.conditionGrade);
 	}
 
 	/** One notification-eligible filler pull so {@code hasEligiblePull} passes without affecting the assertions. */

@@ -80,6 +80,7 @@ public class DinkNotificationService
 		if (content.condition != null)
 		{
 			metadata.put("condition", content.condition);
+			metadata.put("conditionGrade", content.conditionGrade);
 		}
 		if (!content.imageUrl.isEmpty())
 		{
