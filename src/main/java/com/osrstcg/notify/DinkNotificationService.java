@@ -51,8 +51,8 @@ public class DinkNotificationService
 	{
 		Map<String, Object> metadata = new HashMap<>();
 		metadata.put("notificationType", "packSummary");
-		metadata.put("newCards", content.sections.newCards);
-		metadata.put("duplicates", content.sections.duplicates);
+		metadata.put("newCards", content.newCardDetails);
+		metadata.put("duplicates", content.duplicateDetails);
 		postNotify(
 			pullNotifySupport.messageWithStatsLine(content.messageFor(DINK_USERNAME)),
 			content.imageUrl,

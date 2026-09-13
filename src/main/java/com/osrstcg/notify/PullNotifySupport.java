@@ -10,8 +10,11 @@ import com.osrstcg.config.PullNotifyTier;
 import com.osrstcg.interop.TcgChatStatsShareService;
 import com.osrstcg.interop.TcgPublicStatsCalculator;
 import com.osrstcg.pack.PackRevealService.RevealCard;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -22,18 +25,24 @@ import javax.inject.Singleton;
 @Singleton
 public class PullNotifySupport
 {
-/** Pre-built end-of-pack summary: sections, thumbnail image, and rarity tier for the embed color. */
+/** Pre-built end-of-pack summary: sections, thumbnail image, rarity tier, and per-card structured metadata. */
 	public static final class PackSummaryContent
 	{
 		public final PullNotificationMessages.PackSummarySections sections;
 		public final String imageUrl;
 		public final RarityMath.Tier tier;
-/** Stores the summary sections, thumbnail image URL, and tier verbatim. */
-		PackSummaryContent(PullNotificationMessages.PackSummarySections sections, String imageUrl, RarityMath.Tier tier)
+		public final List<Map<String, Object>> newCardDetails;
+		public final List<Map<String, Object>> duplicateDetails;
+/** Stores the summary sections, thumbnail image URL, tier, and per-card structured metadata verbatim. */
+		PackSummaryContent(
+			PullNotificationMessages.PackSummarySections sections, String imageUrl, RarityMath.Tier tier,
+			List<Map<String, Object>> newCardDetails, List<Map<String, Object>> duplicateDetails)
 		{
 			this.sections = sections;
 			this.imageUrl = imageUrl;
 			this.tier = tier;
+			this.newCardDetails = newCardDetails;
+			this.duplicateDetails = duplicateDetails;
 		}
 /** Renders the summary message with the given opener name substituted in. */
 		public String messageFor(String opener)
@@ -125,7 +134,9 @@ public class PullNotifySupport
 				card.getTier(),
 				card.getPull().getInstanceId(),
 				shouldNotify(card.getTier(), card.getPull().isFoil(), card.isNew()),
-				card.getPull().getCondition()));
+				card.getPull().getCondition(),
+				card.getPull().getScore(),
+				card.getPull().getPulledAtEpochMs()));
 		}
 		return pulls;
 	}
@@ -148,7 +159,53 @@ public class PullNotifySupport
 		PullNotificationMessages.PackPull thumbnailPull = PullNotificationMessages.highestTierPull(pulls);
 		String imageUrl = thumbnailPull == null ? "" : cardImageUrl(thumbnailPull.cardName);
 		RarityMath.Tier tier = thumbnailPull == null ? null : thumbnailPull.tier;
-		return Optional.of(new PackSummaryContent(sections, imageUrl, tier));
+		List<Map<String, Object>> newCardDetails = new ArrayList<>();
+		List<Map<String, Object>> duplicateDetails = new ArrayList<>();
+		for (PullNotificationMessages.PackPull pull : PullNotificationMessages.sortedForSummary(pulls))
+		{
+			if (pull == null || pull.cardName == null || pull.cardName.trim().isEmpty())
+			{
+				continue;
+			}
+			(pull.newForCollection ? newCardDetails : duplicateDetails).add(pullDetail(pull));
+		}
+		return Optional.of(new PackSummaryContent(sections, imageUrl, tier, newCardDetails, duplicateDetails));
+	}
+/** Builds one card's structured metadata (name, foil/tier/score, links, category/regions, grade, pull time). */
+	private Map<String, Object> pullDetail(PullNotificationMessages.PackPull pull)
+	{
+		Map<String, Object> detail = new LinkedHashMap<>();
+		detail.put("cardName", pull.cardName.trim());
+		detail.put("foil", pull.foil);
+		detail.put("rarityTier", pull.tier == null ? "" : pull.tier.getLabel());
+		detail.put("score", pull.score);
+		String inspectUrl = PullNotificationMessages.inspectUrl(pull.instanceId);
+		if (pull.instanceId != null && !pull.instanceId.isBlank())
+		{
+			detail.put("instanceId", pull.instanceId.trim());
+		}
+		if (!inspectUrl.isEmpty())
+		{
+			detail.put("inspectUrl", inspectUrl);
+		}
+		CardDefinition definition = cardDatabase.findByName(pull.cardName).orElse(null);
+		String imageUrl = imageUrlForDefinition(definition);
+		if (!imageUrl.isEmpty())
+		{
+			detail.put("imageUrl", imageUrl);
+		}
+		detail.put("category", definition == null ? List.of() : List.copyOf(definition.getCategoryTags()));
+		detail.put("regions", definition == null ? List.of() : List.copyOf(definition.getRegionTags()));
+		if (config.showPullGradeAndCondition() && pull.condition != null
+			&& !pull.condition.isNaN() && !pull.condition.isInfinite())
+		{
+			detail.put("condition", pull.condition);
+		}
+		if (pull.pulledAtEpochMs != null)
+		{
+			detail.put("pulledAt", Instant.ofEpochMilli(pull.pulledAtEpochMs).toString());
+		}
+		return detail;
 	}
 /** Builds the message text, card image URL, and inspect URL for a single-card notification. */
 	public PullCardContent pullCardContent(
@@ -167,11 +224,16 @@ public class PullNotifySupport
 /** Resolves a card's public image URL (as .webp), or "" if the card is unknown or has no image. */
 	public String cardImageUrl(String cardName)
 	{
-		return cardDatabase.findByName(cardName)
-			.map(CardDefinition::getImageUrl)
-			.map(CloudEndpoints::resolvePublicUrl)
-			.map(PullNotifySupport::toWebpUrl)
-			.orElse("");
+		return imageUrlForDefinition(cardDatabase.findByName(cardName).orElse(null));
+	}
+/** Resolves a card definition's public image URL (as .webp), or "" if null or the definition has no image. */
+	private static String imageUrlForDefinition(CardDefinition definition)
+	{
+		if (definition == null || definition.getImageUrl() == null || definition.getImageUrl().isEmpty())
+		{
+			return "";
+		}
+		return toWebpUrl(CloudEndpoints.resolvePublicUrl(definition.getImageUrl()));
 	}
 /** Rewrites a ".png" image URL to ".webp"; passes other URLs through unchanged. */
 	private static String toWebpUrl(String url)

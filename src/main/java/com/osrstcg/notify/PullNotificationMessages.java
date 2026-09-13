@@ -27,7 +27,9 @@ public final class PullNotificationMessages
 		public final String instanceId;
 		public final boolean notificationEligible;
 		public final Double condition;
-/** Stores the pull's display/rarity data and notification eligibility verbatim. */
+		public final long score;
+		public final Long pulledAtEpochMs;
+/** Stores the pull's display/rarity data and notification eligibility verbatim; score defaults to 0 and pulledAtEpochMs to null. */
 		public PackPull(
 			String cardName,
 			boolean newForCollection,
@@ -37,6 +39,20 @@ public final class PullNotificationMessages
 			boolean notificationEligible,
 			Double condition)
 		{
+			this(cardName, newForCollection, foil, tier, instanceId, notificationEligible, condition, 0L, null);
+		}
+/** Stores the pull's display/rarity data, notification eligibility, rarity score, and pull timestamp verbatim. */
+		public PackPull(
+			String cardName,
+			boolean newForCollection,
+			boolean foil,
+			RarityMath.Tier tier,
+			String instanceId,
+			boolean notificationEligible,
+			Double condition,
+			long score,
+			Long pulledAtEpochMs)
+		{
 			this.cardName = cardName;
 			this.newForCollection = newForCollection;
 			this.foil = foil;
@@ -44,6 +60,8 @@ public final class PullNotificationMessages
 			this.instanceId = instanceId;
 			this.notificationEligible = notificationEligible;
 			this.condition = condition;
+			this.score = score;
+			this.pulledAtEpochMs = pulledAtEpochMs;
 		}
 	}
 /** A pack's pulls split into new-cards and duplicates summary lines, ordered by rarity. */
@@ -164,9 +182,7 @@ public final class PullNotificationMessages
 		{
 			return new PackSummarySections(newCards, duplicates);
 		}
-		List<PackPull> sorted = new ArrayList<>(pulls);
-		sorted.sort(Comparator.comparingInt(PullNotificationMessages::tierRank).reversed());
-		for (PackPull pull : sorted)
+		for (PackPull pull : sortedForSummary(pulls))
 		{
 			if (pull == null || pull.cardName == null || pull.cardName.trim().isEmpty())
 			{
@@ -175,6 +191,13 @@ public final class PullNotificationMessages
 			(pull.newForCollection ? newCards : duplicates).add(summaryLine(pull, showGradeAndCondition));
 		}
 		return new PackSummarySections(newCards, duplicates);
+	}
+/** Sorts pulls by rarity tier, highest first, for consistent summary ordering (text and structured metadata alike). */
+	public static List<PackPull> sortedForSummary(List<PackPull> pulls)
+	{
+		List<PackPull> sorted = new ArrayList<>(pulls == null ? List.of() : pulls);
+		sorted.sort(Comparator.comparingInt(PullNotificationMessages::tierRank).reversed());
+		return sorted;
 	}
 /** Builds the "X opened a booster pack!" message with New cards / Duplicates sections appended. */
 	public static String packSummaryMessage(String opener, PackSummarySections sections)
