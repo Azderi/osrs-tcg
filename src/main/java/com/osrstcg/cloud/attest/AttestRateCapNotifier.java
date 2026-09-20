@@ -119,12 +119,12 @@ public final class AttestRateCapNotifier
 	}
 /**
 	 * Builds the pause chat message for a positive {@code rateCapAfterMs}:
-	 * {@code Credit rate limit hit. Credit events paused for X minutes.}
+	 * {@code Credit gains paused for X minutes.}
 	 */
 	static String playerFacingRateCapPauseMessage(long rateCapAfterMs)
 	{
 		long minutes = rateCapPauseMinutes(rateCapAfterMs);
-		return "Credit rate limit hit. Credit events paused for " + minutes + " minutes.";
+		return "Credit gains paused for " + minutes + " minutes.";
 	}
 /** Ceil of {@code rateCapAfterMs} in whole minutes; at least 1 when {@code rateCapAfterMs > 0}. */
 	static long rateCapPauseMinutes(long rateCapAfterMs)

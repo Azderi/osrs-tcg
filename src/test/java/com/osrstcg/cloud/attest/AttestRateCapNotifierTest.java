@@ -22,7 +22,7 @@ public class AttestRateCapNotifierTest
 		assertEquals(2L, AttestRateCapNotifier.rateCapPauseMinutes(60_001L));
 		assertEquals(31L, AttestRateCapNotifier.rateCapPauseMinutes(1_843_200L));
 		assertEquals(
-			"Credit rate limit hit. Credit events paused for 31 minutes.",
+			"Credit gains paused for 31 minutes.",
 			AttestRateCapNotifier.playerFacingRateCapPauseMessage(1_843_200L));
 	}
 
@@ -42,7 +42,7 @@ public class AttestRateCapNotifierTest
 
 		notifier.onAttestResponse(response, 1_000L);
 		assertEquals(
-			"Credit rate limit hit. Credit events paused for 2 minutes.",
+			"Credit gains paused for 2 minutes.",
 			chat.get());
 	}
 
