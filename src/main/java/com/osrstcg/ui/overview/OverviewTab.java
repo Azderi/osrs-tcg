@@ -52,14 +52,12 @@ public final class OverviewTab
 	public void render(JPanel target, PackCloseSnapshot snap, CloudSidebarCollectionStats m)
 	{
 		int[] ranks = config.showSidebarRanks() ? stateService.getSidebarRanks() : null;
-		Integer totalCardsRank = rankAt(ranks, 4, m.getTotalCardsOwned() > 0);
-		Integer foilCardsRank = rankAt(ranks, 5, m.getFoilOwned() > 0L);
 		Integer completionRank = rankAt(ranks, 0, m.getCompletionPct() > 0.0d);
 		Integer foilCompletionRank = rankAt(ranks, 1, m.getFoilCompletionPct() > 0.0d);
 		Integer openedPacksRank = rankAt(ranks, 2, snap.openedPacks > 0L);
 		Integer collectionScoreRank = rankAt(ranks, 3, m.getCollectionScore() > 0L);
-		boolean reserveRankRow = totalCardsRank != null || foilCardsRank != null || completionRank != null
-			|| foilCompletionRank != null || openedPacksRank != null || collectionScoreRank != null;
+		boolean reserveRankRow = completionRank != null || foilCompletionRank != null
+			|| openedPacksRank != null || collectionScoreRank != null;
 		JPanel creditsPanel = imageStatPanel("Credits", NumberFormatting.format(snap.credits), SidebarLayout.CREDITS_IMAGE_PATH);
 		Component east = ((BorderLayout) creditsPanel.getLayout()).getLayoutComponent(BorderLayout.EAST);
 		creditsValueLabel = east instanceof JLabel ? (JLabel) east : null;
@@ -68,8 +66,8 @@ public final class OverviewTab
 		target.add(twoColumnGridPanel(List.of(
 			statBoxPanel("Unique cards", NumberFormatting.format(m.getUniqueOwned()) + " / " + NumberFormatting.format(m.getTotalCardPool())),
 			statBoxPanel("Unique foil cards", NumberFormatting.format(m.getUniqueFoilOwned()) + " / " + NumberFormatting.format(m.getTotalCardPool())),
-			statBoxPanel("Total cards", NumberFormatting.format(m.getTotalCardsOwned()), totalCardsRank, reserveRankRow),
-			statBoxPanel("Foil cards", NumberFormatting.format(m.getFoilOwned()), foilCardsRank, reserveRankRow),
+			statBoxPanel("Total cards", NumberFormatting.format(m.getTotalCardsOwned())),
+			statBoxPanel("Foil cards", NumberFormatting.format(m.getFoilOwned())),
 			statBoxPanel("Collection %", String.format("%.2f%%", m.getCompletionPct()),
 				completionRank, reserveRankRow),
 			statBoxPanel("Collection Foil %", String.format("%.2f%%", m.getFoilCompletionPct()),
