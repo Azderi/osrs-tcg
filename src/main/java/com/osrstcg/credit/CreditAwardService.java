@@ -374,7 +374,7 @@ public class CreditAwardService
 			return 0L;
 		}
 
-		if (!session.canCollectAttests())
+		if (!canGatherCreditEvents())
 		{
 			debugAward(String.format("Offline; drop lvl %s %d..%d",
 				skill.getName(), previousLevel, currentLevel));
@@ -458,7 +458,7 @@ public class CreditAwardService
 	 */
 	private boolean applyXpGain(long xpGained, Skill skill)
 	{
-		if (xpGained <= 0L || skill == null)
+		if (xpGained <= 0L || skill == null || attestQueue.isRateCapActive())
 		{
 			return false;
 		}
@@ -482,7 +482,7 @@ public class CreditAwardService
 		{
 			return;
 		}
-		if (!session.canCollectAttests())
+		if (!canGatherCreditEvents())
 		{
 			debugAward(String.format("Offline; XP +%d (%s) no attest", xpGained, safeName(source)));
 			return;
@@ -557,7 +557,7 @@ public class CreditAwardService
 		long xpCredited = chunks * XpCreditMath.XP_PER_CREDIT_CHUNK;
 		long credits = chunks * XpCreditMath.CREDITS_PER_CHUNK;
 
-		if (!session.canCollectAttests())
+		if (!canGatherCreditEvents())
 		{
 			debugAward(String.format("Offline; XP +%d (%s) pend", xpCredited, skill.getName()));
 			return false;
@@ -685,6 +685,11 @@ public class CreditAwardService
 		}
 
 		return true;
+	}
+/** Cloud may collect attests and no server rate-cap pause is active. */
+	private boolean canGatherCreditEvents()
+	{
+		return session.canCollectAttests() && !attestQueue.isRateCapActive();
 	}
 /** Clears the uncredited XP pool, logging a debug message with {@code reason} if XP was actually lost. */
 	private void clearUncreditedXpPool(String reason)
