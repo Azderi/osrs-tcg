@@ -93,7 +93,7 @@ public final class CollectionListModel
 	{
 	}
 /**
-	 * Aggregates the player's non-beta owned cards into one {@link Row} per name/foil combination, applies
+	 * Aggregates the player's owned cards into one {@link Row} per name/foil combination, applies
 	 * the pack-eligibility, rarity, and name filters, then sorts by {@code sortMode}. Safe to call off the EDT.
 	 */
 	public static List<Row> buildRows(
@@ -105,7 +105,7 @@ public final class CollectionListModel
 		SortMode sortMode)
 	{
 		Map<CardCollectionKey, Long> maxPulledAt = new HashMap<>();
-		aggregateOwnedExcludingBeta(collection, maxPulledAt);
+		aggregateOwned(collection, maxPulledAt);
 
 		String query = nameQueryOrNull == null ? "" : nameQueryOrNull.trim().toLowerCase(Locale.ROOT);
 
@@ -216,8 +216,8 @@ public final class CollectionListModel
 		}
 		return map;
 	}
-/** Fills {@code maxPulledAtOut} with the latest pull timestamp per name/foil key, skipping beta copies. */
-	private static void aggregateOwnedExcludingBeta(
+/** Fills {@code maxPulledAtOut} with the latest pull timestamp per name/foil key. */
+	private static void aggregateOwned(
 		CollectionState collection,
 		Map<CardCollectionKey, Long> maxPulledAtOut)
 	{
@@ -227,7 +227,7 @@ public final class CollectionListModel
 		}
 		for (OwnedCardInstance i : collection.getOwnedInstances())
 		{
-			if (i == null || i.isBeta() || i.getCardName() == null || i.getCardName().isBlank())
+			if (i == null || i.getCardName() == null || i.getCardName().isBlank())
 			{
 				continue;
 			}

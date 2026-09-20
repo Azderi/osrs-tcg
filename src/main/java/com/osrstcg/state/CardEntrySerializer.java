@@ -20,7 +20,7 @@ public final class CardEntrySerializer
 	 * Reverses {@link #buildProfileEntries}: expands each {@link CardVariant} back into one or more
 	 * {@link OwnedCardInstance} rows, honoring the legacy {@code quantity} field by repeating the
 	 * variant (only the first repeated row keeps the original instance id). Null/invalid entries and
-	 * variants are skipped; zero-or-negative quantities are dropped.
+	 * variants are skipped; zero-or-negative quantities and legacy beta variants are dropped.
 	 */
 	public static List<OwnedCardInstance> expandToInstances(List<CardEntry> entries)
 	{
@@ -38,7 +38,7 @@ public final class CardEntrySerializer
 			String cardName = entry.cardName.trim();
 			for (CardVariant variant : entry.variants)
 			{
-				if (variant == null)
+				if (variant == null || Boolean.TRUE.equals(variant.beta))
 				{
 					continue;
 				}
@@ -49,12 +49,11 @@ public final class CardEntrySerializer
 				{
 					continue;
 				}
-				boolean beta = Boolean.TRUE.equals(variant.beta);
 				String id = variant.id == null || variant.id.isBlank() ? null : variant.id.trim();
 				for (int i = 0; i < quantity; i++)
 				{
 					String rowId = (i == 0) ? id : null;
-					rows.add(new OwnedCardInstance(rowId, cardName, isFoil(variant), by, at, beta));
+					rows.add(new OwnedCardInstance(rowId, cardName, isFoil(variant), by, at));
 				}
 			}
 		}
@@ -110,10 +109,6 @@ public final class CardEntrySerializer
 			variant.pulledBy = by.isEmpty() ? null : by;
 			long at = inst.getPulledAtEpochMs();
 			variant.pulledAt = at <= 0L ? null : at;
-			if (inst.isBeta())
-			{
-				variant.beta = Boolean.TRUE;
-			}
 			entry.variants.add(variant);
 		}
 

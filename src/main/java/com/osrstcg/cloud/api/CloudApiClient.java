@@ -236,11 +236,11 @@ public final class CloudApiClient
 	{
 		return requestAuthed("GET", "/me/state", null);
 	}
-/** {@code GET /me/cards}, paginated (limit clamped to 1-500). Blocking call. */
+/** {@code GET /me/cards?beta=exclude}, paginated (limit clamped to 1-500). Blocking call. */
 	public JsonObject getCardsPage(int limit, String cursor) throws CloudApiException, IOException
 	{
 		int pageLimit = Math.max(1, Math.min(limit, 500));
-		StringBuilder path = new StringBuilder("/me/cards?limit=").append(pageLimit);
+		StringBuilder path = new StringBuilder("/me/cards?limit=").append(pageLimit).append("&beta=exclude");
 		if (cursor != null && !cursor.isBlank())
 		{
 			path.append("&cursor=").append(URLEncoder.encode(cursor.trim(), StandardCharsets.UTF_8));

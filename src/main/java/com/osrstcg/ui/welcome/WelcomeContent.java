@@ -20,9 +20,6 @@ public class WelcomeContent
 		new WelcomeParagraph(
 			"Card scores are not meant to accurately reflect the in-game value, usefulness of the items or difficulty of the monster and boss encounters.",
 			"#BBBBBB", 16, false),
-		new WelcomeParagraph(
-			"One copy of each card you owned before 1.0 release can be imported and kept as a beta card. Beta cards cannot be traded or sold and do not count towards your collection stats. Cards from new packs are normal and can be traded.",
-			"#FFFF00", 16, false),
 		new WelcomeParagraph("Disclaimer", "#e8c458", 20, true),
 		new WelcomeParagraph(
 			"OSRS TCG is a fan-made minigame for fun. Cards have no real-world or in-game value.\n\nDo not buy or sell cards for money, bonds, gold, or items. Trade at your own risk.",

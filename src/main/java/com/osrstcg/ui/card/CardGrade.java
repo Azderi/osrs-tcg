@@ -60,15 +60,6 @@ public enum CardGrade
 		}
 		return E;
 	}
-/** Beta-migrated copies are always graded S regardless of condition; otherwise defers to {@link #gradeFromCondition}. */
-	public static CardGrade gradeFromVariant(boolean beta, Double condition)
-	{
-		if (beta)
-		{
-			return S;
-		}
-		return gradeFromCondition(condition);
-	}
 /** Formats a condition value to two decimal places, or null for a null/NaN/infinite input. */
 	public static String formatCondition(Double condition)
 	{

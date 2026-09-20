@@ -156,18 +156,6 @@ public interface OsrsTcgConfig extends Config
 	{
 		return false;
 	}
-/** Whether beta-variant copies are excluded when deciding if a pulled card counts as "new". */
-	@ConfigItem(
-		keyName = "ignoreBetaForNewStatus",
-		name = "Ignore beta for new status",
-		description = "Beta copies ignored for new-card status.",
-		section = packOpeningSection,
-		position = 4
-	)
-	default boolean ignoreBetaForNewStatus()
-	{
-		return true;
-	}
 /** Whether the sidebar shows the player's OSRS hiscores rank under overview stats after opening a pack. */
 	@ConfigItem(
 		keyName = "showSidebarRanks",

@@ -9,7 +9,7 @@ import java.util.Map;
 public final class PackCloseSnapshot
 {
 	public final Map<CardCollectionKey, Integer> owned;
-/** Frozen collection used by the Collection tab (includes pulled-at; beta still excluded by model). */
+/** Frozen collection used by the Collection tab (includes pulled-at). */
 	public final CollectionState collectionState;
 	public final long credits;
 	public final long openedPacks;

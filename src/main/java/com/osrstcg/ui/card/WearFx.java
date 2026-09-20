@@ -121,14 +121,14 @@ public final class WearFx
 		return h == 0 ? 1 : h;
 	}
 /**
-	 * Builds a {@link WearFx} for a card copy from its condition/beta status and pull identity. Returns null
-	 * for a grade with zero intensity and fade (i.e. mint/beta condition needs no wear effect). Seeds a PRNG
+	 * Builds a {@link WearFx} for a card copy from its condition and pull identity. Returns null
+	 * for a grade with zero intensity and fade (i.e. mint condition needs no wear effect). Seeds a PRNG
 	 * from the pull identity and, for grades below A, generates randomized scratches; all non-mint grades get
 	 * randomized dirt spots (fewer/gentler for grade A, scaled by intensity otherwise).
 	 */
-	public static WearFx wearFxFromCondition(Double condition, Long pulledAt, boolean beta, String cardName, String pulledBy)
+	public static WearFx wearFxFromCondition(Double condition, Long pulledAt, String cardName, String pulledBy)
 	{
-		CardGrade grade = CardGrade.gradeFromVariant(beta, condition);
+		CardGrade grade = CardGrade.gradeFromCondition(condition);
 		if (grade == null)
 		{
 			return null;

@@ -1045,7 +1045,7 @@ public class TcgPanel extends PluginPanel implements SidebarRefresh
 			TcgState s = stateService.getState();
 			CollectionState collection = s.getCollectionState();
 			return new PackCloseSnapshot(
-				new HashMap<>(collection.getOwnedCardsExcludingBeta()),
+				new HashMap<>(collection.getOwnedCards()),
 				collection,
 				stateService.getCredits(),
 				s.getEconomyState().getOpenedPacks(),

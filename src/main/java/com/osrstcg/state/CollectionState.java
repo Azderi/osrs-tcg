@@ -14,7 +14,7 @@ public final class CollectionState
 {
 	private final List<OwnedCardInstance> instances;
 	private final Map<CardCollectionKey, Integer> ownedCards;
-/** Filters out null/nameless instances, then aggregates quantities including beta copies. */
+/** Filters out null/nameless instances, then aggregates quantities. */
 	private CollectionState(List<OwnedCardInstance> instances)
 	{
 		List<OwnedCardInstance> copy = new ArrayList<>();
@@ -29,7 +29,7 @@ public final class CollectionState
 			}
 		}
 		this.instances = Collections.unmodifiableList(copy);
-		this.ownedCards = Collections.unmodifiableMap(aggregateQuantities(copy, false));
+		this.ownedCards = Collections.unmodifiableMap(aggregateQuantities(copy));
 	}
 /** Trusts both arguments as already-filtered/aggregated; used internally to avoid recomputation. */
 	private CollectionState(List<OwnedCardInstance> instances, Map<CardCollectionKey, Integer> ownedCards)
@@ -52,15 +52,10 @@ public final class CollectionState
 	{
 		return instances;
 	}
-/** Returns owned quantities aggregated by name+foil, including beta copies. */
+/** Returns owned quantities aggregated by name+foil. */
 	public Map<CardCollectionKey, Integer> getOwnedCards()
 	{
 		return ownedCards;
-	}
-/** Recomputes owned quantities aggregated by name+foil, excluding beta copies. */
-	public Map<CardCollectionKey, Integer> getOwnedCardsExcludingBeta()
-	{
-		return aggregateQuantities(instances, true);
 	}
 /**
 	 * Returns a new state with {@code toAdd} appended, after filtering invalid entries. Returns
@@ -94,15 +89,13 @@ public final class CollectionState
 		}
 		return new CollectionState(next, nextOwned);
 	}
-/** Counts instances per {@link CardCollectionKey}, optionally skipping beta copies and null entries. */
-	private static Map<CardCollectionKey, Integer> aggregateQuantities(
-		List<OwnedCardInstance> list,
-		boolean excludeBeta)
+/** Counts instances per {@link CardCollectionKey}, skipping null entries. */
+	private static Map<CardCollectionKey, Integer> aggregateQuantities(List<OwnedCardInstance> list)
 	{
 		Map<CardCollectionKey, Integer> map = new HashMap<>();
 		for (OwnedCardInstance i : list)
 		{
-			if (i == null || (excludeBeta && i.isBeta()))
+			if (i == null)
 			{
 				continue;
 			}

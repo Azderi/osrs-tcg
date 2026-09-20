@@ -1,6 +1,5 @@
 package com.osrstcg.pack;
 
-import com.osrstcg.OsrsTcgConfig;
 import com.osrstcg.catalog.BoosterPackDefinition;
 import com.osrstcg.cloud.catalog.PackCatalogService;
 import com.osrstcg.cloud.session.CloudSessionService;
@@ -38,7 +37,6 @@ public class PackOpenCoordinator
 	private final Provider<SidebarRefresh> sidebarRefreshProvider;
 	private final ScheduledExecutorService scheduler;
 	private final ChatMessageManager chatMessageManager;
-	private final OsrsTcgConfig config;
 /** Wires the collaborators used to buy packs, run the reveal state machine, and refresh the UI afterwards. */
 	@Inject
 	public PackOpenCoordinator(
@@ -50,8 +48,7 @@ public class PackOpenCoordinator
 		CloudSessionService cloudSessionService,
 		Provider<SidebarRefresh> sidebarRefreshProvider,
 		ScheduledExecutorService scheduler,
-		ChatMessageManager chatMessageManager,
-		OsrsTcgConfig config)
+		ChatMessageManager chatMessageManager)
 	{
 		this.packRevealService = packRevealService;
 		this.cloudPackService = cloudPackService;
@@ -62,7 +59,6 @@ public class PackOpenCoordinator
 		this.sidebarRefreshProvider = sidebarRefreshProvider;
 		this.scheduler = scheduler;
 		this.chatMessageManager = chatMessageManager;
-		this.config = config;
 	}
 /** Infobox / {@code ::tcg-open}: freeze sidebar, chat credits on success, resume on the client thread. */
 	public void openFromPlugin(BoosterPackDefinition booster, Consumer<Runnable> invokeLater)
@@ -118,10 +114,7 @@ public class PackOpenCoordinator
 
 		ui.beginFreeze.run();
 		CollectionState collection = stateService.getState().getCollectionState();
-		HashSet<CardCollectionKey> preOwned = new HashSet<>(
-			(config.ignoreBetaForNewStatus()
-				? collection.getOwnedCardsExcludingBeta()
-				: collection.getOwnedCards()).keySet());
+		HashSet<CardCollectionKey> preOwned = new HashSet<>(collection.getOwnedCards().keySet());
 		String boosterPackId = booster.getId() == null ? "" : booster.getId().trim();
 		int expectedCards = Math.max(1, packCatalogService.getCache().getPackSize());
 		packRevealService.beginPendingReveal(boosterPackId, false, expectedCards);

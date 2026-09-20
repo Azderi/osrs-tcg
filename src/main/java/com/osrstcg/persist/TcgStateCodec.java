@@ -129,8 +129,11 @@ public class TcgStateCodec
 			String id = row.id == null || row.id.trim().isEmpty() ? null : row.id.trim();
 			String by = row.pulledBy == null ? "" : row.pulledBy;
 			long at = row.pulledAt <= 0L ? 0L : row.pulledAt;
-			rows.add(new OwnedCardInstance(id, row.cardName.trim(), row.foil, by, at,
-				Boolean.TRUE.equals(row.beta)));
+			if (Boolean.TRUE.equals(row.beta))
+			{
+				continue;
+			}
+			rows.add(new OwnedCardInstance(id, row.cardName.trim(), row.foil, by, at));
 		}
 		return rows;
 	}
@@ -270,6 +273,7 @@ public class TcgStateCodec
 		private boolean foil;
 		private String pulledBy;
 		private long pulledAt;
+		/** Legacy save only: when true, dropped on load. */
 		private Boolean beta;
 	}
 }

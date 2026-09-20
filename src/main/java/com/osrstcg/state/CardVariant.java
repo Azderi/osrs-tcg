@@ -14,6 +14,6 @@ public final class CardVariant
 	public Long pulledAt;
 /** Legacy profile save: expanded on load when present. */
 	public Integer quantity;
-/** Migrated beta copy; omitted when false. */
+/** Legacy save only: when true, dropped on load. Never written. */
 	public Boolean beta;
 }

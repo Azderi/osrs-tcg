@@ -99,8 +99,8 @@ public final class CloudPlayerStateParser
 	}
 /**
 	 * Converts a {@code cards} JSON array into {@link OwnedCardInstance}s, skipping any element that
-	 * isn't an object or is missing a usable card name. Returns an empty list if {@code cardsEl} is
-	 * null or not an array.
+	 * isn't an object, is marked beta, or is missing a usable card name. Returns an empty list if
+	 * {@code cardsEl} is null or not an array.
 	 */
 	public static List<OwnedCardInstance> parseCards(JsonElement cardsEl)
 	{
@@ -117,6 +117,10 @@ public final class CloudPlayerStateParser
 				continue;
 			}
 			JsonObject card = el.getAsJsonObject();
+			if (JsonObjects.readBoolean(card, "beta"))
+			{
+				continue;
+			}
 			String name = JsonObjects.text(card, "cardName");
 			if (name == null || name.isBlank())
 			{
@@ -130,9 +134,8 @@ public final class CloudPlayerStateParser
 			boolean foil = JsonObjects.readBoolean(card, "foil");
 			String pulledBy = JsonObjects.text(card, "pulledBy");
 			long pulledAt = Math.max(0L, JsonObjects.readLong(card, "pulledAt", 0L));
-			boolean beta = JsonObjects.readBoolean(card, "beta");
 			out.add(new OwnedCardInstance(instanceId, name.trim(), foil,
-				pulledBy == null ? "" : pulledBy, pulledAt, beta));
+				pulledBy == null ? "" : pulledBy, pulledAt));
 		}
 		return out;
 	}

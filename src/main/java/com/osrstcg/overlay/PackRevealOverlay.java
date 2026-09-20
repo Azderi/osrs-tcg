@@ -391,7 +391,7 @@ public class PackRevealOverlay extends Overlay
 		}
 		if (wearWanted && pull != null && slot.wear == null)
 		{
-			slot.wear = WearFx.wearFxFromCondition(pull.getCondition(), pulledAt, false, seedName, pull.getPulledBy());
+			slot.wear = WearFx.wearFxFromCondition(pull.getCondition(), pulledAt, seedName, pull.getPulledBy());
 		}
 
 		CardFaceDrawRequest req = CardFaceDrawRequest.builder()
