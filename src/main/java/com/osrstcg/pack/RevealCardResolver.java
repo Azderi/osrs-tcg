@@ -148,7 +148,6 @@ final class RevealCardResolver
 			definition.setName(title);
 			definition.setDisplayName(pull != null ? pull.getDisplayName() : null);
 			definition.setCategory(new ArrayList<>());
-			definition.setExamine("No examine text.");
 		}
 
 		if (pull.getImagePath() != null && !pull.getImagePath().isBlank())

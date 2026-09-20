@@ -101,11 +101,15 @@ public final class ExamineTextLayout
 /**
 	 * Binary-searches (over {@link #EXAMINE_FIT_STEPS} steps) for the largest em size in
 	 * [{@link #EXAMINE_EM_MIN}, {@link #EXAMINE_EM_MAX}] at which the wrapped text fits within
-	 * {@code maxWidth} x {@code bandHeight}. Blank text is replaced with a placeholder before measuring.
+	 * {@code maxWidth} x {@code bandHeight}. Returns {@link #EXAMINE_EM_MAX} for blank text.
 	 */
 	public static float fitExamineEm(FontMetricsFactory metrics, double scale, String text, int maxWidth, int bandHeight)
 	{
-		String examine = text == null || text.trim().isEmpty() ? "No examine text." : text.trim();
+		String examine = text == null ? "" : text.trim();
+		if (examine.isEmpty())
+		{
+			return EXAMINE_EM_MAX;
+		}
 		int width = Math.max(1, maxWidth);
 		int height = Math.max(1, bandHeight);
 

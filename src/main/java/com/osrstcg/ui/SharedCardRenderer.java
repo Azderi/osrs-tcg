@@ -227,7 +227,12 @@ public final class SharedCardRenderer
 		String tierLabel = CardTextLayout.valueOrFallback(req.getTierLabel(), tierLabelForRarityColor(rarity));
 		CardTextLayout.drawCenteredText(g2, geo.tier, tierLabel, CardFonts.bold(geo.scale), titleColor, geo.bandPadX);
 
-		drawExamine(g2, geo, CardTextLayout.valueOrFallback(card == null ? null : card.getExamine(), "No examine text."));
+		// ZWSP/blank examine = hide (never draw a placeholder).
+		String examine = card == null || card.getExamine() == null ? "" : card.getExamine().replace("\u200B", "").trim();
+		if (!examine.isEmpty())
+		{
+			drawExamine(g2, geo, examine);
+		}
 
 		CardTextLayout.drawCenteredText(g2, geo.score, "Score: " + scoreText(req),
 			CardFonts.bold(geo.scale), Color.WHITE, geo.bandPadX);
@@ -297,7 +302,7 @@ public final class SharedCardRenderer
 				Math.max(8, titleScrimH - titlePadY - titleNudgeY));
 			drawCenteredTextShadowed(g2, titleBox, titleText, titleFont, CardColorMath.brighterColor(rarity), 0, geo.scale, false, true);
 
-			String examineRaw = card == null || card.getExamine() == null ? "" : card.getExamine().trim();
+			String examineRaw = card == null || card.getExamine() == null ? "" : card.getExamine().replace("\u200B", "").trim();
 			g2.setFont(CardFonts.fullArtExamine(1.0d));
 			List<String> examLines = CardTextLayout.wrapFullArtExamine(g2.getFontMetrics(), examineRaw);
 			if (!examLines.isEmpty())
@@ -477,7 +482,11 @@ public final class SharedCardRenderer
 /** Draws the banded layout's examine text: fits an em size that wraps within the band, then wraps and centers each line. */
 	private static void drawExamine(Graphics2D g2, Geometry geo, String examine)
 	{
-		String text = CardTextLayout.valueOrFallback(examine, "No examine text.");
+		String text = examine == null ? "" : examine;
+		if (text.isEmpty())
+		{
+			return;
+		}
 		int maxWidth = Math.max(1, geo.examine.width - geo.bandPadX * 2);
 		int bandHeight = geo.examine.height;
 
