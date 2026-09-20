@@ -45,7 +45,27 @@ public final class CollectionListModel
 			return label;
 		}
 	}
-/** One owned card/foil entry ready for display: display fields plus the values sort modes compare on. */
+/** Whether the list includes owned cards, unowned catalog names, or both. */
+	public enum OwnedFilter
+	{
+		OBTAINED("Obtained"),
+		ALL("All"),
+		UNOBTAINED("Unobtained");
+
+		private final String label;
+
+		OwnedFilter(String label)
+		{
+			this.label = label;
+		}
+
+		@Override
+		public String toString()
+		{
+			return label;
+		}
+	}
+/** One card/foil entry ready for display: display fields plus the values sort modes compare on. */
 	public static final class Row
 	{
 		private final String name;
@@ -53,14 +73,16 @@ public final class CollectionListModel
 		private final RarityMath.Tier tier;
 		private final long score;
 		private final long pulledAtEpochMs;
+		private final boolean owned;
 /** Normalizes nulls/negatives (blank name, {@link RarityMath.Tier#COMMON} default, clamped score/timestamp). */
-		public Row(String name, boolean foil, RarityMath.Tier tier, long score, long pulledAtEpochMs)
+		public Row(String name, boolean foil, RarityMath.Tier tier, long score, long pulledAtEpochMs, boolean owned)
 		{
 			this.name = name == null ? "" : name;
 			this.foil = foil;
 			this.tier = tier == null ? RarityMath.Tier.COMMON : tier;
 			this.score = Math.max(0L, score);
 			this.pulledAtEpochMs = Math.max(0L, pulledAtEpochMs);
+			this.owned = owned;
 		}
 
 		public String getName()
@@ -82,10 +104,15 @@ public final class CollectionListModel
 		{
 			return score;
 		}
-/** Most recent pull timestamp across owned copies of this name/foil combination; 0 if unknown. */
+/** Most recent pull timestamp across owned copies of this name/foil combination; 0 if unknown/unowned. */
 		public long getPulledAtEpochMs()
 		{
 			return pulledAtEpochMs;
+		}
+
+		public boolean isOwned()
+		{
+			return owned;
 		}
 	}
 
@@ -93,8 +120,8 @@ public final class CollectionListModel
 	{
 	}
 /**
-	 * Aggregates the player's owned cards into one {@link Row} per name/foil combination, applies
-	 * the pack-eligibility, rarity, and name filters, then sorts by {@code sortMode}. Safe to call off the EDT.
+	 * Builds filtered/sorted rows: owned name+foil keys and/or unowned catalog names per {@code ownedFilter}.
+	 * Pulled-at sorts force {@link OwnedFilter#OBTAINED}. Safe to call off the EDT.
 	 */
 	public static List<Row> buildRows(
 		CollectionState collection,
@@ -102,54 +129,98 @@ public final class CollectionListModel
 		Set<String> packEligibleNamesOrNull,
 		RarityMath.Tier rarityFilterOrNull,
 		String nameQueryOrNull,
-		SortMode sortMode)
+		SortMode sortMode,
+		OwnedFilter ownedFilter)
 	{
 		Map<CardCollectionKey, Long> maxPulledAt = new HashMap<>();
 		aggregateOwned(collection, maxPulledAt);
 
+		SortMode mode = sortMode == null ? SortMode.SCORE_DESC : sortMode;
+		OwnedFilter effective = mode == SortMode.PULLED_DESC || mode == SortMode.PULLED_ASC
+			? OwnedFilter.OBTAINED
+			: (ownedFilter == null ? OwnedFilter.OBTAINED : ownedFilter);
 		String query = nameQueryOrNull == null ? "" : nameQueryOrNull.trim().toLowerCase(Locale.ROOT);
 
-		List<Row> rows = new ArrayList<>(maxPulledAt.size());
-		for (Map.Entry<CardCollectionKey, Long> entry : maxPulledAt.entrySet())
+		Set<String> ownedNames = new HashSet<>();
+		for (CardCollectionKey key : maxPulledAt.keySet())
 		{
-			CardCollectionKey key = entry.getKey();
-			if (key == null)
+			if (key != null && key.getCardName() != null && !key.getCardName().isBlank())
 			{
-				continue;
+				ownedNames.add(key.getCardName().trim());
 			}
-			String name = key.getCardName();
-			if (name == null || name.isBlank())
-			{
-				continue;
-			}
-			String trimmed = name.trim();
-			if (packEligibleNamesOrNull != null && !packEligibleNamesOrNull.contains(trimmed))
-			{
-				continue;
-			}
-
-			CardDefinition def = cardsByLowerName == null
-				? null
-				: cardsByLowerName.get(trimmed.toLowerCase(Locale.ROOT));
-			RarityMath.Tier tier = def == null
-				? RarityMath.Tier.COMMON
-				: RarityMath.tierFromLabel(def.getTierLabel());
-			if (rarityFilterOrNull != null && tier != rarityFilterOrNull)
-			{
-				continue;
-			}
-			if (!query.isEmpty() && !nameMatchesQuery(trimmed, def, query))
-			{
-				continue;
-			}
-
-			long score = def == null ? 0L : def.displayScore(key.isFoil());
-			rows.add(new Row(trimmed, key.isFoil(), tier, score, entry.getValue()));
 		}
 
-		SortMode mode = sortMode == null ? SortMode.SCORE_DESC : sortMode;
+		List<Row> rows = new ArrayList<>();
+		if (effective != OwnedFilter.UNOBTAINED)
+		{
+			for (Map.Entry<CardCollectionKey, Long> entry : maxPulledAt.entrySet())
+			{
+				CardCollectionKey key = entry.getKey();
+				if (key == null || key.getCardName() == null || key.getCardName().isBlank())
+				{
+					continue;
+				}
+				String name = key.getCardName().trim();
+				CardDefinition def = cardsByLowerName == null
+					? null
+					: cardsByLowerName.get(name.toLowerCase(Locale.ROOT));
+				RarityMath.Tier tier = tierIfMatch(name, def, packEligibleNamesOrNull, rarityFilterOrNull, query);
+				if (tier == null)
+				{
+					continue;
+				}
+				long score = def == null ? 0L : def.displayScore(key.isFoil());
+				rows.add(new Row(name, key.isFoil(), tier, score, entry.getValue(), true));
+			}
+		}
+		if (effective != OwnedFilter.OBTAINED && cardsByLowerName != null)
+		{
+			for (CardDefinition def : cardsByLowerName.values())
+			{
+				if (def == null || def.getName() == null || def.getName().isBlank())
+				{
+					continue;
+				}
+				String name = def.getName().trim();
+				if (ownedNames.contains(name))
+				{
+					continue;
+				}
+				RarityMath.Tier tier = tierIfMatch(name, def, packEligibleNamesOrNull, rarityFilterOrNull, query);
+				if (tier != null)
+				{
+					rows.add(new Row(name, false, tier, def.displayScore(false), 0L, false));
+				}
+			}
+		}
+
 		rows.sort(comparatorFor(mode));
 		return rows;
+	}
+/** Returns tier when {@code name}/{@code def} pass pack, rarity, and search filters; otherwise null. */
+	private static RarityMath.Tier tierIfMatch(
+		String name,
+		CardDefinition def,
+		Set<String> packEligibleNamesOrNull,
+		RarityMath.Tier rarityFilterOrNull,
+		String queryLower)
+	{
+		if (packEligibleNamesOrNull != null && !packEligibleNamesOrNull.contains(name))
+		{
+			return null;
+		}
+		RarityMath.Tier tier = def == null
+			? RarityMath.Tier.COMMON
+			: RarityMath.tierFromLabel(def.getTierLabel());
+		if (rarityFilterOrNull != null && tier != rarityFilterOrNull)
+		{
+			return null;
+		}
+		if (!queryLower.isEmpty() && !nameMatchesQuery(name, def, queryLower))
+		{
+			return null;
+		}
+		return tier;
 	}
 /** Whether the card's key name or catalog display name contains {@code queryLower} (already lowercased). */
 	private static boolean nameMatchesQuery(String cardName, CardDefinition def, String queryLower)

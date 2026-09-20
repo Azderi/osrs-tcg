@@ -81,6 +81,7 @@ public final class CollectionTab
 	private String collectionPackFilterId;
 	private RarityMath.Tier collectionRarityFilter;
 	private CollectionListModel.SortMode collectionSortMode = CollectionListModel.SortMode.SCORE_DESC;
+	private CollectionListModel.OwnedFilter collectionOwnedFilter = CollectionListModel.OwnedFilter.OBTAINED;
 	private String collectionSearchQuery = "";
 /** Wires the collaborators and the pre-built Swing components this controller drives. */
 	public CollectionTab(
@@ -216,6 +217,7 @@ public final class CollectionTab
 		CollectionState collection = snap.collectionState;
 		RarityMath.Tier rarityFilter = collectionRarityFilter;
 		CollectionListModel.SortMode sortMode = collectionSortMode;
+		CollectionListModel.OwnedFilter ownedFilter = collectionOwnedFilter;
 		String searchQuery = collectionSearchQuery;
 		long gen = buildGen.incrementAndGet();
 
@@ -233,7 +235,8 @@ public final class CollectionTab
 					packEligible,
 					rarityFilter,
 					searchQuery,
-					sortMode);
+					sortMode,
+					ownedFilter);
 				SwingUtilities.invokeLater(() -> applyCollectionRows(gen, rows));
 			}
 			catch (Exception ex)
@@ -285,7 +288,7 @@ public final class CollectionTab
 		toolbar.setOpaque(false);
 		toolbar.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-		JPanel filters = new JPanel(new GridLayout(4, 1, 0, 4));
+		JPanel filters = new JPanel(new GridLayout(5, 1, 0, 4));
 		filters.setOpaque(false);
 
 		if (collectionSearchField.getParent() != null)
@@ -322,6 +325,14 @@ public final class CollectionTab
 			},
 			opt -> collectionRarityFilter = opt == null ? null : opt.getTier());
 		filters.add(labeledCollectionFilter("Rarity", rarityCombo));
+
+		DefaultComboBoxModel<CollectionListModel.OwnedFilter> ownedModel =
+			new DefaultComboBoxModel<>(CollectionListModel.OwnedFilter.values());
+		JComboBox<CollectionListModel.OwnedFilter> ownedCombo = styleCollectionCombo(new JComboBox<>(ownedModel));
+		ownedCombo.setSelectedItem(collectionOwnedFilter);
+		wireFilterCombo(ownedCombo, next -> next == null || next == collectionOwnedFilter,
+			next -> collectionOwnedFilter = next == null ? CollectionListModel.OwnedFilter.OBTAINED : next);
+		filters.add(labeledCollectionFilter("Show", ownedCombo));
 
 		DefaultComboBoxModel<CollectionListModel.SortMode> sortModel =
 			new DefaultComboBoxModel<>(CollectionListModel.SortMode.values());

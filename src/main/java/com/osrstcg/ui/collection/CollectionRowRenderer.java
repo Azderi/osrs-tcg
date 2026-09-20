@@ -56,7 +56,11 @@ public final class CollectionRowRenderer extends JPanel
 		else
 		{
 			name.setText(value.isFoil() ? value.getName() + " ★" : value.getName());
-			name.setForeground(value.getTier().getColor());
+			Color tier = value.getTier().getColor();
+			name.setForeground(value.isOwned()
+				? tier
+				: new Color(tier.getRed(), tier.getGreen(), tier.getBlue(), 102));
+			score.setForeground(value.isOwned() ? new Color(0xAAAAAA) : name.getForeground());
 			score.setText(NumberFormatting.formatCompact(value.getScore()));
 		}
 		setBackground(ColorScheme.DARKER_GRAY_COLOR);
