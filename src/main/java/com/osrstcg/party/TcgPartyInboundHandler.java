@@ -5,14 +5,13 @@ import com.osrstcg.catalog.CardDatabase;
 import com.osrstcg.ui.card.CardGrade;
 import com.osrstcg.util.TcgPluginGameMessages;
 import java.awt.Color;
-import java.util.Locale;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
 /**
- * Handles incoming party messages from other members (pulls, set completions) and turns them into
+ * Handles incoming party messages from other members (pulls) and turns them into
  * local chat announcements. Ignores messages that originated from the local player.
  */
 @Singleton
@@ -65,29 +64,6 @@ public class TcgPartyInboundHandler
 		String plain = TcgPluginGameMessages.plainSomeoneAddedCollection(
 			who, labeled, message.isNewForCollection(), false);
 		TcgPluginGameMessages.queueFormattedGameMessage(chatMessageManager, formatted, plain);
-	}
-/**
-	 * Chats a "so-and-so just finished X!" line for a party member's set completion. No-op if
-	 * party-announce is off, the message/collection name is blank, or the message came from the local player.
-	 */
-	public void onCollectionSetComplete(TcgCollectionSetCompletePartyMessage message)
-	{
-		if (!config.partyAnnouncePulls() || message == null)
-		{
-			return;
-		}
-		String collectionName = message.getCollectionName();
-		if (collectionName == null || collectionName.trim().isEmpty())
-		{
-			return;
-		}
-		if (isLocalMember(message.getMemberId()))
-		{
-			return;
-		}
-		String who = displayName(message.getMemberId());
-		TcgPluginGameMessages.queuePrefixedGameMessage(chatMessageManager,
-			String.format(Locale.US, "%s just finished %s!", who, collectionName.trim()));
 	}
 /** True if {@code memberId} is the local player's own party member id. */
 	private boolean isLocalMember(long memberId)

@@ -4,16 +4,12 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.osrstcg.catalog.BoosterPackDefinition;
-import com.osrstcg.catalog.CardDatabase;
-import com.osrstcg.catalog.CardDefinition;
 import com.osrstcg.state.CardCollectionKey;
 import com.osrstcg.state.CloudSidebarCollectionStats;
 import com.osrstcg.state.OwnedCardInstance;
 import com.osrstcg.state.PackCardResult;
 import com.osrstcg.state.PackOpenResult;
-import com.osrstcg.party.TcgPartyAnnouncer;
 import com.osrstcg.state.TcgStateService;
-import com.osrstcg.ui.shop.ShopProgress;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -49,9 +45,7 @@ public final class CloudPackService
 	private final TradeCloudService tradeCloud;
 	private final PackCatalogService packCatalog;
 	private final TcgStateService stateService;
-	private final CardDatabase cardDatabase;
 	private final Client client;
-	private final TcgPartyAnnouncer partyAnnouncer;
 /** Wires cloud/session/state collaborators used to buy and resolve a pack open. */
 	@Inject
 	CloudPackService(
@@ -61,9 +55,7 @@ public final class CloudPackService
 		TradeCloudService tradeCloud,
 		PackCatalogService packCatalog,
 		TcgStateService stateService,
-		CardDatabase cardDatabase,
-		Client client,
-		TcgPartyAnnouncer partyAnnouncer)
+		Client client)
 	{
 		this.api = api;
 		this.session = session;
@@ -71,9 +63,7 @@ public final class CloudPackService
 		this.tradeCloud = tradeCloud;
 		this.packCatalog = packCatalog;
 		this.stateService = stateService;
-		this.cardDatabase = cardDatabase;
 		this.client = client;
-		this.partyAnnouncer = partyAnnouncer;
 	}
 /**
 	 * Buys and opens {@code booster} via the cloud API. Makes a blocking network call - run off the client
@@ -224,18 +214,6 @@ public final class CloudPackService
 			}
 			CloudResponseSync.applyRevision(response, stateService, tradeCloud);
 			tradeCloud.requestForcedRefresh();
-
-			Map<CardCollectionKey, Integer> ownedAfter;
-			synchronized (stateService)
-			{
-				ownedAfter = new HashMap<>(stateService.getState().getCollectionState().getOwnedCards());
-			}
-			List<CardDefinition> allCards = cardDatabase.getCards();
-			for (String collection : ShopProgress.newlyCompletedCollections(
-				ownedBefore, ownedAfter, allCards, allCards, packCatalog.getVisibleBoosters()))
-			{
-				partyAnnouncer.announceSetComplete(collection);
-			}
 
 			boolean apex = JsonObjects.readBoolean(response, "apex");
 			String displayName = priced.getName() == null ? booster.getName() : priced.getName();

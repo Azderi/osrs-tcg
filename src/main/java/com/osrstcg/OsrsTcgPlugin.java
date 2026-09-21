@@ -24,7 +24,6 @@ import com.osrstcg.credit.CreditsRateTracker;
 import com.osrstcg.credit.GameMessageCreditTracker;
 import com.osrstcg.credit.NpcKillCreditTracker;
 import com.osrstcg.pack.PackRevealService;
-import com.osrstcg.party.TcgCollectionSetCompletePartyMessage;
 import com.osrstcg.party.TcgPartyInboundHandler;
 import com.osrstcg.party.TcgPullPartyMessage;
 import com.osrstcg.persist.TcgSaveTrigger;
@@ -223,7 +222,6 @@ public class OsrsTcgPlugin extends Plugin
 		eventBus.register(npcKillCreditTracker);
 		eventBus.register(gameMessageCreditTracker);
 		wsClient.registerMessage(TcgPullPartyMessage.class);
-		wsClient.registerMessage(TcgCollectionSetCompletePartyMessage.class);
 		chatCommandManager.registerCommandAsync(
 			TCG_PUBLIC_CHAT_COMMAND, this::lookupPublicStatsChatCommand);
 		tcgPanel.start();
@@ -279,7 +277,6 @@ public class OsrsTcgPlugin extends Plugin
 		eventBus.unregister(npcKillCreditTracker);
 		eventBus.unregister(gameMessageCreditTracker);
 		wsClient.unregisterMessage(TcgPullPartyMessage.class);
-		wsClient.unregisterMessage(TcgCollectionSetCompletePartyMessage.class);
 		chatCommandManager.unregisterCommand(TCG_PUBLIC_CHAT_COMMAND);
 		npcKillCreditTracker.shutdown();
 		overlayManager.remove(packRevealOverlay);
@@ -407,12 +404,6 @@ public class OsrsTcgPlugin extends Plugin
 	public void onTcgPullPartyMessage(TcgPullPartyMessage message)
 	{
 		tcgPartyInboundHandler.onPull(message);
-	}
-/** Handles an incoming party announcement that a member completed a collection set. */
-	@Subscribe
-	public void onTcgCollectionSetCompletePartyMessage(TcgCollectionSetCompletePartyMessage message)
-	{
-		tcgPartyInboundHandler.onCollectionSetComplete(message);
 	}
 
 	@Subscribe

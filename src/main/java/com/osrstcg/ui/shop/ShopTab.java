@@ -185,7 +185,7 @@ public final class ShopTab
 
 		if (rows == null || rows.isEmpty())
 		{
-			outer.add(infoPanel("No booster packs available."));
+			outer.add(infoPanel("No booster packs available. Try relogging."));
 			SidebarLayout.clampFixedWidth(outer, shopWidth.getAsInt());
 			return outer;
 		}
