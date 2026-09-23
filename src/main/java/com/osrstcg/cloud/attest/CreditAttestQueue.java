@@ -38,7 +38,7 @@ public final class CreditAttestQueue
 	private static final long DEFAULT_ATTEST_AFTER_MS = 60_000L;
 	private static final long LARGE_XP_SPIKE_DELTA = 50_000L;
 	private static final int ATTEST_RETRY_ATTEMPTS = 3;
-	private static final long ATTEST_RETRY_BACKOFF_MS = 750L;
+	private static final long ATTEST_RETRY_BACKOFF_MS = 10_000L;
 	final CloudSessionService session;
 	final TradeCloudService tradeCloud;
 	final TcgStateService stateService;
