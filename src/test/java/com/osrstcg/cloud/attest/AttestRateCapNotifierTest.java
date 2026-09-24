@@ -106,6 +106,14 @@ public class AttestRateCapNotifierTest
 		assertFalse(new DeadlineProbe(200L).isRateCapActive(201L));
 	}
 
+	@Test
+	public void enqueueOptimisticCreditsFrozenWhileRateCapActive()
+	{
+		assertEquals(0L, CreditAttestQueue.enqueueOptimisticCredits(250L, true));
+		assertEquals(250L, CreditAttestQueue.enqueueOptimisticCredits(250L, false));
+		assertEquals(0L, CreditAttestQueue.enqueueOptimisticCredits(0L, false));
+	}
+
 	/** Tiny stand-in for deadline comparisons without constructing the full queue. */
 	private static final class DeadlineProbe
 	{

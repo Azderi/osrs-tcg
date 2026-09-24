@@ -458,7 +458,7 @@ public class CreditAwardService
 	 */
 	private boolean applyXpGain(long xpGained, Skill skill)
 	{
-		if (xpGained <= 0L || skill == null || attestQueue.isRateCapActive())
+		if (xpGained <= 0L || skill == null)
 		{
 			return false;
 		}
@@ -686,10 +686,10 @@ public class CreditAwardService
 
 		return true;
 	}
-/** Cloud may collect attests and no server rate-cap pause is active. */
+/** Cloud may collect attests (optimistic credits may still be frozen by rate-cap). */
 	private boolean canGatherCreditEvents()
 	{
-		return session.canCollectAttests() && !attestQueue.isRateCapActive();
+		return session.canCollectAttests();
 	}
 /** Clears the uncredited XP pool, logging a debug message with {@code reason} if XP was actually lost. */
 	private void clearUncreditedXpPool(String reason)
