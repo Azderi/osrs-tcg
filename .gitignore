@@ -2,5 +2,4 @@
 build
 RuneLiteAPI
 bin/
-docs
 /*.log
