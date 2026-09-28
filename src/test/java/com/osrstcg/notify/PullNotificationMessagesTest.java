@@ -8,9 +8,12 @@ import org.junit.Test;
 
 import static com.osrstcg.notify.PullNotificationMessages.buildSummarySections;
 import static com.osrstcg.notify.PullNotificationMessages.hasEligiblePull;
+import static com.osrstcg.notify.PullNotificationMessages.highestTierPull;
 import static com.osrstcg.notify.PullNotificationMessages.packSummaryMessage;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 public class PullNotificationMessagesTest
@@ -70,6 +73,96 @@ public class PullNotificationMessagesTest
 			assertEquals("**[Goblin](" + PullNotificationMessages.inspectUrl("instance-789") + ")**",
 				PullNotificationMessages.summaryLine(pull, true));
 		}
+	}
+
+	@Test
+	public void summaryOrdersFoilsThenRegularCardsByTierThenGradeWithinEachSection()
+	{
+		List<PullNotificationMessages.PackPull> pulls = Arrays.asList(
+			pull("New regular mythic E", true, false, RarityMath.Tier.MYTHIC, 0.0),
+			pull("Duplicate regular rare S", false, false, RarityMath.Tier.RARE, 99.0),
+			pull("New foil common S", true, true, RarityMath.Tier.COMMON, 99.0),
+			pull("Duplicate foil common S", false, true, RarityMath.Tier.COMMON, 99.0),
+			pull("New regular common S", true, false, RarityMath.Tier.COMMON, 99.0),
+			pull("Duplicate regular godly E", false, false, RarityMath.Tier.GODLY, 0.0),
+			pull("New foil godly E", true, true, RarityMath.Tier.GODLY, 0.0),
+			pull("Duplicate foil mythic E", false, true, RarityMath.Tier.MYTHIC, 0.0),
+			pull("New foil godly A", true, true, RarityMath.Tier.GODLY, 80.0),
+			pull("Duplicate foil mythic A", false, true, RarityMath.Tier.MYTHIC, 80.0));
+
+		PullNotificationMessages.PackSummarySections sections = buildSummarySections(pulls, true);
+
+		assertEquals(Arrays.asList(
+			"New foil godly A (foil) - A (80.00)",
+			"New foil godly E (foil) - E (0.00)",
+			"New foil common S (foil) - S (99.00)",
+			"New regular mythic E - E (0.00)",
+			"New regular common S - S (99.00)"), sections.newCards);
+		assertEquals(Arrays.asList(
+			"Duplicate foil mythic A (foil) - A (80.00)",
+			"Duplicate foil mythic E (foil) - E (0.00)",
+			"Duplicate foil common S (foil) - S (99.00)",
+			"Duplicate regular godly E - E (0.00)",
+			"Duplicate regular rare S - S (99.00)"), sections.duplicates);
+	}
+
+	@Test
+	public void summaryOrderingUsesConditionForGradeTiesAndKeepsMissingValuesStable()
+	{
+		List<PullNotificationMessages.PackPull> pulls = Arrays.asList(
+			pull("First foil rare A", true, true, RarityMath.Tier.RARE, 80.0),
+			pull("First regular untiered invalid", true, false, null, Double.NaN),
+			pull("Second foil rare A", true, true, RarityMath.Tier.RARE, 90.0),
+			pull("Regular untiered S", true, false, null, 99.0),
+			pull("Second regular untiered invalid", true, false, null, null),
+			pull("Third regular untiered invalid", true, false, null, Double.POSITIVE_INFINITY),
+			pull("Foil untiered S", true, true, null, 99.0));
+
+		assertEquals(Arrays.asList(
+			"Second foil rare A (foil) - A (90.00)",
+			"First foil rare A (foil) - A (80.00)",
+			"Foil untiered S (foil) - S (99.00)",
+			"Regular untiered S - S (99.00)",
+			"First regular untiered invalid",
+			"Second regular untiered invalid",
+			"Third regular untiered invalid"), buildSummarySections(pulls, true).newCards);
+	}
+
+	@Test
+	public void thumbnailPrefersHighestTierFoilOverHigherTierRegularCard()
+	{
+		PullNotificationMessages.PackPull regular = pull(
+			"Godly regular", true, false, RarityMath.Tier.GODLY, 95.0);
+		PullNotificationMessages.PackPull lowerFoil = pull(
+			"Rare foil", true, true, RarityMath.Tier.RARE, 20.0);
+		PullNotificationMessages.PackPull higherFoil = pull(
+			"Legendary foil", true, true, RarityMath.Tier.LEGENDARY, 10.0);
+
+		assertSame(higherFoil, highestTierPull(Arrays.asList(regular, lowerFoil, higherFoil)));
+	}
+
+	@Test
+	public void thumbnailFallsBackToHighestTierRegularAndPreservesFirstTie()
+	{
+		PullNotificationMessages.PackPull firstMythic = pull(
+			"First mythic", true, false, RarityMath.Tier.MYTHIC, 10.0);
+		PullNotificationMessages.PackPull secondMythic = pull(
+			"Second mythic", true, false, RarityMath.Tier.MYTHIC, 99.0);
+
+		assertSame(firstMythic, highestTierPull(Arrays.asList(
+			pull("Rare", true, false, RarityMath.Tier.RARE, 99.0), firstMythic, secondMythic)));
+	}
+
+	@Test
+	public void thumbnailSelectionIsNullSafeAndKeepsUntieredFoilPreference()
+	{
+		PullNotificationMessages.PackPull untieredFoil = pull("Untiered foil", true, true, null, null);
+		assertNull(highestTierPull(null));
+		assertNull(highestTierPull(Arrays.asList(null, null)));
+		assertSame(untieredFoil, highestTierPull(Arrays.asList(
+			null,
+			pull("Godly regular", true, false, RarityMath.Tier.GODLY, 99.0),
+			untieredFoil)));
 	}
 
 	@Test
@@ -137,5 +230,18 @@ public class PullNotificationMessagesTest
 			null,
 			notificationEligible,
 			null);
+	}
+
+	private static PullNotificationMessages.PackPull pull(
+		String cardName, boolean newForCollection, boolean foil, RarityMath.Tier tier, Double condition)
+	{
+		return new PullNotificationMessages.PackPull(
+			cardName,
+			newForCollection,
+			foil,
+			tier,
+			null,
+			false,
+			condition);
 	}
 }
