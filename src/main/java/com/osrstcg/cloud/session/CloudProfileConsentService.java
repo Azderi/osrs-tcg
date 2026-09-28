@@ -8,6 +8,7 @@ import net.runelite.api.GameState;
 import net.runelite.client.chat.ChatMessageManager;
 import com.osrstcg.cloud.activity.ActivityConfigService;
 import com.osrstcg.cloud.api.CloudApiClient;
+import com.osrstcg.cloud.api.CloudApiException;
 import com.osrstcg.cloud.api.CloudConnectionState;
 import com.osrstcg.cloud.catalog.CardCatalogService;
 import com.osrstcg.cloud.catalog.PackCatalogService;
@@ -112,9 +113,21 @@ final class CloudProfileConsentService
 			}
 			if (tokens.hasRefreshToken())
 			{
-				api.applyTokenResponse(api.refresh(tokens.getRefreshToken(), profileHash), accountHash);
+				try
+				{
+					api.applyTokenResponse(api.refresh(tokens.getRefreshToken(), profileHash), accountHash);
+				}
+				catch (CloudApiException refreshEx)
+				{
+					if (!refreshEx.isStaleRefreshToken())
+					{
+						throw refreshEx;
+					}
+					log.info("Clearing stale cloud credentials during create profile ({})", refreshEx.getCode());
+					tokens.clear();
+				}
 			}
-			else
+			if (!tokens.hasRefreshToken())
 			{
 				session.pairSession(displayName, profileHash, accountHash);
 			}

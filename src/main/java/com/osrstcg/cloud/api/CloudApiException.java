@@ -72,7 +72,9 @@ public final class CloudApiException extends Exception
 /** True when the refresh token itself is invalid/stale, meaning stored credentials should be cleared. */
 	public boolean isStaleRefreshToken()
 	{
-		return "invalid_refresh_token".equals(code) || "profile_mismatch".equals(code);
+		return "invalid_refresh_token".equals(code)
+			|| "refresh_token_expired".equals(code)
+			|| "profile_mismatch".equals(code);
 	}
 /** True when the failure is due to the account not having enough credits, inferred from code or message. */
 	public boolean isInsufficientCredits()
