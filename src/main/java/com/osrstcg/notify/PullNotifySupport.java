@@ -190,6 +190,10 @@ public class PullNotifySupport
 /** Appends the public stats line to a notification message, separated by a blank line. */
 	public String messageWithStatsLine(String message)
 	{
+		if (!config.includeDinkCollectionSummary())
+		{
+			return message;
+		}
 		return message + "\n\n" + statsPlainLine();
 	}
 /** True if {@code tier} meets or exceeds {@code floor} (defaulting to MYTHIC, the strictest, when floor is unset). */
