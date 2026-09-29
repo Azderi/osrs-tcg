@@ -117,9 +117,9 @@ public final class PullNotificationMessages
 		return false;
 	}
 /**
-	 * Returns the highest-tier foil pull (used as the summary thumbnail), falling back to the
-	 * highest-tier regular pull. Ties preserve pack order; pulls without a tier rank last within
-	 * their foil/regular group. Null if there are no non-null pulls.
+	 * Returns the highest-tier notification-eligible foil pull (used as the summary thumbnail),
+	 * falling back to the highest-tier eligible regular pull. Ties preserve pack order; pulls
+	 * without a tier rank last within their foil/regular group. Null if there are no eligible pulls.
 	 */
 	public static PackPull highestTierPull(List<PackPull> pulls)
 	{
@@ -137,7 +137,7 @@ public final class PullNotificationMessages
 		PackPull best = null;
 		for (PackPull pull : pulls)
 		{
-			if (pull == null || pull.foil != foil)
+			if (pull == null || !pull.notificationEligible || pull.foil != foil)
 			{
 				continue;
 			}

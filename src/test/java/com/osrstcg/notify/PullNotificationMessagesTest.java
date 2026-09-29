@@ -132,11 +132,11 @@ public class PullNotificationMessagesTest
 	public void thumbnailPrefersHighestTierFoilOverHigherTierRegularCard()
 	{
 		PullNotificationMessages.PackPull regular = pull(
-			"Godly regular", true, false, RarityMath.Tier.GODLY, 95.0);
+			"Godly regular", true, false, RarityMath.Tier.GODLY, 95.0, true);
 		PullNotificationMessages.PackPull lowerFoil = pull(
-			"Rare foil", true, true, RarityMath.Tier.RARE, 20.0);
+			"Rare foil", true, true, RarityMath.Tier.RARE, 20.0, true);
 		PullNotificationMessages.PackPull higherFoil = pull(
-			"Legendary foil", true, true, RarityMath.Tier.LEGENDARY, 10.0);
+			"Legendary foil", true, true, RarityMath.Tier.LEGENDARY, 10.0, true);
 
 		assertSame(higherFoil, highestTierPull(Arrays.asList(regular, lowerFoil, higherFoil)));
 	}
@@ -145,23 +145,43 @@ public class PullNotificationMessagesTest
 	public void thumbnailFallsBackToHighestTierRegularAndPreservesFirstTie()
 	{
 		PullNotificationMessages.PackPull firstMythic = pull(
-			"First mythic", true, false, RarityMath.Tier.MYTHIC, 10.0);
+			"First mythic", true, false, RarityMath.Tier.MYTHIC, 10.0, true);
 		PullNotificationMessages.PackPull secondMythic = pull(
-			"Second mythic", true, false, RarityMath.Tier.MYTHIC, 99.0);
+			"Second mythic", true, false, RarityMath.Tier.MYTHIC, 99.0, true);
 
 		assertSame(firstMythic, highestTierPull(Arrays.asList(
-			pull("Rare", true, false, RarityMath.Tier.RARE, 99.0), firstMythic, secondMythic)));
+			pull("Rare", true, false, RarityMath.Tier.RARE, 99.0, true), firstMythic, secondMythic)));
+	}
+
+	@Test
+	public void thumbnailIgnoresHigherTierIneligiblePull()
+	{
+		PullNotificationMessages.PackPull godlyDuplicate = pull(
+			"Godly duplicate", false, false, RarityMath.Tier.GODLY, 99.0, false);
+		PullNotificationMessages.PackPull newMythic = pull(
+			"New mythic", true, false, RarityMath.Tier.MYTHIC, 50.0, true);
+
+		assertSame(newMythic, highestTierPull(Arrays.asList(godlyDuplicate, newMythic)));
+	}
+
+	@Test
+	public void thumbnailIsNullWhenNoPullIsNotificationEligible()
+	{
+		assertNull(highestTierPull(Arrays.asList(
+			pull("Godly duplicate", false, false, RarityMath.Tier.GODLY, 99.0, false),
+			pull("Rare duplicate", false, true, RarityMath.Tier.RARE, 80.0, false))));
 	}
 
 	@Test
 	public void thumbnailSelectionIsNullSafeAndKeepsUntieredFoilPreference()
 	{
-		PullNotificationMessages.PackPull untieredFoil = pull("Untiered foil", true, true, null, null);
+		PullNotificationMessages.PackPull untieredFoil = pull(
+			"Untiered foil", true, true, null, null, true);
 		assertNull(highestTierPull(null));
 		assertNull(highestTierPull(Arrays.asList(null, null)));
 		assertSame(untieredFoil, highestTierPull(Arrays.asList(
 			null,
-			pull("Godly regular", true, false, RarityMath.Tier.GODLY, 99.0),
+			pull("Godly regular", true, false, RarityMath.Tier.GODLY, 99.0, true),
 			untieredFoil)));
 	}
 
@@ -235,13 +255,20 @@ public class PullNotificationMessagesTest
 	private static PullNotificationMessages.PackPull pull(
 		String cardName, boolean newForCollection, boolean foil, RarityMath.Tier tier, Double condition)
 	{
+		return pull(cardName, newForCollection, foil, tier, condition, false);
+	}
+
+	private static PullNotificationMessages.PackPull pull(
+		String cardName, boolean newForCollection, boolean foil, RarityMath.Tier tier, Double condition,
+		boolean notificationEligible)
+	{
 		return new PullNotificationMessages.PackPull(
 			cardName,
 			newForCollection,
 			foil,
 			tier,
 			null,
-			false,
+			notificationEligible,
 			condition);
 	}
 }
