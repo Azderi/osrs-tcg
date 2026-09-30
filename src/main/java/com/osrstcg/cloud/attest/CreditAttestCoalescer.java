@@ -31,7 +31,7 @@ public final class CreditAttestCoalescer
 
 	public static final String CLIENT_OPTIMISTIC_CREDITS = "_optimisticCredits";
 	/** Must match {@code version} in build.gradle / runelite-plugin.properties. Sent on hiscores settle. */
-	public static final String PLUGIN_VERSION = "1.0.2";
+	public static final String PLUGIN_VERSION = "1.0.3";
 
 	private static final Set<String> COMBAT_SKILLS_BLOCK_XP = Set.of(
 		"ATTACK", "STRENGTH", "DEFENCE", "RANGED", "MAGIC");
