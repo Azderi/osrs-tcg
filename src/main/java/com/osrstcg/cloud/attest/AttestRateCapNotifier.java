@@ -117,14 +117,14 @@ public final class AttestRateCapNotifier
 		}
 		return reason.trim().toLowerCase(Locale.ROOT).startsWith(RATE_CAP_PREFIX);
 	}
-/**
+	/**
 	 * Builds the pause chat message for a positive {@code rateCapAfterMs}:
-	 * {@code Credit gains paused for X minutes.}
+	 * {@code Hourly cap reached. Credit gains paused for X minutes.}
 	 */
 	static String playerFacingRateCapPauseMessage(long rateCapAfterMs)
 	{
 		long minutes = rateCapPauseMinutes(rateCapAfterMs);
-		return "Credit gains paused for " + minutes + " minutes.";
+		return "Hourly cap reached. Credit gains paused for " + minutes + " minutes.";
 	}
 /** Ceil of {@code rateCapAfterMs} in whole minutes; at least 1 when {@code rateCapAfterMs > 0}. */
 	static long rateCapPauseMinutes(long rateCapAfterMs)
