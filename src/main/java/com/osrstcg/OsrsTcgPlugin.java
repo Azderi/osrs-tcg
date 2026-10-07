@@ -84,7 +84,7 @@ import net.runelite.client.util.Text;
 	name = "OSRS TCG",
 	description = "TCG-style card collecting plugin for Old School RuneScape",
 	tags = {"progression", "collection", "community", "card"},
-	conflicts = {"Prestige Mode", "Profit Tracker", "Prestige"}
+	conflicts = {"Prestige Mode", "Profit Tracker", "Prestige", "RSN Hider", "Custom RSN Hider"}
 )
 public class OsrsTcgPlugin extends Plugin
 {
