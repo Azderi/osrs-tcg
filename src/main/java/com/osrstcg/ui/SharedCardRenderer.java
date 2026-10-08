@@ -117,6 +117,20 @@ public final class SharedCardRenderer
 			g2.dispose();
 		}
 	}
+/** Resolves the art path to draw for a card: the foil variant when {@code foil} is set and one exists, otherwise the normal card image. */
+	public static String resolveArtPath(CardDefinition def, boolean foil)
+	{
+		if (def == null)
+		{
+			return null;
+		}
+		String foilPath = def.getFoilImagePath();
+		if (foil && foilPath != null && !foilPath.isBlank())
+		{
+			return foilPath;
+		}
+		return def.getImageUrl();
+	}
 /** Maps a rarity color back to its {@link RarityMath.Tier} label; falls back to Common if no tier matches. */
 	public static String tierLabelForRarityColor(Color color)
 	{
