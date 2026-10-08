@@ -745,7 +745,9 @@ public class PackRevealService
 			isFoilPull(card),
 			card.getTier(),
 			CardInfoTipModel.instanceIdFor(card),
-			card.getPull().getCondition())
+			card.getPull().getCondition(),
+			card.getPull().getScore(),
+			card.getPull().getPulledAtEpochMs())
 			&& absIndex < collectionChatPosted.length)
 		{
 			collectionChatPosted[absIndex] = true;

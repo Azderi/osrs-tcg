@@ -9,6 +9,7 @@ import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.events.PluginMessage;
 import com.osrstcg.catalog.RarityMath;
 import com.osrstcg.notify.PullNotifySupport.PackSummaryContent;
+import com.osrstcg.state.TcgPublicStats;
 /**
  * Forwards pull and pack-summary notifications to the Dink plugin via its {@link PluginMessage}
  * namespace, so Dink can relay them (e.g. to Discord) independently of this plugin's own webhook.
@@ -33,7 +34,7 @@ public class DinkNotificationService
 /** Posts a single-card pull notification to Dink, with card/rarity metadata attached. No-op for a blank card name. */
 	public void notifyPackPull(
 		String cardName, boolean newForCollection, boolean foil, RarityMath.Tier tier, String instanceId,
-		Double condition)
+		Double condition, long score, Long pulledAtEpochMs)
 	{
 		if (PullNotificationMessages.isBlank(cardName))
 		{
@@ -41,40 +42,58 @@ public class DinkNotificationService
 		}
 		PullNotifySupport.PullCardContent content = pullNotifySupport.pullCardContent(
 			cardName, newForCollection, foil, instanceId, DINK_USERNAME, condition);
+		TcgPublicStats stats = pullNotifySupport.currentStats();
+		Map<String, Object> metadata = pullMetadata(cardName.trim(), foil, newForCollection, tier, score, pulledAtEpochMs, content);
+		metadata.put("collectionStats", PullNotifySupport.collectionStatsSummary(stats));
 		postNotify(
-			pullNotifySupport.messageWithStatsLine(content.description),
+			pullNotifySupport.messageWithStatsLine(content.description, stats),
 			content.imageUrl,
-			pullMetadata(cardName.trim(), foil, newForCollection, tier, content.imageUrl, content.inspectUrl));
+			metadata);
 	}
 /** Posts an end-of-pack summary notification (new cards / duplicates) to Dink. */
 	void notifyPackSummary(PackSummaryContent content)
 	{
+		TcgPublicStats stats = pullNotifySupport.currentStats();
 		Map<String, Object> metadata = new HashMap<>();
 		metadata.put("notificationType", "packSummary");
-		metadata.put("newCards", content.sections.newCards);
-		metadata.put("duplicates", content.sections.duplicates);
+		metadata.put("newCards", content.newCardDetails);
+		metadata.put("duplicates", content.duplicateDetails);
+		metadata.put("collectionStats", PullNotifySupport.collectionStatsSummary(stats));
 		postNotify(
-			pullNotifySupport.messageWithStatsLine(content.messageFor(DINK_USERNAME)),
+			pullNotifySupport.messageWithStatsLine(content.messageFor(DINK_USERNAME), stats),
 			content.imageUrl,
 			metadata);
 	}
-/** Builds the Dink metadata map for a single card pull (name, foil, new-for-collection, tier, image/inspect links). */
+/** Builds the Dink metadata map for a single card pull (name, foil, tier, score, catalog tags, links, pull time). */
 	private static Map<String, Object> pullMetadata(
 		String cardName, boolean foil, boolean newForCollection, RarityMath.Tier tier,
-		String imageUrl, String inspectUrl)
+		long score, Long pulledAtEpochMs, PullNotifySupport.PullCardContent content)
 	{
 		Map<String, Object> metadata = new HashMap<>();
 		metadata.put("cardName", cardName);
 		metadata.put("foil", foil);
 		metadata.put("newForCollection", newForCollection);
 		metadata.put("rarityTier", tier == null ? "" : tier.getLabel());
-		if (!imageUrl.isEmpty())
+		metadata.put("score", score);
+		metadata.put("category", content.category);
+		metadata.put("regions", content.regions);
+		if (content.condition != null)
 		{
-			metadata.put("imageUrl", imageUrl);
+			metadata.put("condition", content.condition);
+			metadata.put("conditionGrade", content.conditionGrade);
 		}
-		if (!inspectUrl.isEmpty())
+		if (!content.imageUrl.isEmpty())
 		{
-			metadata.put("inspectUrl", inspectUrl);
+			metadata.put("imageUrl", content.imageUrl);
+		}
+		if (!content.inspectUrl.isEmpty())
+		{
+			metadata.put("inspectUrl", content.inspectUrl);
+		}
+		String pulledAt = PullNotificationMessages.pulledAtIso(pulledAtEpochMs);
+		if (pulledAt != null)
+		{
+			metadata.put("pulledAt", pulledAt);
 		}
 		return metadata;
 	}

@@ -1,8 +1,10 @@
 package com.osrstcg.notify;
 
+import com.osrstcg.catalog.CardDefinition;
 import com.osrstcg.catalog.RarityMath;
 import com.osrstcg.cloud.api.CloudEndpoints;
 import com.osrstcg.ui.card.CardGrade;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -27,7 +29,9 @@ public final class PullNotificationMessages
 		public final String instanceId;
 		public final boolean notificationEligible;
 		public final Double condition;
-/** Stores the pull's display/rarity data and notification eligibility verbatim. */
+		public final long score;
+		public final Long pulledAtEpochMs;
+/** Stores the pull's display/rarity data and notification eligibility verbatim; score defaults to 0 and pulledAtEpochMs to null. */
 		public PackPull(
 			String cardName,
 			boolean newForCollection,
@@ -37,6 +41,20 @@ public final class PullNotificationMessages
 			boolean notificationEligible,
 			Double condition)
 		{
+			this(cardName, newForCollection, foil, tier, instanceId, notificationEligible, condition, 0L, null);
+		}
+/** Stores the pull's display/rarity data, notification eligibility, rarity score, and pull timestamp verbatim. */
+		public PackPull(
+			String cardName,
+			boolean newForCollection,
+			boolean foil,
+			RarityMath.Tier tier,
+			String instanceId,
+			boolean notificationEligible,
+			Double condition,
+			long score,
+			Long pulledAtEpochMs)
+		{
 			this.cardName = cardName;
 			this.newForCollection = newForCollection;
 			this.foil = foil;
@@ -44,6 +62,8 @@ public final class PullNotificationMessages
 			this.instanceId = instanceId;
 			this.notificationEligible = notificationEligible;
 			this.condition = condition;
+			this.score = score;
+			this.pulledAtEpochMs = pulledAtEpochMs;
 		}
 	}
 /** A pack's pulls split into new-cards and duplicates summary lines, ordered by rarity. */
@@ -164,9 +184,7 @@ public final class PullNotificationMessages
 		{
 			return new PackSummarySections(newCards, duplicates);
 		}
-		List<PackPull> sorted = new ArrayList<>(pulls);
-		sorted.sort(Comparator.comparingInt(PullNotificationMessages::tierRank).reversed());
-		for (PackPull pull : sorted)
+		for (PackPull pull : sortedForSummary(pulls))
 		{
 			if (pull == null || pull.cardName == null || pull.cardName.trim().isEmpty())
 			{
@@ -175,6 +193,13 @@ public final class PullNotificationMessages
 			(pull.newForCollection ? newCards : duplicates).add(summaryLine(pull, showGradeAndCondition));
 		}
 		return new PackSummarySections(newCards, duplicates);
+	}
+/** Sorts pulls by rarity tier, highest first, for consistent summary ordering (text and structured metadata alike). */
+	public static List<PackPull> sortedForSummary(List<PackPull> pulls)
+	{
+		List<PackPull> sorted = new ArrayList<>(pulls == null ? List.of() : pulls);
+		sorted.sort(Comparator.comparingInt(PullNotificationMessages::tierRank).reversed());
+		return sorted;
 	}
 /** Builds the "X opened a booster pack!" message with New cards / Duplicates sections appended. */
 	public static String packSummaryMessage(String opener, PackSummarySections sections)
@@ -186,6 +211,21 @@ public final class PullNotificationMessages
 			appendCardSection(message, "Duplicates", sections.duplicates);
 		}
 		return message.toString();
+	}
+/** {@code definition}'s category tags as a defensive copy, or an empty list if {@code definition} is null. */
+	public static List<String> categoryTagsOrEmpty(CardDefinition definition)
+	{
+		return definition == null ? List.of() : List.copyOf(definition.getCategoryTags());
+	}
+/** {@code definition}'s region tags as a defensive copy, or an empty list if {@code definition} is null. */
+	public static List<String> regionTagsOrEmpty(CardDefinition definition)
+	{
+		return definition == null ? List.of() : List.copyOf(definition.getRegionTags());
+	}
+/** Formats an epoch-millis pull timestamp as ISO-8601 UTC, or null if {@code epochMs} is null. */
+	public static String pulledAtIso(Long epochMs)
+	{
+		return epochMs == null ? null : Instant.ofEpochMilli(epochMs).toString();
 	}
 /** Sort key for a pull by rarity tier ordinal; -1 (lowest) when the pull or tier is missing. */
 	private static int tierRank(PackPull pull)
