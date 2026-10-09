@@ -73,7 +73,8 @@ public final class CardEntrySerializer
 		List<OwnedCardInstance> sorted = new ArrayList<>();
 		for (OwnedCardInstance inst : instances)
 		{
-			if (inst == null || inst.getCardName() == null || inst.getCardName().trim().isEmpty())
+			if (inst == null || inst.isTemp()
+				|| inst.getCardName() == null || inst.getCardName().trim().isEmpty())
 			{
 				continue;
 			}

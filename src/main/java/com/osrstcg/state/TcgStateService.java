@@ -3,6 +3,7 @@ package com.osrstcg.state;
 import com.osrstcg.persist.TcgSaveTrigger;
 import com.osrstcg.persist.TcgStateStore;
 import com.osrstcg.util.PackRevealZoomUtil;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import javax.inject.Inject;
@@ -286,6 +287,17 @@ public class TcgStateService
 		String hash = cloudCollectionHash;
 		return hash == null ? "" : hash;
 	}
+/** Adopts server collectionHash into memory-only cache (case-insensitive no-op if unchanged). */
+	public synchronized void adoptCloudCollectionHash(String collectionHash)
+	{
+		String next = collectionHash == null ? "" : collectionHash.trim();
+		String cur = cloudCollectionHash == null ? "" : cloudCollectionHash;
+		if (cur.equalsIgnoreCase(next))
+		{
+			return;
+		}
+		cloudCollectionHash = next;
+	}
 /** Returns the cached cloud sidebar collection stats, or null if none cached. */
 	public CloudSidebarCollectionStats getCloudCollectionStats()
 	{
@@ -364,6 +376,32 @@ public class TcgStateService
 			return;
 		}
 		state = state.withCollection(state.getCollectionState().withInstancesAdded(instances));
+		notifyCollectionMutated();
+	}
+/** Drops pack-open temp instances; no-op when none. */
+	public synchronized void clearTempOwnedInstances()
+	{
+		CollectionState next = state.getCollectionState().withoutTemps();
+		if (next == state.getCollectionState())
+		{
+			return;
+		}
+		state = state.withCollection(next);
+		notifyCollectionMutated();
+	}
+/** Removes owned instances by id; no-op when none match. */
+	public synchronized void removeOwnedCardInstances(Collection<String> instanceIds)
+	{
+		if (instanceIds == null || instanceIds.isEmpty())
+		{
+			return;
+		}
+		CollectionState next = state.getCollectionState().withInstancesRemoved(instanceIds);
+		if (next == state.getCollectionState())
+		{
+			return;
+		}
+		state = state.withCollection(next);
 		notifyCollectionMutated();
 	}
 }

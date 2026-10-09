@@ -22,7 +22,6 @@ import net.runelite.api.Client;
 import net.runelite.client.util.Text;
 import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.CloudApiException;
-import com.osrstcg.cloud.api.CloudResponseSync;
 import com.osrstcg.cloud.api.JsonObjects;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
 import com.osrstcg.cloud.catalog.PackCatalogService;
@@ -194,7 +193,8 @@ public final class CloudPackService
 						normalized.getCardName(),
 						normalized.isFoil(),
 						pulledBy,
-						pulledAt));
+						pulledAt,
+						true));
 					pulls.add(normalized);
 				}
 			}
@@ -212,7 +212,6 @@ public final class CloudPackService
 			{
 				stateService.replaceCollectionStatsCache(optimistic);
 			}
-			CloudResponseSync.applyRevision(response, stateService, tradeCloud);
 			tradeCloud.requestForcedRefresh();
 
 			boolean apex = JsonObjects.readBoolean(response, "apex");

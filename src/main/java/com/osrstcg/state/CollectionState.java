@@ -1,11 +1,14 @@
 package com.osrstcg.state;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 /**
  * Immutable snapshot of a player's owned card collection: the per-copy instance list plus a
  * precomputed name+foil quantity aggregate. Every mutation method returns a new instance.
@@ -88,6 +91,48 @@ public final class CollectionState
 			nextOwned.merge(new CardCollectionKey(i.getCardName(), i.isFoil()), 1, Integer::sum);
 		}
 		return new CollectionState(next, nextOwned);
+	}
+/** Drops instances whose ids are in {@code instanceIds}; returns {@code this} if unchanged. */
+	public CollectionState withInstancesRemoved(Collection<String> instanceIds)
+	{
+		if (instanceIds == null || instanceIds.isEmpty() || instances.isEmpty())
+		{
+			return this;
+		}
+		Set<String> remove = new HashSet<>();
+		for (String id : instanceIds)
+		{
+			if (id != null && !id.isBlank())
+			{
+				remove.add(id.trim());
+			}
+		}
+		if (remove.isEmpty())
+		{
+			return this;
+		}
+		List<OwnedCardInstance> next = new ArrayList<>(instances.size());
+		for (OwnedCardInstance i : instances)
+		{
+			if (i != null && !remove.contains(i.getInstanceId()))
+			{
+				next.add(i);
+			}
+		}
+		return next.size() == instances.size() ? this : new CollectionState(next);
+	}
+/** Drops pack-open temp rows; returns {@code this} if none. */
+	public CollectionState withoutTemps()
+	{
+		List<OwnedCardInstance> next = new ArrayList<>(instances.size());
+		for (OwnedCardInstance i : instances)
+		{
+			if (i != null && !i.isTemp())
+			{
+				next.add(i);
+			}
+		}
+		return next.size() == instances.size() ? this : new CollectionState(next);
 	}
 /** Counts instances per {@link CardCollectionKey}, skipping null entries. */
 	private static Map<CardCollectionKey, Integer> aggregateQuantities(List<OwnedCardInstance> list)

@@ -247,6 +247,11 @@ public final class CloudApiClient
 		}
 		return requestAuthed("GET", path.toString(), null);
 	}
+/** {@code GET /me/collection/changes?sinceRevision=}. */
+	public JsonObject getCollectionChanges(long sinceRevision) throws CloudApiException, IOException
+	{
+		return requestAuthed("GET", "/me/collection/changes?sinceRevision=" + Math.max(0L, sinceRevision), null);
+	}
 /** {@code POST /credits/attest}. Blocking call. */
 	public JsonObject attest(JsonObject body) throws CloudApiException, IOException
 	{

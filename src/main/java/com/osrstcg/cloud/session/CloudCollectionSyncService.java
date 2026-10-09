@@ -12,10 +12,8 @@ import com.osrstcg.cloud.api.CloudApiClient;
 import com.osrstcg.cloud.api.JsonObjects;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
 /**
- * Pulls cloud economy/collection state and reconciles it into local {@link TcgStateService}.
- * Compares local vs server revisions and collection hashes to decide whether a full {@code /me/cards}
- * pull is needed. Blocking: the {@code refresh*}/{@code reconcile*} methods issue synchronous HTTP
- * calls and must not run on the client/EDT thread.
+ * Reconciles cloud collection into {@link TcgStateService}. Prefers collection/changes ops;
+ * full /me/cards pull on needsFullReload. Blocking — not for client/EDT thread.
  */
 @Slf4j
 final class CloudCollectionSyncService
@@ -84,10 +82,10 @@ final class CloudCollectionSyncService
 		}
 	}
 /**
-	 * Reacts to a push/inbox stats update: logs (does not itself resolve) a mismatch between server
-	 * and locally-computed sidebar counts, then delegates to {@link #reconcileCollectionWithCloud}
-	 * to pull a fresh collection if needed. No-op while cloud consent is pending, or if {@code stats}
-	 * is null. Reconcile failures are swallowed and logged at debug level.
+	 * Reacts to a push/inbox stats update: logs a mismatch between server and locally-computed
+	 * sidebar counts, then reconciles (count mismatch forces a full pull). No-op while cloud
+	 * consent is pending, or if {@code stats} is null. Reconcile failures are swallowed and logged
+	 * at debug level.
 	 */
 	void reconcileCollectionFromInbox(JsonObject stats)
 	{
@@ -97,36 +95,11 @@ final class CloudCollectionSyncService
 		}
 		try
 		{
-			CloudPlayerStateParser.SyncMarkers serverMarkers = CloudPlayerStateParser.readSyncMarkers(stats);
-			long localRevision = stateService.getState().getCloudRevision();
-			if (CloudSidebarCollectionStats.hasCollectionFields(stats))
-			{
-				CloudSidebarCollectionStats server = CloudSidebarCollectionStats.fromStatsJson(stats);
-				CloudSidebarCollectionStats local = publicStatsCalculator.computeLocalSidebarStats();
-				if (!CloudSidebarCollectionStats.countsAgree(server, local))
-				{
-					String localCollHash = stateService.getCloudCollectionHash();
-					String serverCollHash = serverMarkers.collectionHash;
-					boolean collectionChanged =
-						(!serverCollHash.isEmpty() && !serverCollHash.equalsIgnoreCase(localCollHash))
-						|| (serverCollHash.isEmpty() && localRevision < serverMarkers.revision);
-					if (collectionChanged)
-					{
-						log.info("coll mismatch srv={} loc={} - pull",
-							server.getUniqueOwned(), local.getUniqueOwned());
-					}
-					else
-					{
-						log.debug("coll mismatch hash ok srv={} loc={} - skip pull",
-							server.getUniqueOwned(), local.getUniqueOwned());
-					}
-				}
-			}
 			reconcileCollectionWithCloud(stats);
 		}
 		catch (Exception e)
 		{
-			log.debug("Collection reconcile from inbox failed", e);
+			log.debug("coll inbox", e);
 		}
 	}
 /**
@@ -171,13 +144,7 @@ final class CloudCollectionSyncService
 		applySidebarStats(stats);
 		reconcileCollectionWithCloud(stats);
 	}
-/**
-	 * Compares local sync markers against {@code stats} and, if the collection hash differs (or the
-	 * legacy revision is behind with no hash to compare), pulls the full player state and cards from
-	 * {@code /me/state} via {@link CloudCollectionPager} and replaces local collection/economy state.
-	 * If unchanged but the revision/hash advanced, only updates the local sync markers. No-op while
-	 * cloud consent is pending.
-	 */
+/** Sync via changes ops when membership drifts; full pull on needsFullReload/failure. */
 	void reconcileCollectionWithCloud(JsonObject stats) throws Exception
 	{
 		if (session.needsCloudConsent())
@@ -191,11 +158,21 @@ final class CloudCollectionSyncService
 		String localHash = local.getCloudStateHash();
 		String localCollHash = stateService.getCloudCollectionHash();
 		String serverCollHash = server.collectionHash;
-		boolean collectionChanged = (!serverCollHash.isEmpty() && !serverCollHash.equalsIgnoreCase(localCollHash))
-			|| (serverCollHash.isEmpty() && server.revision > localRevision);
+		boolean collectionChanged = needsCollectionSync(
+			localRevision, localCollHash, server.revision, serverCollHash);
 
+		if (!collectionChanged && sidebarCountsDisagree(stats))
+		{
+			log.info("coll mismatch full");
+			pullFullCollectionFromCloud();
+			return;
+		}
 		if (!collectionChanged)
 		{
+			if (!serverCollHash.isEmpty() && !serverCollHash.equalsIgnoreCase(localCollHash))
+			{
+				stateService.adoptCloudCollectionHash(serverCollHash);
+			}
 			if (server.revision > localRevision
 				|| (!server.stateHash.isEmpty() && !server.stateHash.equalsIgnoreCase(localHash)))
 			{
@@ -203,23 +180,72 @@ final class CloudCollectionSyncService
 			}
 			return;
 		}
-
-		String reason = (serverCollHash.isEmpty() && server.revision > localRevision) ? "rev behind"
-			: "coll hash mismatch";
-		log.info("coll sync ({}; loc={} srv={})",
-			reason, localCollHash, serverCollHash);
-
-		JsonObject stateJson = api.getState();
-		CloudPlayerStateParser.ParsedCloudPlayerState parsed = pager.loadCloudPlayerStateWithCards(stateJson);
-		if (!parsed.migrated)
+		log.info("coll sync");
+		if (!tryApplyCollectionChanges(localRevision))
 		{
-			if (!tokens.isMigrated())
-			{
-				log.info("not migrated yet; skip coll pull");
-				return;
-			}
+			pullFullCollectionFromCloud();
 		}
-		else
+	}
+
+	private boolean sidebarCountsDisagree(JsonObject stats)
+	{
+		if (!CloudSidebarCollectionStats.hasCollectionFields(stats))
+		{
+			return false;
+		}
+		return !CloudSidebarCollectionStats.countsAgree(
+			CloudSidebarCollectionStats.fromStatsJson(stats),
+			publicStatsCalculator.computeLocalSidebarStats());
+	}
+
+	/** True when ops applied and markers updated; false → full-pull. */
+	private boolean tryApplyCollectionChanges(long sinceRevision)
+	{
+		try
+		{
+			JsonObject changes = api.getCollectionChanges(sinceRevision);
+			if (changes == null || JsonObjects.readBoolean(changes, "needsFullReload"))
+			{
+				return false;
+			}
+			Double revNum = JsonObjects.readNumber(changes, "revision");
+			long revision = revNum == null ? sinceRevision : Math.max(0L, Math.round(revNum));
+			long localNow = stateService.getState().getCloudRevision();
+			if (!isChangesRevisionAcceptable(localNow, revision))
+			{
+				return false;
+			}
+			if (!CloudCollectionOpsApplier.applyOps(changes.get("ops"), stateService)
+				|| !isChangesRevisionAcceptable(stateService.getState().getCloudRevision(), revision))
+			{
+				return false;
+			}
+			stateService.clearTempOwnedInstances();
+			String stateHash = JsonObjects.text(changes, "stateHash");
+			stateService.applyCloudSyncMarkers(revision, stateHash == null ? "" : stateHash);
+			String collectionHash = JsonObjects.text(changes, "collectionHash");
+			if (collectionHash != null && !collectionHash.isBlank())
+			{
+				stateService.adoptCloudCollectionHash(collectionHash);
+			}
+			if (changes.has("stats") && changes.get("stats").isJsonObject())
+			{
+				applySidebarStats(changes.getAsJsonObject("stats"));
+			}
+			return true;
+		}
+		catch (Exception e)
+		{
+			log.debug("coll changes", e);
+			return false;
+		}
+	}
+
+	private void pullFullCollectionFromCloud() throws Exception
+	{
+		CloudPlayerStateParser.ParsedCloudPlayerState parsed =
+			pager.loadCloudPlayerStateWithCards(api.getState());
+		if (parsed.migrated)
 		{
 			tokens.setMigrated(true);
 		}
@@ -236,12 +262,36 @@ final class CloudCollectionSyncService
 		{
 			session.applyAccountStatus(parsed.accountStatus);
 		}
-		log.info("synced coll rev={} cards={} migrated={}",
-			parsed.revision, parsed.cards.size(), parsed.migrated);
+		log.info("coll full {}", parsed.revision);
 	}
 /** Delegates to {@link CloudCollectionPager#loadCloudPlayerStateWithCards}. */
 	CloudPlayerStateParser.ParsedCloudPlayerState loadCloudPlayerStateWithCards(JsonObject stateJson) throws Exception
 	{
 		return pager.loadCloudPlayerStateWithCards(stateJson);
+	}
+/** True when collection should sync (ops or full pull). Equal rev skips; else hash or legacy rev. */
+	static boolean needsCollectionSync(
+		long localRevision,
+		String localCollectionHash,
+		long serverRevision,
+		String serverCollectionHash)
+	{
+		if (localRevision == serverRevision)
+		{
+			return false;
+		}
+		String localHash = localCollectionHash == null ? "" : localCollectionHash.trim();
+		String serverHash = serverCollectionHash == null ? "" : serverCollectionHash.trim();
+		if (!serverHash.isEmpty())
+		{
+			return !serverHash.equalsIgnoreCase(localHash);
+		}
+		return serverRevision > localRevision;
+	}
+
+	/** False when changes rev is strictly behind local (pack-open race). */
+	static boolean isChangesRevisionAcceptable(long localRevision, long changesRevision)
+	{
+		return changesRevision >= localRevision;
 	}
 }
