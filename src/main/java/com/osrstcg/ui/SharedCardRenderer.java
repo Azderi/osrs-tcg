@@ -465,7 +465,7 @@ public final class SharedCardRenderer
 /** Draws the banded layout's art band: the card's art image fit-centered, or a loading/placeholder message if art isn't loaded. */
 	private static void drawArt(Graphics2D g2, Geometry geo, CardFaceDrawRequest req)
 	{
-		Rectangle inner = inset(geo.art, geo.artPad);
+		Rectangle inner = ImageLayout.inset(geo.art, geo.artPad);
 		BufferedImage art = req.getArt();
 		if (art != null)
 		{
@@ -612,11 +612,6 @@ public final class SharedCardRenderer
 	{
 		return Math.max(2, (int) Math.round(outerRadius(width) * 2.0d));
 	}
-/** Shrinks a rectangle by {@code pad} on all sides, clamping width/height to at least 1. */
-	private static Rectangle inset(Rectangle r, int pad)
-	{
-		return new Rectangle(r.x + pad, r.y + pad, Math.max(1, r.width - pad * 2), Math.max(1, r.height - pad * 2));
-	}
 /**
 	 * Binary-searches the largest title em size (down to {@link #BANDED_TITLE_EM_MIN}) that fits
 	 * {@code title} within {@code maxWidth} at the banded layout's title font.
@@ -652,22 +647,16 @@ public final class SharedCardRenderer
 /** Draws {@code image} scaled to fit entirely within {@code rect} (letterboxed), centered, clipped to the rect. */
 	private static void drawFitCentered(Graphics2D g2, BufferedImage image, Rectangle rect)
 	{
-		int sourceWidth = image.getWidth();
-		int sourceHeight = image.getHeight();
-		if (sourceWidth <= 0 || sourceHeight <= 0)
+		if (image.getWidth() <= 0 || image.getHeight() <= 0)
 		{
 			return;
 		}
-		double ratio = Math.min((double) rect.width / sourceWidth, (double) rect.height / sourceHeight);
-		int w = Math.max(1, (int) Math.round(sourceWidth * ratio));
-		int h = Math.max(1, (int) Math.round(sourceHeight * ratio));
-		int x = rect.x + (rect.width - w) / 2;
-		int y = rect.y + (rect.height - h) / 2;
+		Rectangle fitted = ImageLayout.fitCenteredRect(rect, image);
 		Shape clip = g2.getClip();
 		try
 		{
 			g2.clip(rect);
-			g2.drawImage(image, x, y, w, h, null);
+			g2.drawImage(image, fitted.x, fitted.y, fitted.width, fitted.height, null);
 		}
 		finally
 		{

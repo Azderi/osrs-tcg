@@ -1,5 +1,6 @@
 package com.osrstcg.overlay;
 
+import com.osrstcg.ui.ImageLayout;
 import com.osrstcg.ui.SharedCardRenderer;
 import com.osrstcg.ui.card.CardColorMath;
 import java.awt.AlphaComposite;
@@ -169,9 +170,7 @@ final class PackRevealDrawUtil
 		{
 			return new Rectangle(r);
 		}
-		int nw = Math.max(1, r.width - 2 * inset);
-		int nh = Math.max(1, r.height - 2 * inset);
-		return new Rectangle(r.x + inset, r.y + inset, nw, nh);
+		return ImageLayout.inset(r, inset);
 	}
 /** Draws a soft glow around {@code r} using the default expand/layer settings and the card's outer arc. */
 	static void drawGlow(Graphics2D g, Rectangle r, Color color, float alpha)
@@ -255,30 +254,10 @@ final class PackRevealDrawUtil
 	{
 		return CardColorMath.withAlpha(color == null ? Color.WHITE : color, alpha);
 	}
-/** Returns the largest rect that fits {@code image} inside {@code bounds} preserving aspect ratio, centered. */
-	static Rectangle fittedImageRect(Rectangle bounds, BufferedImage image)
-	{
-		if (image == null)
-		{
-			return new Rectangle(bounds);
-		}
-		int sw = image.getWidth();
-		int sh = image.getHeight();
-		if (sw <= 0 || sh <= 0)
-		{
-			return new Rectangle(bounds);
-		}
-		double ratio = Math.min((double) bounds.width / (double) sw, (double) bounds.height / (double) sh);
-		int w = Math.max(1, (int) Math.round(sw * ratio));
-		int h = Math.max(1, (int) Math.round(sh * ratio));
-		int x = bounds.x + (bounds.width - w) / 2;
-		int y = bounds.y + (bounds.height - h) / 2;
-		return new Rectangle(x, y, w, h);
-	}
 /** Draws {@code image} scaled to fit within {@code bounds} preserving aspect ratio, centered. */
 	static void drawImageFit(Graphics2D g, BufferedImage image, Rectangle bounds)
 	{
-		Rectangle r = fittedImageRect(bounds, image);
+		Rectangle r = ImageLayout.fitCenteredRect(bounds, image);
 		g.drawImage(image, r.x, r.y, r.width, r.height, null);
 	}
 /** Draws a centered "NEW!" badge with a drop shadow above {@code cardBounds}. */

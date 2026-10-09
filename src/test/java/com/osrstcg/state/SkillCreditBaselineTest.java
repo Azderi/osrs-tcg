@@ -8,7 +8,6 @@ import com.google.gson.Gson;
 import com.osrstcg.persist.TcgStateCodec;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import net.runelite.api.Skill;
 import org.junit.Test;
 
 public class SkillCreditBaselineTest
@@ -25,8 +24,8 @@ public class SkillCreditBaselineTest
 		SkillCreditBaseline baseline = SkillCreditBaseline.of(skillXp, uncredited);
 
 		assertTrue(baseline.isPresent());
-		assertEquals(450L, baseline.uncreditedXpFor(Skill.WOODCUTTING).orElse(-1L));
-		assertFalse(baseline.uncreditedXpFor(Skill.MINING).isPresent());
+		assertEquals(Long.valueOf(450L), baseline.getUncreditedXpBySkill().get("Woodcutting"));
+		assertFalse(baseline.getUncreditedXpBySkill().containsKey("Mining"));
 		assertEquals(1, baseline.getUncreditedXpBySkill().size());
 	}
 
@@ -66,7 +65,7 @@ public class SkillCreditBaselineTest
 		TcgState loaded = codec.fromJson(codec.toJson(state));
 
 		SkillCreditBaseline restored = loaded.getSkillCreditBaseline();
-		assertEquals(450L, restored.uncreditedXpFor(Skill.WOODCUTTING).orElse(-1L));
-		assertEquals(820L, restored.uncreditedXpFor(Skill.MINING).orElse(-1L));
+		assertEquals(Long.valueOf(450L), restored.getUncreditedXpBySkill().get("Woodcutting"));
+		assertEquals(Long.valueOf(820L), restored.getUncreditedXpBySkill().get("Mining"));
 	}
 }

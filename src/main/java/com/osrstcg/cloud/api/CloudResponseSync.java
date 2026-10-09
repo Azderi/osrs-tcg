@@ -2,29 +2,16 @@ package com.osrstcg.cloud.api;
 
 import com.google.gson.JsonObject;
 import com.osrstcg.cloud.trade.TradeCloudService;
-import com.osrstcg.state.TcgStateService;
 import java.util.function.Consumer;
-/** Applies the {@code revision}/{@code stateHash} fields present on many cloud API responses to local sync state. */
+/** Applies economy/revision fields from cloud API responses to local sync collaborators. */
 public final class CloudResponseSync
 {
 	private CloudResponseSync()
 	{
 	}
-/** No-op when {@code response} lacks a {@code revision} field; otherwise records it on both services. */
-	public static void applyRevision(JsonObject response, TcgStateService stateService, TradeCloudService tradeCloud)
-	{
-		if (response == null || !response.has("revision") || response.get("revision").isJsonNull())
-		{
-			return;
-		}
-		long revision = response.get("revision").getAsLong();
-		String stateHash = JsonObjects.text(response, "stateHash");
-		stateService.applyCloudSyncMarkers(revision, stateHash == null ? "" : stateHash);
-		tradeCloud.noteRevision(revision);
-	}
 /**
 	 * Applies sidebar economy fields when present, then notes {@code revision} on {@code tradeCloud}
-	 * only (no {@code stateHash} write — unlike {@link #applyRevision}).
+	 * only (no {@code stateHash} write).
 	 *
 	 * @return true if economy fields were applied
 	 */

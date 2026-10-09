@@ -110,16 +110,6 @@ public class TcgStateService
 		}
 		state = state.withSkillCreditBaseline(next);
 	}
-/** Stamps the profile-saved timestamp and delegates an incremental checkpoint save to the store. */
-	public synchronized boolean saveCheckpoint(TcgSaveTrigger trigger)
-	{
-		if (stateStore == null)
-		{
-			return false;
-		}
-		state = state.withProfileSavedAtUnix(TcgState.currentUnixSeconds());
-		return stateStore.saveCheckpoint(state, trigger == null ? TcgSaveTrigger.MANUAL : trigger);
-	}
 /** Stamps the profile-saved timestamp and delegates a full checkpoint save to the store. */
 	public synchronized boolean saveFullCheckpoint(TcgSaveTrigger trigger)
 	{

@@ -264,11 +264,6 @@ final class CloudCollectionSyncService
 		}
 		log.info("coll full {}", parsed.revision);
 	}
-/** Delegates to {@link CloudCollectionPager#loadCloudPlayerStateWithCards}. */
-	CloudPlayerStateParser.ParsedCloudPlayerState loadCloudPlayerStateWithCards(JsonObject stateJson) throws Exception
-	{
-		return pager.loadCloudPlayerStateWithCards(stateJson);
-	}
 /** True when collection should sync (ops or full pull). Equal rev skips; else hash or legacy rev. */
 	static boolean needsCollectionSync(
 		long localRevision,

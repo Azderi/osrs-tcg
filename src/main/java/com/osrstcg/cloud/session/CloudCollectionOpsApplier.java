@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import com.osrstcg.cloud.api.JsonObjects;
 import com.osrstcg.state.OwnedCardInstance;
 import com.osrstcg.state.TcgStateService;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -16,7 +17,10 @@ final class CloudCollectionOpsApplier
 	{
 	}
 
-	/** False if empty/incomplete/unknown, or only non-objects. lock-only succeeds. */
+	/**
+	 * False if empty/incomplete/unknown, or only non-objects. lock-only succeeds.
+	 * Validates the full batch before mutating so a late failure leaves state unchanged.
+	 */
 	static boolean applyOps(JsonElement opsEl, TcgStateService stateService)
 	{
 		if (opsEl == null || !opsEl.isJsonArray() || stateService == null)
@@ -28,6 +32,7 @@ final class CloudCollectionOpsApplier
 		{
 			return false;
 		}
+		List<PlannedOp> planned = new ArrayList<>();
 		int seen = 0;
 		for (JsonElement el : ops)
 		{
@@ -53,7 +58,7 @@ final class CloudCollectionOpsApplier
 				{
 					return false;
 				}
-				stateService.removeOwnedCardInstances(Collections.singleton(id));
+				planned.add(PlannedOp.remove(id));
 				continue;
 			}
 			if (!"add".equals(kind) && !"create".equals(kind))
@@ -81,10 +86,51 @@ final class CloudCollectionOpsApplier
 				return false;
 			}
 			OwnedCardInstance c = parsed.get(0);
-			stateService.removeOwnedCardInstances(Collections.singleton(id));
-			stateService.addOwnedCardInstances(List.of(new OwnedCardInstance(
+			planned.add(PlannedOp.add(new OwnedCardInstance(
 				id, c.getCardName(), c.isFoil(), c.getPulledByUsername(), c.getPulledAtEpochMs())));
 		}
-		return seen > 0;
+		if (seen == 0)
+		{
+			return false;
+		}
+		for (PlannedOp plannedOp : planned)
+		{
+			plannedOp.apply(stateService);
+		}
+		return true;
+	}
+
+	private static final class PlannedOp
+	{
+		private final String removeId;
+		private final OwnedCardInstance add;
+
+		private PlannedOp(String removeId, OwnedCardInstance add)
+		{
+			this.removeId = removeId;
+			this.add = add;
+		}
+
+		static PlannedOp remove(String id)
+		{
+			return new PlannedOp(id, null);
+		}
+
+		static PlannedOp add(OwnedCardInstance instance)
+		{
+			return new PlannedOp(instance.getInstanceId(), instance);
+		}
+
+		void apply(TcgStateService stateService)
+		{
+			if (removeId != null)
+			{
+				stateService.removeOwnedCardInstances(Collections.singleton(removeId));
+			}
+			if (add != null)
+			{
+				stateService.addOwnedCardInstances(List.of(add));
+			}
+		}
 	}
 }

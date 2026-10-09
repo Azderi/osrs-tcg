@@ -130,7 +130,7 @@ public final class CloudSessionService
 			collectionSync::applySidebarStats, hiscoresSettledThisLogin, hiscoresRetryScheduled,
 			this::needsCloudConsent, this::isAccountLocked, stateService::isDebugChatEnabled);
 		this.profileConsent = new CloudProfileConsentService(
-			this, collectionSync, client, api, tokens, profileKeyHasher, stateService,
+			this, collectionSync, collectionPager, client, api, tokens, profileKeyHasher, stateService,
 			chatMessageManager, packCatalogService, cardCatalogService, activityConfigService);
 		api.setStaleRefreshHandler(this::handleStaleRefresh);
 		api.setAccountLockHandler(this::noteLockFromApiException);

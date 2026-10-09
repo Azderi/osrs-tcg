@@ -6,7 +6,6 @@ import com.osrstcg.cloud.session.CloudSessionService;
 import com.osrstcg.cloud.attest.CreditAttestCoalescer;
 import com.osrstcg.cloud.attest.CreditAttestQueue;
 import com.osrstcg.state.SkillCreditBaseline;
-import com.osrstcg.util.NumberFormatting;
 import com.osrstcg.util.TcgPluginGameMessages;
 import java.util.EnumSet;
 import java.util.Map;

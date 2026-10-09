@@ -38,22 +38,17 @@ public class TcgStateStore
 		}
 		return fileBackupStore.loadMaster();
 	}
-/** Saves {@code state}, defaulting a null {@code trigger} to {@link TcgSaveTrigger#LOGOUT}. */
+/** Saves {@code state}. {@code trigger} is retained for call-site documentation only. */
 	public boolean saveFullCheckpoint(TcgState state, TcgSaveTrigger trigger)
 	{
-		return writeMaster(state, trigger == null ? TcgSaveTrigger.LOGOUT : trigger);
-	}
-/** Saves {@code state}, defaulting a null {@code trigger} to {@link TcgSaveTrigger#MANUAL}. */
-	public boolean saveCheckpoint(TcgState state, TcgSaveTrigger trigger)
-	{
-		return writeMaster(state, trigger == null ? TcgSaveTrigger.MANUAL : trigger);
+		return writeMaster(state);
 	}
 /**
 	 * Encodes {@code state} to JSON then to the on-disk storage format and hands it to the file backup
 	 * store to write. Fails (without touching disk) if {@code state} is null, there is no backup store,
 	 * or encoding produces an empty payload.
 	 */
-	private boolean writeMaster(TcgState state, TcgSaveTrigger trigger)
+	private boolean writeMaster(TcgState state)
 	{
 		if (state == null || fileBackupStore == null)
 		{

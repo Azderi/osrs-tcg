@@ -25,6 +25,7 @@ final class CloudProfileConsentService
 {
 	private final CloudSessionService session;
 	private final CloudCollectionSyncService collectionSync;
+	private final CloudCollectionPager collectionPager;
 	private final Client client;
 	private final CloudApiClient api;
 	private final CloudTokenStore tokens;
@@ -38,6 +39,7 @@ final class CloudProfileConsentService
 	CloudProfileConsentService(
 		CloudSessionService session,
 		CloudCollectionSyncService collectionSync,
+		CloudCollectionPager collectionPager,
 		Client client,
 		CloudApiClient api,
 		CloudTokenStore tokens,
@@ -50,6 +52,7 @@ final class CloudProfileConsentService
 	{
 		this.session = session;
 		this.collectionSync = collectionSync;
+		this.collectionPager = collectionPager;
 		this.client = client;
 		this.api = api;
 		this.tokens = tokens;
@@ -190,7 +193,7 @@ final class CloudProfileConsentService
 
 		JsonObject stateJson = api.getState();
 		CloudPlayerStateParser.ParsedCloudPlayerState parsed =
-			collectionSync.loadCloudPlayerStateWithCards(stateJson);
+			collectionPager.loadCloudPlayerStateWithCards(stateJson);
 		boolean serverMigrated = (parsed.migratedAt != null && !parsed.migratedAt.isBlank())
 			|| !parsed.cards.isEmpty();
 		if (!serverMigrated)

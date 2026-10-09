@@ -7,7 +7,5 @@ public enum TcgSaveTrigger
 /** Client is shutting down. */
 	CLIENT_SHUTDOWN,
 /** Plugin was disabled/unloaded. */
-	PLUGIN_UNLOAD,
-/** Explicit save not tied to a lifecycle event. */
-	MANUAL
+	PLUGIN_UNLOAD
 }

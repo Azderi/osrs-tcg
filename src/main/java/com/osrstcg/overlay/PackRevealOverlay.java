@@ -11,6 +11,7 @@ import com.osrstcg.pack.PackRevealService;
 import com.osrstcg.catalog.RarityMath;
 import com.osrstcg.state.TcgStateService;
 import com.osrstcg.catalog.CardImageCacheService;
+import com.osrstcg.ui.ImageLayout;
 import com.osrstcg.ui.SharedCardRenderer;
 import com.osrstcg.ui.card.CardColorMath;
 import com.osrstcg.ui.card.CardFaceDrawRequest;
@@ -253,7 +254,7 @@ public class PackRevealOverlay extends Overlay
 				{
 					float glowAlpha = (float) (HOVER_RARITY_GLOW_ALPHA * Math.max(0.22d, packHoverLift));
 					Rectangle packGlowRect = PackRevealDrawUtil.uniformInset(
-						PackRevealDrawUtil.fittedImageRect(packScaled, packArtForPackId(snap.getBoosterPackId())),
+						ImageLayout.fitCenteredRect(packScaled, packArtForPackId(snap.getBoosterPackId())),
 						PACK_SEALED_GLOW_INSET);
 					PackRevealDrawUtil.drawGlow(graphics, packGlowRect, RarityMath.Tier.GODLY.getColor(), glowAlpha);
 				}

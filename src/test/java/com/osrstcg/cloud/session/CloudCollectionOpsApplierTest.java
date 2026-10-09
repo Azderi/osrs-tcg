@@ -131,6 +131,19 @@ public class CloudCollectionOpsApplierTest
 		assertEquals(1, stateService.getState().getCollectionState().getOwnedInstances().size());
 	}
 
+	@Test
+	public void lateValidationFailureLeavesStateUnchanged()
+	{
+		JsonArray ops = new JsonArray();
+		ops.add(op("sold", "id-a", null));
+		ops.add(op("add", "id-c", null));
+		assertFalse(CloudCollectionOpsApplier.applyOps(ops, stateService));
+		List<OwnedCardInstance> owned = stateService.getState().getCollectionState().getOwnedInstances();
+		assertEquals(2, owned.size());
+		assertEquals("id-a", owned.get(0).getInstanceId());
+		assertEquals("id-b", owned.get(1).getInstanceId());
+	}
+
 	private static JsonObject op(String kind, String instanceId, JsonObject card)
 	{
 		JsonObject o = new JsonObject();

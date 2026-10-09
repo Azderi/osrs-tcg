@@ -89,8 +89,8 @@ public class SkillCreditSessionTest
 
 		SkillCreditBaseline baseline = session.toBaseline();
 		assertTrue(baseline.isPresent());
-		assertEquals(450L, baseline.uncreditedXpFor(Skill.WOODCUTTING).orElse(-1L));
-		assertEquals(820L, baseline.uncreditedXpFor(Skill.FISHING).orElse(-1L));
+		assertEquals(Long.valueOf(450L), baseline.getUncreditedXpBySkill().get("Woodcutting"));
+		assertEquals(Long.valueOf(820L), baseline.getUncreditedXpBySkill().get("Fishing"));
 
 		SkillCreditSession restored = new SkillCreditSession();
 		restored.restoreUncreditedXp(baseline);

@@ -4,7 +4,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.OptionalLong;
 import net.runelite.api.Skill;
 /**
  * Immutable snapshot of a player's per-skill XP totals (and any not-yet-credited XP remainder per skill)
@@ -128,16 +127,6 @@ public final class SkillCreditBaseline
 	public Map<String, Integer> getSkillXpByName()
 	{
 		return skillXpByName;
-	}
-/** Returns the uncredited XP remainder for a skill, or empty when this baseline isn't present or the skill is unknown. */
-	public OptionalLong uncreditedXpFor(Skill skill)
-	{
-		if (kind != Kind.PRESENT || skill == null || skill.getName() == null)
-		{
-			return OptionalLong.empty();
-		}
-		Long remainder = uncreditedXpBySkill.get(skill.getName());
-		return remainder == null ? OptionalLong.empty() : OptionalLong.of(remainder);
 	}
 /** Equal when kind and both maps match. */
 	@Override
