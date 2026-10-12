@@ -34,7 +34,7 @@ final class CreditAttestPoster
 	 *
 	 * @return true if applying the response changed local credits or the trade revision
 	 */
-	boolean postAttestBatch(List<JsonObject> batch, long boundHash, String displayName) throws Exception
+	boolean postAttestBatch(List<JsonObject> batch, long boundHash, String displayName, String flushReason) throws Exception
 	{
 		assertPostIdentity(boundHash, queue.liveAccountHash(), queue.session.tokensBoundTo(boundHash));
 		String idempotencyKey = UUID.randomUUID().toString();
@@ -53,6 +53,10 @@ final class CreditAttestPoster
 			events.add(CreditAttestCoalescer.forWire(e));
 		}
 		body.add("events", events);
+		if (flushReason != null && !flushReason.isEmpty())
+		{
+			body.addProperty("flushReason", flushReason);
+		}
 
 		queue.debugCreditAttestSend(batch, batchOptimisticEstimate);
 

@@ -217,7 +217,7 @@ public class CloudSessionCoordinator
 			cloudSessionService.disconnectQuietly();
 			return;
 		}
-		creditAttestQueue.flushBlocking();
+		creditAttestQueue.flushBlocking("teardown");
 		creditAttestQueue.clearAccountIdentity();
 		cloudSessionService.forgetInMemoryAccountIdentity();
 		creditAttestQueue.stop();
@@ -400,7 +400,7 @@ public class CloudSessionCoordinator
 		{
 			if (!cloudSessionService.isAccountLocked())
 			{
-				creditAttestQueue.flushBlocking();
+				creditAttestQueue.flushBlocking("teardown");
 			}
 		}
 		catch (Exception e)

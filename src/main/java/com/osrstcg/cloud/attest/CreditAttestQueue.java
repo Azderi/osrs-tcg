@@ -85,7 +85,7 @@ public final class CreditAttestQueue
 		this.poster = new CreditAttestPoster(this, api, rejectRequeuer);
 		this.attestScheduler = new CreditAttestScheduler(
 			scheduler, running, lastGoodAttestAfterMs, earlyFlushScheduled, DEFAULT_ATTEST_AFTER_MS,
-			() -> flushSafe(false), running::get);
+			() -> flushSafe(false, null), running::get);
 	}
 /** Registers a callback invoked whenever attest processing changes credits/pending totals; replaces any prior listener. */
 	public void setEconomyListener(Runnable listener)
@@ -273,7 +273,7 @@ public final class CreditAttestQueue
 /** Schedules an immediate, non-blocking flush on the executor. */
 	public void flushNow()
 	{
-		scheduler.execute(() -> flushSafe(false));
+		scheduler.execute(() -> flushSafe(false, null));
 	}
 /**
 	 * Runs a teardown flush synchronously on the calling thread (used on shutdown/logout). Must not be
@@ -283,7 +283,15 @@ public final class CreditAttestQueue
 	 */
 	public boolean flushBlocking()
 	{
-		return flushSafe(true);
+		return flushBlocking(null);
+	}
+/**
+	 * Same as {@link #flushBlocking()} but includes {@code flushReason} on the attest body when non-null
+	 * (e.g. {@code "teardown"} or {@code "pack"}).
+	 */
+	public boolean flushBlocking(String flushReason)
+	{
+		return flushSafe(true, flushReason);
 	}
 /**
 	 * Reads the current account hash from the client, caching it. On account change, clears in-memory
@@ -356,11 +364,11 @@ public final class CreditAttestQueue
 		}
 	}
 /** Runs {@link #flush} and swallows/logs any exception so scheduler callbacks never throw. */
-	private boolean flushSafe(boolean teardown)
+	private boolean flushSafe(boolean teardown, String flushReason)
 	{
 		try
 		{
-			return flush(teardown);
+			return flush(teardown, flushReason);
 		}
 		catch (CloudApiException e)
 		{
@@ -381,9 +389,10 @@ public final class CreditAttestQueue
 	 * exception propagates.
 	 *
 	 * @param teardown true for a shutdown flush, which uses a looser readiness check than a normal flush
+	 * @param flushReason optional top-level body field; omitted when null/empty
 	 * @return true if any posted batch changed local credits or the trade revision
 	 */
-	private boolean flush(boolean teardown) throws Exception
+	private boolean flush(boolean teardown, String flushReason) throws Exception
 	{
 		if (teardown)
 		{
@@ -454,7 +463,8 @@ public final class CreditAttestQueue
 					long started = System.currentTimeMillis();
 					try
 					{
-						boolean batchChanged = poster.postAttestBatch(batch, boundHash, displayNameSnapshot);
+						boolean batchChanged = poster.postAttestBatch(
+							batch, boundHash, displayNameSnapshot, flushReason);
 						consecutiveRetryFailures.set(0);
 						changed |= batchChanged;
 						log.debug("Credit attest OK: events={} durationMs={}",

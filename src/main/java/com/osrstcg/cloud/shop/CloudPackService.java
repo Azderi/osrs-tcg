@@ -107,7 +107,7 @@ public final class CloudPackService
 
 			if (stateService.getAuthoritativeCredits() < price)
 			{
-				attestQueue.flushBlocking();
+				attestQueue.flushBlocking("pack");
 			}
 
 			long displayCredits = stateService.getCredits();
