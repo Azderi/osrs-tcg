@@ -46,7 +46,7 @@ public final class PullNotificationMessages
 			this.condition = condition;
 		}
 	}
-/** A pack's pulls split into new-cards and duplicates summary lines, ordered by rarity. */
+/** A pack's pulls split into new-cards and duplicates summary lines, ordered by foil status, tier, grade, and condition. */
 	public static final class PackSummarySections
 	{
 		public final List<String> newCards;
@@ -117,8 +117,9 @@ public final class PullNotificationMessages
 		return false;
 	}
 /**
-	 * Returns the pull with the highest rarity tier (used as the summary thumbnail), or the first
-	 * pull if none have a tier. Null if the list is empty.
+	 * Returns the highest-tier notification-eligible foil pull (used as the summary thumbnail),
+	 * falling back to the highest-tier eligible regular pull. Ties preserve pack order; pulls
+	 * without a tier rank last within their foil/regular group. Null if there are no eligible pulls.
 	 */
 	public static PackPull highestTierPull(List<PackPull> pulls)
 	{
@@ -126,19 +127,26 @@ public final class PullNotificationMessages
 		{
 			return null;
 		}
+		PackPull bestFoil = highestTierPull(pulls, true);
+		return bestFoil == null ? highestTierPull(pulls, false) : bestFoil;
+	}
+
+/** Returns the highest-tier pull matching {@code foil}, retaining the first pull when tiers tie or are absent. */
+	private static PackPull highestTierPull(List<PackPull> pulls, boolean foil)
+	{
 		PackPull best = null;
 		for (PackPull pull : pulls)
 		{
-			if (pull == null || pull.tier == null)
+			if (pull == null || !pull.notificationEligible || pull.foil != foil)
 			{
 				continue;
 			}
-			if (best == null || pull.tier.ordinal() > best.tier.ordinal())
+			if (best == null || tierRank(pull) > tierRank(best))
 			{
 				best = pull;
 			}
 		}
-		return best == null ? pulls.get(0) : best;
+		return best;
 	}
 /** Renders a summary title with optional grade/condition, preserving its link and eligibility emphasis. */
 	public static String summaryLine(PackPull pull, boolean showGradeAndCondition)
@@ -155,7 +163,12 @@ public final class PullNotificationMessages
 		}
 		return displayName + CardGrade.gradeConditionSuffix(showGradeAndCondition ? pull.condition : null);
 	}
-/** Splits and sorts summary lines, applying the grade/condition display setting to every card. */
+/**
+ * Splits and sorts summary lines, putting foils before regular cards and ordering each group by
+ * rarity tier (GODLY through COMMON), grade (S through E), then numeric condition (highest first).
+ * Missing tiers, grades, and conditions rank last for their respective key; complete ties preserve
+ * pack order.
+ */
 	public static PackSummarySections buildSummarySections(List<PackPull> pulls, boolean showGradeAndCondition)
 	{
 		List<String> newCards = new ArrayList<>();
@@ -165,7 +178,11 @@ public final class PullNotificationMessages
 			return new PackSummarySections(newCards, duplicates);
 		}
 		List<PackPull> sorted = new ArrayList<>(pulls);
-		sorted.sort(Comparator.comparingInt(PullNotificationMessages::tierRank).reversed());
+		sorted.sort(Comparator
+			.comparing((PackPull pull) -> pull != null && pull.foil).reversed()
+			.thenComparing(Comparator.comparingInt(PullNotificationMessages::tierRank).reversed())
+			.thenComparingInt(PullNotificationMessages::gradeRank)
+			.thenComparing(PullNotificationMessages::compareConditionDescending));
 		for (PackPull pull : sorted)
 		{
 			if (pull == null || pull.cardName == null || pull.cardName.trim().isEmpty())
@@ -191,6 +208,30 @@ public final class PullNotificationMessages
 	private static int tierRank(PackPull pull)
 	{
 		return pull == null || pull.tier == null ? -1 : pull.tier.ordinal();
+	}
+/** Sort key for a pull by card grade (S through E); missing or invalid conditions sort last. */
+	private static int gradeRank(PackPull pull)
+	{
+		CardGrade grade = pull == null ? null : CardGrade.gradeFromCondition(pull.condition);
+		return grade == null ? Integer.MAX_VALUE : grade.ordinal();
+	}
+/** Compares valid numeric conditions highest-first; missing, NaN, and infinite values sort last. */
+	private static int compareConditionDescending(PackPull left, PackPull right)
+	{
+		Double leftCondition = left == null ? null : left.condition;
+		Double rightCondition = right == null ? null : right.condition;
+		boolean leftValid = isValidCondition(leftCondition);
+		boolean rightValid = isValidCondition(rightCondition);
+		if (leftValid != rightValid)
+		{
+			return leftValid ? -1 : 1;
+		}
+		return leftValid ? Double.compare(rightCondition, leftCondition) : 0;
+	}
+/** True when a condition is present and finite. */
+	private static boolean isValidCondition(Double condition)
+	{
+		return condition != null && !condition.isNaN() && !condition.isInfinite();
 	}
 /** Appends a "**heading**" section with a bulleted line per card, skipping blank entries; no-op if the list is empty. */
 	private static void appendCardSection(StringBuilder message, String heading, List<String> cards)
