@@ -319,6 +319,18 @@ public interface OsrsTcgConfig extends Config
 	{
 		return false;
 	}
+/** Whether Dink pull notifications include the player's collection statistics summary. */
+	@ConfigItem(
+		keyName = "includeDinkCollectionSummary",
+		name = "Include collection summary",
+		description = "Append collection stats to Dink notifications.",
+		section = pullNotificationsSection,
+		position = 10
+	)
+	default boolean includeDinkCollectionSummary()
+	{
+		return true;
+	}
 
 	@ConfigSection(
 		name = "Debug",
