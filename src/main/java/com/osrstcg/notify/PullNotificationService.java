@@ -58,7 +58,7 @@ public class PullNotificationService
 	 */
 	public boolean notifyPull(
 		String cardName, boolean newForCollection, boolean foil, RarityMath.Tier tier, String instanceId,
-		Double condition)
+		Double condition, long score, Long pulledAtEpochMs)
 	{
 		if (PullNotificationMessages.isBlank(cardName) || !pullNotifySupport.shouldNotify(tier, foil, newForCollection))
 		{
@@ -72,7 +72,8 @@ public class PullNotificationService
 			externalNotifyService.sendWebhook(trimmed, newForCollection, foil, tier, instanceId, condition);
 			if (config.dinkNotifications())
 			{
-				dinkNotificationService.notifyPackPull(trimmed, newForCollection, foil, tier, instanceId, condition);
+				dinkNotificationService.notifyPackPull(
+					trimmed, newForCollection, foil, tier, instanceId, condition, score, pulledAtEpochMs);
 			}
 		}
 		return config.partyAnnouncePulls();
